@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type ThematicTerritory =
@@ -61,20 +61,16 @@ export default function CollectorPage() {
     recognition.interimResults = true
     recognition.lang = 'en-US'
 
-    let interimTranscript = ''
-
     recognition.onstart = () => {
       setIsRecording(true)
     }
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      interimTranscript = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
+    recognition.onresult = (event: Event) => {
+      const speechEvent = event as unknown as { resultIndex: number; results: Array<Array<{ transcript: string; isFinal: boolean }>> }
+      for (let i = speechEvent.resultIndex; i < speechEvent.results.length; i++) {
+        const transcript = speechEvent.results[i][0].transcript
+        if (speechEvent.results[i][0].isFinal) {
           setTranscript((prev) => prev + transcript + ' ')
-        } else {
-          interimTranscript += transcript
         }
       }
     }
