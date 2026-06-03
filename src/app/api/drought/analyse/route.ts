@@ -1,0 +1,164 @@
+import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+interface CheckIn {
+  raw_entry: string;
+  energy: "low" | "medium" | "high";
+  inner_weather: string;
+  creative_readiness: boolean;
+  arc_texture: "Breakaway" | "Beginning" | "Expansion" | "Integration";
+  created_at: string;
+}
+
+interface AnalysisResponse {
+  observation: string | null;
+  pattern_type?: "energy" | "arc" | "creative";
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<AnalysisResponse>> {
+  try {
+    // Get authenticated user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch (error) {
+              console.error("Error setting cookies:", error);
+            }
+          },
+        },
+      }
+    );
+
+    const { data: userData, error: authError } = await supabase.auth.getUser();
+    if (authError || !userData.user) {
+      return NextResponse.json({ observation: null }, { status: 401 });
+    }
+
+    const userId = userData.user.id;
+
+    // Query last 7 days of check-ins
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data: checkIns, error: queryError } = await supabase
+      .from("check_ins")
+      .select("raw_entry, energy, inner_weather, creative_readiness, arc_texture, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", sevenDaysAgo.toISOString())
+      .order("created_at", { ascending: true });
+
+    if (queryError || !checkIns || checkIns.length === 0) {
+      return NextResponse.json({ observation: null });
+    }
+
+    // Build pattern summary for Claude
+    const energyDistribution = {
+      low: (checkIns as CheckIn[]).filter((c) => c.energy === "low").length,
+      medium: (checkIns as CheckIn[]).filter((c) => c.energy === "medium").length,
+      high: (checkIns as CheckIn[]).filter((c) => c.energy === "high").length,
+    };
+
+    const arcDistribution = (checkIns as CheckIn[]).reduce(
+      (acc, c) => {
+        acc[c.arc_texture] = (acc[c.arc_texture] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    const creativeReadinessCount = (checkIns as CheckIn[]).filter((c) => c.creative_readiness).length;
+
+    const innerWeatherThemes = (checkIns as CheckIn[])
+      .map((c) => c.inner_weather)
+      .filter((w) => w);
+
+    const checkInsSummary = (checkIns as CheckIn[])
+      .map(
+        (c) =>
+          `[${new Date(c.created_at).toLocaleDateString()}] Energy: ${c.energy}, Weather: ${c.inner_weather}, Creative: ${c.creative_readiness ? "yes" : "no"}, Arc: ${c.arc_texture}`
+      )
+      .join("\n");
+
+    // Initialize Anthropic client
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+
+    // Call Claude for pattern analysis
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 500,
+      system: `You are a wise companion noticing subtle patterns in someone's inner life. You analyze check-in data to surface meaningful observations about their patterns and rhythms.
+
+Your role:
+- Notice genuine patterns, not surface data
+- Speak like a thoughtful friend who's been listening closely
+- Only surface an observation if something truly significant emerges
+- Be warm, specific, and conversational — never clinical or productivity-focused
+- Observations should feel like gentle recognition, not judgment
+
+When you find a meaningful pattern, classify it as one of:
+- "energy": patterns in energy levels or vitality
+- "arc": patterns in arc texture (the narrative shape of their inner life)
+- "creative": patterns in creative readiness or creative flow
+
+Format your response as JSON with these fields:
+{
+  "has_observation": boolean,
+  "observation": string (only if has_observation is true),
+  "pattern_type": "energy" | "arc" | "creative" (only if has_observation is true)
+}
+
+If no meaningful pattern exists, return { "has_observation": false }.`,
+      messages: [
+        {
+          role: "user",
+          content: `Analyze these 7 days of check-ins for patterns:
+
+Energy distribution: ${JSON.stringify(energyDistribution)}
+Arc texture distribution: ${JSON.stringify(arcDistribution)}
+Creative readiness: ${creativeReadinessCount} out of ${(checkIns as CheckIn[]).length} entries
+Inner weather themes: ${innerWeatherThemes.join(", ")}
+
+Detailed entries:
+${checkInsSummary}
+
+Look for genuine patterns that might be worth noticing.`,
+        },
+      ],
+    });
+
+    // Parse response
+    const textContent = response.content.find((block) => block.type === "text");
+    if (!textContent || textContent.type !== "text") {
+      return NextResponse.json({ observation: null });
+    }
+
+    const analysisResult = JSON.parse(textContent.text);
+
+    if (!analysisResult.has_observation) {
+      return NextResponse.json({ observation: null });
+    }
+
+    return NextResponse.json({
+      observation: analysisResult.observation,
+      pattern_type: analysisResult.pattern_type,
+    });
+  } catch (error) {
+    console.error("Drought analysis error:", error);
+    return NextResponse.json({ observation: null }, { status: 500 });
+  }
+}

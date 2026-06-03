@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type EnergyLevel = 'low' | 'medium' | 'high'
+type PatternType = 'energy' | 'arc' | 'creative'
 
 interface Signals {
   energy: EnergyLevel
@@ -16,6 +17,11 @@ interface Signals {
 interface Message {
   role: 'user' | 'ai'
   text: string
+}
+
+interface DroughtObservation {
+  observation: string | null
+  pattern_type?: PatternType
 }
 
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
@@ -39,6 +45,12 @@ export default function CheckInPage() {
   const [isLogging, setIsLogging] = useState(false)
   const [logSuccess, setLogSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [observation, setObservation] = useState<DroughtObservation | null>(null)
+  const [isLoadingObservation, setIsLoadingObservation] = useState(true)
+  const [showResponse, setShowResponse] = useState(false)
+  const [userResponse, setUserResponse] = useState('')
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [observationDismissed, setObservationDismissed] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -51,6 +63,25 @@ export default function CheckInPage() {
       threadRef.current.scrollTop = threadRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    const fetchObservation = async () => {
+      try {
+        const res = await fetch('/api/drought/analyse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const data: DroughtObservation = await res.json()
+        setObservation(data)
+      } catch (err) {
+        console.error('Failed to fetch observation:', err)
+      } finally {
+        setIsLoadingObservation(false)
+      }
+    }
+
+    fetchObservation()
+  }, [])
 
   const startRecording = async () => {
     setError(null)
@@ -203,6 +234,37 @@ export default function CheckInPage() {
     }
   }
 
+  const handleObservationConfirm = async (felt_right: boolean) => {
+    if (!observation?.observation || !observation?.pattern_type) return
+    setIsConfirming(true)
+
+    try {
+      const res = await fetch('/api/drought/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          observation: observation.observation,
+          pattern_type: observation.pattern_type,
+          confirmed_by_user: felt_right,
+          user_response: felt_right ? undefined : userResponse.trim(),
+          action_taken: 'none',
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to save response')
+      }
+
+      setObservationDismissed(true)
+    } catch (err) {
+      console.error('Error confirming observation:', err)
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
   const hasAiResponded = messages.some((m) => m.role === 'ai')
 
   if (logSuccess) {
@@ -313,6 +375,51 @@ export default function CheckInPage() {
         }`}
       >
         <div className="w-full max-w-xl space-y-4">
+          {/* Drought observation card */}
+          {observation?.observation && !observationDismissed && !isLoadingObservation && (
+            <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 mb-2 space-y-3">
+              <p className="text-sm text-[#d4d2cd] leading-relaxed">
+                {observation.observation}
+              </p>
+
+              {!showResponse ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleObservationConfirm(true)}
+                    disabled={isConfirming}
+                    className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    That feels right
+                  </button>
+                  <button
+                    onClick={() => setShowResponse(true)}
+                    disabled={isConfirming}
+                    className="flex-1 py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded transition-colors hover:border-[#4a4946] hover:text-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Not quite
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <textarea
+                    value={userResponse}
+                    onChange={(e) => setUserResponse(e.target.value)}
+                    placeholder="What's actually going on..."
+                    rows={2}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none transition-colors"
+                  />
+                  <button
+                    onClick={() => handleObservationConfirm(false)}
+                    disabled={isConfirming || !userResponse.trim()}
+                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {isConfirming ? 'Saving...' : 'Send'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Record button */}
           <div className={`${messages.length === 0 ? 'flex justify-center mb-6' : 'flex justify-center mb-2'}`}>
             <button
