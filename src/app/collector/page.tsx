@@ -65,17 +65,18 @@ export default function CollectorPage() {
       setIsRecording(true)
     }
 
-    recognition.onresult = (event: Event) => {
-      const speechEvent = event as unknown as { resultIndex: number; results: Array<Array<{ transcript: string; isFinal: boolean }>> }
-      for (let i = speechEvent.resultIndex; i < speechEvent.results.length; i++) {
-        const transcript = speechEvent.results[i][0].transcript
-        if (speechEvent.results[i][0].isFinal) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i][0].isFinal) {
           setTranscript((prev) => prev + transcript + ' ')
         }
       }
     }
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error)
       setError(`Error: ${event.error}`)
       setIsRecording(false)
