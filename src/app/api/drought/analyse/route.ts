@@ -23,7 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<AnalysisR
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
@@ -147,7 +147,8 @@ Look for genuine patterns that might be worth noticing.`,
       return NextResponse.json({ observation: null });
     }
 
-    const analysisResult = JSON.parse(textContent.text);
+    const cleanedText = textContent.text.replace(/```json\n?|\n?```/g, '').trim();
+    const analysisResult = JSON.parse(cleanedText);
 
     if (!analysisResult.has_observation) {
       return NextResponse.json({ observation: null });
