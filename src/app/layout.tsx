@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   description: "A companion for your inner life",
   icons: {
     icon: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Companheiro",
   },
 };
 
