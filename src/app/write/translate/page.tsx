@@ -134,8 +134,14 @@ function TranslateContent() {
       `}</style>
 
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
-        <h1 className="text-2xl font-light text-[#e8e6e1]">Translate</h1>
+      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center gap-4">
+        <button
+          onClick={() => router.push('/write?piece_id=' + pieceId)}
+          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors whitespace-nowrap"
+        >
+          ← Write
+        </button>
+        <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Translate</h1>
         {script && (
           <button
             onClick={handleMarkReady}

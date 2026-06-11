@@ -38,7 +38,7 @@ export default function LoginPage() {
 
       // Success — navigate to the app. router.refresh() is not needed here;
       // the middleware cookie check will recognise the session on the next request.
-      router.push('/check-in')
+      router.push('/home')
     } catch (err) {
       console.error('Login exception:', err)
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')

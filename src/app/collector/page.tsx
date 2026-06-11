@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type ThematicTerritory =
@@ -25,6 +26,7 @@ const TERRITORY_LABELS: Record<ThematicTerritory, string> = {
 }
 
 export default function CollectorPage() {
+  const router = useRouter()
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [manualInput, setManualInput] = useState('')
@@ -181,6 +183,16 @@ export default function CollectorPage() {
   // Main capture interface
   return (
     <div className="flex h-screen flex-col bg-[#111110]">
+      {/* Back button */}
+      <div className="px-6 py-3 border-b border-[#1f1f1d]">
+        <button
+          onClick={() => router.push('/home')}
+          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+        >
+          ← Home
+        </button>
+      </div>
+
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="max-w-xl w-full space-y-6">
           {error && (

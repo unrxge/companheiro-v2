@@ -180,8 +180,14 @@ function ConceptualiseContent() {
   return (
     <div className="flex h-screen flex-col bg-[#111110]">
       {/* Phase indicator */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
-        <p className="text-xs text-[#4a4946] uppercase tracking-widest">
+      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center gap-4">
+        <button
+          onClick={() => router.push('/idea-lab')}
+          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors whitespace-nowrap"
+        >
+          ← Idea Lab
+        </button>
+        <p className="text-xs text-[#4a4946] uppercase tracking-widest flex-1 text-center">
           Phase {phase}: {PHASE_LABELS[phase]}
         </p>
         {readyToAdvance && phase === 5 && (

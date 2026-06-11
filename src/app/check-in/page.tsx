@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
@@ -34,6 +35,7 @@ const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
 const ALL_CHECK_IN_TYPES: CheckInType[] = ['morning', 'after_work', 'evening', 'moment']
 
 export default function CheckInPage() {
+  const router = useRouter()
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -294,6 +296,16 @@ export default function CheckInPage() {
 
   return (
     <div className="min-h-screen bg-[#111110] flex flex-col">
+      {/* Back button */}
+      <div className="px-6 py-3 border-b border-[#1f1f1d]">
+        <button
+          onClick={() => router.push('/home')}
+          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+        >
+          ← Home
+        </button>
+      </div>
+
       {/* Conversation thread */}
       {messages.length > 0 && (
         <div

@@ -132,6 +132,12 @@ export default function IdeaLabPage() {
         <div className="space-y-12">
           {/* Header */}
           <div>
+            <button
+              onClick={() => router.push('/project-board')}
+              className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
+            >
+              ← Project Board
+            </button>
             <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Idea Lab</h1>
             <p className="text-sm text-[#4a4946]">Open week mode</p>
           </div>

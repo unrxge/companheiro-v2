@@ -167,6 +167,12 @@ function PostPublicationContent() {
     <div className="min-h-screen bg-[#111110] flex flex-col">
       {/* Header */}
       <div className="px-6 py-4 border-b border-[#1f1f1d]">
+        <button
+          onClick={() => router.push('/project-board')}
+          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
+        >
+          ← Project Board
+        </button>
         <h1 className="text-2xl font-light text-[#e8e6e1]">Reflect on this piece</h1>
         <p className="text-sm text-[#8c8a87] mt-2">{piece.title}</p>
       </div>

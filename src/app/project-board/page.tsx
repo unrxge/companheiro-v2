@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Task {
   id: string
@@ -73,6 +74,7 @@ interface IdeaDetail {
 type ModalType = 'piece' | 'idea'
 
 function ProjectBoardContent() {
+  const router = useRouter()
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -304,8 +306,24 @@ function ProjectBoardContent() {
         }
       `}</style>
 
-      <div className="px-6 py-4 border-b border-[#1f1f1d]">
-        <h1 className="text-2xl font-light text-[#e8e6e1]">Project Board</h1>
+      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
+        <div>
+          <button
+            onClick={() => router.push('/idea-lab')}
+            className="text-xs text-[#a8a6a0] underline underline-offset-2 hover:text-[#e8e6e1] transition-colors"
+          >
+            New idea
+          </button>
+        </div>
+        <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Project Board</h1>
+        <div>
+          <button
+            onClick={() => router.push('/home')}
+            className="text-xs text-[#a8a6a0] underline underline-offset-2 hover:text-[#e8e6e1] transition-colors"
+          >
+            Home
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
