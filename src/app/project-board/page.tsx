@@ -1,15 +1,24 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 interface Task {
   id: string
   title: string
   type: 'creation' | 'execution'
+  status: 'pending' | 'complete'
 }
 
-interface ActivePiece {
+interface SessionLog {
+  id: string
+  what_was_done: string
+  next_step: string
+  created_at: string
+  duration_minutes: number | null
+}
+
+interface ActiveCard {
   id: string
   title: string
   arc: string
@@ -19,114 +28,190 @@ interface ActivePiece {
   tasks: Task[]
 }
 
-interface QueueIdea {
+interface QueueCard {
   id: string
   title: string
+  arc: string
   one_sentence: string
+  status: 'ready' | 'developing'
 }
 
-interface ArchivedPiece {
+interface CompletedCard {
   id: string
   title: string
   arc: string
   created_at: string
 }
 
+interface PieceDetail {
+  id: string
+  title: string
+  arc: string
+  thematic_territory: string
+  one_sentence: string
+  conviction_statement: string
+  emotional_journey: string
+  core_truth: string
+  substack_goals: string
+  short_form_goals: string
+  open_threads: string[]
+  tasks: Task[]
+  session_logs: SessionLog[]
+}
+
+interface IdeaDetail {
+  id: string
+  title: string
+  one_sentence: string
+  arc: string
+  thematic_territory: string
+  status: 'ready' | 'developing' | 'active'
+  piece_id?: string
+  tasks?: Task[]
+}
+
+type ModalType = 'piece' | 'idea'
+
 function ProjectBoardContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const highlightId = searchParams.get('piece_id')
-
-  const [viewMode, setViewMode] = useState<'execution' | 'full'>('execution')
-  const [active, setActive] = useState<ActivePiece[]>([])
-  const [queue, setQueue] = useState<QueueIdea[]>([])
-  const [archived, setArchived] = useState<ArchivedPiece[]>([])
+  const [active, setActive] = useState<ActiveCard[]>([])
+  const [queue, setQueue] = useState<QueueCard[]>([])
+  const [completed, setCompleted] = useState<CompletedCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  const [expandedTasks, setExpandedTasks] = useState<string | null>(null)
-  const [editingTasks, setEditingTasks] = useState<string | null>(null)
-  const [sessionForm, setSessionForm] = useState<string | null>(null)
-  const [completingTask, setCompletingTask] = useState<string | null>(null)
+  const [modalType, setModalType] = useState<ModalType | null>(null)
+  const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
+  const [selectedIdea, setSelectedIdea] = useState<IdeaDetail | null>(null)
+  const [isLoadingModal, setIsLoadingModal] = useState(false)
+  const [completingTasks, setCompletingTasks] = useState<Set<string>>(new Set())
+  const [newTaskInput, setNewTaskInput] = useState('')
+  const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
   const [sessionData, setSessionData] = useState({
     what_was_done: '',
     next_step: '',
     duration_minutes: '',
+    completed_task_ids: new Set<string>(),
   })
 
-  const highlightRef = useRef<HTMLDivElement>(null)
-
-  // Set default view based on day of week
   useEffect(() => {
-    const day = new Date().getDay()
-    // Mon(1), Tue(2), Wed(3), Fri(5) = execution
-    // Thu(4), Sat(6), Sun(0) = full
-    const defaultMode = [1, 2, 3, 5].includes(day) ? 'execution' : 'full'
-    setViewMode(defaultMode as 'execution' | 'full')
+    fetchBoard()
   }, [])
 
-  // Fetch pieces
-  useEffect(() => {
-    const fetchPieces = async () => {
-      try {
-        const res = await fetch('/api/project-board/pieces')
-        const data = await res.json()
-        setActive(data.active || [])
-        setQueue(data.queue || [])
-        setArchived(data.archived || [])
-      } catch (err) {
-        console.error('Failed to fetch pieces:', err)
-        setError('Failed to load board')
-      } finally {
-        setIsLoading(false)
+  const fetchBoard = async () => {
+    try {
+      const res = await fetch('/api/project-board/pieces')
+      const data = await res.json()
+      setActive(data.active || [])
+      setQueue(data.queue || [])
+      setCompleted(data.archived || [])
+    } catch (err) {
+      console.error('Failed to fetch board:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const openPieceModal = async (id: string) => {
+    setIsLoadingModal(true)
+    setModalType('piece')
+    try {
+      const res = await fetch(`/api/project-board/piece?id=${id}`)
+      const data = await res.json()
+      if (data.success) {
+        setSelectedPiece(data.piece)
+        setSessionData({
+          what_was_done: '',
+          next_step: '',
+          duration_minutes: '',
+          completed_task_ids: new Set(),
+        })
       }
+    } catch (err) {
+      console.error('Failed to fetch piece:', err)
+    } finally {
+      setIsLoadingModal(false)
     }
+  }
 
-    fetchPieces()
-  }, [])
-
-  // Scroll to highlighted piece
-  useEffect(() => {
-    if (highlightId && highlightRef.current) {
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 100)
+  const openIdeaModal = async (id: string) => {
+    setIsLoadingModal(true)
+    setModalType('idea')
+    try {
+      const res = await fetch(`/api/project-board/idea?id=${id}`)
+      const data = await res.json()
+      if (data.success) {
+        setSelectedIdea(data.idea)
+      }
+    } catch (err) {
+      console.error('Failed to fetch idea:', err)
+    } finally {
+      setIsLoadingModal(false)
     }
-  }, [highlightId, active])
+  }
 
-  const handleSessionSubmit = async (pieceId: string, taskId?: string) => {
-    if (!sessionData.what_was_done.trim() || !sessionData.next_step.trim()) {
-      setError('Please fill in both fields')
-      return
+  const closeModal = () => {
+    setModalType(null)
+    setSelectedPiece(null)
+    setSelectedIdea(null)
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await fetch('/api/project-board/tasks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId }),
+      })
+      if (selectedPiece) {
+        setSelectedPiece({
+          ...selectedPiece,
+          tasks: selectedPiece.tasks.filter((t) => t.id !== taskId),
+        })
+      }
+    } catch (err) {
+      console.error('Failed to delete task:', err)
     }
+  }
+
+  const handleAddTask = async () => {
+    if (!selectedPiece || !newTaskInput.trim()) return
 
     try {
-      const res = await fetch('/api/project-board/session-log', {
+      const res = await fetch('/api/project-board/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          piece_id: pieceId,
-          what_was_done: sessionData.what_was_done,
-          next_step: sessionData.next_step,
-          duration_minutes: sessionData.duration_minutes ? parseInt(sessionData.duration_minutes) : undefined,
-          completed_task_id: taskId,
+          piece_id: selectedPiece.id,
+          title: newTaskInput.trim(),
+          type: newTaskType,
         }),
       })
 
-      const data = await res.json()
-      if (data.success) {
-        // Refresh pieces
-        const piecesRes = await fetch('/api/project-board/pieces')
-        const piecesData = await piecesRes.json()
-        setActive(piecesData.active || [])
-        setSessionForm(null)
-        setSessionData({ what_was_done: '', next_step: '', duration_minutes: '' })
-      } else {
-        setError(data.error || 'Failed to log session')
+      if (res.ok) {
+        const maxOrder = Math.max(
+          -1,
+          ...selectedPiece.tasks.map((t) => {
+            const order = parseInt(t.id.split('-').pop() || '-1')
+            return order
+          })
+        )
+        setSelectedPiece({
+          ...selectedPiece,
+          tasks: [
+            ...selectedPiece.tasks,
+            {
+              id: `new-${Date.now()}`,
+              title: newTaskInput.trim(),
+              type: newTaskType,
+              status: 'pending',
+            },
+          ],
+        })
+        setNewTaskInput('')
+        setNewTaskType('creation')
       }
     } catch (err) {
-      console.error('Session log error:', err)
-      setError('Failed to log session')
+      console.error('Failed to add task:', err)
     }
   }
 
@@ -138,73 +223,67 @@ function ProjectBoardContent() {
         body: JSON.stringify({ idea_id: ideaId }),
       })
 
-      const data = await res.json()
-      if (data.success) {
-        // Refresh pieces
-        const piecesRes = await fetch('/api/project-board/pieces')
-        const piecesData = await piecesRes.json()
-        setActive(piecesData.active || [])
-        setQueue(piecesData.queue || [])
-      } else {
-        setError(data.error || 'Failed to activate idea')
+      if (res.ok) {
+        fetchBoard()
+        closeModal()
       }
     } catch (err) {
-      console.error('Activate error:', err)
-      setError('Failed to activate idea')
+      console.error('Failed to activate idea:', err)
     }
   }
 
-  const handleCompleteTask = async (pieceId: string, taskId: string) => {
-    setCompletingTask(taskId)
+  const handleCompletepiece = async () => {
+    if (!selectedPiece) return
 
     try {
-      const res = await fetch('/api/project-board/tasks', {
-        method: 'PATCH',
+      const res = await fetch('/api/project-board/complete', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: taskId, status: 'complete' }),
+        body: JSON.stringify({ piece_id: selectedPiece.id }),
       })
 
-      const data = await res.json()
-      if (data.success) {
-        // Refresh pieces after animation
-        setTimeout(() => {
-          const piecesRes = fetch('/api/project-board/pieces')
-          piecesRes.then(r => r.json()).then(piecesData => {
-            setActive(piecesData.active || [])
-            setCompletingTask(null)
-          })
-        }, 300)
-      } else {
-        setError(data.error || 'Failed to complete task')
-        setCompletingTask(null)
+      if (res.ok) {
+        fetchBoard()
+        closeModal()
       }
     } catch (err) {
-      console.error('Complete task error:', err)
-      setError('Failed to complete task')
-      setCompletingTask(null)
+      console.error('Failed to complete piece:', err)
     }
   }
 
-  const handleDeleteTask = async (taskId: string) => {
+  const handleSubmitSession = async () => {
+    if (!selectedPiece) return
+
     try {
-      const res = await fetch('/api/project-board/tasks', {
-        method: 'DELETE',
+      const completedIds = Array.from(sessionData.completed_task_ids)
+
+      await fetch('/api/project-board/session-log', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: taskId }),
+        body: JSON.stringify({
+          piece_id: selectedPiece.id,
+          what_was_done: sessionData.what_was_done,
+          next_step: sessionData.next_step,
+          duration_minutes: sessionData.duration_minutes
+            ? parseInt(sessionData.duration_minutes)
+            : undefined,
+          completed_task_ids: completedIds,
+        }),
       })
 
-      const data = await res.json()
-      if (data.success) {
-        // Refresh pieces
-        const piecesRes = await fetch('/api/project-board/pieces')
-        const piecesData = await piecesRes.json()
-        setActive(piecesData.active || [])
-      } else {
-        setError(data.error || 'Failed to delete task')
+      // Animate completed tasks
+      for (const taskId of completedIds) {
+        setCompletingTasks((prev) => new Set(prev).add(taskId))
       }
+
+      // Refresh data after animation
+      setTimeout(() => {
+        setCompletingTasks(new Set())
+        fetchBoard()
+        closeModal()
+      }, 300)
     } catch (err) {
-      console.error('Delete task error:', err)
-      setError('Failed to delete task')
+      console.error('Failed to submit session:', err)
     }
   }
 
@@ -215,6 +294,11 @@ function ProjectBoardContent() {
       </div>
     )
   }
+
+  const allTasksComplete =
+    selectedPiece &&
+    selectedPiece.tasks.length > 0 &&
+    selectedPiece.tasks.every((t) => t.status === 'complete')
 
   return (
     <div className="min-h-screen bg-[#111110] flex flex-col">
@@ -235,241 +319,473 @@ function ProjectBoardContent() {
         }
       `}</style>
 
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
+      <div className="px-6 py-4 border-b border-[#1f1f1d]">
         <h1 className="text-2xl font-light text-[#e8e6e1]">Project Board</h1>
-        <button
-          onClick={() => setViewMode(viewMode === 'execution' ? 'full' : 'execution')}
-          className="px-3 py-1.5 text-xs bg-[#1c1c1a] border border-[#2e2d2a] text-[#8c8a87] rounded hover:border-[#4a4946] transition-colors"
-        >
-          {viewMode === 'execution' ? 'Full view' : 'Execution view'}
-        </button>
       </div>
 
-      {error && (
-        <div className="mx-6 mt-4 p-3 bg-red-900/20 border border-red-700/30 rounded">
-          <p className="text-xs text-red-200">{error}</p>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Queue Column */}
+        <div className="w-[20%] border-r border-[#1f1f1d] flex flex-col">
+          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
+            <h2 className="text-sm font-medium text-[#e8e6e1]">Queue</h2>
+            <span className="text-xs text-[#4a4946]">({queue.length})</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {queue.map((idea) => (
+              <button
+                key={idea.id}
+                onClick={() => openIdeaModal(idea.id)}
+                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#F59E0B] transition-colors text-sm"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] flex-shrink-0 mt-1"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#e8e6e1] font-medium truncate">{idea.title}</p>
+                    {idea.arc && (
+                      <p className="text-xs text-[#4a4946] mt-1">{idea.arc}</p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
-      )}
 
-      {/* Sections */}
-      <div className="flex-1 px-6 py-8 overflow-auto max-w-7xl mx-auto w-full space-y-12">
-        {/* Active Section */}
-        <div className="space-y-4">
-          <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Active ({active.length})</h2>
-          {active.length === 0 ? (
-            <p className="text-sm text-[#3d3c39]">No active pieces</p>
-          ) : (
-            <div className="space-y-3">
-              {active.map((piece) => (
-                <div
-                  key={piece.id}
-                  ref={highlightId === piece.id ? highlightRef : null}
-                  className={`bg-[#161614] border rounded p-4 space-y-3 transition-all ${
-                    highlightId === piece.id ? 'border-[#e8e6e1] shadow-lg' : 'border-[#1f1f1d]'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="text-base font-medium text-[#e8e6e1]">{piece.title}</h3>
-                      <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
-                        <span>{piece.arc}</span>
-                        <span>•</span>
-                        <span>{piece.stage}</span>
-                      </div>
-                    </div>
+        {/* Active Column */}
+        <div className="w-[60%] border-r border-[#1f1f1d] flex flex-col">
+          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
+            <h2 className="text-sm font-medium text-[#e8e6e1]">Active</h2>
+            <span className="text-xs text-[#4a4946]">({active.length})</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {active.map((piece) => (
+              <button
+                key={piece.id}
+                onClick={() => openPieceModal(piece.id)}
+                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#10B981] transition-colors text-sm"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] flex-shrink-0 mt-1"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#e8e6e1] font-medium truncate">{piece.title}</p>
+                    {piece.arc && (
+                      <p className="text-xs text-[#4a4946] mt-1">{piece.arc}</p>
+                    )}
                   </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
 
-                  {viewMode === 'full' && (
-                    <p className="text-xs text-[#6b6966]">Next: {piece.next_action}</p>
-                  )}
-
-                  <div className="flex gap-3 flex-wrap">
-                    <button
-                      onClick={() => setExpandedTasks(expandedTasks === piece.id ? null : piece.id)}
-                      className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87]"
-                    >
-                      Switch task
-                    </button>
-                    <button
-                      onClick={() => setEditingTasks(editingTasks === piece.id ? null : piece.id)}
-                      className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87]"
-                    >
-                      Edit tasks
-                    </button>
-                    <button
-                      onClick={() => setSessionForm(sessionForm === piece.id ? null : piece.id)}
-                      className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87]"
-                    >
-                      Log session
-                    </button>
+        {/* Completed Column */}
+        <div className="w-[20%] flex flex-col">
+          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
+            <h2 className="text-sm font-medium text-[#e8e6e1]">Completed</h2>
+            <span className="text-xs text-[#4a4946]">({completed.length})</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {completed.map((piece) => (
+              <button
+                key={piece.id}
+                onClick={() => openPieceModal(piece.id)}
+                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#8B5CF6] transition-colors text-sm"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] flex-shrink-0 mt-1"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#e8e6e1] font-medium truncate">{piece.title}</p>
+                    {piece.arc && (
+                      <p className="text-xs text-[#4a4946] mt-1">{piece.arc}</p>
+                    )}
                   </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-                  {expandedTasks === piece.id && (
-                    <div className="mt-3 pt-3 border-t border-[#1f1f1d] space-y-2">
-                      {piece.tasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className="flex items-center justify-between bg-[#111110] p-2 rounded text-xs"
-                        >
-                          <span className="text-[#d4d2cd]">{task.title}</span>
-                          <span className="text-[#4a4946]">{task.type}</span>
-                        </div>
-                      ))}
+      {/* Piece Modal */}
+      {modalType === 'piece' && selectedPiece && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
+              <div className="flex-1">
+                <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
+                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
+                  <span>{selectedPiece.arc}</span>
+                  <span>•</span>
+                  <span>{selectedPiece.thematic_territory}</span>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-6">
+              {/* Core Concept Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Core Concept</h3>
+                <div className="space-y-3 text-sm">
+                  {selectedPiece.one_sentence && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">One Sentence</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.one_sentence}</p>
                     </div>
                   )}
+                  {selectedPiece.conviction_statement && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Conviction</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.conviction_statement}</p>
+                    </div>
+                  )}
+                  {selectedPiece.emotional_journey && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Emotional Journey</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.emotional_journey}</p>
+                    </div>
+                  )}
+                  {selectedPiece.core_truth && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Core Truth</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.core_truth}</p>
+                    </div>
+                  )}
+                  {selectedPiece.substack_goals && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Substack Goals</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.substack_goals}</p>
+                    </div>
+                  )}
+                  {selectedPiece.short_form_goals && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Short Form Goals</p>
+                      <p className="text-[#d4d2cd]">{selectedPiece.short_form_goals}</p>
+                    </div>
+                  )}
+                  {selectedPiece.open_threads.length > 0 && (
+                    <div>
+                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Open Threads</p>
+                      <ul className="text-[#d4d2cd] space-y-1">
+                        {selectedPiece.open_threads.map((thread, i) => (
+                          <li key={i} className="text-xs">• {thread}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                  {editingTasks === piece.id && (
-                    <div className="mt-3 pt-3 border-t border-[#1f1f1d] space-y-3">
-                      <div className="space-y-2">
-                        <p className="text-xs text-[#4a4946] uppercase tracking-widest">Pending tasks</p>
-                        {piece.tasks.filter(t => true).length === 0 ? (
-                          <p className="text-xs text-[#3d3c39]">No pending tasks</p>
-                        ) : (
-                          piece.tasks.filter(t => true).map((task) => (
-                            <div
-                              key={task.id}
-                              className={`flex items-center justify-between bg-[#111110] p-2 rounded text-xs transition-all ${
-                                completingTask === task.id ? 'complete-task' : ''
-                              }`}
-                            >
-                              <span className="flex-1">{task.title}</span>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleCompleteTask(piece.id, task.id)}
-                                  className="text-[#6b6966] hover:text-green-300 transition-colors text-xs"
-                                >
-                                  Done
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteTask(task.id)}
-                                  className="text-[#6b6966] hover:text-red-300 transition-colors text-xs"
-                                >
-                                  Delete
-                                </button>
-                              </div>
+              {/* Tasks Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Tasks</h3>
+                <div className="space-y-2">
+                  {selectedPiece.tasks.filter((t) => t.status === 'pending').length === 0 &&
+                  selectedPiece.tasks.filter((t) => t.status === 'complete').length === 0 ? (
+                    <p className="text-xs text-[#3d3c39]">No tasks</p>
+                  ) : (
+                    <>
+                      {selectedPiece.tasks
+                        .filter((t) => t.status === 'pending')
+                        .map((task) => (
+                          <div
+                            key={task.id}
+                            className="bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="text-[#d4d2cd]">{task.title}</span>
+                              <span className="text-[#4a4946] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
+                                {task.type}
+                              </span>
                             </div>
-                          ))
-                        )}
-                      </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  const newIds = new Set(sessionData.completed_task_ids)
+                                  if (newIds.has(task.id)) {
+                                    newIds.delete(task.id)
+                                  } else {
+                                    newIds.add(task.id)
+                                  }
+                                  setSessionData({
+                                    ...sessionData,
+                                    completed_task_ids: newIds,
+                                  })
+                                }}
+                                className={`text-[#6b6966] hover:text-green-300 transition-colors text-xs px-2 py-1 rounded ${
+                                  sessionData.completed_task_ids.has(task.id)
+                                    ? 'bg-green-900/20 text-green-400'
+                                    : ''
+                                }`}
+                              >
+                                Done
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTask(task.id)}
+                                className="text-[#6b6966] hover:text-red-300 transition-colors text-xs px-2 py-1 rounded"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
 
-                      <div className="space-y-2">
-                        <p className="text-xs text-[#4a4946] uppercase tracking-widest">Add task</p>
-                        <input
-                          type="text"
-                          placeholder="Task title..."
-                          className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
-                        />
+                      {selectedPiece.tasks.filter((t) => t.status === 'complete').length > 0 && (
+                        <div className="pt-2 space-y-2">
+                          <p className="text-xs text-[#4a4946]">Completed</p>
+                          {selectedPiece.tasks
+                            .filter((t) => t.status === 'complete')
+                            .map((task) => (
+                              <div
+                                key={task.id}
+                                className={`bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs ${
+                                  completingTasks.has(task.id) ? 'complete-task' : 'opacity-60'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="text-[#4a4946] line-through">{task.title}</span>
+                                  <span className="text-[#3d3c39] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
+                                    {task.type}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+
+                      {/* Add Task Section */}
+                      <div className="pt-3 border-t border-[#1f1f1d] space-y-2">
                         <div className="flex gap-2">
-                          <select className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]">
+                          <input
+                            type="text"
+                            value={newTaskInput}
+                            onChange={(e) => setNewTaskInput(e.target.value)}
+                            placeholder="Add task..."
+                            className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-2 py-1 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') handleAddTask()
+                            }}
+                          />
+                          <select
+                            value={newTaskType}
+                            onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
+                            className="bg-[#111110] border border-[#2e2d2a] rounded px-2 py-1 text-xs text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
+                          >
                             <option value="creation">Creation</option>
                             <option value="execution">Execution</option>
                           </select>
-                          <button className="px-3 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd]">
+                          <button
+                            onClick={handleAddTask}
+                            className="px-2 py-1 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd]"
+                          >
                             Add
                           </button>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {sessionForm === piece.id && (
-                    <div className="mt-3 pt-3 border-t border-[#1f1f1d] space-y-2">
-                      <textarea
-                        value={sessionData.what_was_done}
-                        onChange={(e) => setSessionData({ ...sessionData, what_was_done: e.target.value })}
-                        placeholder="What was done..."
-                        rows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
-                      />
-                      <textarea
-                        value={sessionData.next_step}
-                        onChange={(e) => setSessionData({ ...sessionData, next_step: e.target.value })}
-                        placeholder="Next step..."
-                        rows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
-                      />
-                      <input
-                        type="number"
-                        value={sessionData.duration_minutes}
-                        onChange={(e) => setSessionData({ ...sessionData, duration_minutes: e.target.value })}
-                        placeholder="Duration (minutes)"
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
-                      />
-                      <button
-                        onClick={() =>
-                          handleSessionSubmit(
-                            piece.id,
-                            piece.tasks.length > 0 ? piece.tasks[0].id : undefined
-                          )
-                        }
-                        className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors"
-                      >
-                        Save session
-                      </button>
-                    </div>
+                    </>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Queue Section */}
-        {viewMode === 'full' && (
-          <div className="space-y-4">
-            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Queue ({queue.length})</h2>
-            {queue.length === 0 ? (
-              <p className="text-sm text-[#3d3c39]">No ideas in queue</p>
-            ) : (
-              <div className="space-y-3">
-                {queue.map((idea) => (
-                  <div key={idea.id} className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-2">
-                    <h3 className="text-base font-medium text-[#e8e6e1]">{idea.title}</h3>
-                    <p className="text-xs text-[#8c8a87]">{idea.one_sentence}</p>
-                    <button
-                      onClick={() => handleActivate(idea.id)}
-                      className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87]"
-                    >
-                      Activate
-                    </button>
-                  </div>
-                ))}
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Archive Section */}
-        {viewMode === 'full' && (
-          <div className="space-y-4">
-            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Archive ({archived.length})</h2>
-            {archived.length === 0 ? (
-              <p className="text-sm text-[#3d3c39]">No archived pieces</p>
-            ) : (
-              <div className="space-y-3">
-                {archived.map((piece) => (
-                  <div key={piece.id} className="bg-[#161614] border border-[#1f1f1d] rounded p-4">
-                    <h3 className="text-base font-medium text-[#e8e6e1]">{piece.title}</h3>
-                    <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
-                      <span>{piece.arc}</span>
-                      <span>•</span>
-                      <span>{new Date(piece.created_at).toLocaleDateString()}</span>
+              {/* Session Logs Section */}
+              {selectedPiece.session_logs.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Session History</h3>
+                  <div className="space-y-2">
+                    {selectedPiece.session_logs.map((log) => (
+                      <div key={log.id} className="bg-[#111110] rounded p-3 border border-[#1f1f1d] text-xs">
+                        <p className="text-[#8c8a87] text-xs mb-2">
+                          {new Date(log.created_at).toLocaleDateString()} •{' '}
+                          {log.duration_minutes ? `${log.duration_minutes}min` : 'no duration'}
+                        </p>
+                        <div className="space-y-1">
+                          <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Did</p>
+                          <p className="text-[#d4d2cd]">{log.what_was_done}</p>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                          <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Next</p>
+                          <p className="text-[#d4d2cd]">{log.next_step}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Log Session Form */}
+              <div className="space-y-3 border-t border-[#1f1f1d] pt-4">
+                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Log Session</h3>
+                <textarea
+                  value={sessionData.what_was_done}
+                  onChange={(e) =>
+                    setSessionData({ ...sessionData, what_was_done: e.target.value })
+                  }
+                  placeholder="What was done..."
+                  rows={3}
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
+                />
+                <textarea
+                  value={sessionData.next_step}
+                  onChange={(e) =>
+                    setSessionData({ ...sessionData, next_step: e.target.value })
+                  }
+                  placeholder="Next step..."
+                  rows={3}
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
+                />
+                <input
+                  type="number"
+                  value={sessionData.duration_minutes}
+                  onChange={(e) =>
+                    setSessionData({ ...sessionData, duration_minutes: e.target.value })
+                  }
+                  placeholder="Duration (minutes)"
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                />
+
+                {selectedPiece.tasks.filter((t) => t.status === 'pending').length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#4a4946] uppercase tracking-widest">Tasks worked on</p>
+                    <div className="space-y-1">
+                      {selectedPiece.tasks
+                        .filter((t) => t.status === 'pending')
+                        .map((task) => (
+                          <label key={task.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={sessionData.completed_task_ids.has(task.id)}
+                              onChange={(e) => {
+                                const newIds = new Set(sessionData.completed_task_ids)
+                                if (e.target.checked) {
+                                  newIds.add(task.id)
+                                } else {
+                                  newIds.delete(task.id)
+                                }
+                                setSessionData({
+                                  ...sessionData,
+                                  completed_task_ids: newIds,
+                                })
+                              }}
+                              className="accent-green-600"
+                            />
+                            <span className="text-[#d4d2cd]">{task.title}</span>
+                          </label>
+                        ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSubmitSession}
+                    disabled={!sessionData.what_was_done.trim() || !sessionData.next_step.trim()}
+                    className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Submit Session
+                  </button>
+                  {allTasksComplete && (
+                    <button
+                      onClick={handleCompletepiece}
+                      className="flex-1 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded hover:bg-green-600/30 transition-colors"
+                    >
+                      Mark Complete
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Idea Modal */}
+      {modalType === 'idea' && selectedIdea && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
+              <div className="flex-1">
+                <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedIdea.title}</h2>
+                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
+                  <span>{selectedIdea.arc}</span>
+                  <span>•</span>
+                  <span>{selectedIdea.thematic_territory}</span>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-6">
+              {/* Idea Details */}
+              <div className="space-y-3">
+                {selectedIdea.one_sentence && (
+                  <div>
+                    <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">One Sentence</p>
+                    <p className="text-[#d4d2cd]">{selectedIdea.one_sentence}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Tasks if piece exists */}
+              {selectedIdea.piece_id && selectedIdea.tasks && selectedIdea.tasks.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Linked Piece Tasks</h3>
+                  <div className="space-y-2">
+                    {selectedIdea.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="text-[#d4d2cd]">{task.title}</span>
+                          <span className="text-[#4a4946] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
+                            {task.type}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activate Button */}
+              <div className="border-t border-[#1f1f1d] pt-4">
+                <button
+                  onClick={() => handleActivate(selectedIdea.id)}
+                  className="w-full py-2 bg-[#F59E0B] text-[#111110] text-xs font-medium rounded hover:bg-[#f5a82b] transition-colors"
+                >
+                  Activate Idea
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default function ProjectBoardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#111110] flex items-center justify-center"><p className="text-[#4a4946]">Loading...</p></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#111110] flex items-center justify-center">
+          <p className="text-[#4a4946]">Loading...</p>
+        </div>
+      }
+    >
       <ProjectBoardContent />
     </Suspense>
   )

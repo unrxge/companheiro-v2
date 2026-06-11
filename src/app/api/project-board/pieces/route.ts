@@ -15,7 +15,9 @@ interface PiecesResponse {
   queue: Array<{
     id: string;
     title: string;
+    arc: string;
     one_sentence: string;
+    status: "ready" | "developing";
   }>;
   archived: Array<{
     id: string;
@@ -84,13 +86,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<PiecesResp
       })
     );
 
-    // Get queue ideas (status "ready")
+    // Get queue ideas (status "ready" or "developing")
     const { data: queueIdeas } = await supabase
       .from("ideas")
-      .select("id, title, one_sentence")
+      .select("id, title, arc, one_sentence, status")
       .eq("user_id", userId)
-      .eq("status", "ready")
-      .limit(3)
+      .in("status", ["ready", "developing"])
       .order("created_at", { ascending: false });
 
     // Get archived pieces (stage "posted")

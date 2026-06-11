@@ -7,7 +7,7 @@ interface SessionLogRequest {
   what_was_done: string;
   next_step: string;
   duration_minutes?: number;
-  completed_task_id?: string;
+  completed_task_ids?: string[];
 }
 
 interface SessionLogResponse {
@@ -79,30 +79,33 @@ export async function POST(
       );
     }
 
-    // Mark task as complete if provided
-    if (body.completed_task_id) {
-      await supabase
-        .from("tasks")
-        .update({ status: "complete" })
-        .eq("id", body.completed_task_id);
-
-      // Get next pending task
-      const { data: nextTask } = await supabase
-        .from("tasks")
-        .select("title")
-        .eq("piece_id", body.piece_id)
-        .eq("status", "pending")
-        .order("order", { ascending: true })
-        .limit(1)
-        .single();
-
-      // Update piece's next_action
-      if (nextTask) {
+    // Mark completed tasks as complete
+    if (body.completed_task_ids && body.completed_task_ids.length > 0) {
+      for (const taskId of body.completed_task_ids) {
         await supabase
-          .from("pieces")
-          .update({ next_action: nextTask.title })
-          .eq("id", body.piece_id);
+          .from("tasks")
+          .update({ status: "complete" })
+          .eq("id", taskId)
+          .eq("user_id", userId);
       }
+    }
+
+    // Get next pending task
+    const { data: tasksData } = await supabase
+      .from("tasks")
+      .select("title")
+      .eq("piece_id", body.piece_id)
+      .eq("status", "pending")
+      .order("order", { ascending: true })
+      .limit(1);
+
+    // Update piece's next_action
+    if (tasksData && tasksData.length > 0) {
+      await supabase
+        .from("pieces")
+        .update({ next_action: tasksData[0].title })
+        .eq("id", body.piece_id)
+        .eq("user_id", userId);
     }
 
     return NextResponse.json({ success: true });
