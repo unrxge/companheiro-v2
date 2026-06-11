@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 interface Task {
   id: string
@@ -73,7 +72,6 @@ interface IdeaDetail {
 type ModalType = 'piece' | 'idea'
 
 function ProjectBoardContent() {
-  const searchParams = useSearchParams()
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -82,7 +80,6 @@ function ProjectBoardContent() {
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
   const [selectedIdea, setSelectedIdea] = useState<IdeaDetail | null>(null)
-  const [isLoadingModal, setIsLoadingModal] = useState(false)
   const [completingTasks, setCompletingTasks] = useState<Set<string>>(new Set())
   const [newTaskInput, setNewTaskInput] = useState('')
   const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
@@ -112,7 +109,6 @@ function ProjectBoardContent() {
   }
 
   const openPieceModal = async (id: string) => {
-    setIsLoadingModal(true)
     setModalType('piece')
     try {
       const res = await fetch(`/api/project-board/piece?id=${id}`)
@@ -128,13 +124,10 @@ function ProjectBoardContent() {
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
-    } finally {
-      setIsLoadingModal(false)
     }
   }
 
   const openIdeaModal = async (id: string) => {
-    setIsLoadingModal(true)
     setModalType('idea')
     try {
       const res = await fetch(`/api/project-board/idea?id=${id}`)
@@ -144,8 +137,6 @@ function ProjectBoardContent() {
       }
     } catch (err) {
       console.error('Failed to fetch idea:', err)
-    } finally {
-      setIsLoadingModal(false)
     }
   }
 
@@ -188,13 +179,6 @@ function ProjectBoardContent() {
       })
 
       if (res.ok) {
-        const maxOrder = Math.max(
-          -1,
-          ...selectedPiece.tasks.map((t) => {
-            const order = parseInt(t.id.split('-').pop() || '-1')
-            return order
-          })
-        )
         setSelectedPiece({
           ...selectedPiece,
           tasks: [

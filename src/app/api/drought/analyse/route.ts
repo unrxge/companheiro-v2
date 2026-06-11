@@ -17,7 +17,7 @@ interface AnalysisResponse {
   pattern_type?: "energy" | "arc" | "creative";
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<AnalysisResponse>> {
+export async function POST(_request: NextRequest): Promise<NextResponse<AnalysisResponse>> {
   try {
     // Get authenticated user
     const cookieStore = await cookies();

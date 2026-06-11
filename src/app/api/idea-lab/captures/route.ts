@@ -15,7 +15,7 @@ interface CapturesResponse {
   captures: Capture[];
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse<CapturesResponse>> {
+export async function GET(_request: NextRequest): Promise<NextResponse<CapturesResponse>> {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(

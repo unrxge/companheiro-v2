@@ -5,12 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
-type ThematicTerritory = string
-
-interface ArcDefinition {
-  name: Arc
-  description: string
-}
 
 interface Capture {
   id: string

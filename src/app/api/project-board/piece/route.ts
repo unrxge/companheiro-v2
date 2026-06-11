@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface Task {
   id: string;
   title: string;
@@ -29,7 +34,7 @@ interface PieceDetail {
   substack_goals: string;
   short_form_goals: string;
   open_threads: string[];
-  conceptualisation_log: any[];
+  conceptualisation_log: ConversationMessage[];
   tasks: Task[];
   session_logs: SessionLog[];
 }
@@ -105,7 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     }
 
     // Fetch linked idea to get one_sentence and conceptualisation_log
-    let ideaData: { one_sentence?: string; conceptualisation_log?: any } = {};
+    let ideaData: { one_sentence?: string; conceptualisation_log?: ConversationMessage[] } = {};
     if (pieceData.idea_id) {
       const { data: idea, error: ideaError } = await supabase
         .from("ideas")

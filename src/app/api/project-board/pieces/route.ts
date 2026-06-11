@@ -27,7 +27,7 @@ interface PiecesResponse {
   }>;
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse<PiecesResponse>> {
+export async function GET(_request: NextRequest): Promise<NextResponse<PiecesResponse>> {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
