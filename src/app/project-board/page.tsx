@@ -54,6 +54,7 @@ interface PieceDetail {
   substack_goals: string
   short_form_goals: string
   open_threads: string[]
+  substack_draft?: string
   tasks: Task[]
   session_logs: SessionLog[]
 }
@@ -667,22 +668,34 @@ function ProjectBoardContent() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSubmitSession}
-                    disabled={!sessionData.what_was_done.trim() || !sessionData.next_step.trim()}
-                    className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Submit Session
-                  </button>
-                  {allTasksComplete && (
+                <div className="flex gap-2 flex-col">
+                  <div className="flex gap-2">
                     <button
-                      onClick={handleCompletepiece}
-                      className="flex-1 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded hover:bg-green-600/30 transition-colors"
+                      onClick={handleSubmitSession}
+                      disabled={!sessionData.what_was_done.trim() || !sessionData.next_step.trim()}
+                      className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Mark Complete
+                      Submit Session
                     </button>
-                  )}
+                    {allTasksComplete && (
+                      <button
+                        onClick={handleCompletepiece}
+                        className="flex-1 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded hover:bg-green-600/30 transition-colors"
+                      >
+                        Mark Complete
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (selectedPiece) {
+                        window.location.href = `/write?piece_id=${selectedPiece.id}`
+                      }
+                    }}
+                    className="w-full py-2 bg-[#2e2d2a] text-[#e8e6e1] text-xs font-medium rounded hover:bg-[#3d3c39] transition-colors"
+                  >
+                    {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
+                  </button>
                 </div>
               </div>
             </div>
