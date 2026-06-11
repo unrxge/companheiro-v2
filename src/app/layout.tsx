@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Companheiro",
   description: "A companion for your inner life",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
