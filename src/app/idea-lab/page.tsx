@@ -14,6 +14,11 @@ interface Capture {
   created_at: string
 }
 
+interface Continuation {
+  natural_continuations: string[]
+  what_it_opened: string
+}
+
 const ARC_DEFINITIONS: Record<Arc, string> = {
   Breakaway: 'Disruption, stepping away from what no longer serves',
   Beginning: 'Fresh starts, emergence, new possibilities',
@@ -46,6 +51,7 @@ export default function IdeaLabPage() {
   const router = useRouter()
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
   const [captures, setCaptures] = useState<Capture[]>([])
+  const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -53,19 +59,24 @@ export default function IdeaLabPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchCaptures = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/idea-lab/captures')
-        const data = await res.json()
-        setCaptures(data.captures || [])
+        const [capturesRes, continuationsRes] = await Promise.all([
+          fetch('/api/idea-lab/captures'),
+          fetch('/api/idea-lab/continuations'),
+        ])
+        const capturesData = await capturesRes.json()
+        const continuationsData = await continuationsRes.json()
+        setCaptures(capturesData.captures || [])
+        setContinuations(continuationsData.continuations || [])
       } catch (err) {
-        console.error('Failed to fetch captures:', err)
+        console.error('Failed to fetch data:', err)
       } finally {
         setIsLoadingCaptures(false)
       }
     }
 
-    fetchCaptures()
+    fetchData()
   }, [])
 
   const toggleArc = (arc: Arc) => {
@@ -261,6 +272,46 @@ export default function IdeaLabPage() {
                 </div>
               )}
             </div>
+
+            {/* Open threads from past work */}
+            {continuations.length > 0 && (
+              <div>
+                <h2 className="text-sm text-[#4a4946] uppercase tracking-widest mb-4">
+                  Open threads from past work
+                </h2>
+                <div className="space-y-3">
+                  {continuations.map((cont, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-2"
+                    >
+                      {cont.what_it_opened && (
+                        <div>
+                          <p className="text-xs text-[#a8a6a0] uppercase tracking-widest mb-1">
+                            What it opened
+                          </p>
+                          <p className="text-sm text-[#d4d2cd]">{cont.what_it_opened}</p>
+                        </div>
+                      )}
+                      {cont.natural_continuations.length > 0 && (
+                        <div>
+                          <p className="text-xs text-[#a8a6a0] uppercase tracking-widest mb-1">
+                            Natural next steps
+                          </p>
+                          <ul className="text-sm text-[#8c8a87] space-y-1">
+                            {cont.natural_continuations.map((next, nextIdx) => (
+                              <li key={nextIdx} className="text-xs">
+                                • {next}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

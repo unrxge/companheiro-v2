@@ -89,13 +89,16 @@ function TranslateContent() {
     if (!pieceId) return
 
     try {
-      await fetch('/api/project-board/complete', {
-        method: 'POST',
+      await fetch('/api/write/draft', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId }),
+        body: JSON.stringify({
+          piece_id: pieceId,
+          short_form_script: script,
+        }),
       })
 
-      router.push('/project-board')
+      router.push(`/post-publication?piece_id=${pieceId}`)
     } catch (err) {
       console.error('Failed to mark as ready:', err)
     }
