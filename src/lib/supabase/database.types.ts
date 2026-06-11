@@ -24,6 +24,8 @@ export type PatternType = 'energy' | 'arc' | 'creative'
 export type ActionTaken = 'none' | 'board_adjusted' | 'library_suggested'
 export type LibraryType = 'music' | 'writing' | 'prompt' | 'reminder'
 export type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
+export type TaskType = 'creation' | 'execution'
+export type TaskStatus = 'pending' | 'complete'
 
 // ─── Database schema ──────────────────────────────────────────────────────────
 
@@ -366,6 +368,38 @@ export interface Database {
           notes?: string | null
         }
       }
+      tasks: {
+        Row: {
+          id: string
+          user_id: string
+          piece_id: string
+          title: string
+          type: TaskType
+          status: TaskStatus
+          order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          piece_id: string
+          title: string
+          type: TaskType
+          status?: TaskStatus
+          order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          piece_id?: string
+          title?: string
+          type?: TaskType
+          status?: TaskStatus
+          order?: number
+          created_at?: string
+        }
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -382,6 +416,8 @@ export interface Database {
       action_taken: ActionTaken
       library_type: LibraryType
       check_in_type: CheckInType
+      task_type: TaskType
+      task_status: TaskStatus
     }
   }
 }

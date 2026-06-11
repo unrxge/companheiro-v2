@@ -46,6 +46,12 @@ export default function CoreConceptPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
+  const [showTaskReview, setShowTaskReview] = useState(false)
+  const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
+  const [pieceId, setPieceId] = useState<string | null>(null)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
+
   // Load conversation from sessionStorage
   useEffect(() => {
     const stored = sessionStorage.getItem('conceptualisation_conversation')
@@ -182,8 +188,10 @@ export default function CoreConceptPage() {
       console.log('Save response:', res.status, data)
 
       if (data.success) {
-        console.log('Save successful, navigating to /project-board with piece_id:', data.piece_id)
-        router.push(`/project-board?piece_id=${data.piece_id}`)
+        console.log('Save successful, showing task review for piece_id:', data.piece_id)
+        setPieceId(data.piece_id)
+        setTasks(data.tasks || [])
+        setShowTaskReview(true)
       } else {
         console.error('Save failed:', data.error)
         setError(data.error || 'Failed to save document')
@@ -196,7 +204,147 @@ export default function CoreConceptPage() {
     }
   }
 
+  const handleDeleteTask = async (taskId?: string) => {
+    if (!taskId) {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      return
+    }
+
+    try {
+      const res = await fetch('/api/project-board/tasks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      } else {
+        setError('Failed to delete task')
+      }
+    } catch (err) {
+      console.error('Delete task error:', err)
+      setError('Failed to delete task')
+    }
+  }
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim() || !pieceId) {
+      setError('Please enter a task title')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/project-board/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          piece_id: pieceId,
+          title: newTaskTitle,
+          type: newTaskType,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        setTasks((prev) => [
+          ...prev,
+          { title: newTaskTitle, type: newTaskType },
+        ])
+        setNewTaskTitle('')
+        setNewTaskType('creation')
+      } else {
+        setError('Failed to add task')
+      }
+    } catch (err) {
+      console.error('Add task error:', err)
+      setError('Failed to add task')
+    }
+  }
+
+  const handleBegin = () => {
+    if (pieceId) {
+      router.push(`/project-board?piece_id=${pieceId}`)
+    }
+  }
+
   const allConfirmed = Object.values(sections).every((s) => s.status === 'confirmed')
+
+  // Task review screen
+  if (showTaskReview && pieceId) {
+    return (
+      <div className="min-h-screen bg-[#111110] flex flex-col">
+        <div className="flex-1 px-6 py-12 max-w-2xl mx-auto w-full">
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Your task roadmap</h1>
+              <p className="text-sm text-[#4a4946]">Review and edit the suggested tasks before beginning</p>
+            </div>
+
+            {error && (
+              <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
+                <p className="text-xs text-red-200">{error}</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {tasks.map((task, index) => (
+                <div key={index} className="bg-[#161614] border border-[#1f1f1d] rounded p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-sm text-[#d4d2cd]">{task.title}</span>
+                    <span className="text-xs bg-[#111110] text-[#4a4946] px-2 py-1 rounded">
+                      {task.type}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="text-xs text-[#6b6966] hover:text-red-300 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-3">
+              <p className="text-xs text-[#4a4946] uppercase tracking-widest">Add task</p>
+              <input
+                type="text"
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="Task title..."
+                className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={newTaskType}
+                  onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
+                  className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
+                >
+                  <option value="creation">Creation</option>
+                  <option value="execution">Execution</option>
+                </select>
+                <button
+                  onClick={handleAddTask}
+                  className="px-4 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={handleBegin}
+              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+            >
+              Begin
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#111110] flex flex-col">

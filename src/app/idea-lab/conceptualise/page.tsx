@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 interface Message {
@@ -16,7 +16,7 @@ const PHASE_LABELS: Record<number, string> = {
   5: 'Declaration',
 }
 
-export default function ConceptualisePage() {
+function ConceptualiseContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const seed = searchParams.get('seed')
@@ -295,5 +295,13 @@ export default function ConceptualisePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ConceptualisePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#111110] flex items-center justify-center"><p className="text-[#4a4946]">Loading...</p></div>}>
+      <ConceptualiseContent />
+    </Suspense>
   )
 }
