@@ -72,6 +72,7 @@ interface IdeaDetail {
 }
 
 type ModalType = 'piece' | 'idea'
+type MobileTab = 'Queue' | 'Active' | 'Completed'
 
 function ProjectBoardContent() {
   const router = useRouter()
@@ -79,6 +80,7 @@ function ProjectBoardContent() {
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<MobileTab>('Active')
 
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
@@ -258,12 +260,10 @@ function ProjectBoardContent() {
         }),
       })
 
-      // Animate completed tasks
       for (const taskId of completedIds) {
         setCompletingTasks((prev) => new Set(prev).add(taskId))
       }
 
-      // Refresh data after animation
       setTimeout(() => {
         setCompletingTasks(new Set())
         fetchBoard()
@@ -287,6 +287,76 @@ function ProjectBoardContent() {
     selectedPiece.tasks.length > 0 &&
     selectedPiece.tasks.every((t) => t.status === 'complete')
 
+  const renderCard = (
+    id: string,
+    title: string,
+    arc: string,
+    color: string,
+    onClick: () => void
+  ) => (
+    <button
+      key={id}
+      onClick={onClick}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        backgroundColor: '#161614',
+        border: '1px solid #1f1f1d',
+        borderRadius: '8px',
+        padding: '12px',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s',
+        minHeight: '80px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = color
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = '#1f1f1d'
+      }}
+    >
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        <div
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: color,
+            flexShrink: 0,
+            marginTop: '2px',
+          }}
+        />
+        <p
+          style={{
+            color: '#e8e6e0',
+            fontWeight: 500,
+            fontSize: '13px',
+            margin: 0,
+            whiteSpace: 'normal',
+            wordWrap: 'break-word',
+            lineHeight: '1.4',
+          }}
+        >
+          {title}
+        </p>
+      </div>
+      {arc && (
+        <p
+          style={{
+            color: '#4a4946',
+            fontSize: '11px',
+            margin: '8px 0 0 0',
+          }}
+        >
+          {arc}
+        </p>
+      )}
+    </button>
+  )
+
   return (
     <div className="min-h-screen bg-[#111110] flex flex-col">
       <style>{`
@@ -306,6 +376,7 @@ function ProjectBoardContent() {
         }
       `}</style>
 
+      {/* Header */}
       <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
         <div>
           <button
@@ -326,7 +397,48 @@ function ProjectBoardContent() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* Mobile Tab Bar - Hidden on md+ */}
+      <div className="md:hidden flex border-b border-[#1f1f1d]" style={{ backgroundColor: '#1a1917' }}>
+        {[
+          { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length },
+          { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
+          { name: 'Completed' as MobileTab, color: '#8B5CF6', count: completed.length },
+        ].map((tab) => (
+          <button
+            key={tab.name}
+            onClick={() => setActiveTab(tab.name)}
+            style={{
+              flex: 1,
+              padding: '12px',
+              border: 'none',
+              backgroundColor: activeTab === tab.name ? '#1f1d1b' : 'transparent',
+              borderBottom: activeTab === tab.name ? `2px solid ${tab.color}` : '1px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: tab.color,
+              }}
+            />
+            <span style={{ color: '#e8e6e0', fontSize: '12px', fontWeight: 500 }}>
+              {tab.name}
+            </span>
+            <span style={{ color: '#4a4946', fontSize: '11px' }}>({tab.count})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop Layout - 3 Columns */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Queue Column */}
         <div className="w-[20%] border-r border-[#1f1f1d] flex flex-col">
           <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
@@ -335,23 +447,9 @@ function ProjectBoardContent() {
             <span className="text-xs text-[#4a4946]">({queue.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {queue.map((idea) => (
-              <button
-                key={idea.id}
-                onClick={() => openIdeaModal(idea.id)}
-                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#F59E0B] transition-colors text-sm"
-              >
-                <div className="flex items-start gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] flex-shrink-0 mt-1"></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[#e8e6e1] font-medium truncate">{idea.title}</p>
-                    {idea.arc && (
-                      <p className="text-xs text-[#4a4946] mt-1">{idea.arc}</p>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))}
+            {queue.map((idea) =>
+              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
+            )}
           </div>
         </div>
 
@@ -363,23 +461,9 @@ function ProjectBoardContent() {
             <span className="text-xs text-[#4a4946]">({active.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {active.map((piece) => (
-              <button
-                key={piece.id}
-                onClick={() => openPieceModal(piece.id)}
-                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#10B981] transition-colors text-sm"
-              >
-                <div className="flex items-start gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] flex-shrink-0 mt-1"></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[#e8e6e1] font-medium truncate">{piece.title}</p>
-                    {piece.arc && (
-                      <p className="text-xs text-[#4a4946] mt-1">{piece.arc}</p>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))}
+            {active.map((piece) =>
+              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id))
+            )}
           </div>
         </div>
 
@@ -391,24 +475,28 @@ function ProjectBoardContent() {
             <span className="text-xs text-[#4a4946]">({completed.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {completed.map((piece) => (
-              <button
-                key={piece.id}
-                onClick={() => openPieceModal(piece.id)}
-                className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#8B5CF6] transition-colors text-sm"
-              >
-                <div className="flex items-start gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] flex-shrink-0 mt-1"></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[#e8e6e1] font-medium truncate">{piece.title}</p>
-                    {piece.arc && (
-                      <p className="text-xs text-[#4a4946] mt-1">{piece.arc}</p>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))}
+            {completed.map((piece) =>
+              renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Mobile Layout - Single Column with Tabs */}
+      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3">
+        <div className="space-y-3">
+          {activeTab === 'Queue' &&
+            queue.map((idea) =>
+              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
+            )}
+          {activeTab === 'Active' &&
+            active.map((piece) =>
+              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id))
+            )}
+          {activeTab === 'Completed' &&
+            completed.map((piece) =>
+              renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
+            )}
         </div>
       </div>
 
