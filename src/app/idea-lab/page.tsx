@@ -1,0 +1,275 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
+type ThematicTerritory = string
+
+interface ArcDefinition {
+  name: Arc
+  description: string
+}
+
+interface Capture {
+  id: string
+  unpacked: string
+  arc: string
+  thematic_territory: string
+  created_at: string
+}
+
+const ARC_DEFINITIONS: Record<Arc, string> = {
+  Breakaway: 'Disruption, stepping away from what no longer serves',
+  Beginning: 'Fresh starts, emergence, new possibilities',
+  Expansion: 'Growth, deepening, broadening horizons',
+  Integration: 'Synthesis, wholeness, bringing it together',
+}
+
+const TERRITORY_LABELS: Record<string, string> = {
+  creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
+  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
+  inner_child_tending_expression: 'Inner child tending & expression',
+  slow_living_life_in_service: 'Slow living & life in service',
+}
+
+const ALIVE_PROMPTS: Record<string, string> = {
+  default: 'What feels alive today?',
+  Breakaway: 'What needs to break away?',
+  Beginning: 'What wants to begin?',
+  Expansion: 'Where can you grow?',
+  Integration: 'What wants to come together?',
+  'Breakaway,Beginning': 'What ends so something new can start?',
+  'Breakaway,Expansion': 'What friction is asking you to expand?',
+  'Breakaway,Integration': 'What dissolution leads to wholeness?',
+  'Beginning,Expansion': 'How can this beginning deepen?',
+  'Beginning,Integration': 'What new thing wants to become whole?',
+  'Expansion,Integration': 'How can growth find its form?',
+}
+
+export default function IdeaLabPage() {
+  const router = useRouter()
+  const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
+  const [captures, setCaptures] = useState<Capture[]>([])
+  const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
+  const [responseText, setResponseText] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchCaptures = async () => {
+      try {
+        const res = await fetch('/api/idea-lab/captures')
+        const data = await res.json()
+        setCaptures(data.captures || [])
+      } catch (err) {
+        console.error('Failed to fetch captures:', err)
+      } finally {
+        setIsLoadingCaptures(false)
+      }
+    }
+
+    fetchCaptures()
+  }, [])
+
+  const toggleArc = (arc: Arc) => {
+    setSelectedArcs((prev) =>
+      prev.includes(arc) ? prev.filter((a) => a !== arc) : [...prev, arc]
+    )
+  }
+
+  const getAlivePrompt = () => {
+    if (selectedArcs.length === 0) return ALIVE_PROMPTS.default
+
+    const key = selectedArcs.sort().join(',')
+    return ALIVE_PROMPTS[key] || ALIVE_PROMPTS.default
+  }
+
+  const handleGeneratePrompt = async () => {
+    if (selectedArcs.length === 0) {
+      setError('Please select at least one arc')
+      return
+    }
+
+    setIsGenerating(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/idea-lab/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ arcs: selectedArcs }),
+      })
+
+      const data = await res.json()
+      if (data.prompt) {
+        setGeneratedPrompt(data.prompt)
+      } else {
+        setError('Failed to generate prompt')
+      }
+    } catch (err) {
+      console.error('Prompt generation error:', err)
+      setError('Failed to generate prompt. Please try again.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const getTerritoryLabel = (territory: string) => {
+    return TERRITORY_LABELS[territory] || territory
+  }
+
+  return (
+    <div className="min-h-screen bg-[#111110] flex flex-col">
+      <div className="flex-1 px-6 py-12 max-w-4xl mx-auto w-full">
+        <div className="space-y-12">
+          {/* Header */}
+          <div>
+            <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Idea Lab</h1>
+            <p className="text-sm text-[#4a4946]">Open week mode</p>
+          </div>
+
+          {/* Arc Selector */}
+          <div className="space-y-4">
+            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Select your arc(s)</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
+                <button
+                  key={arc}
+                  onClick={() => toggleArc(arc)}
+                  className={`p-4 rounded border transition-all ${
+                    selectedArcs.includes(arc)
+                      ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#d4d2cd] hover:border-[#4a4946]'
+                  }`}
+                >
+                  <p className="font-medium text-sm">The {arc}</p>
+                  <p className="text-xs mt-1 text-[#8c8a87]">{ARC_DEFINITIONS[arc]}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* What feels alive prompt */}
+          <div className="space-y-2">
+            <p className="text-lg text-[#d4d2cd] font-light">{getAlivePrompt()}</p>
+            <div className="h-px bg-[#1f1f1d]"></div>
+          </div>
+
+          {/* Generated Prompt */}
+          {generatedPrompt && (
+            <div className="space-y-3">
+              <div className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-3">
+                <p className="text-xs text-[#4a4946] uppercase tracking-widest">Generated prompt</p>
+                <p className="text-base text-[#d4d2cd] leading-relaxed">{generatedPrompt}</p>
+              </div>
+
+              <textarea
+                value={responseText}
+                onChange={(e) => {
+                  setResponseText(e.target.value)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = e.target.scrollHeight + 'px'
+                }}
+                placeholder="What do you think? Write your response..."
+                rows={1}
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+              />
+
+              <button
+                onClick={() => {
+                  if (responseText.trim()) {
+                    router.push(
+                      `/idea-lab/conceptualise?seed=${encodeURIComponent(responseText)}`
+                    )
+                  }
+                }}
+                disabled={!responseText.trim()}
+                className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Begin conceptualisation
+              </button>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
+              <p className="text-xs text-red-200">{error}</p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleGeneratePrompt}
+              disabled={selectedArcs.length === 0 || isGenerating}
+              className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? 'Generating...' : 'Generate prompt'}
+            </button>
+            <button
+              onClick={() => router.push('/idea-lab/conceptualise')}
+              className="flex-1 py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded transition-colors hover:border-[#4a4946] hover:text-[#d4d2cd]"
+            >
+              Start from scratch
+            </button>
+          </div>
+
+          {/* Capture Bank */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest mb-4">
+                Capture bank ({captures.length})
+              </h2>
+              {isLoadingCaptures ? (
+                <p className="text-sm text-[#3d3c39]">Loading captures...</p>
+              ) : captures.length === 0 ? (
+                <p className="text-sm text-[#3d3c39]">
+                  No captures yet. Start with the{' '}
+                  <Link href="/collector" className="text-[#8c8a87] underline hover:text-[#d4d2cd]">
+                    Collector
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {captures.map((capture) => (
+                    <div
+                      key={capture.id}
+                      className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-3"
+                    >
+                      <p className="text-sm text-[#d4d2cd] leading-relaxed">{capture.unpacked}</p>
+
+                      <div className="flex gap-2 items-center text-xs">
+                        <span className="text-[#4a4946]">Arc:</span>
+                        <span className="text-[#8c8a87]">{capture.arc}</span>
+                        <span className="text-[#3d3c39]">•</span>
+                        <span className="text-[#4a4946]">Territory:</span>
+                        <span className="text-[#8c8a87]">{getTerritoryLabel(capture.thematic_territory)}</span>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          router.push(
+                            `/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`
+                          )
+                        }
+                        className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
+                      >
+                        Develop this
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

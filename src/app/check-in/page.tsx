@@ -403,10 +403,15 @@ export default function CheckInPage() {
                 <div className="space-y-2">
                   <textarea
                     value={userResponse}
-                    onChange={(e) => setUserResponse(e.target.value)}
+                    onChange={(e) => {
+                      setUserResponse(e.target.value)
+                      e.target.style.height = 'auto'
+                      e.target.style.height = e.target.scrollHeight + 'px'
+                    }}
                     placeholder="What's actually going on..."
-                    rows={2}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none transition-colors"
+                    rows={1}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
                   />
                   <button
                     onClick={() => handleObservationConfirm(false)}
