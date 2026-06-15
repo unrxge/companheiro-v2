@@ -53,6 +53,10 @@ export default function CheckInPage() {
   const [userResponse, setUserResponse] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
   const [observationDismissed, setObservationDismissed] = useState(false)
+  const [isLoadingChallenge, setIsLoadingChallenge] = useState(false)
+  const [engagedWithChallenge, setEngagedWithChallenge] = useState(false)
+  const [showLogButton, setShowLogButton] = useState(false)
+  const [initialEntry, setInitialEntry] = useState('')
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -174,27 +178,43 @@ export default function CheckInPage() {
 
     const userText = transcript.trim()
     setMessages((prev) => [...prev, { role: 'user', text: userText }])
+    setTranscript('')
 
     try {
-      const res = await fetch('/api/check-in/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: userText }),
-      })
+      // If they've been challenged, just get a response (no signal extraction)
+      if (showLogButton) {
+        const res = await fetch('/api/check-in/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ response: userText }),
+        })
 
-      const data = await res.json()
+        const data = await res.json()
 
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Processing failed')
-      }
+        if (!res.ok) {
+          throw new Error(data.error ?? 'Processing failed')
+        }
 
-      setMessages((prev) => [...prev, { role: 'ai', text: data.aiResponse }])
-      setSignals(data.signals)
-      setInferredType(data.inferredType)
-      setConfirmedType(data.inferredType)
+        setMessages((prev) => [...prev, { role: 'ai', text: data.response }])
+      } else {
+        // Initial check-in processing
+        setInitialEntry(userText)
+        const res = await fetch('/api/check-in/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: userText }),
+        })
 
-      if (data.cleanedTranscript) {
-        setTranscript(data.cleanedTranscript)
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error ?? 'Processing failed')
+        }
+
+        setMessages((prev) => [...prev, { role: 'ai', text: data.aiResponse }])
+        setSignals(data.signals)
+        setInferredType(data.inferredType)
+        setConfirmedType(data.inferredType)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -203,22 +223,57 @@ export default function CheckInPage() {
     }
   }
 
+  const handleChallenge = async () => {
+    setIsLoadingChallenge(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/check-in/deeper-work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcript.trim() }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to process')
+      }
+
+      setMessages((prev) => [...prev, { role: 'ai', text: data.response }])
+      setEngagedWithChallenge(true)
+      setShowLogButton(true)
+      setTranscript('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsLoadingChallenge(false)
+    }
+  }
+
   const handleLog = async () => {
-    if (!signals || !confirmedType || !transcript.trim()) return
+    if (!signals || !confirmedType) return
     setIsLogging(true)
     setError(null)
 
     try {
+      // Build full conversation from messages
+      const fullConversation = messages
+        .map((msg) => `${msg.role === 'user' ? 'You' : 'Companheiro'}: ${msg.text}`)
+        .join('\n\n')
+
       const res = await fetch('/api/check-in/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          raw_entry: transcript.trim(),
+          raw_entry: initialEntry,
+          full_conversation: fullConversation,
           energy: signals.energy,
           inner_weather: signals.inner_weather,
           creative_readiness: signals.creative_readiness,
           arc_texture: signals.arc_texture,
           check_in_type: confirmedType,
+          engaged_with_deeper_work: engagedWithChallenge,
         }),
       })
 
@@ -230,6 +285,7 @@ export default function CheckInPage() {
 
       setLogSuccess(true)
     } catch (err) {
+      console.error('Log error:', err)
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setIsLogging(false)
@@ -284,6 +340,9 @@ export default function CheckInPage() {
               setInferredType(null)
               setConfirmedType(null)
               setShowTypeCorrection(false)
+              setEngagedWithChallenge(false)
+              setShowLogButton(false)
+              setInitialEntry('')
             }}
             className="mt-4 text-[#4a4946] text-sm underline underline-offset-4 hover:text-[#8c8a87] transition-colors"
           >
@@ -437,15 +496,15 @@ export default function CheckInPage() {
             </div>
           )}
 
-          {/* Record button */}
-          <div className={`${messages.length === 0 ? 'flex justify-center mb-6' : 'flex justify-center mb-2'}`}>
+          {/* Record button - always visible */}
+          <div className="flex justify-center mb-2">
             <button
               onClick={handleRecordToggle}
-              disabled={isProcessing}
+              disabled={isProcessing || isLoadingChallenge}
               aria-label={isRecording ? 'Stop recording' : 'Start recording'}
               className={`
                 w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
-                ${isProcessing ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
+                ${isProcessing || isLoadingChallenge ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
                 ${isRecording
                   ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
                   : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
@@ -481,8 +540,8 @@ export default function CheckInPage() {
             <p className="text-xs text-red-400">{error}</p>
           )}
 
-          {/* Send button */}
-          {transcript.trim() && !hasAiResponded && (
+          {/* Send button - when user has text and either AI hasn't responded yet OR they're in a conversation */}
+          {transcript.trim() && (!hasAiResponded || showLogButton) && (
             <button
               onClick={handleSend}
               disabled={isProcessing}
@@ -492,15 +551,36 @@ export default function CheckInPage() {
             </button>
           )}
 
-          {/* Log button */}
+          {/* Action buttons - after AI has responded */}
           {hasAiResponded && confirmedType && !logSuccess && (
-            <button
-              onClick={handleLog}
-              disabled={isLogging}
-              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {isLogging ? 'Saving...' : 'Log this check-in'}
-            </button>
+            <div className="space-y-2">
+              {!showLogButton ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleLog}
+                    disabled={isLogging}
+                    className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {isLogging ? 'Saving...' : 'Log this check-in'}
+                  </button>
+                  <button
+                    onClick={handleChallenge}
+                    disabled={isLoadingChallenge}
+                    className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleLog}
+                  disabled={isLogging}
+                  className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isLogging ? 'Saving...' : 'Log this check-in'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -7,12 +7,14 @@ export async function POST(request: Request) {
 
     const {
       raw_entry,
+      full_conversation,
       energy,
       inner_weather,
       creative_readiness,
       arc_texture,
       check_in_type,
       dream_content,
+      engaged_with_deeper_work,
     } = body
 
     if (!raw_entry || !energy || !inner_weather) {
@@ -38,12 +40,14 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         raw_entry,
+        full_conversation: full_conversation ?? null,
         energy,
         inner_weather,
         creative_readiness: creative_readiness ?? false,
         arc_texture: arc_texture ?? null,
         check_in_type: check_in_type ?? null,
         dream_content: dream_content ?? null,
+        engaged_with_deeper_work: engaged_with_deeper_work ?? false,
       })
       .select()
       .single()
