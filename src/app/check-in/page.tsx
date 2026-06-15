@@ -57,6 +57,9 @@ export default function CheckInPage() {
   const [engagedWithChallenge, setEngagedWithChallenge] = useState(false)
   const [showLogButton, setShowLogButton] = useState(false)
   const [initialEntry, setInitialEntry] = useState('')
+  const [isLoadingJournal, setIsLoadingJournal] = useState(false)
+  const [journalPrompt, setJournalPrompt] = useState('')
+  const [showJournalPrompt, setShowJournalPrompt] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -251,6 +254,32 @@ export default function CheckInPage() {
     }
   }
 
+  const handleJournalPrompt = async () => {
+    setIsLoadingJournal(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/check-in/journal-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcript.trim() || initialEntry }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to generate prompt')
+      }
+
+      setJournalPrompt(data.prompt)
+      setShowJournalPrompt(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsLoadingJournal(false)
+    }
+  }
+
   const handleLog = async () => {
     if (!signals || !confirmedType) return
     setIsLogging(true)
@@ -343,6 +372,8 @@ export default function CheckInPage() {
               setEngagedWithChallenge(false)
               setShowLogButton(false)
               setInitialEntry('')
+              setJournalPrompt('')
+              setShowJournalPrompt(false)
             }}
             className="mt-4 text-[#4a4946] text-sm underline underline-offset-4 hover:text-[#8c8a87] transition-colors"
           >
@@ -551,6 +582,22 @@ export default function CheckInPage() {
             </button>
           )}
 
+          {/* Journal prompt display */}
+          {showJournalPrompt && journalPrompt && (
+            <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-3">
+              <p className="text-xs text-[#4a4946] uppercase tracking-widest">Journal prompt</p>
+              <p className="text-sm text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(journalPrompt)
+                }}
+                className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
+              >
+                Copy prompt
+              </button>
+            </div>
+          )}
+
           {/* Action buttons - after AI has responded */}
           {hasAiResponded && confirmedType && !logSuccess && (
             <div className="space-y-2">
@@ -569,6 +616,13 @@ export default function CheckInPage() {
                     className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
+                  </button>
+                  <button
+                    onClick={handleJournalPrompt}
+                    disabled={isLoadingJournal}
+                    className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
                   </button>
                 </div>
               ) : (
