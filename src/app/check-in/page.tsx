@@ -76,12 +76,26 @@ export default function CheckInPage() {
   useEffect(() => {
     const fetchObservation = async () => {
       try {
+        // Check if we already showed an observation today
+        const lastShownTime = localStorage.getItem('drought_observation_last_shown')
+        const now = Date.now()
+        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
+
+        if (lastShownTime && now - parseInt(lastShownTime) < TWENTY_FOUR_HOURS) {
+          // Less than 24 hours have passed, skip fetching
+          setIsLoadingObservation(false)
+          return
+        }
+
         const res = await fetch('/api/drought/analyse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
         const data: DroughtObservation = await res.json()
         setObservation(data)
+
+        // Record when we showed this observation
+        localStorage.setItem('drought_observation_last_shown', now.toString())
       } catch (err) {
         console.error('Failed to fetch observation:', err)
       } finally {
