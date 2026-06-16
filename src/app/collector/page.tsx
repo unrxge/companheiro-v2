@@ -48,6 +48,7 @@ export default function CollectorPage() {
   const [previousCaptures, setPreviousCaptures] = useState<PreviousCapture[]>([])
   const [isLoadingPrevious, setIsLoadingPrevious] = useState(true)
   const [selectedCapture, setSelectedCapture] = useState<PreviousCapture | null>(null)
+  const [isPunctuating, setIsPunctuating] = useState(false)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
@@ -118,6 +119,10 @@ export default function CollectorPage() {
 
     recognition.onend = () => {
       setIsRecording(false)
+      // Punctuate the transcript after recording ends
+      if (transcript.trim()) {
+        punctuateTranscript(transcript.trim())
+      }
     }
 
     recognitionRef.current = recognition
@@ -136,6 +141,26 @@ export default function CollectorPage() {
       stopRecording()
     } else {
       startRecording()
+    }
+  }
+
+  const punctuateTranscript = async (rawText: string) => {
+    if (!rawText.trim()) return
+    setIsPunctuating(true)
+    try {
+      const res = await fetch('/api/punctuate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: rawText }),
+      })
+      const data = await res.json()
+      if (data.punctuated) {
+        setTranscript(data.punctuated)
+      }
+    } catch (err) {
+      console.error('Punctuation error:', err)
+    } finally {
+      setIsPunctuating(false)
     }
   }
 
@@ -301,6 +326,12 @@ export default function CollectorPage() {
           {isRecording && (
             <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
               Recording
+            </p>
+          )}
+
+          {isPunctuating && (
+            <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
+              Punctuating...
             </p>
           )}
 

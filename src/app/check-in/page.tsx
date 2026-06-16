@@ -60,6 +60,7 @@ export default function CheckInPage() {
   const [isLoadingJournal, setIsLoadingJournal] = useState(false)
   const [journalPrompt, setJournalPrompt] = useState('')
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
+  const [isPunctuating, setIsPunctuating] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -144,6 +145,13 @@ export default function CheckInPage() {
         }
       }
 
+      recognition.onend = () => {
+        // Punctuate the final transcript after recording ends
+        if (finalTranscript.trim()) {
+          punctuateTranscript(finalTranscript.trim())
+        }
+      }
+
       recognition.start()
       recognitionRef.current = recognition
       setIsRecording(true)
@@ -178,6 +186,26 @@ export default function CheckInPage() {
       mediaRecorderRef.current = null
     }
     setIsRecording(false)
+  }
+
+  const punctuateTranscript = async (rawText: string) => {
+    if (!rawText.trim()) return
+    setIsPunctuating(true)
+    try {
+      const res = await fetch('/api/punctuate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: rawText }),
+      })
+      const data = await res.json()
+      if (data.punctuated) {
+        setTranscript(data.punctuated)
+      }
+    } catch (err) {
+      console.error('Punctuation error:', err)
+    } finally {
+      setIsPunctuating(false)
+    }
   }
 
   const handleRecordToggle = () => {
@@ -567,6 +595,12 @@ export default function CheckInPage() {
           {isRecording && (
             <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
               Recording
+            </p>
+          )}
+
+          {isPunctuating && (
+            <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
+              Punctuating...
             </p>
           )}
 

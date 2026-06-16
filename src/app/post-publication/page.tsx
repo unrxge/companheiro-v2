@@ -19,6 +19,7 @@ function PostPublicationContent() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
+  const [isPunctuating, setIsPunctuating] = useState(false)
 
   const [form, setForm] = useState({
     thread: '',
@@ -58,6 +59,29 @@ function PostPublicationContent() {
     }
   }
 
+  const punctuateTranscript = async (rawText: string, fieldName: string) => {
+    if (!rawText.trim()) return
+    setIsPunctuating(true)
+    try {
+      const res = await fetch('/api/punctuate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: rawText }),
+      })
+      const data = await res.json()
+      if (data.punctuated) {
+        setForm((prev) => ({
+          ...prev,
+          [fieldName]: (prev[fieldName as keyof typeof form] || '') + data.punctuated,
+        }))
+      }
+    } catch (err) {
+      console.error('Punctuation error:', err)
+    } finally {
+      setIsPunctuating(false)
+    }
+  }
+
   const startDictation = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('Speech recognition not supported in this browser')
@@ -72,27 +96,25 @@ function PostPublicationContent() {
     recognition.interimResults = false
     recognition.lang = 'en-US'
 
+    let finalTranscript = ''
+
     recognition.onstart = () => {
       setIsListening(true)
     }
 
     recognition.onend = () => {
       setIsListening(false)
+      // Punctuate the transcript after recording ends
+      if (finalTranscript.trim() && focusedField) {
+        punctuateTranscript(finalTranscript.trim(), focusedField)
+      }
     }
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let transcript = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          transcript += event.results[i][0].transcript + ' '
+          finalTranscript += event.results[i][0].transcript + ' '
         }
-      }
-
-      if (transcript && focusedField) {
-        setForm((prev) => ({
-          ...prev,
-          [focusedField]: (prev[focusedField as keyof typeof form] || '') + transcript,
-        }))
       }
     }
 
@@ -203,6 +225,11 @@ function PostPublicationContent() {
               {focusedField && (
                 <span className="text-xs text-[#8c8a87] self-center">
                   Speaking into: {focusedField.replace(/_/g, ' ')}
+                </span>
+              )}
+              {isPunctuating && (
+                <span className="text-xs text-[#6b6966] self-center">
+                  Punctuating...
                 </span>
               )}
             </div>
