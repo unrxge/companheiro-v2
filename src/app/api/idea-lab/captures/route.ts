@@ -48,7 +48,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<CapturesR
 
     const { data: captures, error: queryError } = await supabase
       .from("captures")
-      .select("id, raw_input, unpacked, arc, thematic_territory, created_at")
+      .select("id, raw_input, unpacked, arc, thematic_territory, url, created_at")
       .eq("user_id", userId)
       .eq("status", "captured")
       .order("created_at", { ascending: false })
