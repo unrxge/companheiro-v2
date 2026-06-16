@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
@@ -18,6 +18,16 @@ interface CaptureResult {
   thematic_territory: ThematicTerritory
 }
 
+interface PreviousCapture {
+  id: string
+  raw_input: string
+  unpacked: string
+  arc: string
+  thematic_territory: string
+  url: string | null
+  created_at: string
+}
+
 const TERRITORY_LABELS: Record<ThematicTerritory, string> = {
   creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
   healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
@@ -30,19 +40,41 @@ export default function CollectorPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [manualInput, setManualInput] = useState('')
+  const [url, setUrl] = useState('')
   const [isCapturing, setIsCapturing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null)
+  const [previousCaptures, setPreviousCaptures] = useState<PreviousCapture[]>([])
+  const [isLoadingPrevious, setIsLoadingPrevious] = useState(true)
+  const [selectedCapture, setSelectedCapture] = useState<PreviousCapture | null>(null)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+
+  // Fetch previous captures on mount
+  useEffect(() => {
+    const fetchPreviousCaptures = async () => {
+      try {
+        const res = await fetch('/api/idea-lab/captures')
+        const data = await res.json()
+        setPreviousCaptures(data.captures || [])
+      } catch (err) {
+        console.error('Failed to fetch previous captures:', err)
+      } finally {
+        setIsLoadingPrevious(false)
+      }
+    }
+
+    fetchPreviousCaptures()
+  }, [])
 
   const handleCaptureAnother = () => {
     setShowSuccess(false)
     setCaptureResult(null)
     setTranscript('')
     setManualInput('')
+    setUrl('')
   }
 
   const startRecording = async () => {
@@ -121,7 +153,10 @@ export default function CollectorPage() {
       const res = await fetch('/api/collector/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_input: input }),
+        body: JSON.stringify({
+          raw_input: input,
+          url: url.trim() || undefined,
+        }),
       })
 
       const data = await res.json()
@@ -271,21 +306,125 @@ export default function CollectorPage() {
 
           {/* Manual text input - shown below record button */}
           {!transcript && !isRecording && (
-            <input
-              type="text"
-              value={manualInput}
-              onChange={(e) => setManualInput(e.target.value)}
-              placeholder="or type here..."
-              className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && manualInput.trim()) {
-                  handleCapture()
-                }
-              }}
-            />
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="or type here..."
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && manualInput.trim()) {
+                    handleCapture()
+                  }
+                }}
+              />
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="URL (optional)"
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+              />
+            </div>
           )}
         </div>
       </div>
+
+      {/* Previously Captured Section */}
+      {!showSuccess && (
+        <div className="px-6 py-6 border-t border-[#1f1f1d] max-w-xl mx-auto w-full">
+          <h3 className="text-xs text-[#4a4946] uppercase tracking-widest mb-3">
+            Previously captured
+          </h3>
+
+          {isLoadingPrevious ? (
+            <p className="text-xs text-[#3d3c39]">Loading...</p>
+          ) : previousCaptures.length === 0 ? (
+            <p className="text-xs text-[#3d3c39]">No captures yet</p>
+          ) : (
+            <div className="space-y-2">
+              {previousCaptures.map((capture) => (
+                <button
+                  key={capture.id}
+                  onClick={() => setSelectedCapture(capture)}
+                  className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#4a4946] transition-colors"
+                >
+                  <p className="text-sm text-[#d4d2cd] leading-relaxed line-clamp-2">
+                    {capture.unpacked}
+                  </p>
+                  <div className="flex gap-2 items-center text-xs mt-2">
+                    <span className="text-[#4a4946]">Arc:</span>
+                    <span className="text-[#8c8a87]">{capture.arc}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Capture Detail Modal */}
+      {selectedCapture && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
+              <div className="flex-1">
+                <h2 className="text-lg font-medium text-[#e8e6e1]">Captured idea</h2>
+                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
+                  <span>{selectedCapture.arc}</span>
+                  <span>•</span>
+                  <span>{selectedCapture.thematic_territory}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCapture(null)}
+                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-6">
+              {/* URL */}
+              {selectedCapture.url && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Source</p>
+                  <a
+                    href={selectedCapture.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#10B981] hover:text-[#06d6a0] transition-colors break-all"
+                  >
+                    {selectedCapture.url}
+                  </a>
+                </div>
+              )}
+
+              {/* Raw input */}
+              {selectedCapture.raw_input && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Raw input</p>
+                  <p className="text-sm text-[#d4d2cd] leading-relaxed">{selectedCapture.raw_input}</p>
+                </div>
+              )}
+
+              {/* Unpacked text */}
+              {selectedCapture.unpacked && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Unpacked</p>
+                  <p className="text-sm text-[#d4d2cd] leading-relaxed">{selectedCapture.unpacked}</p>
+                </div>
+              )}
+
+              {/* Created at */}
+              <div className="text-xs text-[#8c8a87] pt-4 border-t border-[#1f1f1d]">
+                Captured on {new Date(selectedCapture.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

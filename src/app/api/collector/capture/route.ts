@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 interface CaptureRequest {
   raw_input: string;
+  url?: string;
 }
 
 interface CaptureResponse {
@@ -118,6 +119,7 @@ Format your response as JSON:
           arc: analysis.arc,
           thematic_territory: analysis.thematic_territory,
           status: "captured",
+          url: body.url || null,
         },
       ])
       .select();
