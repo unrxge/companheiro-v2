@@ -13,16 +13,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'transcript is required' }, { status: 400 })
     }
 
-    const systemPrompt = `You are creating a journaling prompt based on what someone has shared in their check-in.
+    const systemPrompt = `You are creating a journaling prompt—a companion invitation for someone to sit with their own experience.
 
 The prompt should:
-- Be specific to what they've expressed, not generic
-- Invite them to go deeper into their own thoughts and feelings
-- Be open-ended (not yes/no questions)
-- Be something they can sit with offline and write about
-- Feel like a companion invitation, not a therapy question
+- Be specific to what they've actually expressed, not generic
+- Name the real thing underneath (the contradiction, the weight, the tender place)
+- Invite them to go deeper without softening or explaining
+- Be open-ended and something they can sit with offline
+- Feel like a companion asking a real question, not a therapy prompt
+- Use direct, clear language with no filler
 
-Return only the prompt itself, nothing else. No preamble, no explanation.`
+Return ONLY the prompt itself. No preamble, no explanation. One sentence or a brief question.`
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
