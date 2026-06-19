@@ -17,6 +17,20 @@ interface AnalysisResponse {
   pattern_type?: "energy" | "arc" | "creative";
 }
 
+function formatDateAsRelative(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const daysAgo = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
+  return `${dayOfWeek} (${daysAgo} days ago)`;
+}
+
+function detectDrought(checkIns: CheckIn[]): boolean {
+  if (checkIns.length < 2) return false;
+  const lowEnergyCount = checkIns.filter((c) => c.energy === "low").length;
+  return lowEnergyCount >= Math.ceil(checkIns.length * 0.5);
+}
+
 export async function POST(_request: NextRequest): Promise<NextResponse<AnalysisResponse>> {
   try {
     // Get authenticated user
@@ -64,6 +78,11 @@ export async function POST(_request: NextRequest): Promise<NextResponse<Analysis
       return NextResponse.json({ observation: null });
     }
 
+    // Check if there's an actual drought pattern
+    if (!detectDrought(checkIns as CheckIn[])) {
+      return NextResponse.json({ observation: null });
+    }
+
     // Build pattern summary for Claude
     const energyDistribution = {
       low: (checkIns as CheckIn[]).filter((c) => c.energy === "low").length,
@@ -86,11 +105,16 @@ export async function POST(_request: NextRequest): Promise<NextResponse<Analysis
       .filter((w) => w);
 
     const checkInsSummary = (checkIns as CheckIn[])
-      .map(
-        (c) =>
-          `[${new Date(c.created_at).toLocaleDateString()}] Energy: ${c.energy}, Weather: ${c.inner_weather}, Creative: ${c.creative_readiness ? "yes" : "no"}, Arc: ${c.arc_texture}`
-      )
-      .join("\n");
+      .map((c) => {
+        const formattedDate = formatDateAsRelative(c.created_at);
+        return `[${formattedDate}]
+Energy: ${c.energy}
+Weather: ${c.inner_weather}
+Arc: ${c.arc_texture}
+Creative readiness: ${c.creative_readiness ? "yes" : "no"}
+Entry: "${c.raw_entry}"`;
+      })
+      .join("\n\n");
 
     // Initialize Anthropic client
     const client = new Anthropic({
@@ -110,6 +134,13 @@ Your voice:
 - Only surface a pattern if something truly significant emerges
 - Never clinical, never filler — every word carries weight
 
+CRITICAL: When you reference specific days or moments in your observation, you MUST include:
+1. The formatted date already provided (e.g., "Monday (3 days ago)")
+2. A direct quote or concrete detail from what they said on that day
+Example: "On Monday (3 days ago) when you said 'the heaviness won't lift,' you were naming exactly where you were."
+
+Always ground your observations in their actual words and experiences, not abstractions.
+
 When you find a meaningful pattern, name it directly then classify as:
 - "energy": patterns in energy levels or vitality
 - "arc": patterns in arc texture (the narrative shape of their inner life)
@@ -118,7 +149,7 @@ When you find a meaningful pattern, name it directly then classify as:
 Format as JSON:
 {
   "has_observation": boolean,
-  "observation": string (only if has_observation is true; direct statement of the pattern, then recognition of its weight),
+  "observation": string (only if has_observation is true; direct statement of the pattern with concrete examples and quotes, then recognition of its weight),
   "pattern_type": "energy" | "arc" | "creative" (only if has_observation is true)
 }
 
