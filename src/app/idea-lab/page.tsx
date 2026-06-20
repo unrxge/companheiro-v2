@@ -5,6 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
+type Territory =
+  | 'creativity_devotion_curiosity'
+  | 'healthy_masculinity_emotional_regulation'
+  | 'inner_child_tending_expression'
+  | 'slow_living_life_in_service'
 
 interface Capture {
   id: string
@@ -25,6 +30,13 @@ const ARC_DEFINITIONS: Record<Arc, string> = {
   Expansion: 'Growth, deepening, broadening horizons',
   Integration: 'Synthesis, wholeness, bringing it together',
 }
+
+const TERRITORIES: Territory[] = [
+  'creativity_devotion_curiosity',
+  'healthy_masculinity_emotional_regulation',
+  'inner_child_tending_expression',
+  'slow_living_life_in_service',
+]
 
 const TERRITORY_LABELS: Record<string, string> = {
   creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
@@ -50,6 +62,9 @@ const ALIVE_PROMPTS: Record<string, string> = {
 export default function IdeaLabPage() {
   const router = useRouter()
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
+  const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
+  const [skipTerritories, setSkipTerritories] = useState(false)
+  const [useRandomTerritories, setUseRandomTerritories] = useState(false)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
@@ -85,6 +100,26 @@ export default function IdeaLabPage() {
     )
   }
 
+  const toggleTerritory = (territory: Territory) => {
+    setSelectedTerritories((prev) =>
+      prev.includes(territory) ? prev.filter((t) => t !== territory) : [...prev, territory]
+    )
+  }
+
+  const handleSkipTerritories = () => {
+    setSkipTerritories(true)
+    setUseRandomTerritories(false)
+    setSelectedTerritories([])
+  }
+
+  const handleRandomTerritories = () => {
+    setUseRandomTerritories(!useRandomTerritories)
+    if (!useRandomTerritories) {
+      setSkipTerritories(false)
+      setSelectedTerritories([])
+    }
+  }
+
   const getAlivePrompt = () => {
     if (selectedArcs.length === 0) return ALIVE_PROMPTS.default
 
@@ -102,10 +137,24 @@ export default function IdeaLabPage() {
     setError(null)
 
     try {
+      const payload: {
+        arcs: Arc[]
+        territories?: Territory[] | null
+        randomTerritories?: boolean
+      } = { arcs: selectedArcs }
+
+      if (skipTerritories) {
+        payload.territories = null
+      } else if (useRandomTerritories) {
+        payload.randomTerritories = true
+      } else if (selectedTerritories.length > 0) {
+        payload.territories = selectedTerritories
+      }
+
       const res = await fetch('/api/idea-lab/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ arcs: selectedArcs }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
@@ -158,6 +207,57 @@ export default function IdeaLabPage() {
                 >
                   <p className="font-medium text-sm">The {arc}</p>
                   <p className="text-xs mt-1 text-[#8c8a87]">{ARC_DEFINITIONS[arc]}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Territory Selector */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">
+                Select thematic territories
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRandomTerritories}
+                  className={`px-3 py-1 rounded border text-xs transition-all ${
+                    useRandomTerritories
+                      ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                  }`}
+                  title="Randomize territory selection"
+                >
+                  🎲
+                </button>
+                <button
+                  onClick={handleSkipTerritories}
+                  className={`px-3 py-1 rounded border text-xs font-medium transition-all ${
+                    skipTerritories
+                      ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                  }`}
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {TERRITORIES.map((territory) => (
+                <button
+                  key={territory}
+                  onClick={() => toggleTerritory(territory)}
+                  disabled={skipTerritories || useRandomTerritories}
+                  className={`p-4 rounded border transition-all ${
+                    skipTerritories || useRandomTerritories
+                      ? 'bg-transparent border-[#1a1a18] text-[#3d3c39] cursor-not-allowed opacity-40'
+                      : selectedTerritories.includes(territory)
+                        ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
+                        : 'bg-transparent border-[#2e2d2a] text-[#d4d2cd] hover:border-[#4a4946]'
+                  }`}
+                >
+                  <p className="font-medium text-sm">{TERRITORY_LABELS[territory]}</p>
                 </button>
               ))}
             </div>

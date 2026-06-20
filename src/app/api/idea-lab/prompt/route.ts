@@ -3,11 +3,32 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface PromptRequest {
   arcs: string[];
-  territories?: string[];
+  territories?: string[] | null;
+  randomTerritories?: boolean;
 }
 
 interface PromptResponse {
   prompt: string;
+}
+
+const ALL_TERRITORIES = [
+  "creativity_devotion_curiosity",
+  "healthy_masculinity_emotional_regulation",
+  "inner_child_tending_expression",
+  "slow_living_life_in_service",
+];
+
+const TERRITORY_LABELS: Record<string, string> = {
+  creativity_devotion_curiosity: "Creativity, devotion & curiosity",
+  healthy_masculinity_emotional_regulation: "Healthy masculinity & emotional regulation",
+  inner_child_tending_expression: "Inner child tending & expression",
+  slow_living_life_in_service: "Slow living & life in service",
+};
+
+function getRandomTerritories(): string[] {
+  const count = Math.random() > 0.5 ? 1 : Math.floor(Math.random() * 4) + 1;
+  const shuffled = [...ALL_TERRITORIES].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<PromptResponse>> {
@@ -26,7 +47,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     });
 
     const arcsDescription = body.arcs.join(", ");
-    const territoriesDescription = body.territories ? body.territories.join(", ") : "various territories";
+
+    let territoriesDescription: string;
+    if (body.territories === null) {
+      territoriesDescription = "";
+    } else if (body.randomTerritories) {
+      const randomTerritories = getRandomTerritories();
+      territoriesDescription = randomTerritories
+        .map((t) => TERRITORY_LABELS[t])
+        .join(", ");
+    } else if (body.territories && body.territories.length > 0) {
+      territoriesDescription = body.territories
+        .map((t) => TERRITORY_LABELS[t] || t)
+        .join(", ");
+    } else {
+      territoriesDescription = "";
+    }
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -51,7 +87,9 @@ Return only the prompt text, nothing else.`,
       messages: [
         {
           role: "user",
-          content: `Generate a prompt rooted in these arc(s): ${arcsDescription}. The prompt should be relevant to themes in: ${territoriesDescription}.`,
+          content: territoriesDescription
+            ? `Generate a prompt rooted in these arc(s): ${arcsDescription}. The prompt should be relevant to themes in: ${territoriesDescription}.`
+            : `Generate a prompt rooted in these arc(s): ${arcsDescription}.`,
         },
       ],
     });
