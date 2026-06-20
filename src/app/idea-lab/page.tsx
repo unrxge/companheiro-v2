@@ -350,7 +350,7 @@ export default function IdeaLabPage() {
           <div className="flex gap-3">
             <button
               onClick={handleGeneratePrompt}
-              disabled={selectedArcs.length === 0 || isGenerating}
+              disabled={(selectedArcs.length === 0 && !useRandomArcs) || isGenerating}
               className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {isGenerating ? 'Generating...' : 'Generate prompt'}
