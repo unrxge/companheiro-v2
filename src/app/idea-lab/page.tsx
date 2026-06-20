@@ -62,6 +62,7 @@ const ALIVE_PROMPTS: Record<string, string> = {
 export default function IdeaLabPage() {
   const router = useRouter()
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
+  const [useRandomArcs, setUseRandomArcs] = useState(false)
   const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
   const [useRandomTerritories, setUseRandomTerritories] = useState(false)
@@ -100,6 +101,13 @@ export default function IdeaLabPage() {
     )
   }
 
+  const handleRandomArcs = () => {
+    setUseRandomArcs(!useRandomArcs)
+    if (!useRandomArcs) {
+      setSelectedArcs([])
+    }
+  }
+
   const toggleTerritory = (territory: Territory) => {
     setSelectedTerritories((prev) =>
       prev.includes(territory) ? prev.filter((t) => t !== territory) : [...prev, territory]
@@ -107,9 +115,11 @@ export default function IdeaLabPage() {
   }
 
   const handleSkipTerritories = () => {
-    setSkipTerritories(true)
-    setUseRandomTerritories(false)
-    setSelectedTerritories([])
+    setSkipTerritories(!skipTerritories)
+    if (!skipTerritories) {
+      setUseRandomTerritories(false)
+      setSelectedTerritories([])
+    }
   }
 
   const handleRandomTerritories = () => {
@@ -128,8 +138,8 @@ export default function IdeaLabPage() {
   }
 
   const handleGeneratePrompt = async () => {
-    if (selectedArcs.length === 0) {
-      setError('Please select at least one arc')
+    if (selectedArcs.length === 0 && !useRandomArcs) {
+      setError('Please select at least one arc or use random')
       return
     }
 
@@ -138,10 +148,17 @@ export default function IdeaLabPage() {
 
     try {
       const payload: {
-        arcs: Arc[]
+        arcs?: Arc[]
+        randomArcs?: boolean
         territories?: Territory[] | null
         randomTerritories?: boolean
-      } = { arcs: selectedArcs }
+      } = {}
+
+      if (useRandomArcs) {
+        payload.randomArcs = true
+      } else {
+        payload.arcs = selectedArcs
+      }
 
       if (skipTerritories) {
         payload.territories = null
@@ -193,16 +210,32 @@ export default function IdeaLabPage() {
 
           {/* Arc Selector */}
           <div className="space-y-4">
-            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Select your arc(s)</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Select your arc(s)</h2>
+              <button
+                onClick={handleRandomArcs}
+                className={`px-3 py-1 rounded border text-xs transition-all ${
+                  useRandomArcs
+                    ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
+                    : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                }`}
+                title="Randomize arc selection"
+              >
+                🎲
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
                 <button
                   key={arc}
                   onClick={() => toggleArc(arc)}
+                  disabled={useRandomArcs}
                   className={`p-4 rounded border transition-all ${
-                    selectedArcs.includes(arc)
-                      ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
-                      : 'bg-transparent border-[#2e2d2a] text-[#d4d2cd] hover:border-[#4a4946]'
+                    useRandomArcs
+                      ? 'bg-transparent border-[#1a1a18] text-[#3d3c39] cursor-not-allowed opacity-40'
+                      : selectedArcs.includes(arc)
+                        ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
+                        : 'bg-transparent border-[#2e2d2a] text-[#d4d2cd] hover:border-[#4a4946]'
                   }`}
                 >
                   <p className="font-medium text-sm">The {arc}</p>

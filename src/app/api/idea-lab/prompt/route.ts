@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 interface PromptRequest {
-  arcs: string[];
+  arcs?: string[];
+  randomArcs?: boolean;
   territories?: string[] | null;
   randomTerritories?: boolean;
 }
@@ -10,6 +11,8 @@ interface PromptRequest {
 interface PromptResponse {
   prompt: string;
 }
+
+const ALL_ARCS = ["Breakaway", "Beginning", "Expansion", "Integration"];
 
 const ALL_TERRITORIES = [
   "creativity_devotion_curiosity",
@@ -25,6 +28,12 @@ const TERRITORY_LABELS: Record<string, string> = {
   slow_living_life_in_service: "Slow living & life in service",
 };
 
+function getRandomArcs(): string[] {
+  const count = Math.random() > 0.5 ? 1 : Math.floor(Math.random() * 4) + 1;
+  const shuffled = [...ALL_ARCS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
 function getRandomTerritories(): string[] {
   const count = Math.random() > 0.5 ? 1 : Math.floor(Math.random() * 4) + 1;
   const shuffled = [...ALL_TERRITORIES].sort(() => Math.random() - 0.5);
@@ -35,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
   try {
     const body: PromptRequest = await request.json();
 
-    if (!body.arcs || body.arcs.length === 0) {
+    if ((!body.arcs || body.arcs.length === 0) && !body.randomArcs) {
       return NextResponse.json(
         { prompt: "" },
         { status: 400 }
@@ -46,7 +55,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
-    const arcsDescription = body.arcs.join(", ");
+    const finalArcs = body.randomArcs ? getRandomArcs() : body.arcs || [];
+    const arcsDescription = finalArcs.join(", ");
 
     let territoriesDescription: string;
     if (body.territories === null) {
