@@ -9,10 +9,24 @@ interface ActivePiece {
   arc: string
 }
 
+interface RecentCapture {
+  id: string
+  unpacked: string
+  arc: string
+}
+
 function HomeContent() {
   const [activePieces, setActivePieces] = useState<ActivePiece[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
+
+  const [recentCaptures, setRecentCaptures] = useState<RecentCapture[]>([])
+  const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
+  const [captureUrl, setCaptureUrl] = useState('')
+  const [captureNote, setCaptureNote] = useState('')
+  const [isCapturing, setIsCapturing] = useState(false)
+  const [captureError, setCaptureError] = useState<string | null>(null)
+  const [justCaptured, setJustCaptured] = useState(false)
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -35,6 +49,65 @@ function HomeContent() {
 
     fetchActivePieces()
   }, [])
+
+  const fetchRecentCaptures = async () => {
+    try {
+      const res = await fetch('/api/idea-lab/captures')
+      const data = await res.json()
+      setRecentCaptures((data.captures || []).slice(0, 3))
+    } catch (err) {
+      console.error('Failed to fetch recent captures:', err)
+    } finally {
+      setIsLoadingCaptures(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecentCaptures()
+  }, [])
+
+  const handleQuickCapture = async () => {
+    const note = captureNote.trim()
+    const url = captureUrl.trim()
+    const rawInput = note || url
+
+    if (!rawInput) {
+      setCaptureError('Paste a link or add a note')
+      return
+    }
+
+    setIsCapturing(true)
+    setCaptureError(null)
+
+    try {
+      const res = await fetch('/api/collector/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_input: rawInput,
+          url: url || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!data.success) {
+        setCaptureError(data.error || 'Failed to capture')
+        return
+      }
+
+      setCaptureUrl('')
+      setCaptureNote('')
+      setJustCaptured(true)
+      setTimeout(() => setJustCaptured(false), 2000)
+      fetchRecentCaptures()
+    } catch (err) {
+      console.error('Quick capture error:', err)
+      setCaptureError('Failed to capture. Please try again.')
+    } finally {
+      setIsCapturing(false)
+    }
+  }
 
   return (
     <div
@@ -205,55 +278,181 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* Right column: Action cards */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-          }}
-        >
-          {/* Collector card */}
-          <a
-            href="/collector"
+        {/* Right column: Capture widget */}
+        <div>
+          <div
             style={{
+              backgroundColor: '#141312',
+              border: '1px solid #1f1d1b',
+              borderRadius: '12px',
+              padding: '16px',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '32px 24px',
-              backgroundColor: '#1a1917',
-              border: '1px solid #2a2825',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              textDecoration: 'none',
-              flex: 1,
-              minHeight: '160px',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLAnchorElement
-              el.style.borderColor = '#4a4846'
-              el.style.backgroundColor = '#1f1d1b'
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLAnchorElement
-              el.style.borderColor = '#2a2825'
-              el.style.backgroundColor = '#1a1917'
+              height: '100%',
             }}
           >
-            {/* Pencil/Capture SVG icon */}
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#a8a6a0" strokeWidth="1.5">
-              <path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7M3 7h18M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: '#e8e6e0', fontSize: '14px', margin: 0, fontWeight: 500 }}>Collector</p>
-              <p style={{ color: '#6a6866', fontSize: '12px', margin: '4px 0 0 0', fontWeight: 400 }}>
-                Capture what&apos;s alive
-              </p>
+            <p
+              style={{
+                color: '#4a4846',
+                fontSize: '11px',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                marginBottom: '16px',
+                margin: 0,
+              }}
+            >
+              Capture what&apos;s alive
+            </p>
+
+            {/* Quick capture form */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+              <input
+                type="url"
+                value={captureUrl}
+                onChange={(e) => setCaptureUrl(e.target.value)}
+                placeholder="Paste a link that inspired you..."
+                style={{
+                  width: '100%',
+                  backgroundColor: '#1c1c1a',
+                  border: '1px solid #2a2825',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  fontSize: '13px',
+                  color: '#e8e6e0',
+                  outline: 'none',
+                }}
+              />
+              <input
+                type="text"
+                value={captureNote}
+                onChange={(e) => setCaptureNote(e.target.value)}
+                placeholder="What caught your eye? (optional)"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isCapturing) handleQuickCapture()
+                }}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#1c1c1a',
+                  border: '1px solid #2a2825',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  fontSize: '13px',
+                  color: '#e8e6e0',
+                  outline: 'none',
+                }}
+              />
+              {captureError && (
+                <p style={{ color: '#f87171', fontSize: '11px', margin: 0 }}>{captureError}</p>
+              )}
+              <button
+                onClick={handleQuickCapture}
+                disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: justCaptured ? '#10B981' : '#e8e6e0',
+                  color: justCaptured ? '#0f0e0d' : '#111110',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: isCapturing ? 'not-allowed' : 'pointer',
+                  opacity: isCapturing || (!captureUrl.trim() && !captureNote.trim() && !justCaptured) ? 0.4 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
+              </button>
             </div>
-          </a>
+
+            {/* Recent captures */}
+            <div
+              style={{
+                marginTop: '16px',
+                paddingTop: '16px',
+                borderTop: '1px solid #1f1d1b',
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              {isLoadingCaptures ? (
+                <p style={{ color: '#3d3c39', fontSize: '12px' }}>Loading...</p>
+              ) : recentCaptures.length === 0 ? (
+                <p style={{ color: '#6a6866', fontSize: '13px', lineHeight: '1.6' }}>
+                  Nothing captured yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto', flex: 1 }}>
+                  {recentCaptures.map((capture, index) => (
+                    <a
+                      key={capture.id}
+                      href="/collector"
+                      style={{
+                        display: 'block',
+                        padding: '10px 0',
+                        textDecoration: 'none',
+                        borderBottom: index < recentCaptures.length - 1 ? '1px solid #1f1d1b' : 'none',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLAnchorElement).style.paddingLeft = '4px'
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLAnchorElement).style.paddingLeft = '0'
+                      }}
+                    >
+                      <p
+                        style={{
+                          color: '#d4d2cd',
+                          fontSize: '12px',
+                          margin: 0,
+                          lineHeight: '1.5',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {capture.unpacked}
+                      </p>
+                      <span style={{ color: '#6a6866', fontSize: '11px' }}>{capture.arc}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              <div
+                style={{
+                  paddingTop: '12px',
+                  marginTop: 'auto',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <a
+                  href="/collector"
+                  style={{
+                    color: '#6a6866',
+                    fontSize: '12px',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '4px',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
+                  }}
+                >
+                  View all captures →
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

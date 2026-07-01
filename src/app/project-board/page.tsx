@@ -349,8 +349,49 @@ function ProjectBoardContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-        <p className="text-[#4a4946]">Loading board...</p>
+      <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
+        {/* Header - matches loaded state so nothing jumps once data arrives */}
+        <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
+          <div className="w-16" />
+          <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Project Board</h1>
+          <div className="w-16" />
+        </div>
+
+        {/* Mobile tab bar skeleton */}
+        <div className="md:hidden flex border-b border-[#1f1f1d]" style={{ backgroundColor: '#1a1917' }}>
+          {['Queue', 'Active', 'Completed'].map((name) => (
+            <div key={name} className="flex-1 py-3 flex items-center justify-center">
+              <div className="h-3 w-14 bg-[#2a2825] rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop skeleton columns */}
+        <div className="hidden md:flex flex-1 overflow-hidden">
+          {[
+            { width: '20%', border: true },
+            { width: '60%', border: true },
+            { width: '20%', border: false },
+          ].map((col, i) => (
+            <div
+              key={i}
+              className={`flex flex-col px-4 py-3 space-y-3 ${col.border ? 'border-r border-[#1f1f1d]' : ''}`}
+              style={{ width: col.width }}
+            >
+              <div className="h-3 w-16 bg-[#2a2825] rounded animate-pulse mb-2" />
+              {[...Array(3)].map((_, j) => (
+                <div key={j} className="h-20 bg-[#161614] border border-[#1f1f1d] rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile skeleton cards */}
+        <div className="md:hidden flex-1 px-4 py-3 space-y-3">
+          {[...Array(3)].map((_, j) => (
+            <div key={j} className="h-20 bg-[#161614] border border-[#1f1f1d] rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }

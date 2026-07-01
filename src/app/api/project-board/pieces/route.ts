@@ -61,16 +61,31 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
 
     const userId = userData.user.id;
 
-    // Get active pieces (not "posted" and not sent back to the queue)
-    const { data: activePieces } = await supabase
-      .from("pieces")
-      .select("id, title, arc, thematic_territory, stage, next_action")
-      .eq("user_id", userId)
-      .neq("stage", "posted")
-      .neq("stage", "queued")
-      .order("created_at", { ascending: false });
+    // Fetch active pieces, queue ideas, and archived pieces concurrently —
+    // these three queries are independent of each other.
+    const [{ data: activePieces }, { data: queueIdeas }, { data: archivedPieces }] = await Promise.all([
+      supabase
+        .from("pieces")
+        .select("id, title, arc, thematic_territory, stage, next_action")
+        .eq("user_id", userId)
+        .neq("stage", "posted")
+        .neq("stage", "queued")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("ideas")
+        .select("id, title, arc, one_sentence, status")
+        .eq("user_id", userId)
+        .in("status", ["ready", "developing"])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("pieces")
+        .select("id, title, arc, created_at")
+        .eq("user_id", userId)
+        .eq("stage", "posted")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    // Get tasks for each active piece
+    // Get tasks for each active piece (also concurrent)
     const activePiecesWithTasks = await Promise.all(
       (activePieces || []).map(async (piece) => {
         const { data: tasks } = await supabase
@@ -86,22 +101,6 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
         };
       })
     );
-
-    // Get queue ideas (status "ready" or "developing")
-    const { data: queueIdeas } = await supabase
-      .from("ideas")
-      .select("id, title, arc, one_sentence, status")
-      .eq("user_id", userId)
-      .in("status", ["ready", "developing"])
-      .order("created_at", { ascending: false });
-
-    // Get archived pieces (stage "posted")
-    const { data: archivedPieces } = await supabase
-      .from("pieces")
-      .select("id, title, arc, created_at")
-      .eq("user_id", userId)
-      .eq("stage", "posted")
-      .order("created_at", { ascending: false });
 
     return NextResponse.json({
       active: activePiecesWithTasks,
