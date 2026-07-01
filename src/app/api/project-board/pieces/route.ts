@@ -61,12 +61,13 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
 
     const userId = userData.user.id;
 
-    // Get active pieces (stage not "posted")
+    // Get active pieces (not "posted" and not sent back to the queue)
     const { data: activePieces } = await supabase
       .from("pieces")
       .select("id, title, arc, thematic_territory, stage, next_action")
       .eq("user_id", userId)
       .neq("stage", "posted")
+      .neq("stage", "queued")
       .order("created_at", { ascending: false });
 
     // Get tasks for each active piece

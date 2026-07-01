@@ -213,49 +213,6 @@ function HomeContent() {
             gap: '12px',
           }}
         >
-          {/* Check-in card */}
-          <a
-            href="/check-in"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '32px 24px',
-              backgroundColor: '#1a1917',
-              border: '1px solid #2a2825',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              textDecoration: 'none',
-              flex: 1,
-              minHeight: '160px',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLAnchorElement
-              el.style.borderColor = '#4a4846'
-              el.style.backgroundColor = '#1f1d1b'
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLAnchorElement
-              el.style.borderColor = '#2a2825'
-              el.style.backgroundColor = '#1a1917'
-            }}
-          >
-            {/* Sun SVG icon */}
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#a8a6a0" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-            </svg>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: '#e8e6e0', fontSize: '14px', margin: 0, fontWeight: 500 }}>Check-in</p>
-              <p style={{ color: '#6a6866', fontSize: '12px', margin: '4px 0 0 0', fontWeight: 400 }}>
-                How are you today
-              </p>
-            </div>
-          </a>
-
           {/* Collector card */}
           <a
             href="/collector"
@@ -299,6 +256,45 @@ function HomeContent() {
           </a>
         </div>
       </div>
+
+      {/* Floating check-in mic button */}
+      <a
+        href="/check-in"
+        aria-label="Start check-in"
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          width: '60px',
+          height: '60px',
+          borderRadius: '50%',
+          backgroundColor: '#e8e6e0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textDecoration: 'none',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+          transition: 'all 0.2s ease',
+          zIndex: 50,
+        }}
+        onMouseEnter={(e) => {
+          const el = e.currentTarget as HTMLAnchorElement
+          el.style.backgroundColor = '#d4d2cd'
+          el.style.transform = 'scale(1.05)'
+        }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget as HTMLAnchorElement
+          el.style.backgroundColor = '#e8e6e0'
+          el.style.transform = 'scale(1)'
+        }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111110" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+      </a>
     </div>
   )
 }

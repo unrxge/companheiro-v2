@@ -98,6 +98,8 @@ function ProjectBoardContent() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<MobileTab>('Active')
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
+  const [draggedItem, setDraggedItem] = useState<{ type: 'idea' | 'piece'; id: string } | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<MobileTab | null>(null)
 
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
@@ -249,14 +251,12 @@ function ProjectBoardContent() {
     }
   }
 
-  const handleCompletepiece = async () => {
-    if (!selectedPiece) return
-
+  const handleCompletePieceById = async (pieceId: string) => {
     try {
       const res = await fetch('/api/project-board/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: selectedPiece.id }),
+        body: JSON.stringify({ piece_id: pieceId }),
       })
 
       if (res.ok) {
@@ -266,6 +266,51 @@ function ProjectBoardContent() {
     } catch (err) {
       console.error('Failed to complete piece:', err)
     }
+  }
+
+  const handleCompletepiece = async () => {
+    if (!selectedPiece) return
+    await handleCompletePieceById(selectedPiece.id)
+  }
+
+  const handleDeactivate = async (pieceId: string) => {
+    try {
+      const res = await fetch('/api/project-board/deactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ piece_id: pieceId }),
+      })
+
+      if (res.ok) {
+        fetchBoard()
+      }
+    } catch (err) {
+      console.error('Failed to move piece back to queue:', err)
+    }
+  }
+
+  const handleDragStart = (type: 'idea' | 'piece', id: string) => {
+    setDraggedItem({ type, id })
+  }
+
+  const handleDragEnd = () => {
+    setDraggedItem(null)
+    setDragOverColumn(null)
+  }
+
+  const handleDropOnColumn = (column: MobileTab) => {
+    if (!draggedItem) return
+
+    if (column === 'Active' && draggedItem.type === 'idea') {
+      handleActivate(draggedItem.id)
+    } else if (column === 'Queue' && draggedItem.type === 'piece') {
+      handleDeactivate(draggedItem.id)
+    } else if (column === 'Completed' && draggedItem.type === 'piece') {
+      handleCompletePieceById(draggedItem.id)
+    }
+
+    setDraggedItem(null)
+    setDragOverColumn(null)
   }
 
   const handleSubmitSession = async () => {
@@ -320,11 +365,15 @@ function ProjectBoardContent() {
     title: string,
     arc: string,
     color: string,
-    onClick: () => void
+    onClick: () => void,
+    dragItem?: { type: 'idea' | 'piece'; id: string }
   ) => (
     <button
       key={id}
       onClick={onClick}
+      draggable={!!dragItem}
+      onDragStart={dragItem ? () => handleDragStart(dragItem.type, dragItem.id) : undefined}
+      onDragEnd={dragItem ? handleDragEnd : undefined}
       style={{
         width: '100%',
         textAlign: 'left',
@@ -332,12 +381,13 @@ function ProjectBoardContent() {
         border: '1px solid #1f1f1d',
         borderRadius: '8px',
         padding: '12px',
-        cursor: 'pointer',
-        transition: 'border-color 0.2s',
+        cursor: dragItem ? 'grab' : 'pointer',
+        transition: 'border-color 0.2s, opacity 0.2s',
         minHeight: '80px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
+        opacity: draggedItem?.id === id ? 0.4 : 1,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLButtonElement).style.borderColor = color
@@ -468,7 +518,20 @@ function ProjectBoardContent() {
       {/* Desktop Layout - 3 Columns */}
       <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Queue Column */}
-        <div className="w-[20%] border-r border-[#1f1f1d] flex flex-col">
+        <div
+          className={`w-[20%] border-r flex flex-col transition-colors ${
+            dragOverColumn === 'Queue' ? 'bg-[#1a1917] border-[#F59E0B]/40' : 'border-[#1f1f1d]'
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOverColumn('Queue')
+          }}
+          onDragLeave={() => setDragOverColumn((c) => (c === 'Queue' ? null : c))}
+          onDrop={(e) => {
+            e.preventDefault()
+            handleDropOnColumn('Queue')
+          }}
+        >
           <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
             <h2 className="text-sm font-medium text-[#e8e6e1]">Queue</h2>
@@ -476,13 +539,29 @@ function ProjectBoardContent() {
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
             {queue.map((idea) =>
-              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
+              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id), {
+                type: 'idea',
+                id: idea.id,
+              })
             )}
           </div>
         </div>
 
         {/* Active Column */}
-        <div className="w-[60%] border-r border-[#1f1f1d] flex flex-col">
+        <div
+          className={`w-[60%] border-r flex flex-col transition-colors ${
+            dragOverColumn === 'Active' ? 'bg-[#1a1917] border-[#10B981]/40' : 'border-[#1f1f1d]'
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOverColumn('Active')
+          }}
+          onDragLeave={() => setDragOverColumn((c) => (c === 'Active' ? null : c))}
+          onDrop={(e) => {
+            e.preventDefault()
+            handleDropOnColumn('Active')
+          }}
+        >
           <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
             <h2 className="text-sm font-medium text-[#e8e6e1]">Active</h2>
@@ -490,13 +569,29 @@ function ProjectBoardContent() {
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
             {active.map((piece) =>
-              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id))
+              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id), {
+                type: 'piece',
+                id: piece.id,
+              })
             )}
           </div>
         </div>
 
         {/* Completed Column */}
-        <div className="w-[20%] flex flex-col">
+        <div
+          className={`w-[20%] flex flex-col transition-colors ${
+            dragOverColumn === 'Completed' ? 'bg-[#1a1917]' : ''
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOverColumn('Completed')
+          }}
+          onDragLeave={() => setDragOverColumn((c) => (c === 'Completed' ? null : c))}
+          onDrop={(e) => {
+            e.preventDefault()
+            handleDropOnColumn('Completed')
+          }}
+        >
           <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
             <h2 className="text-sm font-medium text-[#e8e6e1]">Completed</h2>
