@@ -16,6 +16,21 @@ interface GenerateResponse {
   content: Record<string, string>;
 }
 
+function getConfirmedField(
+  confirmedSections: Record<string, string>,
+  phaseKey: string,
+  field: string
+): string {
+  const raw = confirmedSections[phaseKey];
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed[field] || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<GenerateResponse>> {
   try {
     const body: GenerateRequest = await request.json();
@@ -62,18 +77,27 @@ Return as JSON:
 
       userPrompt = `Based on this conceptualisation conversation, extract the core idea:\n\n${conversationText}`;
     } else if (body.phase === 2) {
-      systemPrompt = `You are reflecting and improving conviction and emotional journey statements. The user provides their raw version first. Your role is to:
-- Mirror back what you hear
-- Clarify and deepen it
-- Improve clarity while preserving their voice
-- Return a polished version they can refine
+      systemPrompt = `You are distilling a conviction statement and emotional journey from a conceptualisation conversation.
+
+Conviction statement: the single belief or stance driving this piece — what the writer is standing for, in their own words.
+Emotional journey: the arc of feeling the reader should move through, start to end.
+
+Preserve the person's own voice and language from the conversation — this is a distillation of what they already said, not an invention. Keep each to 2-4 sentences.
 
 Return as JSON:
 {
-  "reflected": "..."
+  "conviction_statement": "...",
+  "emotional_journey": "..."
 }`;
 
-      userPrompt = `Please reflect and improve this: "${body.confirmed_sections.user_input}"`;
+      const conversationText = body.conversation_history
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      const oneSentence = getConfirmedField(body.confirmed_sections, "phase1", "one_sentence");
+
+      userPrompt = `Based on this conceptualisation conversation, distil the conviction statement and emotional journey:\n\n${conversationText}${
+        oneSentence ? `\n\nCore idea (already confirmed): "${oneSentence}"` : ""
+      }`;
     } else if (body.phase === 3) {
       systemPrompt = `You are distilling a core truth from a conviction statement. Your role is to:
 - Extract the single most important truth underneath
@@ -85,7 +109,12 @@ Return as JSON:
   "core_truth": "..."
 }`;
 
-      userPrompt = `Distil the core truth from this conviction statement: "${body.confirmed_sections.conviction_statement}"`;
+      const conversationText = body.conversation_history
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      const convictionStatement = getConfirmedField(body.confirmed_sections, "phase2", "conviction_statement");
+
+      userPrompt = `Distil the core truth from this conviction statement: "${convictionStatement}"\n\nFull conversation for context:\n${conversationText}`;
     } else if (body.phase === 4) {
       systemPrompt = `You are completing a core concept document by:
 1. Generating goals for a Substack piece format
@@ -102,8 +131,9 @@ Return as JSON:
       const conversationText = body.conversation_history
         .map((m) => `${m.role}: ${m.content}`)
         .join("\n\n");
+      const convictionStatement = getConfirmedField(body.confirmed_sections, "phase2", "conviction_statement");
 
-      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate format goals and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${body.confirmed_sections.conviction_statement}`;
+      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate format goals and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
     }
 
     let response;

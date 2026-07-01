@@ -45,6 +45,7 @@ export default function CoreConceptPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [showConversation, setShowConversation] = useState(false)
 
   const [showTaskReview, setShowTaskReview] = useState(false)
   const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
@@ -351,15 +352,25 @@ export default function CoreConceptPage() {
       <div className="flex-1 px-6 py-12 max-w-3xl mx-auto w-full">
         <div className="space-y-6">
           {/* Header */}
-          <div>
-            <button
-              onClick={() => router.push('/idea-lab/conceptualise')}
-              className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
-            >
-              ← Conceptualise
-            </button>
-            <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Core Concept</h1>
-            <p className="text-sm text-[#4a4946]">Building your idea document</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <button
+                onClick={() => router.push('/idea-lab/conceptualise')}
+                className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
+              >
+                ← Conceptualise
+              </button>
+              <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Core Concept</h1>
+              <p className="text-sm text-[#4a4946]">Building your idea document</p>
+            </div>
+            {conversation.length > 0 && (
+              <button
+                onClick={() => setShowConversation(true)}
+                className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] border border-[#2e2d2a] hover:border-[#4a4946] rounded px-3 py-1.5 transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                View conversation
+              </button>
+            )}
           </div>
 
           {error && (
@@ -635,6 +646,39 @@ export default function CoreConceptPage() {
           )}
         </div>
       </div>
+
+      {/* Conceptualisation Conversation Modal */}
+      {showConversation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-medium text-[#e8e6e1]">Conceptualisation</h2>
+              <button
+                onClick={() => setShowConversation(false)}
+                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              {conversation.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-md px-4 py-3 rounded ${
+                      msg.role === 'user'
+                        ? 'bg-[#e8e6e1] text-[#111110]'
+                        : 'bg-[#111110] border border-[#1f1f1d] text-[#d4d2cd]'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
