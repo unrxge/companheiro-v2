@@ -74,6 +74,12 @@ interface IdeaDetail {
 type ModalType = 'piece' | 'idea'
 type MobileTab = 'Queue' | 'Active' | 'Completed'
 
+interface Trajectory {
+  statement: string
+  born_project: string | null
+  created_at: string
+}
+
 function ProjectBoardContent() {
   const router = useRouter()
   const [active, setActive] = useState<ActiveCard[]>([])
@@ -81,6 +87,7 @@ function ProjectBoardContent() {
   const [completed, setCompleted] = useState<CompletedCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<MobileTab>('Active')
+  const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
 
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
@@ -97,7 +104,18 @@ function ProjectBoardContent() {
 
   useEffect(() => {
     fetchBoard()
+    fetchTrajectory()
   }, [])
+
+  const fetchTrajectory = async () => {
+    try {
+      const res = await fetch('/api/trajectory/current')
+      const data = await res.json()
+      setTrajectory(data.trajectory || null)
+    } catch (err) {
+      console.error('Failed to fetch trajectory:', err)
+    }
+  }
 
   const fetchBoard = async () => {
     try {
@@ -498,6 +516,23 @@ function ProjectBoardContent() {
               renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
             )}
         </div>
+      </div>
+
+      {/* Trajectory Banner */}
+      <div className="border-t border-[#1f1f1d] bg-[#161614] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {trajectory ? (
+            <p className="text-xs text-[#a8a6a0] truncate">{trajectory.statement}</p>
+          ) : (
+            <p className="text-xs text-[#4a4946]">No trajectory set yet</p>
+          )}
+        </div>
+        <button
+          onClick={() => router.push('/zoom-out')}
+          className="text-xs font-medium text-[#e8e6e1] bg-[#2e2d2a] hover:bg-[#3d3c39] px-3 py-1.5 rounded transition-colors whitespace-nowrap flex-shrink-0"
+        >
+          {trajectory ? 'Zoom out' : 'Find your direction'}
+        </button>
       </div>
 
       {/* Piece Modal */}
