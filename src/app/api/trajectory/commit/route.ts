@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+const VALID_TONES = ["grounded", "restless", "tender", "expansive", "urgent"];
+
 interface CommitRequest {
   statement: string;
   born_project?: string;
+  tone?: string;
 }
 
 interface CommitResponse {
@@ -46,9 +49,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommitRes
       return NextResponse.json({ success: false }, { status: 401 });
     }
 
+    const tone = body.tone && VALID_TONES.includes(body.tone) ? body.tone : null;
+
     const { error: rpcError } = await supabase.rpc("commit_trajectory", {
       p_statement: body.statement.trim(),
       p_born_project: body.born_project?.trim() || null,
+      p_tone: tone,
     });
 
     if (rpcError) {

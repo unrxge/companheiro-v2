@@ -6,6 +6,7 @@ interface CurrentTrajectoryResponse {
   trajectory: {
     statement: string;
     born_project: string | null;
+    tone: string | null;
     created_at: string;
   } | null;
 }
@@ -41,7 +42,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<CurrentTr
 
     const { data: trajectory } = await supabase
       .from("trajectories")
-      .select("statement, born_project, created_at")
+      .select("statement, born_project, tone, created_at")
       .eq("user_id", userData.user.id)
       .is("superseded_at", null)
       .maybeSingle();

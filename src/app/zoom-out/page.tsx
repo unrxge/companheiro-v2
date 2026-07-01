@@ -11,6 +11,7 @@ interface Message {
 interface PendingAction {
   concept?: string
   trajectory?: string
+  tone?: string
 }
 
 export default function ZoomOutPage() {
@@ -61,7 +62,7 @@ export default function ZoomOutPage() {
       setMessages([...conversationHistory, { role: 'assistant', content: data.response }])
 
       if (data.concept || data.trajectory) {
-        setPendingAction({ concept: data.concept, trajectory: data.trajectory })
+        setPendingAction({ concept: data.concept, trajectory: data.trajectory, tone: data.tone })
       } else {
         setPendingAction(null)
       }
@@ -159,6 +160,7 @@ export default function ZoomOutPage() {
         body: JSON.stringify({
           statement: pendingAction.trajectory || pendingAction.concept,
           born_project: pendingAction.concept,
+          tone: pendingAction.tone,
         }),
       })
 
@@ -183,7 +185,7 @@ export default function ZoomOutPage() {
       const res = await fetch('/api/trajectory/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statement: pendingAction.trajectory }),
+        body: JSON.stringify({ statement: pendingAction.trajectory, tone: pendingAction.tone }),
       })
 
       if (res.ok) {

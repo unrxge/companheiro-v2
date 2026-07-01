@@ -16,6 +16,7 @@ interface ConverseResponse {
   response: string;
   concept?: string;
   trajectory?: string;
+  tone?: string;
 }
 
 function formatDateAsRelative(dateStr: string): string {
@@ -45,9 +46,10 @@ FIRST TURN ONLY (when there is no prior conversation): end with a genuine, speci
 
 ONGOING DIALOGUE: be willing to be challenged and to challenge back — this is a real conversation, not a script. When a concrete new project concept genuinely crystallizes through the conversation, and only then, append on its own line:
 <concept>one-sentence description of the project seed</concept>
-When the conversation has produced a direction worth carrying forward (newly formed, reaffirmed, or adjusted), append on its own line:
-<trajectory>one-sentence statement of the direction</trajectory>
-Only include these tags when they are genuinely earned by the conversation. Never on the first turn. Never speculatively.`;
+When the conversation has produced a direction worth carrying forward (newly formed, reaffirmed, or adjusted), append on its own two lines:
+<trajectory>a single, encompassing sentence — this is the whole trajectory distilled to one inspirational line, not a summary of the conversation. It should read like a compass statement, not a recap.</trajectory>
+<tone>one word only, the emotional register of that direction right now — choose exactly one of: grounded, restless, tender, expansive, urgent</tone>
+Only include these tags when they are genuinely earned by the conversation. Never on the first turn. Never speculatively. Always include <tone> whenever you include <trajectory> — never one without the other.`;
 
 export async function POST(request: NextRequest): Promise<NextResponse<ConverseResponse>> {
   try {
@@ -265,16 +267,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<ConverseR
 
     const conceptMatch = text.match(/<concept>([\s\S]*?)<\/concept>/);
     const trajectoryMatch = text.match(/<trajectory>([\s\S]*?)<\/trajectory>/);
+    const toneMatch = text.match(/<tone>([\s\S]*?)<\/tone>/);
 
     text = text
       .replace(/<concept>[\s\S]*?<\/concept>/, "")
       .replace(/<trajectory>[\s\S]*?<\/trajectory>/, "")
+      .replace(/<tone>[\s\S]*?<\/tone>/, "")
       .trim();
 
     return NextResponse.json({
       response: text,
       concept: conceptMatch ? conceptMatch[1].trim() : undefined,
       trajectory: trajectoryMatch ? trajectoryMatch[1].trim() : undefined,
+      tone: toneMatch ? toneMatch[1].trim().toLowerCase() : undefined,
     });
   } catch (error) {
     console.error("Trajectory converse route error:", error);
