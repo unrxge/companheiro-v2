@@ -376,7 +376,7 @@ function ProjectBoardContent() {
   )
 
   return (
-    <div className="min-h-screen bg-[#111110] flex flex-col">
+    <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
       <style>{`
         @keyframes strikethrough {
           from {
@@ -464,7 +464,7 @@ function ProjectBoardContent() {
             <h2 className="text-sm font-medium text-[#e8e6e1]">Queue</h2>
             <span className="text-xs text-[#4a4946]">({queue.length})</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-3 pb-16 space-y-3">
             {queue.map((idea) =>
               renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
             )}
@@ -478,7 +478,7 @@ function ProjectBoardContent() {
             <h2 className="text-sm font-medium text-[#e8e6e1]">Active</h2>
             <span className="text-xs text-[#4a4946]">({active.length})</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-3 pb-16 space-y-3">
             {active.map((piece) =>
               renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id))
             )}
@@ -492,7 +492,7 @@ function ProjectBoardContent() {
             <h2 className="text-sm font-medium text-[#e8e6e1]">Completed</h2>
             <span className="text-xs text-[#4a4946]">({completed.length})</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-3 pb-16 space-y-3">
             {completed.map((piece) =>
               renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
             )}
@@ -501,7 +501,7 @@ function ProjectBoardContent() {
       </div>
 
       {/* Mobile Layout - Single Column with Tabs */}
-      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3">
+      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3 pb-20">
         <div className="space-y-3">
           {activeTab === 'Queue' &&
             queue.map((idea) =>
@@ -519,7 +519,7 @@ function ProjectBoardContent() {
       </div>
 
       {/* Trajectory Banner */}
-      <div className="border-t border-[#1f1f1d] bg-[#161614] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#1f1f1d] bg-[#161614] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           {trajectory ? (
             <p className="text-xs text-[#a8a6a0] truncate">{trajectory.statement}</p>
