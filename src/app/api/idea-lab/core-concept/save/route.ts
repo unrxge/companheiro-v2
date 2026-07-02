@@ -169,11 +169,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     // Create piece
     console.log('Creating piece with idea_id:', ideaId)
 
-    // Convert open_threads string to array (split on numbered pattern like "1. ... 2. ...")
+    // Convert open_threads string to array — one thread per line, stripping any
+    // leading bullet ("- ", "• ") or numbered ("1.", "1)") marker
     const openThreadsArray = typeof body.open_threads === 'string'
       ? body.open_threads
-          .split(/\d+\.\s+/)
-          .map((t: string) => t.trim())
+          .split('\n')
+          .map((line: string) => line.replace(/^\s*[-•\d.)]+\s*/, '').trim())
           .filter((t: string) => t.length > 0)
       : body.open_threads || [];
     console.log('Converted open_threads to array:', openThreadsArray)

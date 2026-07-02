@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import AutoResizeTextarea from '@/components/AutoResizeTextarea'
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
@@ -468,33 +469,23 @@ export default function CoreConceptPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-[#4a4946] block mb-2">Conviction Statement</label>
-                  <textarea
+                  <AutoResizeTextarea
                     value={sections.phase2.content.conviction_statement || ''}
-                    onChange={(e) => {
-                      handleEditContent('phase2', 'conviction_statement', e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
+                    onChange={(value) => handleEditContent('phase2', 'conviction_statement', value)}
                     disabled={sections.phase2.status === 'confirmed'}
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                    minRows={3}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-[#4a4946] block mb-2">Emotional Journey</label>
-                  <textarea
+                  <AutoResizeTextarea
                     value={sections.phase2.content.emotional_journey || ''}
-                    onChange={(e) => {
-                      handleEditContent('phase2', 'emotional_journey', e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
+                    onChange={(value) => handleEditContent('phase2', 'emotional_journey', value)}
                     disabled={sections.phase2.status === 'confirmed'}
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                    minRows={3}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                   />
                 </div>
 
@@ -530,17 +521,12 @@ export default function CoreConceptPage() {
 
             {sections.phase3.status !== 'pending' && (
               <div className="space-y-3">
-                <textarea
+                <AutoResizeTextarea
                   value={sections.phase3.content.core_truth || ''}
-                  onChange={(e) => {
-                    handleEditContent('phase3', 'core_truth', e.target.value)
-                    e.target.style.height = 'auto'
-                    e.target.style.height = e.target.scrollHeight + 'px'
-                  }}
+                  onChange={(value) => handleEditContent('phase3', 'core_truth', value)}
                   disabled={sections.phase3.status === 'confirmed'}
-                  rows={1}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                  style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                  minRows={2}
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                 />
 
                 {sections.phase3.status !== 'confirmed' && (
@@ -576,49 +562,37 @@ export default function CoreConceptPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-[#4a4946] block mb-2">Substack Goals</label>
-                  <textarea
+                  <AutoResizeTextarea
                     value={sections.phase4.content.substack_goals || ''}
-                    onChange={(e) => {
-                      handleEditContent('phase4', 'substack_goals', e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
+                    onChange={(value) => handleEditContent('phase4', 'substack_goals', value)}
                     disabled={sections.phase4.status === 'confirmed'}
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                    minRows={3}
+                    placeholder={"- Goal one\n- Goal two"}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-[#4a4946] block mb-2">Short Form Goals</label>
-                  <textarea
+                  <AutoResizeTextarea
                     value={sections.phase4.content.short_form_goals || ''}
-                    onChange={(e) => {
-                      handleEditContent('phase4', 'short_form_goals', e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
+                    onChange={(value) => handleEditContent('phase4', 'short_form_goals', value)}
                     disabled={sections.phase4.status === 'confirmed'}
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                    minRows={3}
+                    placeholder={"- Goal one\n- Goal two"}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-[#4a4946] block mb-2">Open Threads</label>
-                  <textarea
+                  <AutoResizeTextarea
                     value={sections.phase4.content.open_threads || ''}
-                    onChange={(e) => {
-                      handleEditContent('phase4', 'open_threads', e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
+                    onChange={(value) => handleEditContent('phase4', 'open_threads', value)}
                     disabled={sections.phase4.status === 'confirmed'}
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                    minRows={3}
+                    placeholder={"- Thread one\n- Thread two"}
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 

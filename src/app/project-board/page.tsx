@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import AutoResizeTextarea from '@/components/AutoResizeTextarea'
 
 interface Task {
   id: string
@@ -113,6 +114,17 @@ function ProjectBoardContent() {
     duration_minutes: '',
     completed_task_ids: new Set<string>(),
   })
+  const [coreConceptDraft, setCoreConceptDraft] = useState<{
+    one_sentence: string
+    conviction_statement: string
+    emotional_journey: string
+    core_truth: string
+    substack_goals: string
+    short_form_goals: string
+    open_threads: string
+  } | null>(null)
+  const [isSavingCoreConcept, setIsSavingCoreConcept] = useState(false)
+  const [coreConceptSaved, setCoreConceptSaved] = useState(false)
 
   useEffect(() => {
     fetchBoard()
@@ -150,6 +162,16 @@ function ProjectBoardContent() {
       const data = await res.json()
       if (data.success) {
         setSelectedPiece(data.piece)
+        setCoreConceptDraft({
+          one_sentence: data.piece.one_sentence || '',
+          conviction_statement: data.piece.conviction_statement || '',
+          emotional_journey: data.piece.emotional_journey || '',
+          core_truth: data.piece.core_truth || '',
+          substack_goals: data.piece.substack_goals || '',
+          short_form_goals: data.piece.short_form_goals || '',
+          open_threads: (data.piece.open_threads || []).map((t: string) => `- ${t}`).join('\n'),
+        })
+        setCoreConceptSaved(false)
         setSessionData({
           what_was_done: '',
           next_step: '',
@@ -159,6 +181,36 @@ function ProjectBoardContent() {
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
+    }
+  }
+
+  const handleCoreConceptChange = (field: keyof NonNullable<typeof coreConceptDraft>, value: string) => {
+    setCoreConceptDraft((prev) => (prev ? { ...prev, [field]: value } : prev))
+    setCoreConceptSaved(false)
+  }
+
+  const handleSaveCoreConcept = async () => {
+    if (!selectedPiece || !coreConceptDraft) return
+    setIsSavingCoreConcept(true)
+
+    try {
+      const res = await fetch('/api/project-board/piece', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          piece_id: selectedPiece.id,
+          ...coreConceptDraft,
+        }),
+      })
+
+      if (res.ok) {
+        setCoreConceptSaved(true)
+        fetchBoard()
+      }
+    } catch (err) {
+      console.error('Failed to save core concept:', err)
+    } finally {
+      setIsSavingCoreConcept(false)
     }
   }
 
@@ -179,6 +231,7 @@ function ProjectBoardContent() {
     setModalType(null)
     setSelectedPiece(null)
     setSelectedIdea(null)
+    setCoreConceptDraft(null)
   }
 
   const handleDeleteTask = async (taskId: string) => {
@@ -716,57 +769,93 @@ function ProjectBoardContent() {
 
             <div className="px-6 py-4 space-y-6">
               {/* Core Concept Section */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Core Concept</h3>
-                <div className="space-y-3 text-sm">
-                  {selectedPiece.one_sentence && (
+              {coreConceptDraft && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Core Concept</h3>
+                  <div className="space-y-3">
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">One Sentence</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.one_sentence}</p>
+                      <input
+                        type="text"
+                        value={coreConceptDraft.one_sentence}
+                        onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.conviction_statement && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Conviction</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.conviction_statement}</p>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.conviction_statement}
+                        onChange={(value) => handleCoreConceptChange('conviction_statement', value)}
+                        minRows={2}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.emotional_journey && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Emotional Journey</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.emotional_journey}</p>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.emotional_journey}
+                        onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
+                        minRows={2}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.core_truth && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Core Truth</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.core_truth}</p>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.core_truth}
+                        onChange={(value) => handleCoreConceptChange('core_truth', value)}
+                        minRows={2}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.substack_goals && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Substack Goals</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.substack_goals}</p>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.substack_goals}
+                        onChange={(value) => handleCoreConceptChange('substack_goals', value)}
+                        minRows={2}
+                        placeholder={"- Goal one\n- Goal two"}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.short_form_goals && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Short Form Goals</p>
-                      <p className="text-[#d4d2cd]">{selectedPiece.short_form_goals}</p>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.short_form_goals}
+                        onChange={(value) => handleCoreConceptChange('short_form_goals', value)}
+                        minRows={2}
+                        placeholder={"- Goal one\n- Goal two"}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                      />
                     </div>
-                  )}
-                  {selectedPiece.open_threads.length > 0 && (
+
                     <div>
                       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Open Threads</p>
-                      <ul className="text-[#d4d2cd] space-y-1">
-                        {selectedPiece.open_threads.map((thread, i) => (
-                          <li key={i} className="text-xs">• {thread}</li>
-                        ))}
-                      </ul>
+                      <AutoResizeTextarea
+                        value={coreConceptDraft.open_threads}
+                        onChange={(value) => handleCoreConceptChange('open_threads', value)}
+                        minRows={2}
+                        placeholder={"- Thread one\n- Thread two"}
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                      />
                     </div>
-                  )}
+
+                    <button
+                      onClick={handleSaveCoreConcept}
+                      disabled={isSavingCoreConcept}
+                      className="w-full py-2 bg-[#2e2d2a] text-[#e8e6e1] text-xs font-medium rounded hover:bg-[#3d3c39] transition-colors disabled:opacity-50"
+                    >
+                      {isSavingCoreConcept ? 'Saving...' : coreConceptSaved ? 'Saved ✓' : 'Save changes'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Tasks Section */}
               <div className="space-y-3">

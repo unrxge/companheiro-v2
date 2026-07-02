@@ -171,3 +171,126 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     );
   }
 }
+
+interface UpdateRequest {
+  piece_id: string;
+  one_sentence?: string;
+  conviction_statement?: string;
+  emotional_journey?: string;
+  core_truth?: string;
+  substack_goals?: string;
+  short_form_goals?: string;
+  open_threads?: string;
+}
+
+interface UpdateResponse {
+  success: boolean;
+  error?: string;
+}
+
+function parseOpenThreads(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-•\d.)]+\s*/, "").trim())
+    .filter((t) => t.length > 0);
+}
+
+export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateResponse>> {
+  try {
+    const body: UpdateRequest = await request.json();
+
+    if (!body.piece_id) {
+      return NextResponse.json(
+        { success: false, error: "Missing piece_id" },
+        { status: 400 }
+      );
+    }
+
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch (error) {
+              console.error("Error setting cookies:", error);
+            }
+          },
+        },
+      }
+    );
+
+    const { data: userData, error: authError } = await supabase.auth.getUser();
+    if (authError || !userData.user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const userId = userData.user.id;
+
+    const { data: piece, error: pieceError } = await supabase
+      .from("pieces")
+      .select("id, idea_id")
+      .eq("id", body.piece_id)
+      .eq("user_id", userId)
+      .single();
+
+    if (pieceError || !piece) {
+      return NextResponse.json(
+        { success: false, error: "Piece not found" },
+        { status: 404 }
+      );
+    }
+
+    const pieceUpdate: Record<string, string | string[]> = {};
+    if (body.conviction_statement !== undefined) pieceUpdate.conviction_statement = body.conviction_statement;
+    if (body.emotional_journey !== undefined) pieceUpdate.emotional_journey = body.emotional_journey;
+    if (body.core_truth !== undefined) pieceUpdate.core_truth = body.core_truth;
+    if (body.substack_goals !== undefined) pieceUpdate.substack_goals = body.substack_goals;
+    if (body.short_form_goals !== undefined) pieceUpdate.short_form_goals = body.short_form_goals;
+    if (body.open_threads !== undefined) pieceUpdate.open_threads = parseOpenThreads(body.open_threads);
+    if (body.one_sentence !== undefined) pieceUpdate.title = body.one_sentence;
+
+    if (Object.keys(pieceUpdate).length > 0) {
+      const { error: updateError } = await supabase
+        .from("pieces")
+        .update(pieceUpdate)
+        .eq("id", body.piece_id)
+        .eq("user_id", userId);
+
+      if (updateError) {
+        console.error("Error updating piece:", updateError);
+        return NextResponse.json(
+          { success: false, error: "Failed to update piece" },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (body.one_sentence !== undefined && piece.idea_id) {
+      await supabase
+        .from("ideas")
+        .update({ one_sentence: body.one_sentence, title: body.one_sentence })
+        .eq("id", piece.idea_id)
+        .eq("user_id", userId);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Piece update error:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
