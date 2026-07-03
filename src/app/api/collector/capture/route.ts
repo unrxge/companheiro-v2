@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
-import { fetchUrlMetadata } from "@/lib/url-metadata";
+import { analyzeLink, type LinkContent } from "@/lib/link-analysis";
 
 interface CaptureRequest {
   raw_input: string;
@@ -17,8 +18,21 @@ interface CaptureResponse {
     unpacked: string;
     arc: string;
     thematic_territory: string;
+    link_context: string | null;
   };
   error?: string;
+}
+
+function describeLinkFacts(link: LinkContent): string {
+  return [
+    link.platform ? `Platform: ${link.platform}` : null,
+    link.author ? `Author: ${link.author}` : null,
+    link.title ? `Title: ${link.title}` : null,
+    link.description ? `Caption/description: ${link.description}` : null,
+    link.imageBase64 ? `A thumbnail/cover image of the content is attached.` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<CaptureResponse>> {
@@ -43,27 +57,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<CaptureRe
     const { supabase, user } = auth;
     const userId = user.id;
 
-    // If a URL was shared, ground the capture in what the page actually is
-    // instead of letting Claude guess from the URL string.
-    let unpackInput = body.raw_input;
-    if (body.url?.trim()) {
-      const metadata = await fetchUrlMetadata(body.url.trim());
-      if (metadata) {
-        const metaBits = [
-          metadata.title ? `Title: ${metadata.title}` : null,
-          metadata.description ? `Description: ${metadata.description}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        unpackInput = `${body.raw_input}\n\n[Shared link content]\n${metaBits}`;
-      }
-    }
+    // If a URL was shared, pull the real content signals — platform, caption,
+    // author, thumbnail — so the capture interprets the content itself.
+    const link = body.url?.trim() ? await analyzeLink(body.url.trim()) : null;
 
-    // Call Claude to unpack and infer arc & territory
-    const response = await anthropic.messages.create({
-      model: MODELS.fast,
-      max_tokens: 300,
-      system: `You are Companheiro, unpacking a brief note or voice transcript to see what's really there.
+    const hasLinkContent = !!link && !!(link.title || link.description || link.imageBase64);
+
+    const systemPrompt = `You are Companheiro, unpacking a brief note or voice transcript to see what's really there.
 
 Your task:
 1. Unpack into 1-2 sentences that name the core idea or observation—what's actually being said underneath the surface
@@ -76,19 +76,47 @@ When unpacking, be direct and tender:
 - Don't soften or explain
 - Don't add filler words
 - Every sentence carries weight
-
+${
+  hasLinkContent
+    ? `
+They shared a piece of content (details and possibly a thumbnail image are provided). Also produce "content_read": 2-3 sentences interpreting the content itself — what it is, what it's about, and crucially its FORMAT mechanics (how it's structured, what makes it work as a piece of content), since they often capture things whose format they want to put their own twist on. Read the thumbnail if provided.
+`
+    : ""
+}
 Format your response as JSON:
 {
   "unpacked": "1-2 sentence clarification of the core idea",
   "arc": "Breakaway" | "Beginning" | "Expansion" | "Integration",
-  "thematic_territory": "creativity_devotion_curiosity" | "healthy_masculinity_emotional_regulation" | "inner_child_tending_expression" | "slow_living_life_in_service"
-}`,
-      messages: [
-        {
-          role: "user",
-          content: `Unpack this input: "${unpackInput}"`,
+  "thematic_territory": "creativity_devotion_curiosity" | "healthy_masculinity_emotional_regulation" | "inner_child_tending_expression" | "slow_living_life_in_service"${
+    hasLinkContent ? `,\n  "content_read": "2-3 sentence interpretation of the shared content and its format"` : ""
+  }
+}`;
+
+    const userContent: Array<TextBlockParam | ImageBlockParam> = [];
+
+    if (link?.imageBase64 && link.imageMediaType) {
+      userContent.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: link.imageMediaType,
+          data: link.imageBase64,
         },
-      ],
+      });
+    }
+
+    userContent.push({
+      type: "text",
+      text: hasLinkContent
+        ? `Their note: "${body.raw_input}"\n\n[Shared content details]\n${describeLinkFacts(link!)}\n\nUnpack this capture.`
+        : `Unpack this input: "${body.raw_input}"`,
+    });
+
+    const response = await anthropic.messages.create({
+      model: MODELS.fast,
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userContent }],
     });
 
     // Parse response
@@ -103,6 +131,20 @@ Format your response as JSON:
     const cleanedText = textContent.text.replace(/```json\n?|\n?```/g, "").trim();
     const analysis = JSON.parse(cleanedText);
 
+    // Persist a self-contained record of what the linked content was —
+    // factual header + Claude's interpretation.
+    let linkContext: string | null = null;
+    if (hasLinkContent) {
+      const headerBits = [link!.platform, link!.author].filter(Boolean).join(" — ");
+      const header = [headerBits || null, link!.title ? `"${link!.title}"` : null]
+        .filter(Boolean)
+        .join(": ");
+      linkContext = [header || null, analysis.content_read || null]
+        .filter(Boolean)
+        .join("\n");
+      if (!linkContext) linkContext = null;
+    }
+
     // Insert into captures table
     const { data: captureData, error: insertError } = await supabase
       .from("captures")
@@ -115,6 +157,7 @@ Format your response as JSON:
           thematic_territory: analysis.thematic_territory,
           status: "captured",
           url: body.url || null,
+          link_context: linkContext,
         },
       ])
       .select();
@@ -137,6 +180,7 @@ Format your response as JSON:
         unpacked: capture.unpacked,
         arc: capture.arc,
         thematic_territory: capture.thematic_territory,
+        link_context: capture.link_context ?? null,
       },
     });
   } catch (error) {

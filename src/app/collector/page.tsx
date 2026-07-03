@@ -16,6 +16,7 @@ interface CaptureResult {
   unpacked: string
   arc: Arc
   thematic_territory: ThematicTerritory
+  link_context: string | null
 }
 
 interface PreviousCapture {
@@ -25,6 +26,7 @@ interface PreviousCapture {
   arc: string
   thematic_territory: string
   url: string | null
+  link_context: string | null
   created_at: string
 }
 
@@ -223,6 +225,15 @@ export default function CollectorPage() {
               <p className="text-base text-[#d4d2cd] leading-relaxed">
                 {captureResult.unpacked}
               </p>
+
+              {captureResult.link_context && (
+                <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3 space-y-1">
+                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
+                  <p className="text-sm text-[#d4d2cd] leading-relaxed whitespace-pre-line">
+                    {captureResult.link_context}
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3">
@@ -429,6 +440,16 @@ export default function CollectorPage() {
                   >
                     {selectedCapture.url}
                   </a>
+                </div>
+              )}
+
+              {/* Content read — what the linked content actually is */}
+              {selectedCapture.link_context && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
+                  <p className="text-sm text-[#d4d2cd] leading-relaxed whitespace-pre-line">
+                    {selectedCapture.link_context}
+                  </p>
                 </div>
               )}
 
