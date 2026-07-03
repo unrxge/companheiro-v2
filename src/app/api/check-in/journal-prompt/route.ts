@@ -1,12 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { anthropic } from '@/lib/anthropic'
+import { requireUser } from '@/lib/supabase/route'
+import { MODELS } from '@/lib/models'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser()
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { transcript } = await request.json()
 
     if (!transcript?.trim()) {
@@ -26,7 +29,7 @@ The prompt should:
 Return ONLY the prompt itself. No preamble, no explanation. One sentence or a brief question.`
 
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODELS.fast,
       max_tokens: 256,
       system: systemPrompt,
       messages: [

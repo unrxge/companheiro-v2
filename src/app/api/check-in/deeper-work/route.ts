@@ -1,28 +1,30 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { requireUser } from '@/lib/supabase/route'
+import { buildCompanionContext } from '@/lib/companion-context'
+import { COMPANION_TONE } from '@/lib/companion-tone'
+import { MODELS } from '@/lib/models'
+import { streamClaudeText } from '@/lib/streaming'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser()
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { transcript } = await request.json()
 
     if (!transcript?.trim()) {
       return NextResponse.json({ error: 'transcript is required' }, { status: 400 })
     }
 
-    const systemPrompt = `You are Companheiro, a companion—not a therapist or pure mentor.
+    const companionContext = await buildCompanionContext(auth)
 
-A good companion:
-- Sees what's actually happening (doesn't gloss over it)
-- Calls things out because they care, not to be harsh
-- Asks questions that matter
-- Holds space for tenderness AND growth at the same time
-- Never uses filler words or softening language
+    const systemPrompt = `You are Companheiro, a companion—not a therapist or pure mentor. The person has shared a check-in and asked to be challenged.
 
-When someone shares and asks for deeper work:
+${COMPANION_TONE}
+
+${companionContext ? companionContext + '\n\n' : ''}When someone shares and asks for deeper work:
 
 1. NAME what you're noticing
    - The real pattern, contradiction, or avoidance
@@ -31,7 +33,6 @@ When someone shares and asks for deeper work:
 
 2. FEEL the weight of it with them
    - Acknowledge it's hard/tender/real
-   - Not through validation ("your feelings are valid")
    - Through genuine recognition of what's actually happening
 
 3. ASK or OFFER a direction
@@ -39,11 +40,10 @@ When someone shares and asks for deeper work:
    - A reframe that shifts perspective
    - A concrete thing to sit with
 
-Keep it brief. Every sentence should carry weight.
-Tone: Tender but direct. Warm but clear. Companion-level care.`
+Keep it brief.`
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    return streamClaudeText({
+      model: MODELS.fast,
       max_tokens: 512,
       system: systemPrompt,
       messages: [
@@ -52,13 +52,6 @@ Tone: Tender but direct. Warm but clear. Companion-level care.`
           content: `Here's what I'm working through: "${transcript}"`,
         },
       ],
-    })
-
-    const deeperWorkResponse =
-      response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-
-    return NextResponse.json({
-      response: deeperWorkResponse,
     })
   } catch (err) {
     console.error('deeper-work error:', err)

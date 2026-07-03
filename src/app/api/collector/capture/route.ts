@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { anthropic } from "@/lib/anthropic";
+import { requireUser } from "@/lib/supabase/route";
+import { MODELS } from "@/lib/models";
+import { fetchUrlMetadata } from "@/lib/url-metadata";
 
 interface CaptureRequest {
   raw_input: string;
@@ -31,47 +32,36 @@ export async function POST(request: NextRequest): Promise<NextResponse<CaptureRe
       );
     }
 
-    // Get authenticated user
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
-
-    const { data: userData, error: authError } = await supabase.auth.getUser();
-    if (authError || !userData.user) {
+    const auth = await requireUser();
+    if (!auth) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const userId = userData.user.id;
+    const { supabase, user } = auth;
+    const userId = user.id;
 
-    // Initialize Anthropic client
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    // If a URL was shared, ground the capture in what the page actually is
+    // instead of letting Claude guess from the URL string.
+    let unpackInput = body.raw_input;
+    if (body.url?.trim()) {
+      const metadata = await fetchUrlMetadata(body.url.trim());
+      if (metadata) {
+        const metaBits = [
+          metadata.title ? `Title: ${metadata.title}` : null,
+          metadata.description ? `Description: ${metadata.description}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        unpackInput = `${body.raw_input}\n\n[Shared link content]\n${metaBits}`;
+      }
+    }
 
     // Call Claude to unpack and infer arc & territory
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const response = await anthropic.messages.create({
+      model: MODELS.fast,
       max_tokens: 300,
       system: `You are Companheiro, unpacking a brief note or voice transcript to see what's really there.
 
@@ -96,7 +86,7 @@ Format your response as JSON:
       messages: [
         {
           role: "user",
-          content: `Unpack this input: "${body.raw_input}"`,
+          content: `Unpack this input: "${unpackInput}"`,
         },
       ],
     });

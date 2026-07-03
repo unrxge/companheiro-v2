@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { readTextStream } from '@/lib/stream-client'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -52,17 +53,33 @@ export default function ZoomOutPage() {
         body: JSON.stringify({ messages: conversationHistory }),
       })
 
-      const data = await res.json()
-
-      if (!data.response) {
+      if (!res.ok) {
         setError('Failed to get response')
         return
       }
 
-      setMessages([...conversationHistory, { role: 'assistant', content: data.response }])
+      // Stream the reading in, hiding the structured tags that arrive at the end
+      setMessages([...conversationHistory, { role: 'assistant', content: '' }])
+      const { text, meta } = await readTextStream<{
+        concept?: string
+        trajectory?: string
+        tone?: string
+      }>(
+        res,
+        (visibleText) => {
+          setMessages([...conversationHistory, { role: 'assistant', content: visibleText }])
+        },
+        ['<concept>', '<trajectory>', '<tone>']
+      )
 
-      if (data.concept || data.trajectory) {
-        setPendingAction({ concept: data.concept, trajectory: data.trajectory, tone: data.tone })
+      if (!text) {
+        setMessages(conversationHistory)
+        setError('Failed to get response')
+        return
+      }
+
+      if (meta && (meta.concept || meta.trajectory)) {
+        setPendingAction({ concept: meta.concept, trajectory: meta.trajectory, tone: meta.tone })
       } else {
         setPendingAction(null)
       }

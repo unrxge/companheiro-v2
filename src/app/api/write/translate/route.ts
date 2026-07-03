@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { anthropic } from "@/lib/anthropic";
+import { MODELS } from "@/lib/models";
+import { createRouteClient } from "@/lib/supabase/route";
 
 interface TranslateRequest {
   piece_id: string;
@@ -22,27 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
       );
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
+    const supabase = await createRouteClient();
 
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {
@@ -69,12 +49,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
       );
     }
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await anthropic.messages.create({
+      model: MODELS.deep,
       max_tokens: 1000,
       system: `You are a translator of long-form written pieces into short-form video scripts. Your job is not to summarize, but to reinterpret — to find the emotional core and the most compelling angle for a 15-60 second video.
 

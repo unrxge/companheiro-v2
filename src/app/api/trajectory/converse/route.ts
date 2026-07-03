@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireUser } from "@/lib/supabase/route";
+import { formatDateAsRelative } from "@/lib/dates";
+import { MODELS } from "@/lib/models";
+import { recallEchoes } from "@/lib/recall";
+import { streamClaudeText } from "@/lib/streaming";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,21 +12,6 @@ interface Message {
 
 interface ConverseRequest {
   messages: Message[];
-}
-
-interface ConverseResponse {
-  response: string;
-  concept?: string;
-  trajectory?: string;
-  tone?: string;
-}
-
-function formatDateAsRelative(dateStr: string): string {
-  const date = new Date(dateStr);
-  const today = new Date();
-  const daysAgo = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-  const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-  return `${dayOfWeek} (${daysAgo} days ago)`;
 }
 
 const SYSTEM_PROMPT = `You are Companheiro, sitting with someone at the altitude of their whole body of work — not one idea, but where all of it is heading.
@@ -51,42 +38,21 @@ When the conversation has produced a direction worth carrying forward (newly for
 <tone>one word only, the emotional register of that direction right now — choose exactly one of: grounded, restless, tender, expansive, urgent</tone>
 Only include these tags when they are genuinely earned by the conversation. Never on the first turn. Never speculatively. Always include <tone> whenever you include <trajectory> — never one without the other.`;
 
-export async function POST(request: NextRequest): Promise<NextResponse<ConverseResponse>> {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await requireUser();
+    if (!auth) {
+      return NextResponse.json({ response: "" }, { status: 401 });
+    }
+
     const body: ConverseRequest = await request.json();
 
     if (!body.messages || !Array.isArray(body.messages)) {
       return NextResponse.json({ response: "" }, { status: 400 });
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
-
-    const { data: userData, error: authError } = await supabase.auth.getUser();
-    if (authError || !userData.user) {
-      return NextResponse.json({ response: "" }, { status: 401 });
-    }
-
-    const userId = userData.user.id;
+    const { supabase, user } = auth;
+    const userId = user.id;
 
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
@@ -227,11 +193,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ConverseR
       );
     }
 
-    const contextBlock = contextParts.join("\n\n");
+    // Archive echoes: match against what the user is actually talking about
+    // (their latest message), falling back to the agreed trajectory statement.
+    const lastUserMessage = [...body.messages].reverse().find((m) => m.role === "user");
+    const echoQuery = lastUserMessage?.content || lastTrajectory?.statement || "";
+    const echoes = echoQuery ? await recallEchoes(auth, echoQuery) : "";
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    const contextBlock =
+      contextParts.join("\n\n") + (echoes ? `\n\n${echoes}` : "");
 
     const isFirstTurn = body.messages.length === 0;
 
@@ -251,36 +220,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<ConverseR
           ...body.messages,
         ];
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: claudeMessages,
-    });
+    return streamClaudeText(
+      {
+        model: MODELS.deep,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: claudeMessages,
+      },
+      (fullText) => {
+        const conceptMatch = fullText.match(/<concept>([\s\S]*?)<\/concept>/);
+        const trajectoryMatch = fullText.match(/<trajectory>([\s\S]*?)<\/trajectory>/);
+        const toneMatch = fullText.match(/<tone>([\s\S]*?)<\/tone>/);
 
-    const rawText = response.content.find((block) => block.type === "text");
-    if (!rawText || rawText.type !== "text") {
-      return NextResponse.json({ response: "" }, { status: 500 });
-    }
-
-    let text = rawText.text;
-
-    const conceptMatch = text.match(/<concept>([\s\S]*?)<\/concept>/);
-    const trajectoryMatch = text.match(/<trajectory>([\s\S]*?)<\/trajectory>/);
-    const toneMatch = text.match(/<tone>([\s\S]*?)<\/tone>/);
-
-    text = text
-      .replace(/<concept>[\s\S]*?<\/concept>/, "")
-      .replace(/<trajectory>[\s\S]*?<\/trajectory>/, "")
-      .replace(/<tone>[\s\S]*?<\/tone>/, "")
-      .trim();
-
-    return NextResponse.json({
-      response: text,
-      concept: conceptMatch ? conceptMatch[1].trim() : undefined,
-      trajectory: trajectoryMatch ? trajectoryMatch[1].trim() : undefined,
-      tone: toneMatch ? toneMatch[1].trim().toLowerCase() : undefined,
-    });
+        return {
+          concept: conceptMatch ? conceptMatch[1].trim() : undefined,
+          trajectory: trajectoryMatch ? trajectoryMatch[1].trim() : undefined,
+          tone: toneMatch ? toneMatch[1].trim().toLowerCase() : undefined,
+        };
+      }
+    );
   } catch (error) {
     console.error("Trajectory converse route error:", error);
     return NextResponse.json({ response: "" }, { status: 500 });

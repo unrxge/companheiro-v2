@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createRouteClient } from "@/lib/supabase/route";
+import { generateTasks } from "@/lib/generate-tasks";
 
 interface SaveRequest {
   one_sentence: string;
@@ -72,8 +72,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
   try {
     const body: SaveRequest = await request.json();
 
-    console.log('Save API received:', JSON.stringify(body, null, 2))
-
     // Validate required fields
     if (!body.one_sentence || !body.arc || !body.thematic_territory) {
       console.error('Validation failed - missing required fields:', {
@@ -88,27 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     // Get authenticated user
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
+    const supabase = await createRouteClient();
 
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {
@@ -212,69 +190,46 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const pieceId = pieceData[0].id;
     console.log('Piece created successfully:', pieceId)
 
-    // Generate suggested tasks
-    console.log('Generating tasks for piece:', pieceId)
-    try {
-      const generateTasksRes = await fetch(
-        `${process.env.NEXT_PUBLIC_VERCEL_URL ? "https://" + process.env.NEXT_PUBLIC_VERCEL_URL : "http://localhost:3000"}/api/project-board/generate-tasks`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            piece_id: pieceId,
-            core_concept: {
-              one_sentence: body.one_sentence,
-              arc: normalisedArc,
-              conviction_statement: body.conviction_statement,
-              emotional_journey: body.emotional_journey,
-              core_truth: body.core_truth,
-              substack_goals: body.substack_goals,
-              short_form_goals: body.short_form_goals,
-            },
-          }),
-        }
-      )
+    // Generate suggested tasks in-process (no HTTP round-trip)
+    const suggestedTasks = await generateTasks({
+      one_sentence: body.one_sentence,
+      arc: normalisedArc,
+      conviction_statement: body.conviction_statement,
+      emotional_journey: body.emotional_journey,
+      core_truth: body.core_truth,
+      substack_goals: body.substack_goals,
+      short_form_goals: body.short_form_goals,
+    })
 
-      const tasksResult = await generateTasksRes.json()
-      const suggestedTasks = tasksResult.tasks || []
+    let insertedTasks: Array<{ id: string; title: string; type: string }> = []
+    if (suggestedTasks.length > 0) {
+      const tasksToInsert = suggestedTasks.map((task, index) => ({
+        user_id: userId,
+        piece_id: pieceId,
+        title: task.title,
+        type: task.type,
+        order: index,
+        status: "pending",
+      }))
 
-      // Insert tasks into tasks table
-      if (suggestedTasks.length > 0) {
-        const tasksToInsert = suggestedTasks.map((task: { title: string; type: string }, index: number) => ({
-          user_id: userId,
-          piece_id: pieceId,
-          title: task.title,
-          type: task.type,
-          order: index,
-          status: "pending",
-        }))
+      const { data: tasksData, error: tasksError } = await supabase
+        .from("tasks")
+        .insert(tasksToInsert)
+        .select("id, title, type")
 
-        const { error: tasksError } = await supabase.from("tasks").insert(tasksToInsert)
-
-        if (tasksError) {
-          console.error("Error inserting tasks:", tasksError)
-        } else {
-          console.log("Tasks created successfully:", suggestedTasks.length)
-        }
+      if (tasksError) {
+        console.error("Error inserting tasks:", tasksError)
+      } else {
+        insertedTasks = tasksData || []
       }
-
-      console.log('Returning success response with idea_id, piece_id, and tasks')
-      return NextResponse.json({
-        success: true,
-        idea_id: ideaId,
-        piece_id: pieceId,
-        tasks: suggestedTasks,
-      })
-    } catch (tasksError) {
-      console.error("Error generating tasks:", tasksError)
-      // Still return success even if task generation fails
-      return NextResponse.json({
-        success: true,
-        idea_id: ideaId,
-        piece_id: pieceId,
-        tasks: [],
-      })
     }
+
+    return NextResponse.json({
+      success: true,
+      idea_id: ideaId,
+      piece_id: pieceId,
+      tasks: insertedTasks,
+    })
   } catch (error) {
     console.error("Core concept save error:", error);
     return NextResponse.json(

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createRouteClient } from "@/lib/supabase/route";
 
 interface ConversationMessage {
   role: "user" | "assistant";
@@ -56,27 +55,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
       );
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
+    const supabase = await createRouteClient();
 
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {
@@ -206,27 +185,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateRe
       );
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
+    const supabase = await createRouteClient();
 
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {

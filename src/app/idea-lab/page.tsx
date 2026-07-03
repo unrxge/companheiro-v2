@@ -45,13 +45,16 @@ const TERRITORY_LABELS: Record<string, string> = {
   slow_living_life_in_service: 'Slow living & life in service',
 }
 
+// Keys are the selected arcs sorted alphabetically and comma-joined.
 const ALIVE_PROMPTS: Record<string, string> = {
   default: 'What feels alive today?',
+  random: 'Let chance choose the door.',
+  many: 'Several currents are moving — which one is loudest?',
   Breakaway: 'What needs to break away?',
   Beginning: 'What wants to begin?',
   Expansion: 'Where can you grow?',
   Integration: 'What wants to come together?',
-  'Breakaway,Beginning': 'What ends so something new can start?',
+  'Beginning,Breakaway': 'What ends so something new can start?',
   'Breakaway,Expansion': 'What friction is asking you to expand?',
   'Breakaway,Integration': 'What dissolution leads to wholeness?',
   'Beginning,Expansion': 'How can this beginning deepen?',
@@ -131,9 +134,11 @@ export default function IdeaLabPage() {
   }
 
   const getAlivePrompt = () => {
+    if (useRandomArcs) return ALIVE_PROMPTS.random
     if (selectedArcs.length === 0) return ALIVE_PROMPTS.default
+    if (selectedArcs.length > 2) return ALIVE_PROMPTS.many
 
-    const key = selectedArcs.sort().join(',')
+    const key = [...selectedArcs].sort().join(',')
     return ALIVE_PROMPTS[key] || ALIVE_PROMPTS.default
   }
 

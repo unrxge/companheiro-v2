@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { requireUser } from '@/lib/supabase/route'
+import { buildCompanionContext } from '@/lib/companion-context'
+import { COMPANION_TONE } from '@/lib/companion-tone'
+import { MODELS } from '@/lib/models'
+import { streamClaudeText } from '@/lib/streaming'
 
 function inferCheckInType(transcript: string): 'morning' | 'after_work' | 'evening' | 'moment' {
   const hour = new Date().getHours()
@@ -21,29 +21,62 @@ function inferCheckInType(transcript: string): 'morning' | 'after_work' | 'eveni
   return 'moment'
 }
 
+interface Signals {
+  energy: 'low' | 'medium' | 'high'
+  inner_weather: string
+  creative_readiness: boolean
+  arc_texture: 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
+}
+
+function parseSignals(fullText: string): Signals {
+  const fallback: Signals = {
+    energy: 'medium',
+    inner_weather: 'present',
+    creative_readiness: false,
+    arc_texture: 'Expansion',
+  }
+
+  const match = fullText.match(/<signals>([\s\S]*?)<\/signals>/)
+  if (!match) return fallback
+
+  try {
+    const parsed = JSON.parse(match[1].trim())
+    return {
+      energy: parsed.energy ?? fallback.energy,
+      inner_weather: parsed.inner_weather ?? fallback.inner_weather,
+      creative_readiness: parsed.creative_readiness ?? fallback.creative_readiness,
+      arc_texture: parsed.arc_texture ?? fallback.arc_texture,
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export async function POST(request: Request) {
-try {
+  try {
+    const auth = await requireUser()
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { transcript } = await request.json()
 
     if (!transcript?.trim()) {
       return NextResponse.json({ error: 'transcript is required' }, { status: 400 })
     }
 
+    const companionContext = await buildCompanionContext(auth)
+
     const systemPrompt = `You are Companheiro, a companion for a creative person's inner life.
 
-Your response style:
-- See what's actually happening (don't gloss over it)
-- Call things out because you care, not to be harsh
-- Hold space for tenderness AND growth at the same time
-- Never use filler words or softening language
-- Every sentence should carry weight
+${COMPANION_TONE}
 
-When responding to a check-in (2–4 sentences):
-1. NAME what you're noticing—the real thing underneath what they said
-2. ACKNOWLEDGE the weight of it with genuine recognition (not "your feelings are valid")
+${companionContext ? companionContext + '\n\n' : ''}When responding to a check-in (2–4 sentences):
+1. NAME what you're noticing—the real thing underneath what they said. If it connects to something you already know about them (yesterday's weather, their trajectory, what they're working on), let that show naturally.
+2. ACKNOWLEDGE the weight of it with genuine recognition
 3. Ask a real question OR offer a direction that opens something
 
-Then extract four signals from the check-in as a JSON block at the end of your response, in this exact format:
+Then extract four signals from the check-in as a JSON block at the very end of your response, in this exact format:
 <signals>
 {
   "energy": "low" | "medium" | "high",
@@ -57,74 +90,27 @@ Arc texture guide:
 - Breakaway: restless, wanting to escape, resistant to structure
 - Beginning: fresh energy, openness, new curiosity
 - Expansion: building momentum, going deeper, multiplying ideas
-- Integration: consolidating, reflecting, letting things settle
-
-First clean and punctuate the raw transcript naturally before responding to it.`
-
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: `Here is my check-in (raw voice transcript): "${transcript}"`,
-        },
-      ],
-    })
-
-    const rawText = response.content[0].type === 'text' ? response.content[0].text : ''
-
-    // Split response from signals block
-    const signalsMatch = rawText.match(/<signals>([\s\S]*?)<\/signals>/)
-    const aiResponse = rawText.replace(/<signals>[\s\S]*?<\/signals>/, '').trim()
-
-    let signals = {
-      energy: 'medium' as 'low' | 'medium' | 'high',
-      inner_weather: 'present',
-      creative_readiness: false,
-      arc_texture: 'Expansion' as 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration',
-    }
-
-    if (signalsMatch) {
-      try {
-        const parsed = JSON.parse(signalsMatch[1].trim())
-        signals = {
-          energy: parsed.energy ?? signals.energy,
-          inner_weather: parsed.inner_weather ?? signals.inner_weather,
-          creative_readiness: parsed.creative_readiness ?? signals.creative_readiness,
-          arc_texture: parsed.arc_texture ?? signals.arc_texture,
-        }
-      } catch {
-        // keep defaults if parsing fails
-      }
-    }
+- Integration: consolidating, reflecting, letting things settle`
 
     const inferredType = inferCheckInType(transcript)
 
-    // Punctuate/clean transcript via a quick second pass
-    const cleanResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: `Clean up this voice transcript with proper punctuation and capitalization. Return only the cleaned text, nothing else: "${transcript}"`,
-        },
-      ],
-    })
-
-    const cleanedTranscript =
-      cleanResponse.content[0].type === 'text'
-        ? cleanResponse.content[0].text.trim()
-        : transcript
-
-    return NextResponse.json({
-      aiResponse,
-      signals,
-      inferredType,
-      cleanedTranscript,
-    })
+    return streamClaudeText(
+      {
+        model: MODELS.fast,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: `Here is my check-in: "${transcript}"`,
+          },
+        ],
+      },
+      (fullText) => ({
+        signals: parseSignals(fullText),
+        inferredType,
+      })
+    )
   } catch (err) {
     console.error('check-in process error:', err)
     return NextResponse.json(

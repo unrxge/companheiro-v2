@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic } from "@/lib/anthropic";
+import { requireUser } from "@/lib/supabase/route";
+import { MODELS } from "@/lib/models";
 
 interface ConversationMessage {
   role: "user" | "assistant";
@@ -33,27 +35,16 @@ function getConfirmedField(
 
 export async function POST(request: NextRequest): Promise<NextResponse<GenerateResponse>> {
   try {
-    const body: GenerateRequest = await request.json();
-
-    console.log('Generate API received:', {
-      phase: body.phase,
-      conversation_history_length: body.conversation_history?.length || 0,
-      conversation_history: body.conversation_history,
-      confirmed_sections: body.confirmed_sections,
-    })
-
-    if (!body.phase || body.phase < 1 || body.phase > 4 || !body.conversation_history) {
-      console.error('Validation failed:', {
-        hasPhase: !!body.phase,
-        phaseValid: body.phase >= 1 && body.phase <= 4,
-        hasConversationHistory: !!body.conversation_history,
-      })
-      return NextResponse.json({ content: {} }, { status: 400 });
+    const auth = await requireUser();
+    if (!auth) {
+      return NextResponse.json({ content: {} }, { status: 401 });
     }
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    const body: GenerateRequest = await request.json();
+
+    if (!body.phase || body.phase < 1 || body.phase > 4 || !body.conversation_history) {
+      return NextResponse.json({ content: {} }, { status: 400 });
+    }
 
     let systemPrompt = "";
     let userPrompt = "";
@@ -140,8 +131,8 @@ Return as JSON:
 
     let response;
     try {
-      response = await client.messages.create({
-        model: "claude-sonnet-4-6",
+      response = await anthropic.messages.create({
+        model: MODELS.deep,
         max_tokens: 4000,
         system: systemPrompt,
         messages: [

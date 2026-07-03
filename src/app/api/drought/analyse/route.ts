@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { anthropic } from "@/lib/anthropic";
+import { createRouteClient } from "@/lib/supabase/route";
+import { formatDateAsRelative } from "@/lib/dates";
+import { MODELS } from "@/lib/models";
 
 interface CheckIn {
   raw_entry: string;
@@ -17,14 +18,6 @@ interface AnalysisResponse {
   pattern_type?: "energy" | "arc" | "creative";
 }
 
-function formatDateAsRelative(dateStr: string): string {
-  const date = new Date(dateStr);
-  const today = new Date();
-  const daysAgo = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-  const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-  return `${dayOfWeek} (${daysAgo} days ago)`;
-}
-
 function detectDrought(checkIns: CheckIn[]): boolean {
   if (checkIns.length < 2) return false;
   const lowEnergyCount = checkIns.filter((c) => c.energy === "low").length;
@@ -34,27 +27,7 @@ function detectDrought(checkIns: CheckIn[]): boolean {
 export async function POST(_request: NextRequest): Promise<NextResponse<AnalysisResponse>> {
   try {
     // Get authenticated user
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch (error) {
-              console.error("Error setting cookies:", error);
-            }
-          },
-        },
-      }
-    );
+    const supabase = await createRouteClient();
 
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {
@@ -116,14 +89,9 @@ Entry: "${c.raw_entry}"`;
       })
       .join("\n\n");
 
-    // Initialize Anthropic client
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     // Call Claude for pattern analysis
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const response = await anthropic.messages.create({
+      model: MODELS.fast,
       max_tokens: 500,
       system: `You are Companheiro, noticing genuine patterns in someone's inner life over time.
 

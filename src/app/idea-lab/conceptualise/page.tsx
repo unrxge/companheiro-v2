@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { readTextStream } from '@/lib/stream-client'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -75,20 +76,29 @@ function ConceptualiseContent() {
         }),
       })
 
-      const data = await res.json()
-
-      if (!data.response) {
+      if (!res.ok) {
         setError('Failed to get response')
         return
       }
 
-      const updatedMessages: Message[] = [
-        ...conversationHistory,
-        { role: 'assistant', content: data.response },
-      ]
-      setMessages(updatedMessages)
-      setPhase(data.phase)
-      setReadyToAdvance(data.readyToAdvance)
+      setMessages([...conversationHistory, { role: 'assistant', content: '' }])
+      const { text, meta } = await readTextStream<{
+        phase: number
+        readyToAdvance: boolean
+      }>(res, (visibleText) => {
+        setMessages([...conversationHistory, { role: 'assistant', content: visibleText }])
+      })
+
+      if (!text) {
+        setMessages(conversationHistory)
+        setError('Failed to get response')
+        return
+      }
+
+      if (meta) {
+        setPhase(meta.phase)
+        setReadyToAdvance(meta.readyToAdvance)
+      }
     } catch (err) {
       console.error('Conceptualise error:', err)
       setError('Failed to get response. Please try again.')

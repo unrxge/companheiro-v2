@@ -1,12 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+import { anthropic } from '@/lib/anthropic'
+import { requireUser } from '@/lib/supabase/route'
+import { MODELS } from '@/lib/models'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser()
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { text } = await request.json()
 
     if (!text?.trim()) {
@@ -14,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODELS.fast,
       max_tokens: 1024,
       system: `You are a punctuation assistant. Your task is to add proper punctuation and sentence structure to raw voice transcription.
 

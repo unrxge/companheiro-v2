@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { readTextStream } from '@/lib/stream-client'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
@@ -216,12 +217,45 @@ export default function CheckInPage() {
     }
   }
 
+  // Streams an AI reply into the message thread, updating the last message
+  // as chunks arrive. Returns the parsed meta frame (if any).
+  const streamAiMessage = async <M,>(res: Response, hideFrom: string[] = []): Promise<M | null> => {
+    setMessages((prev) => [...prev, { role: 'ai', text: '' }])
+    try {
+      const { meta } = await readTextStream<M>(
+        res,
+        (visibleText) => {
+          setMessages((prev) => {
+            const next = [...prev]
+            next[next.length - 1] = { role: 'ai', text: visibleText }
+            return next
+          })
+        },
+        hideFrom
+      )
+      return meta
+    } catch (err) {
+      // Drop the empty/partial AI bubble on stream failure
+      setMessages((prev) =>
+        prev[prev.length - 1]?.role === 'ai' && !prev[prev.length - 1].text
+          ? prev.slice(0, -1)
+          : prev
+      )
+      throw err
+    }
+  }
+
   const handleSend = async () => {
     if (!transcript.trim()) return
     setIsProcessing(true)
     setError(null)
 
     const userText = transcript.trim()
+    // History as it stood before this turn — sent to /respond for continuity
+    const priorHistory = messages.map((m) => ({
+      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+      content: m.text,
+    }))
     setMessages((prev) => [...prev, { role: 'user', text: userText }])
     setTranscript('')
 
@@ -231,16 +265,15 @@ export default function CheckInPage() {
         const res = await fetch('/api/check-in/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: userText }),
+          body: JSON.stringify({ response: userText, messages: priorHistory }),
         })
 
-        const data = await res.json()
-
         if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
           throw new Error(data.error ?? 'Processing failed')
         }
 
-        setMessages((prev) => [...prev, { role: 'ai', text: data.response }])
+        await streamAiMessage(res)
       } else {
         // Initial check-in processing
         setInitialEntry(userText)
@@ -250,16 +283,21 @@ export default function CheckInPage() {
           body: JSON.stringify({ transcript: userText }),
         })
 
-        const data = await res.json()
-
         if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
           throw new Error(data.error ?? 'Processing failed')
         }
 
-        setMessages((prev) => [...prev, { role: 'ai', text: data.aiResponse }])
-        setSignals(data.signals)
-        setInferredType(data.inferredType)
-        setConfirmedType(data.inferredType)
+        const meta = await streamAiMessage<{
+          signals: Signals
+          inferredType: CheckInType
+        }>(res, ['<signals>'])
+
+        if (meta) {
+          setSignals(meta.signals)
+          setInferredType(meta.inferredType)
+          setConfirmedType(meta.inferredType)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -273,22 +311,24 @@ export default function CheckInPage() {
     setError(null)
 
     try {
+      // The transcript box is cleared after the initial send, so challenge
+      // works from the logged entry, not the (usually empty) input box.
+      const challengeInput = transcript.trim() || initialEntry
       const res = await fetch('/api/check-in/deeper-work', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: transcript.trim() }),
+        body: JSON.stringify({ transcript: challengeInput }),
       })
 
-      const data = await res.json()
-
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
         throw new Error(data.error ?? 'Failed to process')
       }
 
-      setMessages((prev) => [...prev, { role: 'ai', text: data.response }])
       setEngagedWithChallenge(true)
       setShowLogButton(true)
       setTranscript('')
+      await streamAiMessage(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { readTextStream } from '@/lib/stream-client'
 
 interface PieceCore {
   id: string
@@ -101,6 +102,8 @@ function WriteContent() {
     const userMessage = chatInput
     setChatInput('')
 
+    // History excludes the new message — the API appends it itself
+    const priorHistory = chatMessages
     const newMessages = [...chatMessages, { role: 'user' as const, content: userMessage }]
     setChatMessages(newMessages)
 
@@ -112,15 +115,19 @@ function WriteContent() {
         body: JSON.stringify({
           message: userMessage,
           piece_id: pieceId,
-          conversation_history: newMessages,
+          conversation_history: priorHistory,
         }),
       })
 
-      const data = await res.json()
-      setChatMessages([
-        ...newMessages,
-        { role: 'assistant', content: data.response },
-      ])
+      if (!res.ok) {
+        console.error('Chat request failed:', res.status)
+        return
+      }
+
+      setChatMessages([...newMessages, { role: 'assistant', content: '' }])
+      await readTextStream(res, (visibleText) => {
+        setChatMessages([...newMessages, { role: 'assistant', content: visibleText }])
+      })
     } catch (err) {
       console.error('Failed to send chat message:', err)
     } finally {

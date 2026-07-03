@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic } from "@/lib/anthropic";
+import { requireUser } from "@/lib/supabase/route";
+import { MODELS } from "@/lib/models";
 
 interface PromptRequest {
   arcs?: string[];
@@ -42,6 +44,11 @@ function getRandomTerritories(): string[] {
 
 export async function POST(request: NextRequest): Promise<NextResponse<PromptResponse>> {
   try {
+    const auth = await requireUser();
+    if (!auth) {
+      return NextResponse.json({ prompt: "" }, { status: 401 });
+    }
+
     const body: PromptRequest = await request.json();
 
     if ((!body.arcs || body.arcs.length === 0) && !body.randomArcs) {
@@ -50,10 +57,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
         { status: 400 }
       );
     }
-
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
 
     const finalArcs = body.randomArcs ? getRandomArcs() : body.arcs || [];
     const arcsDescription = finalArcs.join(", ");
@@ -74,8 +77,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       territoriesDescription = "";
     }
 
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const response = await anthropic.messages.create({
+      model: MODELS.fast,
       max_tokens: 200,
       system: `You are Companheiro, generating a creative prompt that invites someone deeper into their own unfolding.
 
