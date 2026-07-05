@@ -749,7 +749,7 @@ function ProjectBoardContent() {
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
               <div className="flex-1">
                 <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
@@ -863,7 +863,7 @@ function ProjectBoardContent() {
                 <div className="space-y-2">
                   {selectedPiece.tasks.filter((t) => t.status === 'pending').length === 0 &&
                   selectedPiece.tasks.filter((t) => t.status === 'complete').length === 0 ? (
-                    <p className="text-xs text-[#3d3c39]">No tasks</p>
+                    <p className="text-sm text-[#3d3c39]">No tasks</p>
                   ) : (
                     <>
                       {selectedPiece.tasks
@@ -871,61 +871,55 @@ function ProjectBoardContent() {
                         .map((task) => (
                           <div
                             key={task.id}
-                            className="bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs"
+                            className="bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3"
                           >
-                            <div className="flex items-center gap-2 flex-1">
-                              <span className="text-[#d4d2cd]">{task.title}</span>
-                              <span className="text-[#4a4946] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
+                            <input
+                              type="checkbox"
+                              checked={sessionData.completed_task_ids.has(task.id)}
+                              onChange={(e) => {
+                                const newIds = new Set(sessionData.completed_task_ids)
+                                if (e.target.checked) {
+                                  newIds.add(task.id)
+                                } else {
+                                  newIds.delete(task.id)
+                                }
+                                setSessionData({
+                                  ...sessionData,
+                                  completed_task_ids: newIds,
+                                })
+                              }}
+                              className="accent-green-600 flex-shrink-0"
+                            />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-sm text-[#d4d2cd]">{task.title}</span>
+                              <span className="text-xs text-[#4a4946] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
                                 {task.type}
                               </span>
                             </div>
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => {
-                                  const newIds = new Set(sessionData.completed_task_ids)
-                                  if (newIds.has(task.id)) {
-                                    newIds.delete(task.id)
-                                  } else {
-                                    newIds.add(task.id)
-                                  }
-                                  setSessionData({
-                                    ...sessionData,
-                                    completed_task_ids: newIds,
-                                  })
-                                }}
-                                className={`text-[#6b6966] hover:text-green-300 transition-colors text-xs px-2 py-1 rounded ${
-                                  sessionData.completed_task_ids.has(task.id)
-                                    ? 'bg-green-900/20 text-green-400'
-                                    : ''
-                                }`}
-                              >
-                                Done
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTask(task.id)}
-                                className="text-[#6b6966] hover:text-red-300 transition-colors text-xs px-2 py-1 rounded"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="text-xs text-[#6b6966] hover:text-red-300 transition-colors flex-shrink-0"
+                            >
+                              Delete
+                            </button>
                           </div>
                         ))}
 
                       {selectedPiece.tasks.filter((t) => t.status === 'complete').length > 0 && (
                         <div className="pt-2 space-y-2">
-                          <p className="text-xs text-[#4a4946]">Completed</p>
+                          <p className="text-xs text-[#4a4946] uppercase tracking-widest">Completed</p>
                           {selectedPiece.tasks
                             .filter((t) => t.status === 'complete')
                             .map((task) => (
                               <div
                                 key={task.id}
-                                className={`bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs ${
+                                className={`bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3 ${
                                   completingTasks.has(task.id) ? 'complete-task' : 'opacity-60'
                                 }`}
                               >
-                                <div className="flex items-center gap-2 flex-1">
-                                  <span className="text-[#4a4946] line-through">{task.title}</span>
-                                  <span className="text-[#3d3c39] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className="text-sm text-[#4a4946] line-through">{task.title}</span>
+                                  <span className="text-xs text-[#3d3c39] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
                                     {task.type}
                                   </span>
                                 </div>
@@ -942,7 +936,7 @@ function ProjectBoardContent() {
                             value={newTaskInput}
                             onChange={(e) => setNewTaskInput(e.target.value)}
                             placeholder="Add task..."
-                            className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-2 py-1 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                            className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter') handleAddTask()
                             }}
@@ -950,14 +944,14 @@ function ProjectBoardContent() {
                           <select
                             value={newTaskType}
                             onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
-                            className="bg-[#111110] border border-[#2e2d2a] rounded px-2 py-1 text-xs text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
+                            className="bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
                           >
                             <option value="creation">Creation</option>
                             <option value="execution">Execution</option>
                           </select>
                           <button
                             onClick={handleAddTask}
-                            className="px-2 py-1 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd]"
+                            className="px-3 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd]"
                           >
                             Add
                           </button>
@@ -974,18 +968,18 @@ function ProjectBoardContent() {
                   <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Session History</h3>
                   <div className="space-y-2">
                     {selectedPiece.session_logs.map((log) => (
-                      <div key={log.id} className="bg-[#111110] rounded p-3 border border-[#1f1f1d] text-xs">
+                      <div key={log.id} className="bg-[#111110] rounded p-3 border border-[#1f1f1d]">
                         <p className="text-[#8c8a87] text-xs mb-2">
                           {new Date(log.created_at).toLocaleDateString()} •{' '}
                           {log.duration_minutes ? `${log.duration_minutes}min` : 'no duration'}
                         </p>
                         <div className="space-y-1">
                           <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Did</p>
-                          <p className="text-[#d4d2cd]">{log.what_was_done}</p>
+                          <p className="text-sm text-[#d4d2cd]">{log.what_was_done}</p>
                         </div>
                         <div className="space-y-1 mt-2">
                           <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Next</p>
-                          <p className="text-[#d4d2cd]">{log.next_step}</p>
+                          <p className="text-sm text-[#d4d2cd]">{log.next_step}</p>
                         </div>
                       </div>
                     ))}
@@ -996,6 +990,9 @@ function ProjectBoardContent() {
               {/* Log Session Form */}
               <div className="space-y-3 border-t border-[#1f1f1d] pt-4">
                 <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Log Session</h3>
+                <p className="text-xs text-[#4a4946]">
+                  Check off tasks above as you go — they&apos;ll be marked done when you submit.
+                </p>
                 <textarea
                   value={sessionData.what_was_done}
                   onChange={(e) =>
@@ -1003,7 +1000,7 @@ function ProjectBoardContent() {
                   }
                   placeholder="What was done..."
                   rows={3}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
                 />
                 <textarea
                   value={sessionData.next_step}
@@ -1012,7 +1009,7 @@ function ProjectBoardContent() {
                   }
                   placeholder="Next step..."
                   rows={3}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
                 />
                 <input
                   type="number"
@@ -1021,40 +1018,8 @@ function ProjectBoardContent() {
                     setSessionData({ ...sessionData, duration_minutes: e.target.value })
                   }
                   placeholder="Duration (minutes)"
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
                 />
-
-                {selectedPiece.tasks.filter((t) => t.status === 'pending').length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-[#4a4946] uppercase tracking-widest">Tasks worked on</p>
-                    <div className="space-y-1">
-                      {selectedPiece.tasks
-                        .filter((t) => t.status === 'pending')
-                        .map((task) => (
-                          <label key={task.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={sessionData.completed_task_ids.has(task.id)}
-                              onChange={(e) => {
-                                const newIds = new Set(sessionData.completed_task_ids)
-                                if (e.target.checked) {
-                                  newIds.add(task.id)
-                                } else {
-                                  newIds.delete(task.id)
-                                }
-                                setSessionData({
-                                  ...sessionData,
-                                  completed_task_ids: newIds,
-                                })
-                              }}
-                              className="accent-green-600"
-                            />
-                            <span className="text-[#d4d2cd]">{task.title}</span>
-                          </label>
-                        ))}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex gap-2 flex-col">
                   <div className="flex gap-2">
