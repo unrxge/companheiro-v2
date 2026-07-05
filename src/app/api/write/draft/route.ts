@@ -3,6 +3,7 @@ import { createRouteClient } from "@/lib/supabase/route";
 
 interface DraftRequest {
   piece_id: string;
+  title?: string;
   substack_draft?: string;
   short_form_script?: string;
 }
@@ -36,6 +37,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
     const userId = userData.user.id;
 
     const updateData: Record<string, string> = {};
+    if (body.title !== undefined) {
+      updateData.title = body.title;
+    }
     if (body.substack_draft !== undefined) {
       updateData.substack_draft = body.substack_draft;
     }

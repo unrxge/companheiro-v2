@@ -52,6 +52,7 @@ function WriteContent() {
       const data = await res.json()
       if (data.success) {
         setPiece(data.piece)
+        setTitle(data.piece.title || '')
         setDraft(data.piece.substack_draft || '')
       }
     } catch (err) {
@@ -76,8 +77,10 @@ function WriteContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           piece_id: pieceId,
+          title,
           substack_draft: draft,
         }),
+        keepalive: true,
       })
     } catch (err) {
       console.error('Failed to save draft:', err)
@@ -86,6 +89,9 @@ function WriteContent() {
     }
   }
 
+  // Debounced save on every change, plus an immediate save whenever the tab
+  // is backgrounded or closed — otherwise anything typed in the last few
+  // seconds before leaving is silently lost.
   useEffect(() => {
     if (saveDraftTimeoutRef.current) {
       clearTimeout(saveDraftTimeoutRef.current)
@@ -93,8 +99,18 @@ function WriteContent() {
 
     saveDraftTimeoutRef.current = setTimeout(() => {
       saveDraft()
-    }, 30000)
-  }, [draft])
+    }, 3000)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') saveDraft()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [draft, title])
 
   const handleChatSend = async () => {
     if (!chatInput.trim() || !pieceId || isChatLoading) return
@@ -188,7 +204,10 @@ function WriteContent() {
         {/* Minimal header with exit button */}
         <div className="h-12 border-b border-[#1f1f1d] flex items-center px-6" style={{ background: '#111110' }}>
           <button
-            onClick={() => router.push('/project-board')}
+            onClick={async () => {
+              await saveDraft()
+              router.push('/project-board')
+            }}
             className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
             title="Back to project board"
           >
@@ -261,7 +280,10 @@ function WriteContent() {
               {/* Action button */}
               {canMarkReady && (
                 <button
-                  onClick={() => router.push(`/write/translate?piece_id=${pieceId}`)}
+                  onClick={async () => {
+                    await saveDraft()
+                    router.push(`/write/translate?piece_id=${pieceId}`)
+                  }}
                   className="mt-6 text-sm text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors underline"
                 >
                   This draft is ready →

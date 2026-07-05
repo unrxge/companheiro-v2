@@ -749,7 +749,7 @@ function ProjectBoardContent() {
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
               <div className="flex-1">
                 <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
