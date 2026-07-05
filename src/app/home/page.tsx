@@ -120,30 +120,44 @@ function HomeContent() {
       }}
     >
       {/* Header */}
-      <div style={{ marginBottom: '48px' }}>
-        <p
+      <div style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <p
+            style={{
+              color: '#4a4846',
+              fontSize: '11px',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: '12px',
+              margin: 0,
+            }}
+          >
+            Companheiro
+          </p>
+          <h1
+            style={{
+              color: '#e8e6e0',
+              fontSize: '28px',
+              fontWeight: 300,
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {greeting}
+          </h1>
+        </div>
+        <a
+          href="/portrait"
           style={{
-            color: '#4a4846',
-            fontSize: '11px',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            marginBottom: '12px',
-            margin: 0,
+            color: '#6a6866',
+            fontSize: '12px',
+            textDecoration: 'underline',
+            textUnderlineOffset: '4px',
+            marginTop: '4px',
           }}
         >
-          Companheiro
-        </p>
-        <h1
-          style={{
-            color: '#e8e6e0',
-            fontSize: '28px',
-            fontWeight: 300,
-            margin: 0,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {greeting}
-        </h1>
+          My portrait
+        </a>
       </div>
 
       {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}

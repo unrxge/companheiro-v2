@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/supabase/route";
 import { formatDateAsRelative } from "@/lib/dates";
 import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
+import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { streamClaudeText } from "@/lib/streaming";
 
 interface Message {
@@ -116,6 +117,9 @@ export async function POST(request: NextRequest) {
     }
 
     const contextParts: string[] = [];
+
+    const portraitBlock = formatPortraitForPrompt(await getActivePortrait(auth));
+    if (portraitBlock) contextParts.push(portraitBlock);
 
     contextParts.push(
       lastTrajectory

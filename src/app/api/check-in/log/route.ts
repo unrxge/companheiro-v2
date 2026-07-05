@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { distillPortrait } from '@/lib/portrait'
 
 export async function POST(request: Request) {
   try {
@@ -56,6 +57,13 @@ export async function POST(request: Request) {
       console.error('supabase insert error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Distill what this check-in reveals about how they process things.
+    // Never blocks the response on failure.
+    const material = full_conversation
+      ? `${raw_entry}\n\nFull conversation:\n${full_conversation}`
+      : raw_entry
+    await distillPortrait({ supabase, user }, 'check_in', material)
 
     return NextResponse.json({ success: true, data })
   } catch (err) {

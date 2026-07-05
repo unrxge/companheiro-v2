@@ -7,7 +7,6 @@ import { readTextStream } from '@/lib/stream-client'
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type EnergyLevel = 'low' | 'medium' | 'high'
-type PatternType = 'energy' | 'arc' | 'creative'
 
 interface Signals {
   energy: EnergyLevel
@@ -21,9 +20,10 @@ interface Message {
   text: string
 }
 
-interface DroughtObservation {
-  observation: string | null
-  pattern_type?: PatternType
+interface PendingPortraitEntry {
+  id: string
+  kind: string
+  statement: string
 }
 
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
@@ -48,7 +48,7 @@ export default function CheckInPage() {
   const [isLogging, setIsLogging] = useState(false)
   const [logSuccess, setLogSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [observation, setObservation] = useState<DroughtObservation | null>(null)
+  const [pendingEntry, setPendingEntry] = useState<PendingPortraitEntry | null>(null)
   const [isLoadingObservation, setIsLoadingObservation] = useState(true)
   const [showResponse, setShowResponse] = useState(false)
   const [userResponse, setUserResponse] = useState('')
@@ -76,36 +76,19 @@ export default function CheckInPage() {
   }, [messages])
 
   useEffect(() => {
-    const fetchObservation = async () => {
+    const fetchPendingEntry = async () => {
       try {
-        // Check if we already showed an observation today
-        const lastShownTime = localStorage.getItem('drought_observation_last_shown')
-        const now = Date.now()
-        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
-
-        if (lastShownTime && now - parseInt(lastShownTime) < TWENTY_FOUR_HOURS) {
-          // Less than 24 hours have passed, skip fetching
-          setIsLoadingObservation(false)
-          return
-        }
-
-        const res = await fetch('/api/drought/analyse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        })
-        const data: DroughtObservation = await res.json()
-        setObservation(data)
-
-        // Record when we showed this observation
-        localStorage.setItem('drought_observation_last_shown', now.toString())
+        const res = await fetch('/api/portrait/pending')
+        const data = await res.json()
+        setPendingEntry(data.entry || null)
       } catch (err) {
-        console.error('Failed to fetch observation:', err)
+        console.error('Failed to fetch pending portrait entry:', err)
       } finally {
         setIsLoadingObservation(false)
       }
     }
 
-    fetchObservation()
+    fetchPendingEntry()
   }, [])
 
   const startRecording = async () => {
@@ -404,26 +387,22 @@ export default function CheckInPage() {
   }
 
   const handleObservationConfirm = async (felt_right: boolean) => {
-    if (!observation?.observation || !observation?.pattern_type) return
+    if (!pendingEntry) return
     setIsConfirming(true)
 
     try {
-      const res = await fetch('/api/drought/confirm', {
+      const res = await fetch('/api/portrait/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          observation: observation.observation,
-          pattern_type: observation.pattern_type,
-          confirmed_by_user: felt_right,
-          user_response: felt_right ? undefined : userResponse.trim(),
-          action_taken: 'none',
+          id: pendingEntry.id,
+          confirmed: felt_right,
+          correction: felt_right ? undefined : userResponse.trim(),
         }),
       })
 
-      const data = await res.json()
-
       if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to save response')
+        throw new Error('Failed to save response')
       }
 
       setObservationDismissed(true)
@@ -559,11 +538,11 @@ export default function CheckInPage() {
         }`}
       >
         <div className="w-full max-w-xl space-y-4">
-          {/* Drought observation card */}
-          {observation?.observation && !observationDismissed && !isLoadingObservation && (
+          {/* Pending portrait observation card */}
+          {pendingEntry && !observationDismissed && !isLoadingObservation && (
             <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 mb-2 space-y-3">
               <p className="text-sm text-[#d4d2cd] leading-relaxed">
-                {observation.observation}
+                {pendingEntry.statement}
               </p>
 
               {!showResponse ? (

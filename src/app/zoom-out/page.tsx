@@ -178,6 +178,7 @@ export default function ZoomOutPage() {
           statement: pendingAction.trajectory || pendingAction.concept,
           born_project: pendingAction.concept,
           tone: pendingAction.tone,
+          conversation: messages,
         }),
       })
 
@@ -202,7 +203,11 @@ export default function ZoomOutPage() {
       const res = await fetch('/api/trajectory/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statement: pendingAction.trajectory, tone: pendingAction.tone }),
+        body: JSON.stringify({
+          statement: pendingAction.trajectory,
+          tone: pendingAction.tone,
+          conversation: messages,
+        }),
       })
 
       if (res.ok) {

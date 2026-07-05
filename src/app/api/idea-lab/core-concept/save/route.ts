@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { generateTasks } from "@/lib/generate-tasks";
+import { distillPortrait } from "@/lib/portrait";
 
 interface SaveRequest {
   one_sentence: string;
@@ -189,6 +190,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
 
     const pieceId = pieceData[0].id;
     console.log('Piece created successfully:', pieceId)
+
+    // Distill what this conceptualisation reveals about how they develop
+    // ideas — never blocks on failure.
+    const conversationText = body.conversation_history
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n\n");
+    await distillPortrait(
+      { supabase, user: userData.user },
+      "conceptualise",
+      `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
+    );
 
     // Generate suggested tasks in-process (no HTTP round-trip)
     const suggestedTasks = await generateTasks({

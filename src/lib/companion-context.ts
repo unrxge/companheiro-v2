@@ -1,4 +1,5 @@
 import { formatDateAsRelative } from './dates'
+import { getActivePortrait, formatPortraitForPrompt } from './portrait'
 import type { AuthedContext } from './supabase/route'
 
 interface ContextOptions {
@@ -27,6 +28,7 @@ export async function buildCompanionContext(
       { data: trajectory },
       { data: activePieces },
       { data: postPubLogs },
+      portrait,
     ] = await Promise.all([
       supabase
         .from('check_ins')
@@ -54,9 +56,13 @@ export async function buildCompanionContext(
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(2),
+      getActivePortrait({ supabase, user }),
     ])
 
     const parts: string[] = []
+
+    const portraitBlock = formatPortraitForPrompt(portrait)
+    if (portraitBlock) parts.push(portraitBlock)
 
     if (trajectory) {
       parts.push(

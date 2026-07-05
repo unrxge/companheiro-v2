@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
+import { distillPortrait } from "@/lib/portrait";
 
 const VALID_TONES = ["grounded", "restless", "tender", "expansive", "urgent"];
+
+interface CommitMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 interface CommitRequest {
   statement: string;
   born_project?: string;
   tone?: string;
+  conversation?: CommitMessage[];
 }
 
 interface CommitResponse {
@@ -39,6 +46,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommitRes
     if (rpcError) {
       console.error("commit_trajectory RPC error:", rpcError);
       return NextResponse.json({ success: false }, { status: 500 });
+    }
+
+    // Distill what this zoom-out conversation revealed — how they reacted to
+    // the reading, what shifted their thinking, what tension kept surfacing.
+    // Never blocks on failure.
+    if (body.conversation && body.conversation.length > 0) {
+      const conversationText = body.conversation
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      await distillPortrait(
+        { supabase, user: userData.user },
+        "zoom_out",
+        `${conversationText}\n\nAgreed trajectory: ${body.statement.trim()}`
+      );
     }
 
     return NextResponse.json({ success: true });
