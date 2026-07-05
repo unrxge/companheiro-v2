@@ -29,13 +29,17 @@ function toSearchQuery(text: string, maxTerms = 8): string | null {
 }
 
 interface Echo {
-  kind: 'capture' | 'piece' | 'reflection'
+  kind: 'piece' | 'reflection'
   text: string
   when: string
 }
 
-// Full-text-search recall across the user's creative archive. Returns a
-// formatted block for a system prompt, or '' when nothing resonates.
+// Full-text-search recall across the user's own creative output — pieces
+// they actually wrote and reflections they wrote afterward. Deliberately
+// excludes captures: those are other people's content the user bookmarked
+// from their feed, not signal about the user's own trajectory or work, and
+// must never surface as ambient influence. See memory: collector-standalone.
+// Returns a formatted block for a system prompt, or '' when nothing resonates.
 // Requires the fts columns from migration 009; degrades silently without them.
 export async function recallEchoes(
   { supabase, user }: AuthedContext,
@@ -46,14 +50,7 @@ export async function recallEchoes(
   if (!query) return ''
 
   try {
-    const [captures, pieces, reflections] = await Promise.all([
-      supabase
-        .from('captures')
-        .select('unpacked, created_at')
-        .eq('user_id', user.id)
-        .textSearch('fts', query)
-        .order('created_at', { ascending: false })
-        .limit(limit),
+    const [pieces, reflections] = await Promise.all([
       supabase
         .from('pieces')
         .select('title, core_truth, created_at')
@@ -73,11 +70,6 @@ export async function recallEchoes(
 
     const echoes: Echo[] = []
 
-    for (const c of captures.data || []) {
-      if (c.unpacked) {
-        echoes.push({ kind: 'capture', text: c.unpacked, when: c.created_at })
-      }
-    }
     for (const p of pieces.data || []) {
       echoes.push({
         kind: 'piece',

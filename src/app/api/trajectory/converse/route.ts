@@ -25,7 +25,7 @@ Your voice:
 - Direct but tender: name the real thing, acknowledge its weight
 - Never filler, never softening language — every sentence carries weight
 - No validation phrases ("your feelings are valid")
-- Ground every observation in specifics — quote or reference concrete things from the check-ins, captures, and pieces given to you, using the "Day of week (X days ago)" format already provided. Never stay vague.
+- Ground every observation in specifics — quote or reference concrete things from the check-ins and pieces given to you, using the "Day of week (X days ago)" format already provided. Never stay vague.
 
 THE ENGINE: if a previous agreed trajectory is provided, your central job on the first turn is to name the gap (or the confirmation) between what was agreed and what the recent signals actually show — especially if recent check-ins suggest the direction isn't holding anymore. If no previous trajectory exists, just read what's actually there and offer a direction plainly, as a first attempt at naming it.
 
@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
     const [
       { data: lastTrajectory },
       { data: checkIns },
-      { data: captures },
       { data: activePieces },
       { data: queueIdeas },
       { data: recentPosted },
@@ -78,12 +77,6 @@ export async function POST(request: NextRequest) {
         .eq("user_id", userId)
         .gte("created_at", fourteenDaysAgo.toISOString())
         .order("created_at", { ascending: true }),
-      supabase
-        .from("captures")
-        .select("unpacked, arc, thematic_territory, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(10),
       supabase
         .from("pieces")
         .select("title, arc, thematic_territory, stage")
@@ -111,7 +104,6 @@ export async function POST(request: NextRequest) {
 
     const hasAnySignal =
       (checkIns && checkIns.length > 0) ||
-      (captures && captures.length > 0) ||
       (activePieces && activePieces.length > 0) ||
       (queueIdeas && queueIdeas.length > 0) ||
       (recentPosted && recentPosted.length > 0);
@@ -119,7 +111,7 @@ export async function POST(request: NextRequest) {
     if (!hasAnySignal && body.messages.length === 0) {
       return NextResponse.json({
         response:
-          "There's not enough here yet to read a trajectory. A few check-ins and captures will give this something to work with — come back once there's some material to read.",
+          "There's not enough here yet to read a trajectory. A few check-ins and some work in progress will give this something to work with — come back once there's some material to read.",
       });
     }
 
@@ -142,15 +134,6 @@ export async function POST(request: NextRequest) {
                 `[${formatDateAsRelative(c.created_at)}] Energy: ${c.energy}, Weather: ${c.inner_weather}, Arc: ${c.arc_texture}\nEntry: "${c.raw_entry}"`
             )
             .join("\n\n")
-      );
-    }
-
-    if (captures && captures.length > 0) {
-      contextParts.push(
-        "RECENT CAPTURES:\n" +
-          captures
-            .map((c) => `[${formatDateAsRelative(c.created_at)}] (${c.arc}, ${c.thematic_territory}): ${c.unpacked}`)
-            .join("\n")
       );
     }
 
