@@ -393,22 +393,36 @@ function WriteContent() {
                 Tasks
               </button>
               {expandedSection === 'tasks' && (
-                <div className="accordion-enter border-t border-[#1f1f1d] p-4 space-y-2 bg-[#111110]">
+                <div className="accordion-enter border-t border-[#1f1f1d] p-4 bg-[#111110]">
                   {writingTasks.length === 0 ? (
                     <p className="text-xs text-[#3d3c39]">No writing tasks yet.</p>
                   ) : (
-                    writingTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`text-sm ${
-                          task.status === 'complete'
-                            ? 'text-[#4a4946] line-through'
-                            : 'text-[#d4d2cd]'
-                        }`}
-                      >
-                        {task.title}
-                      </div>
-                    ))
+                    <div className="divide-y divide-[#1f1f1d]">
+                      {writingTasks.map((task) => (
+                        <div key={task.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                          <span
+                            className={`flex-shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                              task.status === 'complete'
+                                ? 'bg-green-900/20 border-green-700/50'
+                                : 'border-[#3d3c39]'
+                            }`}
+                          >
+                            {task.status === 'complete' && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                            )}
+                          </span>
+                          <span
+                            className={`text-sm ${
+                              task.status === 'complete'
+                                ? 'text-[#4a4946] line-through'
+                                : 'text-[#d4d2cd]'
+                            }`}
+                          >
+                            {task.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
