@@ -11,6 +11,7 @@ interface Task {
   title: string;
   type: "creation" | "execution";
   status: "pending" | "complete";
+  is_writing_related: boolean | null;
 }
 
 interface SessionLog {
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     // Fetch all tasks (pending and completed) - filter by user_id for RLS safety
     const { data: tasksData, error: tasksError } = await supabase
       .from("tasks")
-      .select("id, title, type, status")
+      .select("id, title, type, status, is_writing_related")
       .eq("piece_id", pieceId)
       .eq("user_id", userId)
       .order("order", { ascending: true });

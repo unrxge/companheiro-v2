@@ -4,6 +4,14 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 
+interface Task {
+  id: string
+  title: string
+  type: 'creation' | 'execution'
+  status: 'pending' | 'complete'
+  is_writing_related: boolean | null
+}
+
 interface PieceCore {
   id: string
   title: string
@@ -12,6 +20,7 @@ interface PieceCore {
   emotional_journey: string
   core_truth: string
   substack_goals: string
+  tasks: Task[]
 }
 
 interface ChatMessage {
@@ -31,7 +40,7 @@ function WriteContent() {
   const [wordCount, setWordCount] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [expandedSection, setExpandedSection] = useState<'core' | 'assistant' | null>(null)
+  const [expandedSection, setExpandedSection] = useState<'core' | 'tasks' | 'assistant' | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
@@ -160,6 +169,13 @@ function WriteContent() {
   }
 
   const canMarkReady = wordCount > 100
+
+  // Only creation-type tasks that are actually about the writing itself —
+  // not conceptualizing, research, formatting, or other creative work
+  // unrelated to drafting the prose. Untagged legacy tasks default to shown.
+  const writingTasks = piece.tasks.filter(
+    (t) => t.type === 'creation' && t.is_writing_related !== false
+  )
 
   return (
     <div className="h-screen bg-[#111110] flex overflow-hidden">
@@ -361,6 +377,38 @@ function WriteContent() {
                         {piece.substack_goals}
                       </p>
                     </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tasks Section */}
+            <div className="border border-[#1f1f1d] rounded overflow-hidden">
+              <button
+                onClick={() =>
+                  setExpandedSection(expandedSection === 'tasks' ? null : 'tasks')
+                }
+                className="w-full px-4 py-3 bg-[#111110] text-left text-xs font-medium text-[#e8e6e1] uppercase tracking-widest hover:bg-[#1f1f1d] transition-colors"
+              >
+                Tasks
+              </button>
+              {expandedSection === 'tasks' && (
+                <div className="accordion-enter border-t border-[#1f1f1d] p-4 space-y-2 bg-[#111110]">
+                  {writingTasks.length === 0 ? (
+                    <p className="text-xs text-[#3d3c39]">No writing tasks yet.</p>
+                  ) : (
+                    writingTasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className={`text-sm ${
+                          task.status === 'complete'
+                            ? 'text-[#4a4946] line-through'
+                            : 'text-[#d4d2cd]'
+                        }`}
+                      >
+                        {task.title}
+                      </div>
+                    ))
                   )}
                 </div>
               )}

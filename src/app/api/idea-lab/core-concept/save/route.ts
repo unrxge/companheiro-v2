@@ -220,6 +220,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         piece_id: pieceId,
         title: task.title,
         type: task.type,
+        is_writing_related: task.is_writing_related,
         order: index,
         status: "pending",
       }))

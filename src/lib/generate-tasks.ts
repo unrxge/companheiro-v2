@@ -14,6 +14,7 @@ export interface CoreConcept {
 export interface GeneratedTask {
   title: string
   type: 'creation' | 'execution'
+  is_writing_related: boolean
 }
 
 // Generates the task roadmap for a newly locked piece. Called directly from
@@ -38,10 +39,12 @@ The list should flow from initial writing through to posting, balancing creation
 Each task should be concrete and specific.
 Each task is labeled as either "creation" (conceptual/creative work) or "execution" (technical/logistical work).
 
+For every task, also set "is_writing_related": true only if the task IS the act of drafting, writing, or revising the piece's actual prose (e.g. "Draft the opening three paragraphs", "Rewrite the ending for a stronger close"). Set it to false for anything else, including creative work that isn't the writing itself — conceptualizing, brainstorming angles, research, designing visuals, planning promotion, formatting, scheduling, etc.
+
 Return as JSON:
 {
   "tasks": [
-    { "title": "...", "type": "creation" | "execution" },
+    { "title": "...", "type": "creation" | "execution", "is_writing_related": true | false },
     ...
   ]
 }`,
@@ -58,7 +61,12 @@ Return as JSON:
 
     const cleanedText = textContent.text.replace(/```json\n?|\n?```/g, '').trim()
     const result = JSON.parse(cleanedText)
-    return Array.isArray(result.tasks) ? result.tasks : []
+    const tasks = Array.isArray(result.tasks) ? result.tasks : []
+    return tasks.map((t: Partial<GeneratedTask>) => ({
+      title: t.title || '',
+      type: t.type === 'execution' ? 'execution' : 'creation',
+      is_writing_related: t.is_writing_related === true,
+    }))
   } catch (error) {
     // Task generation failing should never block saving the document.
     console.error('generateTasks error:', error)
