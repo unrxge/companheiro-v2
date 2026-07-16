@@ -45,6 +45,64 @@ function WriteContent() {
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
   const saveDraftTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const writingScrollRef = useRef<HTMLDivElement>(null)
+
+  // The draft/title textareas grow to fit all their content instead of
+  // scrolling internally, so the browser never auto-scrolls the outer page
+  // to follow the caret. This measures where the caret actually sits (via a
+  // hidden mirror element replicating the textarea's text metrics) and
+  // scrolls the outer container to keep it in view.
+  const scrollCaretIntoView = (textarea: HTMLTextAreaElement | null) => {
+    const container = writingScrollRef.current
+    if (!textarea || !container) return
+
+    const caretIndex = textarea.selectionStart
+    const style = window.getComputedStyle(textarea)
+
+    const mirror = document.createElement('div')
+    mirror.style.position = 'absolute'
+    mirror.style.visibility = 'hidden'
+    mirror.style.top = '0'
+    mirror.style.left = '-9999px'
+    mirror.style.whiteSpace = 'pre-wrap'
+    mirror.style.wordWrap = 'break-word'
+    mirror.style.boxSizing = style.boxSizing
+    mirror.style.width = `${textarea.clientWidth}px`
+    mirror.style.fontFamily = style.fontFamily
+    mirror.style.fontSize = style.fontSize
+    mirror.style.fontWeight = style.fontWeight
+    mirror.style.fontStyle = style.fontStyle
+    mirror.style.lineHeight = style.lineHeight
+    mirror.style.letterSpacing = style.letterSpacing
+    mirror.style.padding = style.padding
+    mirror.style.border = style.border
+
+    mirror.textContent = textarea.value.substring(0, caretIndex)
+    const marker = document.createElement('span')
+    marker.textContent = '.'
+    mirror.appendChild(marker)
+    document.body.appendChild(mirror)
+
+    const markerTop = marker.offsetTop
+    const markerHeight = marker.offsetHeight
+    document.body.removeChild(mirror)
+
+    const containerRect = container.getBoundingClientRect()
+    const textareaRect = textarea.getBoundingClientRect()
+    const textareaTopInContainer = textareaRect.top - containerRect.top + container.scrollTop
+
+    const caretTop = textareaTopInContainer + markerTop
+    const caretBottom = caretTop + markerHeight
+    const viewTop = container.scrollTop
+    const viewBottom = viewTop + container.clientHeight
+    const margin = 96
+
+    if (caretBottom > viewBottom - margin) {
+      container.scrollTop = caretBottom - container.clientHeight + margin
+    } else if (caretTop < viewTop + margin) {
+      container.scrollTop = Math.max(0, caretTop - margin)
+    }
+  }
 
   useEffect(() => {
     if (!pieceId) {
@@ -217,8 +275,8 @@ function WriteContent() {
 
       {/* Main writing area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Minimal header with exit button */}
-        <div className="h-12 border-b border-[#1f1f1d] flex items-center px-6" style={{ background: '#111110' }}>
+        {/* Minimal header with exit button and sidebar toggle */}
+        <div className="h-12 border-b border-[#1f1f1d] flex items-center justify-between px-6" style={{ background: '#111110' }}>
           <button
             onClick={async () => {
               await saveDraft()
@@ -229,10 +287,16 @@ function WriteContent() {
           >
             ← Back
           </button>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
+          >
+            {sidebarOpen ? 'Hide panel' : 'Show panel'}
+          </button>
         </div>
 
         {/* Writing surface */}
-        <div className="flex-1 overflow-y-auto" style={{ background: '#111110' }}>
+        <div ref={writingScrollRef} className="flex-1 overflow-y-auto" style={{ background: '#111110' }}>
           <div className="max-w-[680px] mx-auto px-16 py-12">
             {/* Title field */}
             <textarea
@@ -241,7 +305,10 @@ function WriteContent() {
                 setTitle(e.target.value)
                 e.target.style.height = 'auto'
                 e.target.style.height = e.target.scrollHeight + 'px'
+                scrollCaretIntoView(e.target)
               }}
+              onKeyUp={(e) => scrollCaretIntoView(e.currentTarget)}
+              onClick={(e) => scrollCaretIntoView(e.currentTarget)}
               placeholder="Title"
               rows={1}
               style={{
@@ -269,7 +336,10 @@ function WriteContent() {
                 setDraft(e.target.value)
                 e.target.style.height = 'auto'
                 e.target.style.height = e.target.scrollHeight + 'px'
+                scrollCaretIntoView(e.target)
               }}
+              onKeyUp={(e) => scrollCaretIntoView(e.currentTarget)}
+              onClick={(e) => scrollCaretIntoView(e.currentTarget)}
               placeholder="Begin writing..."
               style={{
                 width: '100%',
@@ -317,15 +387,6 @@ function WriteContent() {
         } overflow-hidden`}
         style={{ background: '#111110' }}
       >
-        {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute right-0 top-4 bg-[#1f1f1d] text-[#4a4946] hover:text-[#8c8a87] px-2 py-1 text-xs rounded transition-colors"
-          style={{ zIndex: 10 }}
-        >
-          {sidebarOpen ? '✕' : '☰'}
-        </button>
-
         {sidebarOpen && (
           <div className="flex flex-col h-full overflow-y-auto pt-12 px-4 pb-4 space-y-3">
             {/* Core Concept Section */}
