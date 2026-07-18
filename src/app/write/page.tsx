@@ -392,6 +392,15 @@ function WriteContent() {
   const sectionLabelFor = (id: string | null) =>
     sections.find((s) => s.id === id)?.label || 'Unplaced'
 
+  // The writing column reserves room on the right for whatever rail panel is
+  // open, so text recenters in the space that's left rather than sitting under
+  // the panel. Nothing open -> full width.
+  const reservedRight = !openTool
+    ? '0px'
+    : openTool === 'assistant' && chatExpanded
+      ? 'calc(38vw + 100px)'
+      : '460px'
+
   return (
     <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
       {/* Header */}
@@ -416,8 +425,11 @@ function WriteContent() {
       </div>
 
       {/* Writing surface */}
-      <div className="flex-1 overflow-y-auto" style={{ background: '#111110' }}>
-        <div className="max-w-[720px] mx-auto px-12 md:px-16 py-12">
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ background: '#111110', paddingRight: reservedRight, transition: 'padding 0.3s ease' }}
+      >
+        <div className="max-w-[820px] mx-auto px-10 md:px-16 py-12">
           <textarea
             value={title}
             onChange={(e) => {
