@@ -105,15 +105,8 @@ function ProjectBoardContent() {
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
   const [selectedIdea, setSelectedIdea] = useState<IdeaDetail | null>(null)
-  const [completingTasks, setCompletingTasks] = useState<Set<string>>(new Set())
   const [newTaskInput, setNewTaskInput] = useState('')
   const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
-  const [sessionData, setSessionData] = useState({
-    what_was_done: '',
-    next_step: '',
-    duration_minutes: '',
-    completed_task_ids: new Set<string>(),
-  })
   const [coreConceptDraft, setCoreConceptDraft] = useState<{
     one_sentence: string
     conviction_statement: string
@@ -172,12 +165,6 @@ function ProjectBoardContent() {
           open_threads: (data.piece.open_threads || []).map((t: string) => `- ${t}`).join('\n'),
         })
         setCoreConceptSaved(false)
-        setSessionData({
-          what_was_done: '',
-          next_step: '',
-          duration_minutes: '',
-          completed_task_ids: new Set(),
-        })
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
@@ -326,6 +313,27 @@ function ProjectBoardContent() {
     await handleCompletePieceById(selectedPiece.id)
   }
 
+  // Tick a task complete/incomplete directly (decoupled from the removed
+  // session log). Optimistic update, then persist.
+  const handleToggleTask = async (taskId: string, currentStatus: 'pending' | 'complete') => {
+    if (!selectedPiece) return
+    const nextStatus = currentStatus === 'complete' ? 'pending' : 'complete'
+    setSelectedPiece({
+      ...selectedPiece,
+      tasks: selectedPiece.tasks.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)),
+    })
+    try {
+      await fetch('/api/project-board/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, status: nextStatus }),
+      })
+      fetchBoard()
+    } catch (err) {
+      console.error('Failed to toggle task:', err)
+    }
+  }
+
   const handleDeactivate = async (pieceId: string) => {
     try {
       const res = await fetch('/api/project-board/deactivate', {
@@ -364,40 +372,6 @@ function ProjectBoardContent() {
 
     setDraggedItem(null)
     setDragOverColumn(null)
-  }
-
-  const handleSubmitSession = async () => {
-    if (!selectedPiece) return
-
-    try {
-      const completedIds = Array.from(sessionData.completed_task_ids)
-
-      await fetch('/api/project-board/session-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          piece_id: selectedPiece.id,
-          what_was_done: sessionData.what_was_done,
-          next_step: sessionData.next_step,
-          duration_minutes: sessionData.duration_minutes
-            ? parseInt(sessionData.duration_minutes)
-            : undefined,
-          completed_task_ids: completedIds,
-        }),
-      })
-
-      for (const taskId of completedIds) {
-        setCompletingTasks((prev) => new Set(prev).add(taskId))
-      }
-
-      setTimeout(() => {
-        setCompletingTasks(new Set())
-        fetchBoard()
-        closeModal()
-      }, 300)
-    } catch (err) {
-      console.error('Failed to submit session:', err)
-    }
   }
 
   if (isLoading) {
@@ -748,26 +722,26 @@ function ProjectBoardContent() {
 
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
-              <div className="flex-1">
-                <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
-                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
-                  <span>{selectedPiece.arc}</span>
-                  <span>•</span>
-                  <span>{selectedPiece.thematic_territory}</span>
-                </div>
+        <div className="fixed inset-0 bg-[#111110] z-50 flex flex-col">
+          <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start flex-shrink-0">
+            <div className="flex-1">
+              <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
+              <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
+                <span>{selectedPiece.arc}</span>
+                <span>•</span>
+                <span>{selectedPiece.thematic_territory}</span>
               </div>
-              <button
-                onClick={closeModal}
-                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
-              >
-                ✕
-              </button>
             </div>
+            <button
+              onClick={closeModal}
+              className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+            >
+              ✕
+            </button>
+          </div>
 
-            <div className="px-6 py-4 space-y-6">
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
               {/* Core Concept Section */}
               {coreConceptDraft && (
                 <div className="space-y-3">
@@ -861,8 +835,7 @@ function ProjectBoardContent() {
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Tasks</h3>
                 <div className="space-y-2">
-                  {selectedPiece.tasks.filter((t) => t.status === 'pending').length === 0 &&
-                  selectedPiece.tasks.filter((t) => t.status === 'complete').length === 0 ? (
+                  {selectedPiece.tasks.length === 0 ? (
                     <p className="text-sm text-[#3d3c39]">No tasks</p>
                   ) : (
                     <>
@@ -875,20 +848,9 @@ function ProjectBoardContent() {
                           >
                             <input
                               type="checkbox"
-                              checked={sessionData.completed_task_ids.has(task.id)}
-                              onChange={(e) => {
-                                const newIds = new Set(sessionData.completed_task_ids)
-                                if (e.target.checked) {
-                                  newIds.add(task.id)
-                                } else {
-                                  newIds.delete(task.id)
-                                }
-                                setSessionData({
-                                  ...sessionData,
-                                  completed_task_ids: newIds,
-                                })
-                              }}
-                              className="accent-green-600 flex-shrink-0"
+                              checked={false}
+                              onChange={() => handleToggleTask(task.id, 'pending')}
+                              className="accent-green-600 flex-shrink-0 cursor-pointer"
                             />
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <span className="text-sm text-[#d4d2cd]">{task.title}</span>
@@ -913,10 +875,14 @@ function ProjectBoardContent() {
                             .map((task) => (
                               <div
                                 key={task.id}
-                                className={`bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3 ${
-                                  completingTasks.has(task.id) ? 'complete-task' : 'opacity-60'
-                                }`}
+                                className="bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3 opacity-60"
                               >
+                                <input
+                                  type="checkbox"
+                                  checked
+                                  onChange={() => handleToggleTask(task.id, 'complete')}
+                                  className="accent-green-600 flex-shrink-0 cursor-pointer"
+                                />
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                   <span className="text-sm text-[#4a4946] line-through">{task.title}</span>
                                   <span className="text-xs text-[#3d3c39] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
@@ -927,129 +893,59 @@ function ProjectBoardContent() {
                             ))}
                         </div>
                       )}
-
-                      {/* Add Task Section */}
-                      <div className="pt-3 border-t border-[#1f1f1d] space-y-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={newTaskInput}
-                            onChange={(e) => setNewTaskInput(e.target.value)}
-                            placeholder="Add task..."
-                            className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') handleAddTask()
-                            }}
-                          />
-                          <select
-                            value={newTaskType}
-                            onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
-                            className="bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
-                          >
-                            <option value="creation">Creation</option>
-                            <option value="execution">Execution</option>
-                          </select>
-                          <button
-                            onClick={handleAddTask}
-                            className="px-3 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd]"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      </div>
                     </>
                   )}
+
+                  {/* Add Task */}
+                  <div className="pt-3 border-t border-[#1f1f1d] space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTaskInput}
+                        onChange={(e) => setNewTaskInput(e.target.value)}
+                        placeholder="Add task..."
+                        className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') handleAddTask()
+                        }}
+                      />
+                      <select
+                        value={newTaskType}
+                        onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
+                        className="bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
+                      >
+                        <option value="creation">Creation</option>
+                        <option value="execution">Execution</option>
+                      </select>
+                      <button
+                        onClick={handleAddTask}
+                        className="px-3 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd]"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Session Logs Section */}
-              {selectedPiece.session_logs.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Session History</h3>
-                  <div className="space-y-2">
-                    {selectedPiece.session_logs.map((log) => (
-                      <div key={log.id} className="bg-[#111110] rounded p-3 border border-[#1f1f1d]">
-                        <p className="text-[#8c8a87] text-xs mb-2">
-                          {new Date(log.created_at).toLocaleDateString()} •{' '}
-                          {log.duration_minutes ? `${log.duration_minutes}min` : 'no duration'}
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Did</p>
-                          <p className="text-sm text-[#d4d2cd]">{log.what_was_done}</p>
-                        </div>
-                        <div className="space-y-1 mt-2">
-                          <p className="text-[#4a4946] uppercase tracking-widest text-xs mb-1">Next</p>
-                          <p className="text-sm text-[#d4d2cd]">{log.next_step}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Log Session Form */}
-              <div className="space-y-3 border-t border-[#1f1f1d] pt-4">
-                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Log Session</h3>
-                <p className="text-xs text-[#4a4946]">
-                  Check off tasks above as you go — they&apos;ll be marked done when you submit.
-                </p>
-                <textarea
-                  value={sessionData.what_was_done}
-                  onChange={(e) =>
-                    setSessionData({ ...sessionData, what_was_done: e.target.value })
-                  }
-                  placeholder="What was done..."
-                  rows={3}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
-                />
-                <textarea
-                  value={sessionData.next_step}
-                  onChange={(e) =>
-                    setSessionData({ ...sessionData, next_step: e.target.value })
-                  }
-                  placeholder="Next step..."
-                  rows={3}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none"
-                />
-                <input
-                  type="number"
-                  value={sessionData.duration_minutes}
-                  onChange={(e) =>
-                    setSessionData({ ...sessionData, duration_minutes: e.target.value })
-                  }
-                  placeholder="Duration (minutes)"
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
-                />
-
-                <div className="flex gap-2 flex-col">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSubmitSession}
-                      disabled={!sessionData.what_was_done.trim() || !sessionData.next_step.trim()}
-                      className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Submit Session
-                    </button>
-                    {allTasksComplete && (
-                      <button
-                        onClick={handleCompletepiece}
-                        className="flex-1 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded hover:bg-green-600/30 transition-colors"
-                      >
-                        Mark Complete
-                      </button>
-                    )}
-                  </div>
+              {/* Actions */}
+              <div className="space-y-2 border-t border-[#1f1f1d] pt-4">
+                <button
+                  onClick={() => {
+                    if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
+                  }}
+                  className="w-full py-2.5 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+                >
+                  {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
+                </button>
+                {allTasksComplete && (
                   <button
-                    onClick={() => {
-                      if (selectedPiece) {
-                        window.location.href = `/write?piece_id=${selectedPiece.id}`
-                      }
-                    }}
-                    className="w-full py-2 bg-[#2e2d2a] text-[#e8e6e1] text-xs font-medium rounded hover:bg-[#3d3c39] transition-colors"
+                    onClick={handleCompletepiece}
+                    className="w-full py-2.5 bg-green-600/20 text-green-400 text-sm font-medium rounded hover:bg-green-600/30 transition-colors"
                   >
-                    {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
+                    Mark piece complete
                   </button>
-                </div>
+                )}
               </div>
             </div>
           </div>
