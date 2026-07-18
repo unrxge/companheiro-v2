@@ -87,6 +87,7 @@ function WriteContent() {
   const dirtySectionsRef = useRef<Set<string>>(new Set())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
   const sectionsRef = useRef<Section[]>([])
   sectionsRef.current = sections
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
@@ -340,6 +341,7 @@ function WriteContent() {
     if (!chatInput.trim() || !pieceId || isChatLoading) return
     const userMessage = chatInput
     setChatInput('')
+    if (chatInputRef.current) chatInputRef.current.style.height = 'auto'
     const priorHistory = chatMessages
     const newMessages = [...chatMessages, { role: 'user' as const, content: userMessage }]
     setChatMessages(newMessages)
@@ -846,15 +848,24 @@ function WriteContent() {
                 {isChatLoading && <p className="text-xs text-[#4a4946]">Thinking…</p>}
               </div>
               <div className="border-t border-[#1f1f1d] p-3 space-y-2">
-                <input
-                  type="text"
+                <textarea
+                  ref={chatInputRef}
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={(e) => {
+                    setChatInput(e.target.value)
+                    e.target.style.height = 'auto'
+                    e.target.style.height = `${e.target.scrollHeight}px`
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !isChatLoading) handleChatSend()
+                    if (e.key === 'Enter' && !e.shiftKey && !isChatLoading) {
+                      e.preventDefault()
+                      handleChatSend()
+                    }
                   }}
                   placeholder="Ask something…"
-                  className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                  rows={1}
+                  className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
+                  style={{ overflow: 'hidden', maxHeight: '200px' }}
                 />
                 <button
                   onClick={handleChatSend}
