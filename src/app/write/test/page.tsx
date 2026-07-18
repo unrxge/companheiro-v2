@@ -71,12 +71,20 @@ function TestContent() {
         >
           ← Back to writing
         </button>
-        <button
-          onClick={() => router.push(`/write/translate?piece_id=${pieceId}`)}
-          className="text-[#a8a6a0] hover:text-[#e8e6e1] text-sm transition-colors underline"
-        >
-          Translate →
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push(`/write/reimagine?piece_id=${pieceId}`)}
+            className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
+          >
+            Reimagine →
+          </button>
+          <button
+            onClick={() => router.push(`/write/translate?piece_id=${pieceId}`)}
+            className="text-[#a8a6a0] hover:text-[#e8e6e1] text-sm transition-colors underline"
+          >
+            Translate →
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-12">
