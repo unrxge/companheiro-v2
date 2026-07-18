@@ -6,6 +6,7 @@ interface DraftRequest {
   title?: string;
   substack_draft?: string;
   short_form_script?: string;
+  writing_ethos?: string;
 }
 
 interface DraftResponse {
@@ -45,6 +46,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
     }
     if (body.short_form_script !== undefined) {
       updateData.short_form_script = body.short_form_script;
+    }
+    if (body.writing_ethos !== undefined) {
+      updateData.writing_ethos = body.writing_ethos;
     }
 
     // Get current piece to check stage
