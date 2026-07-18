@@ -43,7 +43,7 @@ interface ChatMessage {
   content: string
 }
 
-type ToolKey = 'ethos' | 'core' | 'tasks' | 'anchor' | 'assistant'
+type ToolKey = 'core' | 'tasks' | 'anchor' | 'assistant'
 
 const svg = (path: ReactNode) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
@@ -52,7 +52,6 @@ const svg = (path: ReactNode) => (
 )
 
 const TOOL_META: { key: ToolKey; label: string; icon: ReactNode }[] = [
-  { key: 'ethos', label: 'Ethos', icon: svg(<><circle cx="12" cy="12" r="9" /><polygon points="12 7 14 12 12 17 10 12" /></>) },
   { key: 'core', label: 'Core Concept', icon: svg(<><rect x="5" y="3" width="14" height="18" rx="2" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="13" y2="16" /></>) },
   { key: 'tasks', label: 'Tasks', icon: svg(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 12l2 2 4-4" /></>) },
   { key: 'anchor', label: 'Anchor a line', icon: svg(<><path d="M6 4h12v16l-6-4-6 4z" /></>) },
@@ -70,7 +69,6 @@ function WriteContent() {
   const [sections, setSections] = useState<Section[]>([])
   const [anchorLines, setAnchorLines] = useState<AnchorLine[]>([])
   const [suggestions, setSuggestions] = useState<Record<string, string>>({})
-  const [writingEthos, setWritingEthos] = useState('')
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [openLinesFor, setOpenLinesFor] = useState<string | null>(null)
   const [flowView, setFlowView] = useState(false)
@@ -88,7 +86,6 @@ function WriteContent() {
 
   const dirtySectionsRef = useRef<Set<string>>(new Set())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const ethosTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const sectionsRef = useRef<Section[]>([])
   sectionsRef.current = sections
@@ -118,7 +115,6 @@ function WriteContent() {
       }
       setSections(sectionsData.sections || [])
       setAnchorLines(sectionsData.anchorLines || [])
-      setWritingEthos(sectionsData.writing_ethos || '')
     } catch (err) {
       console.error('Failed to load writing studio:', err)
     } finally {
@@ -337,18 +333,6 @@ function WriteContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ piece_id: pieceId, title: value }),
       }).catch((err) => console.error('Failed to save title:', err))
-    }, 1000)
-  }
-
-  const saveEthos = (value: string) => {
-    setWritingEthos(value)
-    if (ethosTimeoutRef.current) clearTimeout(ethosTimeoutRef.current)
-    ethosTimeoutRef.current = setTimeout(() => {
-      fetch('/api/write/draft', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, writing_ethos: value }),
-      }).catch((err) => console.error('Failed to save ethos:', err))
     }, 1000)
   }
 
@@ -753,18 +737,6 @@ function WriteContent() {
               <button onClick={() => setOpenTool(null)} className="text-[#6b6966] hover:text-[#e8e6e1] text-sm">✕</button>
             </div>
           </div>
-
-          {openTool === 'ethos' && (
-            <div className="p-4 overflow-y-auto">
-              <textarea
-                value={writingEthos}
-                onChange={(e) => saveEthos(e.target.value)}
-                placeholder="What you want this piece to be — the bullets in your head, the point you're really making…"
-                rows={8}
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
-              />
-            </div>
-          )}
 
           {openTool === 'core' && (
             <div className="p-4 overflow-y-auto space-y-3 text-xs">
