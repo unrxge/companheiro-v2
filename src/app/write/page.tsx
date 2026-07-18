@@ -250,6 +250,32 @@ function WriteContent() {
     }
   }
 
+  const [isDividing, setIsDividing] = useState(false)
+  const handleDivide = async () => {
+    if (isDividing) return
+    await flushSections()
+    setIsDividing(true)
+    try {
+      const res = await fetch('/api/write/sections/divide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ piece_id: pieceId }),
+      })
+      const data = await res.json()
+      if (data.sections) {
+        setSections(data.sections)
+        setSuggestions({})
+        // Divide replaces sections, so anchor placements reset to unplaced.
+        setAnchorLines((prev) => prev.map((l) => ({ ...l, section_id: null })))
+        setResizeNonce((n) => n + 1)
+      }
+    } catch (err) {
+      console.error('Failed to divide:', err)
+    } finally {
+      setIsDividing(false)
+    }
+  }
+
   const seedSections = async (force = false) => {
     setIsSeeding(true)
     try {
@@ -409,6 +435,8 @@ function WriteContent() {
   const linesForSection = (id: string) => anchorLines.filter((l) => l.section_id === id)
   const unplacedLines = anchorLines.filter((l) => !l.section_id)
   const activeSection = sections.find((s) => s.id === activeSectionId)
+  const anyLocked = sections.some((s) => s.is_locked)
+  const canDivide = sections.length > 0 && !flowView && wordCount > 30 && !anyLocked
   const sectionLabelFor = (id: string | null) =>
     sections.find((s) => s.id === id)?.label || 'Unplaced'
 
@@ -434,14 +462,26 @@ function WriteContent() {
         >
           ← Back
         </button>
-        {sections.length > 0 && (
-          <button
-            onClick={() => setFlowView(!flowView)}
-            className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
-          >
-            {flowView ? 'Section view' : 'Flow view'}
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          {canDivide && (
+            <button
+              onClick={handleDivide}
+              disabled={isDividing}
+              className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors disabled:opacity-50"
+              title="Split what you've written into the intended sections"
+            >
+              {isDividing ? 'Dividing…' : 'Divide into sections'}
+            </button>
+          )}
+          {sections.length > 0 && (
+            <button
+              onClick={() => setFlowView(!flowView)}
+              className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
+            >
+              {flowView ? 'Section view' : 'Flow view'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Writing surface */}
@@ -449,7 +489,7 @@ function WriteContent() {
         className="flex-1 overflow-y-auto"
         style={{ background: '#111110', paddingRight: reservedRight, transition: 'padding 0.3s ease' }}
       >
-        <div className="max-w-[820px] mx-auto px-10 md:px-16 py-12">
+        <div className="max-w-[900px] mx-auto px-6 md:px-10 py-12">
           <textarea
             value={title}
             onChange={(e) => {
