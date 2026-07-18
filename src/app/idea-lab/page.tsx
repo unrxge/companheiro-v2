@@ -324,7 +324,7 @@ export default function IdeaLabPage() {
                 }}
                 placeholder="What do you think? Write your response..."
                 rows={1}
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
                 style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
               />
 
@@ -391,7 +391,7 @@ export default function IdeaLabPage() {
                       key={capture.id}
                       className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-3"
                     >
-                      <p className="text-sm text-[#d4d2cd] leading-relaxed">{capture.unpacked}</p>
+                      <p className="text-base text-[#d4d2cd] leading-relaxed">{capture.unpacked}</p>
 
                       <div className="flex gap-2 items-center text-xs">
                         <span className="text-[#4a4946]">Arc:</span>
@@ -434,7 +434,7 @@ export default function IdeaLabPage() {
                           <p className="text-xs text-[#a8a6a0] uppercase tracking-widest mb-1">
                             What it opened
                           </p>
-                          <p className="text-sm text-[#d4d2cd]">{cont.what_it_opened}</p>
+                          <p className="text-base text-[#d4d2cd]">{cont.what_it_opened}</p>
                         </div>
                       )}
                       {cont.natural_continuations.length > 0 && (
@@ -442,9 +442,9 @@ export default function IdeaLabPage() {
                           <p className="text-xs text-[#a8a6a0] uppercase tracking-widest mb-1">
                             Natural next steps
                           </p>
-                          <ul className="text-sm text-[#8c8a87] space-y-1">
+                          <ul className="text-base text-[#8c8a87] space-y-1">
                             {cont.natural_continuations.map((next, nextIdx) => (
-                              <li key={nextIdx} className="text-xs">
+                              <li key={nextIdx} className="text-base">
                                 • {next}
                               </li>
                             ))}

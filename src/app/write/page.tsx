@@ -494,7 +494,7 @@ function WriteContent() {
 
           {sections.length === 0 ? (
             <div className="mt-8 border border-[#1f1f1d] rounded-lg p-8 text-center space-y-4">
-              <p className="text-sm text-[#8c8a87] leading-relaxed">
+              <p className="text-base text-[#8c8a87] leading-relaxed">
                 Shape this piece into sections drawn from its emotional journey, or start with a blank
                 section and build it yourself.
               </p>
@@ -528,8 +528,8 @@ function WriteContent() {
                 <div className="border border-dashed border-[#2e2d2a] rounded p-3 space-y-1">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Unplaced lines</p>
                   {unplacedLines.map((l) => (
-                    <div key={l.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-[#d4d2cd] italic">“{l.text}”</span>
+                    <div key={l.id} className="flex items-center justify-between gap-2">
+                      <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
                       <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300">✕</button>
                     </div>
                   ))}
@@ -595,14 +595,14 @@ function WriteContent() {
                         ) : (
                           lines.map((l) => (
                             <div key={l.id} className="flex items-center justify-between gap-2">
-                              <span className="text-xs text-[#d4d2cd] italic">“{l.text}”</span>
+                              <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
                               <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300 text-xs">✕</button>
                             </div>
                           ))
                         )}
                         <input
                           placeholder="Add a line to this section…"
-                          className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-2 py-1 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                          className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-2 py-1 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && e.currentTarget.value.trim()) {
                               addAnchorLine(e.currentTarget.value, section.id)
@@ -641,7 +641,7 @@ function WriteContent() {
                     {showPending && !flowView && (
                       <div className="mx-4 mb-4 rounded border border-[#10B981]/30 bg-[#0d1f17]/50 p-3 space-y-2">
                         <p className="text-xs text-[#6ee7b7] uppercase tracking-widest">Proposed rewrite</p>
-                        <p className="text-sm text-[#d4d2cd] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
+                        <p className="text-base text-[#d4d2cd] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={approvePendingEdit}
@@ -745,25 +745,25 @@ function WriteContent() {
               {piece.conviction_statement && (
                 <div>
                   <p className="text-[#4a4946] uppercase tracking-widest mb-1">Conviction</p>
-                  <p className="text-[#d4d2cd] text-sm leading-relaxed">{piece.conviction_statement}</p>
+                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.conviction_statement}</p>
                 </div>
               )}
               {piece.emotional_journey && (
                 <div>
                   <p className="text-[#4a4946] uppercase tracking-widest mb-1">Emotional Journey</p>
-                  <p className="text-[#d4d2cd] text-sm leading-relaxed">{piece.emotional_journey}</p>
+                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.emotional_journey}</p>
                 </div>
               )}
               {piece.core_truth && (
                 <div>
                   <p className="text-[#4a4946] uppercase tracking-widest mb-1">Core Truth</p>
-                  <p className="text-[#d4d2cd] text-sm leading-relaxed">{piece.core_truth}</p>
+                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.core_truth}</p>
                 </div>
               )}
               {piece.substack_goals && (
                 <div>
                   <p className="text-[#4a4946] uppercase tracking-widest mb-1">Substack Goals</p>
-                  <p className="text-[#d4d2cd] text-sm leading-relaxed">{piece.substack_goals}</p>
+                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.substack_goals}</p>
                 </div>
               )}
             </div>
@@ -780,7 +780,7 @@ function WriteContent() {
                       <span className={`flex-shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center ${task.status === 'complete' ? 'bg-green-900/20 border-green-700/50' : 'border-[#3d3c39]'}`}>
                         {task.status === 'complete' && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
                       </span>
-                      <span className={`text-sm ${task.status === 'complete' ? 'text-[#4a4946] line-through' : 'text-[#d4d2cd]'}`}>{task.title}</span>
+                      <span className={`text-base ${task.status === 'complete' ? 'text-[#4a4946] line-through' : 'text-[#d4d2cd]'}`}>{task.title}</span>
                     </div>
                   ))}
                 </div>
@@ -801,7 +801,7 @@ function WriteContent() {
                     }
                   }}
                   placeholder="A line dear to you — we'll place it…"
-                  className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                  className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
                 />
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -811,7 +811,7 @@ function WriteContent() {
                   anchorLines.map((l) => (
                     <div key={l.id} className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm text-[#d4d2cd] italic">“{l.text}”</span>
+                        <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
                         <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300 text-xs flex-shrink-0">✕</button>
                       </div>
                       <p className="text-xs text-[#4a4946]">{sectionLabelFor(l.section_id)}</p>
@@ -832,14 +832,14 @@ function WriteContent() {
               )}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {chatMessages.length === 0 ? (
-                  <p className="text-xs text-[#3d3c39]">
+                  <p className="text-base text-[#3d3c39]">
                     Debate the piece, unstick a section, ask for examples. Click into a section first and I&apos;ll
                     work on that one — approved rewrites land there for you to accept.
                   </p>
                 ) : (
                   chatMessages.map((msg, i) => (
-                    <div key={i} className={`text-xs ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                      <div className={`inline-block max-w-[85%] px-3 py-2 rounded whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[#2e2d2a] text-[#e8e6e1]' : 'bg-[#1f1f1d] text-[#d4d2cd]'}`}>
+                    <div key={i} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
+                      <div className={`inline-block max-w-[85%] px-3 py-2 rounded whitespace-pre-wrap text-base ${msg.role === 'user' ? 'bg-[#2e2d2a] text-[#e8e6e1]' : 'bg-[#1f1f1d] text-[#d4d2cd]'}`}>
                         {msg.content}
                       </div>
                     </div>
@@ -864,7 +864,7 @@ function WriteContent() {
                   }}
                   placeholder="Ask something…"
                   rows={1}
-                  className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
+                  className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
                   style={{ overflow: 'hidden', maxHeight: '200px' }}
                 />
                 <button

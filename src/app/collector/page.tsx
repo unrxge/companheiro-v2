@@ -229,7 +229,7 @@ export default function CollectorPage() {
               {captureResult.link_context && (
                 <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3 space-y-1">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
-                  <p className="text-sm text-[#d4d2cd] leading-relaxed whitespace-pre-line">
+                  <p className="text-base text-[#d4d2cd] leading-relaxed whitespace-pre-line">
                     {captureResult.link_context}
                   </p>
                 </div>
@@ -297,7 +297,7 @@ export default function CollectorPage() {
                   e.target.style.height = e.target.scrollHeight + 'px'
                 }}
                 rows={1}
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
                 style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
               />
 
@@ -354,7 +354,7 @@ export default function CollectorPage() {
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
                 placeholder="or type here..."
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && manualInput.trim()) {
                     handleCapture()
@@ -392,7 +392,7 @@ export default function CollectorPage() {
                   onClick={() => setSelectedCapture(capture)}
                   className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#4a4946] transition-colors"
                 >
-                  <p className="text-sm text-[#d4d2cd] leading-relaxed line-clamp-2">
+                  <p className="text-base text-[#d4d2cd] leading-relaxed line-clamp-2">
                     {capture.unpacked}
                   </p>
                   <div className="flex gap-2 items-center text-xs mt-2">
@@ -447,7 +447,7 @@ export default function CollectorPage() {
               {selectedCapture.link_context && (
                 <div className="space-y-2">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
-                  <p className="text-sm text-[#d4d2cd] leading-relaxed whitespace-pre-line">
+                  <p className="text-base text-[#d4d2cd] leading-relaxed whitespace-pre-line">
                     {selectedCapture.link_context}
                   </p>
                 </div>
@@ -457,7 +457,7 @@ export default function CollectorPage() {
               {selectedCapture.raw_input && (
                 <div className="space-y-2">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest">Raw input</p>
-                  <p className="text-sm text-[#d4d2cd] leading-relaxed">{selectedCapture.raw_input}</p>
+                  <p className="text-base text-[#d4d2cd] leading-relaxed">{selectedCapture.raw_input}</p>
                 </div>
               )}
 
@@ -465,7 +465,7 @@ export default function CollectorPage() {
               {selectedCapture.unpacked && (
                 <div className="space-y-2">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest">Unpacked</p>
-                  <p className="text-sm text-[#d4d2cd] leading-relaxed">{selectedCapture.unpacked}</p>
+                  <p className="text-base text-[#d4d2cd] leading-relaxed">{selectedCapture.unpacked}</p>
                 </div>
               )}
 

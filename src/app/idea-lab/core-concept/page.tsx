@@ -294,7 +294,7 @@ export default function CoreConceptPage() {
               {tasks.map((task, index) => (
                 <div key={index} className="bg-[#161614] border border-[#1f1f1d] rounded p-3 flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm text-[#d4d2cd]">{task.title}</span>
+                    <span className="text-base text-[#d4d2cd]">{task.title}</span>
                     <span className="text-xs bg-[#111110] text-[#4a4946] px-2 py-1 rounded">
                       {task.type}
                     </span>
@@ -316,7 +316,7 @@ export default function CoreConceptPage() {
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder="Task title..."
-                className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
               />
               <div className="flex gap-2">
                 <select
@@ -408,7 +408,7 @@ export default function CoreConceptPage() {
                       handleEditContent('phase1', 'one_sentence', e.target.value)
                     }
                     disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
                   />
                 </div>
 
@@ -419,7 +419,7 @@ export default function CoreConceptPage() {
                     value={sections.phase1.content.arc || ''}
                     onChange={(e) => handleEditContent('phase1', 'arc', e.target.value)}
                     disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
                   />
                 </div>
 
@@ -432,7 +432,7 @@ export default function CoreConceptPage() {
                       handleEditContent('phase1', 'thematic_territory', e.target.value)
                     }
                     disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
                   />
                 </div>
 
@@ -474,7 +474,7 @@ export default function CoreConceptPage() {
                     onChange={(value) => handleEditContent('phase2', 'conviction_statement', value)}
                     disabled={sections.phase2.status === 'confirmed'}
                     minRows={3}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                   />
                 </div>
 
@@ -485,7 +485,7 @@ export default function CoreConceptPage() {
                     onChange={(value) => handleEditContent('phase2', 'emotional_journey', value)}
                     disabled={sections.phase2.status === 'confirmed'}
                     minRows={3}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                   />
                 </div>
 
@@ -526,7 +526,7 @@ export default function CoreConceptPage() {
                   onChange={(value) => handleEditContent('phase3', 'core_truth', value)}
                   disabled={sections.phase3.status === 'confirmed'}
                   minRows={2}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
+                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
                 />
 
                 {sections.phase3.status !== 'confirmed' && (
@@ -568,7 +568,7 @@ export default function CoreConceptPage() {
                     disabled={sections.phase4.status === 'confirmed'}
                     minRows={3}
                     placeholder={"- Goal one\n- Goal two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 
@@ -580,7 +580,7 @@ export default function CoreConceptPage() {
                     disabled={sections.phase4.status === 'confirmed'}
                     minRows={3}
                     placeholder={"- Goal one\n- Goal two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 
@@ -592,7 +592,7 @@ export default function CoreConceptPage() {
                     disabled={sections.phase4.status === 'confirmed'}
                     minRows={3}
                     placeholder={"- Thread one\n- Thread two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
                   />
                 </div>
 
@@ -645,7 +645,7 @@ export default function CoreConceptPage() {
                         : 'bg-[#111110] border border-[#1f1f1d] text-[#d4d2cd]'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 </div>
               ))}

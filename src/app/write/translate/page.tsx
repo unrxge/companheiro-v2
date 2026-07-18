@@ -160,7 +160,7 @@ function TranslateContent() {
             Substack Draft
           </h2>
           <div className="flex-1 overflow-y-auto bg-[#161614] border border-[#1f1f1d] rounded p-4">
-            <p className="text-[#d4d2cd] text-sm leading-relaxed whitespace-pre-wrap">
+            <p className="text-[#d4d2cd] text-base leading-relaxed whitespace-pre-wrap">
               {piece.substack_draft}
             </p>
           </div>
@@ -188,7 +188,7 @@ function TranslateContent() {
                 ref={textareaRef}
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
-                className="flex-1 bg-[#161614] border border-[#1f1f1d] rounded p-4 text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] text-sm leading-relaxed"
+                className="flex-1 bg-[#161614] border border-[#1f1f1d] rounded p-4 text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] text-base leading-relaxed"
               />
               <button
                 onClick={handleSaveScript}

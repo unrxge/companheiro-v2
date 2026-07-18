@@ -467,7 +467,7 @@ export default function CheckInPage() {
             {messages.map((msg, i) => (
               <div key={i}>
                 <p
-                  className={`text-sm leading-relaxed ${
+                  className={`text-base leading-relaxed ${
                     msg.role === 'user'
                       ? 'text-[#e8e6e1] font-medium'
                       : 'text-[#8c8a87] font-normal'
@@ -541,7 +541,7 @@ export default function CheckInPage() {
           {/* Pending portrait observation card */}
           {pendingEntry && !observationDismissed && !isLoadingObservation && (
             <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 mb-2 space-y-3">
-              <p className="text-sm text-[#d4d2cd] leading-relaxed">
+              <p className="text-base text-[#d4d2cd] leading-relaxed">
                 {pendingEntry.statement}
               </p>
 
@@ -573,7 +573,7 @@ export default function CheckInPage() {
                     }}
                     placeholder="What's actually going on..."
                     rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
                     style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
                   />
                   <button
@@ -630,7 +630,7 @@ export default function CheckInPage() {
               onChange={(e) => setTranscript(e.target.value)}
               placeholder="Your words will appear here..."
               rows={4}
-              className="w-full bg-[#161614] border border-[#2e2d2a] rounded-lg px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed transition-colors"
+              className="w-full bg-[#161614] border border-[#2e2d2a] rounded-lg px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed transition-colors"
             />
           )}
 
@@ -653,7 +653,7 @@ export default function CheckInPage() {
           {showJournalPrompt && journalPrompt && (
             <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-3">
               <p className="text-xs text-[#4a4946] uppercase tracking-widest">Journal prompt</p>
-              <p className="text-sm text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
+              <p className="text-base text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(journalPrompt)

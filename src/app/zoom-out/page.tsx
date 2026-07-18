@@ -250,7 +250,7 @@ export default function ZoomOutPage() {
                     : 'bg-[#161614] border border-[#1f1f1d] text-[#d4d2cd]'
                 }`}
               >
-                <p className={`text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'font-medium' : 'font-normal'}`}>
+                <p className={`text-base leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'font-medium' : 'font-normal'}`}>
                   {msg.content}
                 </p>
               </div>
@@ -271,7 +271,7 @@ export default function ZoomOutPage() {
                 {pendingAction.concept ? (
                   <>
                     <p className="text-xs text-[#4a4946] uppercase tracking-widest">Project seed</p>
-                    <p className="text-sm text-[#d4d2cd]">{pendingAction.concept}</p>
+                    <p className="text-base text-[#d4d2cd]">{pendingAction.concept}</p>
                     <button
                       onClick={handleCommitConcept}
                       disabled={isCommitting}
@@ -283,7 +283,7 @@ export default function ZoomOutPage() {
                 ) : (
                   <>
                     <p className="text-xs text-[#4a4946] uppercase tracking-widest">New direction</p>
-                    <p className="text-sm text-[#d4d2cd]">{pendingAction.trajectory}</p>
+                    <p className="text-base text-[#d4d2cd]">{pendingAction.trajectory}</p>
                     <button
                       onClick={handleCommitTrajectoryOnly}
                       disabled={isCommitting}
@@ -331,7 +331,7 @@ export default function ZoomOutPage() {
               placeholder="Tell me what's off, or where you're at..."
               disabled={isLoading}
               rows={1}
-              className="flex-1 bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
+              className="flex-1 bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
               style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
             />
 

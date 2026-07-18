@@ -83,7 +83,7 @@ export default function PortraitPage() {
           {isLoading ? (
             <p className="text-sm text-[#3d3c39]">Loading...</p>
           ) : entries.length === 0 ? (
-            <p className="text-sm text-[#6a6866] leading-relaxed">
+            <p className="text-base text-[#6a6866] leading-relaxed">
               Nothing confirmed yet. As you check in, develop ideas, and zoom out over time, the
               system may occasionally ask if a pattern it&apos;s noticed feels true — what you confirm
               shows up here.
@@ -101,7 +101,7 @@ export default function PortraitPage() {
                         key={entry.id}
                         className="bg-[#161614] border border-[#1f1f1d] rounded p-4 flex items-start justify-between gap-4"
                       >
-                        <p className="text-sm text-[#d4d2cd] leading-relaxed flex-1">
+                        <p className="text-base text-[#d4d2cd] leading-relaxed flex-1">
                           {entry.statement}
                         </p>
                         <button

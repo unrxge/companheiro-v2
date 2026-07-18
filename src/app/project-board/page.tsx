@@ -702,7 +702,7 @@ function ProjectBoardContent() {
         <div className="min-w-0 flex-1">
           {trajectory ? (
             <p
-              className={`text-sm leading-snug ${
+              className={`text-base leading-snug ${
                 TONE_STYLES[trajectory.tone || '']?.text || TONE_STYLES.default.text
               }`}
             >
@@ -753,7 +753,7 @@ function ProjectBoardContent() {
                         type="text"
                         value={coreConceptDraft.one_sentence}
                         onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors"
                       />
                     </div>
 
@@ -763,7 +763,7 @@ function ProjectBoardContent() {
                         value={coreConceptDraft.conviction_statement}
                         onChange={(value) => handleCoreConceptChange('conviction_statement', value)}
                         minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
                       />
                     </div>
 
@@ -773,7 +773,7 @@ function ProjectBoardContent() {
                         value={coreConceptDraft.emotional_journey}
                         onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
                         minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
                       />
                     </div>
 
@@ -783,7 +783,7 @@ function ProjectBoardContent() {
                         value={coreConceptDraft.core_truth}
                         onChange={(value) => handleCoreConceptChange('core_truth', value)}
                         minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
                       />
                     </div>
 
@@ -794,7 +794,7 @@ function ProjectBoardContent() {
                         onChange={(value) => handleCoreConceptChange('substack_goals', value)}
                         minRows={2}
                         placeholder={"- Goal one\n- Goal two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
                       />
                     </div>
 
@@ -805,7 +805,7 @@ function ProjectBoardContent() {
                         onChange={(value) => handleCoreConceptChange('short_form_goals', value)}
                         minRows={2}
                         placeholder={"- Goal one\n- Goal two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
                       />
                     </div>
 
@@ -816,7 +816,7 @@ function ProjectBoardContent() {
                         onChange={(value) => handleCoreConceptChange('open_threads', value)}
                         minRows={2}
                         placeholder={"- Thread one\n- Thread two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
+                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
                       />
                     </div>
 
@@ -853,7 +853,7 @@ function ProjectBoardContent() {
                               className="accent-green-600 flex-shrink-0 cursor-pointer"
                             />
                             <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="text-sm text-[#d4d2cd]">{task.title}</span>
+                              <span className="text-base text-[#d4d2cd]">{task.title}</span>
                               <span className="text-xs text-[#4a4946] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
                                 {task.type}
                               </span>
@@ -884,7 +884,7 @@ function ProjectBoardContent() {
                                   className="accent-green-600 flex-shrink-0 cursor-pointer"
                                 />
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className="text-sm text-[#4a4946] line-through">{task.title}</span>
+                                  <span className="text-base text-[#4a4946] line-through">{task.title}</span>
                                   <span className="text-xs text-[#3d3c39] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
                                     {task.type}
                                   </span>
@@ -904,7 +904,7 @@ function ProjectBoardContent() {
                         value={newTaskInput}
                         onChange={(e) => setNewTaskInput(e.target.value)}
                         placeholder="Add task..."
-                        className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                        className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') handleAddTask()
                         }}
@@ -995,7 +995,7 @@ function ProjectBoardContent() {
                         className="bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs"
                       >
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="text-[#d4d2cd]">{task.title}</span>
+                          <span className="text-base text-[#d4d2cd]">{task.title}</span>
                           <span className="text-[#4a4946] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
                             {task.type}
                           </span>

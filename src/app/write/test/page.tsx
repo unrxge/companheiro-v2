@@ -113,10 +113,10 @@ function TestContent() {
                         <div key={i} className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-1.5">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${st.dot}`} />
-                            <span className="text-sm text-[#e8e6e1] flex-1">{c.item}</span>
+                            <span className="text-base text-[#e8e6e1] flex-1">{c.item}</span>
                             <span className={`text-xs uppercase tracking-widest ${st.text}`}>{st.label}</span>
                           </div>
-                          {c.note && <p className="text-sm text-[#8c8a87] leading-relaxed pl-4">{c.note}</p>}
+                          {c.note && <p className="text-base text-[#8c8a87] leading-relaxed pl-4">{c.note}</p>}
                         </div>
                       )
                     })}
@@ -129,9 +129,9 @@ function TestContent() {
                 <div className="space-y-3">
                   <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">The emotional arc</h2>
                   <div className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-2">
-                    <p className="text-sm text-[#d4d2cd] leading-relaxed">{result.emotional_journey.verdict}</p>
+                    <p className="text-base text-[#d4d2cd] leading-relaxed">{result.emotional_journey.verdict}</p>
                     {result.emotional_journey.drift && (
-                      <p className="text-sm text-[#fbbf6a] leading-relaxed">
+                      <p className="text-base text-[#fbbf6a] leading-relaxed">
                         Where it drifts: {result.emotional_journey.drift}
                       </p>
                     )}
@@ -146,7 +146,7 @@ function TestContent() {
                   <div className="space-y-2">
                     {result.challenge.map((q, i) => (
                       <div key={i} className="bg-[#161614] border border-[#1f1f1d] rounded p-4">
-                        <p className="text-sm text-[#d4d2cd] leading-relaxed">{q}</p>
+                        <p className="text-base text-[#d4d2cd] leading-relaxed">{q}</p>
                       </div>
                     ))}
                   </div>
