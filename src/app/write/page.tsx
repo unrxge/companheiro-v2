@@ -92,6 +92,8 @@ function WriteContent() {
   const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const sectionsRef = useRef<Section[]>([])
   sectionsRef.current = sections
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const [resizeNonce, setResizeNonce] = useState(0)
 
   useEffect(() => {
     if (!pieceId) {
@@ -165,6 +167,23 @@ function WriteContent() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     }
   }, [flushSections])
+
+  // Resize section textareas to fit only on real structural change (load, add,
+  // delete, flow toggle, programmatic content change) — NOT on every render.
+  // Resizing every textarea on every render was collapsing/re-expanding the
+  // tall upper ones and letting scroll anchoring snap the view up to them.
+  const resizeAll = useCallback(() => {
+    Object.values(textareaRefs.current).forEach((el) => {
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    })
+  }, [])
+
+  const structureKey = sections.map((s) => s.id).join(',')
+  useEffect(() => {
+    resizeAll()
+  }, [structureKey, flowView, resizeNonce, resizeAll])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -362,6 +381,7 @@ function WriteContent() {
     const { sectionId, content } = pendingEdit
     setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content } : s)))
     setPendingEdit(null)
+    setResizeNonce((n) => n + 1)
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
@@ -581,10 +601,7 @@ function WriteContent() {
                       placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
                       rows={flowView ? 1 : 3}
                       ref={(el) => {
-                        if (el) {
-                          el.style.height = 'auto'
-                          el.style.height = el.scrollHeight + 'px'
-                        }
+                        textareaRefs.current[section.id] = el
                       }}
                       style={{
                         width: '100%', background: 'transparent', border: 'none', outline: 'none',
