@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 
@@ -90,6 +90,9 @@ function WriteContent() {
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
   const sectionsRef = useRef<Section[]>([])
   sectionsRef.current = sections
+  const chatMessagesRef = useRef<ChatMessage[]>([])
+  chatMessagesRef.current = chatMessages
+  const distilledUpToRef = useRef(0)
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const [resizeNonce, setResizeNonce] = useState(0)
 
@@ -98,6 +101,7 @@ function WriteContent() {
       router.push('/project-board')
       return
     }
+    distilledUpToRef.current = 0
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pieceId])
@@ -154,21 +158,52 @@ function WriteContent() {
     saveTimeoutRef.current = setTimeout(flushSections, 1500)
   }
 
+  // Feeds the writing-chat transcript to the Living Portrait as it happens —
+  // never gated by section lock or draft completion, since the excavation
+  // that matters can happen in a section that's never finished or locked.
+  // Fires periodically during a long session, and on any way the session
+  // ends, so nothing depends on the writer reaching a "done" state.
+  const WRITE_DISTILL_BATCH = 8
+  const flushChatDistillation = useCallback((allMessages: ChatMessage[], force = false) => {
+    const pending = allMessages.slice(distilledUpToRef.current)
+    if (pending.length === 0) return
+    if (!force && pending.length < WRITE_DISTILL_BATCH) return
+    distilledUpToRef.current = allMessages.length
+    fetch('/api/write/distill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: pending }),
+      keepalive: true,
+    }).catch((err) => console.error('Failed to distill writing chat:', err))
+  }, [])
+
   useEffect(() => {
     const onHidden = () => {
-      if (document.visibilityState === 'hidden') flushSections()
+      if (document.visibilityState === 'hidden') {
+        flushSections()
+        flushChatDistillation(chatMessagesRef.current, true)
+      }
     }
     document.addEventListener('visibilitychange', onHidden)
     return () => {
       document.removeEventListener('visibilitychange', onHidden)
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      flushChatDistillation(chatMessagesRef.current, true)
     }
-  }, [flushSections])
+  }, [flushSections, flushChatDistillation])
 
-  // Resize section textareas to fit only on real structural change (load, add,
-  // delete, flow toggle, programmatic content change) — NOT on every render.
-  // Resizing every textarea on every render was collapsing/re-expanding the
-  // tall upper ones and letting scroll anchoring snap the view up to them.
+  // Resize section textareas to fit only on real structural/geometry change
+  // (load, add, delete, flow toggle, panel open/resize, pending-edit
+  // arrival, programmatic content change) — NOT on every render. Resizing
+  // every textarea on every render was collapsing/re-expanding the tall
+  // upper ones and letting scroll anchoring snap the view up to them.
+  //
+  // This runs in useLayoutEffect, not useEffect, so it recomputes heights
+  // synchronously before the browser paints. useEffect fires after paint,
+  // which left a visible frame where the DOM already had the new layout
+  // (padding, borders, column width from openTool/chatExpanded changing
+  // reservedRight) but textareas still carried stale cached heights from
+  // before — the "misplaced text" flash on view/panel switches.
   const resizeAll = useCallback(() => {
     Object.values(textareaRefs.current).forEach((el) => {
       if (!el) return
@@ -178,9 +213,9 @@ function WriteContent() {
   }, [])
 
   const structureKey = sections.map((s) => s.id).join(',')
-  useEffect(() => {
+  useLayoutEffect(() => {
     resizeAll()
-  }, [structureKey, flowView, resizeNonce, resizeAll])
+  }, [structureKey, flowView, resizeNonce, openTool, chatExpanded, pendingEdit, resizeAll])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -355,8 +390,19 @@ function WriteContent() {
           intended_emotion: active.intended_emotion,
           content: active.content,
           is_locked: active.is_locked,
+          anchor_lines: anchorLines.filter((l) => l.section_id === active.id).map((l) => l.text),
         }
       : null
+    const precedingSections = active
+      ? sections
+          .filter((s) => s.position < active.position)
+          .sort((a, b) => a.position - b.position)
+          .map((s) => ({
+            label: s.label,
+            content: s.content,
+            anchor_lines: anchorLines.filter((l) => l.section_id === s.id).map((l) => l.text),
+          }))
+      : []
 
     try {
       const res = await fetch('/api/write/chat', {
@@ -367,11 +413,12 @@ function WriteContent() {
           piece_id: pieceId,
           conversation_history: priorHistory,
           active_section: activeSectionPayload,
+          preceding_sections: precedingSections,
         }),
       })
       if (!res.ok) return
       setChatMessages([...newMessages, { role: 'assistant', content: '' }])
-      const { meta } = await readTextStream<{ proposedEdit?: { section_id: string; content: string } }>(
+      const { text, meta } = await readTextStream<{ proposedEdit?: { section_id: string; content: string } }>(
         res,
         (visibleText) => {
           setChatMessages([...newMessages, { role: 'assistant', content: visibleText }])
@@ -380,6 +427,9 @@ function WriteContent() {
       )
       if (meta?.proposedEdit) {
         setPendingEdit({ sectionId: meta.proposedEdit.section_id, content: meta.proposedEdit.content })
+      }
+      if (text) {
+        flushChatDistillation([...newMessages, { role: 'assistant', content: text }])
       }
     } catch (err) {
       console.error('Failed to send chat message:', err)

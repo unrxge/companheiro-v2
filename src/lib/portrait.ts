@@ -5,7 +5,7 @@ import type { AuthedContext } from './supabase/route'
 const ACTIVE_ENTRY_CAP = 15
 const DECAY_DAYS = 150
 
-export type PortraitSource = 'check_in' | 'conceptualise' | 'zoom_out'
+export type PortraitSource = 'check_in' | 'conceptualise' | 'zoom_out' | 'writing'
 export type PortraitKind =
   | 'processing_pattern'
   | 'recurring_theme'
