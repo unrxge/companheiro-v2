@@ -18,6 +18,45 @@ interface TestResponse {
   error?: string
 }
 
+// The model is asked to ground its notes in quotes from the draft, and a
+// quoted excerpt can carry a real line break with it. A literal newline
+// inside a JSON string is invalid (must be the escape sequence \n), which
+// makes JSON.parse throw "Unterminated string" — this walks the text once,
+// tracking whether we're inside a string literal, and escapes stray control
+// characters found there so genuinely-intended JSON still parses.
+function sanitizeJsonString(raw: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]
+    if (!inString) {
+      if (ch === '"') inString = true
+      out += ch
+      continue
+    }
+    if (escaped) {
+      out += ch
+      escaped = false
+    } else if (ch === '\\') {
+      out += ch
+      escaped = true
+    } else if (ch === '"') {
+      inString = false
+      out += ch
+    } else if (ch === '\n') {
+      out += '\\n'
+    } else if (ch === '\r') {
+      out += '\\r'
+    } else if (ch === '\t') {
+      out += '\\t'
+    } else {
+      out += ch
+    }
+  }
+  return out
+}
+
 // The Test mode analysis: reads the FLATTENED draft unbiased (sections are
 // ignored here on purpose) against what the writer set out to do.
 export async function POST(request: NextRequest): Promise<NextResponse<TestResponse>> {
@@ -74,6 +113,8 @@ ${companionContext ? companionContext + '\n\n' : ''}Return THREE things as JSON:
 
 3. "challenge": 2-4 hard questions the finished piece is avoiding, glossing, or where it fell short of what they meant. Tender but direct — the questions that would make it truer.
 
+Keep any quoted excerpts short — a phrase, not a full sentence — and never let a literal line break fall inside a JSON string value.
+
 Return ONLY:
 {
   "coverage": [ { "item": "...", "status": "landed"|"partial"|"missing", "note": "..." } ],
@@ -83,7 +124,7 @@ Return ONLY:
 
     const response = await anthropic.messages.create({
       model: MODELS.deep,
-      max_tokens: 1600,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: [
         {
@@ -113,8 +154,16 @@ Test it.`,
       return NextResponse.json({ ...empty, error: 'Failed to analyze' }, { status: 500 })
     }
 
+    if (response.stop_reason === 'max_tokens') {
+      console.error('write test error: response truncated at max_tokens')
+      return NextResponse.json(
+        { ...empty, error: 'The draft was too long to fully test in one pass — try again' },
+        { status: 500 }
+      )
+    }
+
     const cleaned = textContent.text.replace(/```json\n?|\n?```/g, '').trim()
-    const parsed = JSON.parse(cleaned) as TestResponse
+    const parsed = JSON.parse(sanitizeJsonString(cleaned)) as TestResponse
 
     return NextResponse.json({
       coverage: Array.isArray(parsed.coverage) ? parsed.coverage : [],
