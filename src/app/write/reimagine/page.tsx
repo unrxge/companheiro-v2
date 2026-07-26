@@ -14,9 +14,8 @@ interface PendingLens {
   energy: string
 }
 
-// The four points map 1:1 onto the app's existing accent colors — turning
-// four colors that normally sit as isolated status dots elsewhere in the
-// app into a single emotional-intensity spectrum, used nowhere else.
+// Four discrete points mapped 1:1 onto the app's four accents — Bauhaus
+// keeps to a small disciplined palette rather than a continuous gradient.
 const ENERGY_SCALE = ['hushed', 'measured', 'vivid', 'thunderous']
 const ENERGY_COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444']
 
@@ -27,14 +26,11 @@ function energyIndexFor(word?: string): number {
 }
 
 const KEYFRAMES = `
-@keyframes reimagineDriftA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6vw,4vh) scale(1.15); } }
-@keyframes reimagineDriftB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5vw,-6vh) scale(1.1); } }
-@keyframes reimagineDriftC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4vw,-3vh) scale(0.9); } }
-@keyframes reimagineDriftD { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-3vw,5vh) scale(1.05); } }
-@keyframes reimagineRipple { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(2.4); opacity: 0; } }
-@keyframes reimagineShimmer { 0%,100% { opacity: 0.2; } 50% { opacity: 0.6; } }
-@keyframes reimagineFloatIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes reimagineRise { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes reimagineOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes reimagineSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes reimagineSlide { 0%,100% { transform: translateY(0); } 50% { transform: translateY(24px); } }
+@keyframes reimagineRise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes reimagineSnap { from { opacity: 0; transform: scale(0.9) rotate(-2deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
 `
 
 function ReimagineContent() {
@@ -258,262 +254,249 @@ function ReimagineContent() {
     <div className="relative h-screen bg-[#111110] overflow-hidden">
       <style>{KEYFRAMES}</style>
 
-      {/* Ambient living background — four accents drifting as one field,
-          something no other screen in this app does. */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {/* Structural grid rule — Swiss/Bauhaus functional grid line */}
+      <div className="hidden md:block fixed left-[58%] top-0 bottom-0 w-px bg-[#2e2d2a] z-0" />
+
+      {/* Geometric composition — flat, hard-edged, disciplined 4-color set.
+          No blur, no gradients, no glow: solid shapes as design elements. */}
+      <div className="hidden md:block fixed right-0 top-0 bottom-0 w-[42%] pointer-events-none z-0 overflow-hidden">
         <div
-          className="absolute w-[60vw] h-[60vw] rounded-full blur-[120px] opacity-20 bg-[#8B5CF6]"
-          style={{ top: '-15%', left: '-10%', animation: 'reimagineDriftA 24s ease-in-out infinite' }}
+          className="absolute rounded-full"
+          style={{ width: '30vw', height: '30vw', top: '-9%', right: '-8%', background: '#8B5CF6' }}
         />
         <div
-          className="absolute w-[50vw] h-[50vw] rounded-full blur-[120px] opacity-20 bg-[#10B981]"
-          style={{ bottom: '-15%', right: '-8%', animation: 'reimagineDriftB 28s ease-in-out infinite' }}
+          className="absolute rounded-full"
+          style={{ width: '30vw', height: '30vw', top: '-9%', right: '-8%', animation: 'reimagineOrbit 16s linear infinite' }}
+        >
+          <div className="absolute" style={{ width: 18, height: 18, top: 0, left: '50%', marginLeft: -9, background: '#F59E0B' }} />
+        </div>
+        <div
+          className="absolute rounded-full"
+          style={{ width: '18vw', height: '18vw', top: '38%', right: '10%', border: '4px solid #10B981' }}
         />
         <div
-          className="absolute w-[42vw] h-[42vw] rounded-full blur-[120px] opacity-15 bg-[#F59E0B]"
-          style={{ top: '28%', right: '15%', animation: 'reimagineDriftC 32s ease-in-out infinite' }}
+          style={{
+            position: 'absolute',
+            bottom: '14%',
+            left: '10%',
+            width: 0,
+            height: 0,
+            borderLeft: '38px solid transparent',
+            borderRight: '38px solid transparent',
+            borderBottom: '66px solid #EF4444',
+            animation: 'reimagineSpin 30s linear infinite',
+          }}
         />
         <div
-          className="absolute w-[36vw] h-[36vw] rounded-full blur-[120px] opacity-15 bg-[#EF4444]"
-          style={{ bottom: '5%', left: '18%', animation: 'reimagineDriftD 26s ease-in-out infinite' }}
+          className="absolute"
+          style={{ width: '3px', height: '140px', bottom: '4%', right: '32%', background: '#e8e6e1', transform: 'rotate(28deg)', animation: 'reimagineSlide 5s ease-in-out infinite' }}
         />
       </div>
 
       <button
         onClick={() => router.push(`/write?piece_id=${pieceId}`)}
-        className="fixed top-6 left-6 z-30 text-xs text-[#6b6966] hover:text-[#e8e6e1] transition-colors"
+        className="fixed top-6 left-6 md:left-[6%] z-30 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
       >
-        ← Back to writing
+        <span className="w-2 h-2 bg-[#e8e6e1]" />
+        Back
       </button>
 
       {!viewingResult ? (
-        <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 py-24">
-          <div className="max-w-3xl mx-auto w-full flex flex-col items-center gap-10">
+        <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 md:pl-[6%] md:pr-[44%] py-24">
+          <div className="max-w-xl w-full space-y-8">
             {trail.length > 0 && (
-              <div className="w-full space-y-1.5 opacity-40 text-center">
+              <div className="flex flex-wrap gap-2">
                 {trail.map((msg, i) => (
-                  <p
+                  <span
                     key={i}
-                    className={`text-xs leading-relaxed whitespace-pre-wrap ${
-                      msg.role === 'user' ? 'text-[#6b6966] italic' : 'text-[#4a4946]'
+                    className={`inline-block text-xs font-bold px-2.5 py-1 border-2 ${
+                      msg.role === 'user' ? 'border-[#e8e6e1] text-[#e8e6e1]' : 'border-[#4a4946] text-[#8c8a87]'
                     }`}
                   >
                     {msg.content}
-                  </p>
+                  </span>
                 ))}
               </div>
             )}
 
-            <div key={stageStartIdx} className="w-full space-y-6 text-center" style={{ animation: 'reimagineRise 0.7s ease-out both' }}>
+            <div key={stageStartIdx} className="space-y-4" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
+              <div className="flex items-center gap-2">
+                <span className="w-4 h-4" style={{ background: '#8B5CF6' }} />
+                <span className="text-xs font-black uppercase tracking-[0.3em] text-[#8B5CF6]">01 — The Vision</span>
+              </div>
+
               {stage.map((msg, i) =>
                 msg.role === 'assistant' ? (
-                  <p
-                    key={i}
-                    className="text-4xl md:text-6xl font-light leading-[1.15] tracking-tight text-[#e8e6e1] whitespace-pre-wrap"
-                  >
+                  <p key={i} className="text-3xl md:text-5xl font-bold leading-[1.1] tracking-tight text-[#e8e6e1] whitespace-pre-wrap">
                     {msg.content}
                   </p>
                 ) : (
-                  <p key={i} className="text-xl md:text-2xl italic font-light text-[#a8a6a0] whitespace-pre-wrap">
+                  <p
+                    key={i}
+                    className="inline-block text-base font-bold px-3 py-2 whitespace-pre-wrap"
+                    style={{ background: '#e8e6e1', color: '#111110', transform: 'rotate(-1deg)' }}
+                  >
                     {msg.content}
                   </p>
                 )
               )}
 
               {isLoading && (
-                <p className="text-4xl font-light text-[#4a4946]" style={{ animation: 'reimagineShimmer 1.6s ease-in-out infinite' }}>
-                  …
-                </p>
+                <p className="text-3xl font-black text-[#4a4946]">···</p>
               )}
             </div>
 
             {pendingLens && !isLoading && (
-              <div className="relative w-full max-w-xl mx-auto">
-                <span
-                  className="absolute inset-0 rounded-full"
-                  style={{ border: `2px solid ${energyColor}`, animation: lensVisible ? 'reimagineRipple 1.2s ease-out forwards' : 'none' }}
-                />
-                <span
-                  className="absolute inset-0 rounded-full"
-                  style={{ border: `1px solid ${energyColor}`, animation: lensVisible ? 'reimagineRipple 1.2s ease-out 0.15s forwards' : 'none' }}
-                />
-
-                <div
-                  className="relative rounded-2xl p-8 space-y-6 text-center transition-all duration-500 ease-out backdrop-blur-sm"
-                  style={{
-                    background: 'rgba(22,22,20,0.7)',
-                    border: `1px solid ${energyColor}55`,
-                    boxShadow: lensVisible ? `0 0 80px -20px ${energyColor}` : 'none',
-                    opacity: lensVisible ? 1 : 0,
-                    transform: lensVisible ? 'scale(1)' : 'scale(0.95)',
-                  }}
-                >
-                  <p className="text-xs uppercase tracking-[0.3em]" style={{ color: energyColor }}>
-                    the lens
-                  </p>
-                  <p className="text-2xl font-light leading-relaxed text-[#e8e6e1]">{pendingLens.lens}</p>
-
-                  <div className="space-y-3 pt-2">
-                    <div className="flex justify-between text-[10px] uppercase tracking-widest text-[#6b6966]">
-                      {ENERGY_SCALE.map((label, i) => (
-                        <span
-                          key={label}
-                          className="transition-transform duration-200"
-                          style={{
-                            color: i === energyIndex ? ENERGY_COLORS[i] : undefined,
-                            transform: i === energyIndex && energyPulsing ? 'scale(1.3)' : 'scale(1)',
-                          }}
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={ENERGY_SCALE.length - 1}
-                      value={energyIndex}
-                      onChange={(e) => nudgeEnergy(Number(e.target.value))}
-                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer
-                        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer
-                        [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white"
-                      style={{
-                        background: `linear-gradient(to right, ${ENERGY_COLORS.join(',')})`,
-                      }}
-                    />
-                  </div>
-
-                  <button
-                    onClick={runReimagine}
-                    disabled={isGenerating}
-                    className="px-10 py-3 rounded-full text-xs font-medium tracking-[0.2em] uppercase transition-all duration-300 disabled:opacity-50"
-                    style={{ background: energyColor, color: '#111110', boxShadow: `0 0 40px -8px ${energyColor}` }}
-                  >
-                    {isGenerating ? 'Reimagining…' : 'Run it'}
-                  </button>
-                  <p className="text-xs text-[#4a4946]">or keep talking below to change the lens</p>
+              <div
+                style={{
+                  border: `3px solid ${energyColor}`,
+                  background: '#161614',
+                  opacity: lensVisible ? 1 : 0,
+                  animation: lensVisible ? 'reimagineSnap 0.4s ease-out both' : 'none',
+                }}
+                className="p-6 space-y-5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4" style={{ background: energyColor }} />
+                  <span className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: energyColor }}>
+                    02 — The Lens
+                  </span>
                 </div>
+                <p className="text-xl md:text-2xl font-bold leading-snug text-[#e8e6e1]">{pendingLens.lens}</p>
+
+                <div className="flex items-center gap-4 pt-1">
+                  {ENERGY_SCALE.map((label, i) => (
+                    <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-2">
+                      <span
+                        className="w-7 h-7 border-2 transition-transform duration-200"
+                        style={{
+                          background: i === energyIndex ? ENERGY_COLORS[i] : 'transparent',
+                          borderColor: ENERGY_COLORS[i],
+                          transform:
+                            i === energyIndex && energyPulsing
+                              ? 'scale(1.25) rotate(10deg)'
+                              : i === energyIndex
+                                ? 'rotate(0deg) scale(1.1)'
+                                : 'scale(1)',
+                        }}
+                      />
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest"
+                        style={{ color: i === energyIndex ? ENERGY_COLORS[i] : '#4a4946' }}
+                      >
+                        {label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={runReimagine}
+                  disabled={isGenerating}
+                  className="px-8 py-3 text-xs font-black tracking-[0.25em] uppercase transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                  style={{ background: energyColor, color: '#111110' }}
+                >
+                  {isGenerating ? 'Reimagining…' : 'Run it ▸'}
+                </button>
+                <p className="text-xs text-[#4a4946]">or keep talking below to change the lens</p>
               </div>
             )}
           </div>
         </div>
       ) : (
-        <div className="relative z-10 h-full overflow-y-auto px-6 py-20">
-          <div
-            className="max-w-2xl mx-auto w-full space-y-8"
-            style={{ animation: 'reimagineFloatIn 0.8s ease-out both' }}
-          >
-            <div className="flex items-center justify-between">
+        <div className="relative z-10 h-full overflow-y-auto">
+          <div className="h-2 w-full" style={{ background: energyColor }} />
+          <div className="px-6 md:px-[8%] py-14 max-w-2xl mx-auto" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
+            <div className="flex items-center justify-between mb-8">
               <button
                 onClick={() => setViewingResult(false)}
-                className="text-xs text-[#6b6966] hover:text-[#e8e6e1] transition-colors"
+                className="text-xs font-bold uppercase tracking-widest text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
               >
                 ‹ Tune it differently
               </button>
               {output && !isGenerating && (
                 <button
                   onClick={copyOutput}
-                  className="text-xs text-[#6b6966] hover:text-[#e8e6e1] transition-colors"
+                  className="text-xs font-bold uppercase tracking-widest text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
                 >
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               )}
             </div>
 
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-4 h-4" style={{ background: energyColor }} />
+              <span className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: energyColor }}>
+                03 — The Result
+              </span>
+            </div>
+
             {output ? (
-              <p className="text-xl md:text-2xl font-light leading-relaxed text-[#d4d2cd] whitespace-pre-wrap">
-                {output}
-              </p>
+              <p className="text-lg md:text-xl leading-relaxed text-[#d4d2cd] whitespace-pre-wrap">{output}</p>
             ) : (
-              <p className="text-2xl font-light text-[#4a4946]" style={{ animation: 'reimagineShimmer 1.6s ease-in-out infinite' }}>
-                reimagining…
-              </p>
+              <p className="text-xl font-bold text-[#4a4946]">reimagining···</p>
             )}
           </div>
         </div>
       )}
 
       {error && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2">
-          <p className="text-xs text-red-300">{error}</p>
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30">
+          <p className="text-xs font-bold text-[#EF4444]">{error}</p>
         </div>
       )}
 
       {!viewingResult && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 py-8">
-          <div className="max-w-2xl mx-auto w-full flex items-center gap-4">
-            <div className="relative flex-1">
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => {
-                  setInputText(e.target.value)
-                  e.target.style.height = 'auto'
-                  e.target.style.height = e.target.scrollHeight + 'px'
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
-                    handleSend()
-                  }
-                }}
-                placeholder="speak the shape it wants to become…"
-                disabled={isLoading}
-                rows={1}
-                className="w-full bg-transparent border-none outline-none text-center text-lg font-light text-[#e8e6e1] placeholder:text-[#3d3c39] disabled:opacity-50"
-                style={{ resize: 'none', overflowY: 'auto', maxHeight: '120px' }}
-              />
-              <div
-                className="h-px w-full mt-1"
-                style={{
-                  background: `linear-gradient(to right, transparent, #8B5CF6, transparent)`,
-                  animation: !inputText.trim() ? 'reimagineShimmer 3s ease-in-out infinite' : 'none',
-                  opacity: inputText.trim() ? 0.5 : undefined,
-                }}
-              />
-            </div>
+        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 md:pl-[6%] md:pr-[44%] py-6" style={{ background: '#111110', borderTop: '2px solid #2e2d2a' }}>
+          <div className="max-w-xl w-full flex items-center gap-3">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => {
+                setInputText(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
+                  handleSend()
+                }
+              }}
+              placeholder="say what it wants to become…"
+              disabled={isLoading}
+              rows={1}
+              className="flex-1 bg-transparent px-3 py-2 text-base font-medium text-[#e8e6e1] placeholder:text-[#4a4946] disabled:opacity-50 focus:outline-none"
+              style={{ resize: 'none', overflowY: 'auto', maxHeight: '120px', border: '2px solid #2e2d2a' }}
+            />
 
             <button
               onClick={handleRecordToggle}
               disabled={isLoading}
               aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-              className={`relative w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+              className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
                 isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
               }`}
-              style={{
-                background: isRecording ? '#8B5CF6' : 'rgba(46,45,42,0.6)',
-                border: '1px solid #2e2d2a',
-              }}
+              style={{ background: isRecording ? '#8B5CF6' : 'transparent', border: '2px solid #e8e6e1' }}
             >
               {isRecording && (
-                <>
-                  <span
-                    className="absolute inset-0 rounded-full"
-                    style={{ border: '1px solid #8B5CF6', animation: 'reimagineRipple 1.6s ease-out infinite' }}
-                  />
-                  <span
-                    className="absolute inset-0 rounded-full"
-                    style={{ border: '1px solid #8B5CF6', animation: 'reimagineRipple 1.6s ease-out 0.6s infinite' }}
-                  />
-                </>
+                <div className="absolute inset-[-6px]" style={{ animation: 'reimagineOrbit 1.4s linear infinite' }}>
+                  <div className="absolute w-1.5 h-1.5" style={{ top: 0, left: '50%', marginLeft: -3, background: '#F59E0B' }} />
+                </div>
               )}
-              <span className={`block w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-[#111110]' : 'bg-[#8c8a87]'}`} />
+              <span className={`block w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-[#111110]' : 'bg-[#e8e6e1]'}`} />
             </button>
 
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || isLoading}
-              className="px-5 py-2.5 rounded-full text-xs font-medium tracking-widest uppercase transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 text-xs font-black tracking-widest uppercase transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ background: '#e8e6e1', color: '#111110' }}
             >
               Send
             </button>
           </div>
 
-          {isRecording && (
-            <p className="text-xs text-[#6b6966] text-center tracking-widest uppercase mt-3">Listening</p>
-          )}
+          {isRecording && <p className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest mt-3">Listening</p>}
         </div>
       )}
     </div>
