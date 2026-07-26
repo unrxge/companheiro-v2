@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
-import { getLens } from '@/lib/lenses'
 import { streamClaudeText } from '@/lib/streaming'
 
 // Reimagine: runs the finished draft (flattened, section-unaware) through a
-// creative lens to surface an unexpected treatment. Streamed prose.
+// lens the writer defined themselves in conversation — there's no pre-set
+// list, the form is whatever they said it should be.
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id, lens: lensKey } = await request.json()
-    if (!piece_id || !lensKey) {
-      return NextResponse.json({ error: 'Missing piece_id/lens' }, { status: 400 })
+    const { piece_id, lens_description, energy } = await request.json()
+    if (!piece_id || !lens_description?.trim()) {
+      return NextResponse.json({ error: 'Missing piece_id/lens_description' }, { status: 400 })
     }
-
-    const lens = getLens(lensKey)
-    if (!lens) return NextResponse.json({ error: 'Unknown lens' }, { status: 400 })
 
     const { supabase, user } = auth
 
@@ -37,7 +34,8 @@ export async function POST(request: NextRequest) {
 
 Hold onto the piece's core truth and the writer's voice, but transform the FORM completely and commit to it fully. Don't hedge, don't half-do it, don't explain what you're doing — just deliver the reimagined piece itself.
 
-THE LENS: ${lens.label} — ${lens.instruction}
+THE LENS THEY WANT: ${lens_description.trim()}
+${energy ? `The intensity/pace they're after: ${energy}` : ''}
 
 Core truth to preserve: ${piece.core_truth || '(infer it from the draft)'}
 ${piece.conviction_statement ? `Conviction to preserve: ${piece.conviction_statement}` : ''}

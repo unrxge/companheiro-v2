@@ -733,7 +733,7 @@ function WriteContent() {
                 <button
                   onClick={async () => {
                     await flushSections()
-                    router.push(`/write/test?piece_id=${pieceId}`)
+                    router.push(`/write/reimagine?piece_id=${pieceId}`)
                   }}
                   className="mt-6 text-sm text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors underline"
                 >
