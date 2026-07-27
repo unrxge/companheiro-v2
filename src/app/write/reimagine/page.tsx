@@ -92,7 +92,6 @@ function ReimagineContent() {
   const [energyPulsing, setEnergyPulsing] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [output, setOutput] = useState('')
-  const [viewingResult, setViewingResult] = useState(false)
   const [copied, setCopied] = useState(false)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -244,7 +243,7 @@ function ReimagineContent() {
     setMessages(updatedMessages)
     setInputText('')
     setPendingLens(null)
-    setViewingResult(false)
+    setOutput('')
 
     await fetchAIResponse(updatedMessages)
   }
@@ -252,7 +251,6 @@ function ReimagineContent() {
   const runReimagine = async () => {
     if (!pendingLens || !pieceId || isGenerating) return
     setIsGenerating(true)
-    setViewingResult(true)
     setOutput('')
     try {
       const res = await fetch('/api/write/reimagine', {
@@ -291,46 +289,76 @@ function ReimagineContent() {
   const trail = messages.slice(0, Math.max(stageStartIdx, 0))
   const stage = messages.slice(Math.max(stageStartIdx, 0))
   const energyColor = ENERGY_COLORS[energyIndex]
+  // Cycles per exchange so a longer back-and-forth moves through the whole
+  // palette instead of staying one color the entire conversation.
+  const visionColor = ENERGY_COLORS[trail.length % ENERGY_COLORS.length]
 
   return (
     <div className="relative h-screen bg-[#111110] overflow-hidden">
       <style>{KEYFRAMES}</style>
 
-      {/* Ambient decoration — soft organic blobs + a drifting doodle, the
-          same signature squiggle reused everywhere on this page. */}
+      {/* Ambient decoration — all four accents present at once as big soft
+          organic blobs, plus a drifting doodle. Deliberately loud. */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div
-          className="absolute opacity-90"
+          className="absolute opacity-95"
           style={{
-            width: '34vw',
-            height: '30vw',
-            top: '-10%',
-            left: '-8%',
+            width: '46vw',
+            height: '40vw',
+            top: '-15%',
+            left: '-12%',
             background: '#8B5CF6',
             borderRadius: '62% 38% 55% 45% / 45% 55% 45% 55%',
             animation: 'reimagineFloatA 20s ease-in-out infinite',
           }}
         />
         <div
-          className="absolute opacity-90"
+          className="absolute opacity-95"
           style={{
-            width: '26vw',
-            height: '24vw',
-            bottom: '-8%',
-            right: '-6%',
+            width: '38vw',
+            height: '34vw',
+            bottom: '-13%',
+            right: '-10%',
             background: '#F59E0B',
             borderRadius: '48% 52% 40% 60% / 55% 45% 60% 40%',
             animation: 'reimagineFloatB 24s ease-in-out infinite',
           }}
         />
+        <div
+          className="absolute opacity-90"
+          style={{
+            width: '28vw',
+            height: '26vw',
+            top: '6%',
+            right: '-8%',
+            background: '#10B981',
+            borderRadius: '55% 45% 60% 40% / 40% 60% 40% 60%',
+            animation: 'reimagineFloatB 27s ease-in-out infinite',
+          }}
+        />
+        <div
+          className="absolute opacity-90"
+          style={{
+            width: '24vw',
+            height: '22vw',
+            bottom: '8%',
+            left: '-6%',
+            background: '#EF4444',
+            borderRadius: '45% 55% 50% 50% / 55% 45% 55% 45%',
+            animation: 'reimagineFloatA 23s ease-in-out infinite',
+          }}
+        />
         <Squiggle
-          color="#10B981"
-          className="absolute w-[38vw] max-w-[420px] opacity-70"
-          style={{ bottom: '6%', left: '8%', animation: 'reimagineFloatA 26s ease-in-out infinite' }}
+          color="#e8e6e1"
+          className="absolute w-[38vw] max-w-[420px] opacity-60"
+          style={{ bottom: '4%', left: '22%', animation: 'reimagineFloatA 26s ease-in-out infinite' }}
         />
       </div>
-      <div className="fixed top-[14%] right-[8%] z-0 opacity-80 hidden md:block">
-        <Dots color="#EF4444" />
+      <div className="fixed top-[14%] right-[10%] z-0 opacity-90 hidden md:block">
+        <Dots color="#111110" />
+      </div>
+      <div className="fixed bottom-[16%] left-[6%] z-0 opacity-90 hidden md:block">
+        <Dots color="#111110" />
       </div>
 
       <button
@@ -341,157 +369,149 @@ function ReimagineContent() {
         Back
       </button>
 
-      {!viewingResult ? (
-        <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 py-24">
-          <div className="max-w-2xl mx-auto w-full space-y-6">
-            {trail.length > 0 && (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {trail.map((msg, i) => (
-                  <span
-                    key={i}
-                    className={`inline-block text-xs font-bold px-3 py-1.5 rounded-full ${
-                      msg.role === 'user' ? 'bg-[#e8e6e1] text-[#111110]' : 'bg-[#1f1f1d] text-[#a8a6a0]'
-                    }`}
-                  >
-                    {msg.content}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div key={stageStartIdx} className="space-y-5" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
-              <div className="flex justify-center">
+      <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 pt-24 pb-44">
+        <div className="max-w-2xl mx-auto w-full space-y-6">
+          {trail.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {trail.map((msg, i) => (
                 <span
-                  className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full"
-                  style={{ background: '#8B5CF6', color: '#111110' }}
+                  key={i}
+                  className={`inline-block text-xs font-bold px-3 py-1.5 rounded-full ${
+                    msg.role === 'user' ? 'bg-[#e8e6e1] text-[#111110]' : 'bg-[#1f1f1d] text-[#a8a6a0]'
+                  }`}
                 >
-                  01 · Vision
+                  {msg.content}
                 </span>
-              </div>
-
-              {stage.map((msg, i) =>
-                msg.role === 'assistant' ? (
-                  <div
-                    key={i}
-                    className="mx-auto rounded-[2rem] px-8 py-10 md:px-12 md:py-14"
-                    style={{ background: '#8B5CF6' }}
-                  >
-                    <p className="text-3xl md:text-5xl font-bold leading-[1.1] tracking-tight text-[#111110] text-center whitespace-pre-wrap">
-                      {msg.content}
-                    </p>
-                  </div>
-                ) : (
-                  <div key={i} className="flex justify-center">
-                    <p
-                      className="inline-block text-base font-bold px-4 py-2 rounded-full bg-[#1f1f1d] text-[#e8e6e1] whitespace-pre-wrap"
-                    >
-                      {msg.content}
-                    </p>
-                  </div>
-                )
-              )}
-
-              {isLoading && (
-                <p className="text-3xl font-black text-[#4a4946] text-center">···</p>
-              )}
+              ))}
             </div>
+          )}
 
-            {pendingLens && !isLoading && (
-              <div className="relative max-w-xl mx-auto pt-4">
-                <Squiggle
-                  color={energyColor}
-                  className="absolute w-40 -top-6 -left-10 opacity-80 pointer-events-none hidden sm:block"
-                  draw={lensVisible}
-                />
-                <div
-                  className="relative rounded-[2rem] p-7 md:p-9 space-y-6 text-center"
-                  style={{
-                    background: energyColor,
-                    opacity: lensVisible ? 1 : 0,
-                    transform: lensVisible ? 'scale(1) rotate(0deg)' : 'scale(0.85) rotate(-3deg)',
-                    transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
-                  }}
-                >
-                  <span className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full bg-[#111110] text-[#e8e6e1]">
-                    02 · The Lens
-                  </span>
-                  <p className="text-xl md:text-2xl font-bold leading-snug text-[#111110]">{pendingLens.lens}</p>
-
-                  <div className="flex items-center justify-center gap-4 pt-1">
-                    {ENERGY_SCALE.map((label, i) => (
-                      <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-1.5">
-                        <span
-                          className="rounded-full transition-transform duration-200"
-                          style={{
-                            width: i === energyIndex ? 22 : 16,
-                            height: i === energyIndex ? 22 : 16,
-                            background: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.35)',
-                            transform: i === energyIndex && energyPulsing ? 'scale(1.3)' : 'scale(1)',
-                          }}
-                        />
-                        <span
-                          className="text-[9px] font-bold uppercase tracking-widest"
-                          style={{ color: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.5)' }}
-                        >
-                          {label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={runReimagine}
-                    disabled={isGenerating}
-                    className="px-9 py-3 rounded-full text-xs font-black tracking-[0.25em] uppercase transition-transform hover:scale-105 disabled:opacity-50"
-                    style={{ background: '#111110', color: '#e8e6e1' }}
-                  >
-                    {isGenerating ? 'Reimagining…' : 'Run it ▸'}
-                  </button>
-                  <p className="text-xs font-medium" style={{ color: 'rgba(17,17,16,0.6)' }}>
-                    or keep talking below to change the lens
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="relative z-10 h-full overflow-y-auto">
-          <div className="px-6 py-16 max-w-2xl mx-auto" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
-            <div className="flex items-center justify-between mb-8">
-              <button
-                onClick={() => setViewingResult(false)}
-                className="text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full bg-[#1f1f1d] text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors"
-              >
-                ‹ Tune it differently
-              </button>
-              {output && !isGenerating && (
-                <button
-                  onClick={copyOutput}
-                  className="text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full bg-[#1f1f1d] text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors"
-                >
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-              )}
-            </div>
-
-            <div className="flex justify-center mb-8">
+          <div key={stageStartIdx} className="space-y-5" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
+            <div className="flex justify-center">
               <span
                 className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full"
-                style={{ background: energyColor, color: '#111110' }}
+                style={{ background: visionColor, color: '#111110' }}
               >
-                03 · The Result
+                01 · Vision
               </span>
             </div>
 
-            {output ? (
-              <p className="text-lg md:text-xl leading-relaxed text-[#d4d2cd] whitespace-pre-wrap">{output}</p>
-            ) : (
-              <p className="text-xl font-bold text-[#4a4946] text-center">reimagining···</p>
+            {stage.map((msg, i) =>
+              msg.role === 'assistant' ? (
+                <div
+                  key={i}
+                  className="mx-auto rounded-[2rem] px-8 py-10 md:px-12 md:py-14"
+                  style={{ background: visionColor }}
+                >
+                  <p className="text-3xl md:text-5xl font-bold leading-[1.1] tracking-tight text-[#111110] text-center whitespace-pre-wrap">
+                    {msg.content}
+                  </p>
+                </div>
+              ) : (
+                <div key={i} className="flex justify-center">
+                  <p
+                    className="inline-block text-base font-bold px-4 py-2 rounded-full bg-[#1f1f1d] text-[#e8e6e1] whitespace-pre-wrap"
+                  >
+                    {msg.content}
+                  </p>
+                </div>
+              )
+            )}
+
+            {isLoading && (
+              <p className="text-3xl font-black text-[#4a4946] text-center">···</p>
             )}
           </div>
+
+          {pendingLens && !isLoading && (
+            <div className="relative max-w-xl mx-auto pt-4">
+              <Squiggle
+                color={energyColor}
+                className="absolute w-40 -top-6 -left-10 opacity-80 pointer-events-none hidden sm:block"
+                draw={lensVisible}
+              />
+              <div
+                className="relative rounded-[2rem] p-7 md:p-9 space-y-6 text-center"
+                style={{
+                  background: energyColor,
+                  opacity: lensVisible ? 1 : 0,
+                  transform: lensVisible ? 'scale(1) rotate(0deg)' : 'scale(0.85) rotate(-3deg)',
+                  transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
+                }}
+              >
+                <span className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full bg-[#111110] text-[#e8e6e1]">
+                  02 · The Lens
+                </span>
+                <p className="text-xl md:text-2xl font-bold leading-snug text-[#111110]">{pendingLens.lens}</p>
+
+                <div className="flex items-center justify-center gap-4 pt-1">
+                  {ENERGY_SCALE.map((label, i) => (
+                    <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-1.5">
+                      <span
+                        className="rounded-full transition-transform duration-200"
+                        style={{
+                          width: i === energyIndex ? 22 : 16,
+                          height: i === energyIndex ? 22 : 16,
+                          background: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.35)',
+                          transform: i === energyIndex && energyPulsing ? 'scale(1.3)' : 'scale(1)',
+                        }}
+                      />
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest"
+                        style={{ color: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.5)' }}
+                      >
+                        {label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={runReimagine}
+                  disabled={isGenerating}
+                  className="px-9 py-3 rounded-full text-xs font-black tracking-[0.25em] uppercase transition-transform hover:scale-105 disabled:opacity-50"
+                  style={{ background: '#111110', color: '#e8e6e1' }}
+                >
+                  {isGenerating ? 'Reimagining…' : output ? 'Run it again ▸' : 'Run it ▸'}
+                </button>
+                <p className="text-xs font-medium" style={{ color: 'rgba(17,17,16,0.6)' }}>
+                  keep talking below any time to change the lens
+                </p>
+              </div>
+            </div>
+          )}
+
+          {(output || isGenerating) && (
+            <div
+              className="max-w-xl mx-auto rounded-[2rem] p-7 md:p-9 space-y-5"
+              style={{ background: '#161614', border: `6px solid ${energyColor}` }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span
+                  className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full"
+                  style={{ background: energyColor, color: '#111110' }}
+                >
+                  03 · The Result
+                </span>
+                {output && !isGenerating && (
+                  <button
+                    onClick={copyOutput}
+                    className="text-xs font-bold uppercase tracking-widest text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors flex-shrink-0"
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                )}
+              </div>
+
+              {output ? (
+                <p className="text-lg leading-relaxed text-[#d4d2cd] whitespace-pre-wrap">{output}</p>
+              ) : (
+                <p className="text-xl font-bold text-[#4a4946]">reimagining···</p>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {error && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30">
@@ -501,10 +521,12 @@ function ReimagineContent() {
         </div>
       )}
 
-      {!viewingResult && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 py-6">
-          <div className="max-w-xl mx-auto w-full flex items-center gap-3">
-            <textarea
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 px-6 py-6"
+        style={{ background: 'linear-gradient(to top, #111110 60%, transparent)' }}
+      >
+        <div className="max-w-xl mx-auto w-full flex items-center gap-3">
+          <textarea
               ref={textareaRef}
               value={inputText}
               onChange={(e) => {
@@ -556,8 +578,7 @@ function ReimagineContent() {
 
           {isRecording && <p className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest mt-3 text-center">Listening</p>}
         </div>
-      )}
-    </div>
+      </div>
   )
 }
 
