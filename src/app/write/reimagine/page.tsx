@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, Suspense, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, Suspense, type CSSProperties, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 
@@ -25,52 +25,108 @@ function energyIndexFor(word?: string): number {
 }
 
 const KEYFRAMES = `
-@keyframes reimagineFloatA { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(2vw,3vh) rotate(4deg); } }
-@keyframes reimagineFloatB { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-3vw,-2vh) rotate(-5deg); } }
-@keyframes reimagineDraw { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+@keyframes reimagineDrift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(6px,-6px); } }
+@keyframes reimagineDraw { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @keyframes reimagineWiggle { 0%,100% { transform: translateX(0); } 25% { transform: translateX(2px); } 75% { transform: translateX(-2px); } }
-@keyframes reimagineRise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes reimaginePop { from { opacity: 0; transform: scale(0.85) rotate(-3deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
+@keyframes reimagineRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 `
 
-// A single continuous hand-drawn ribbon — the recurring motif tying every
-// surface of this page together, echoing the reference's squiggle doodles.
-function Squiggle({
-  color,
-  className,
-  style,
-  draw,
-}: {
-  color: string
-  className?: string
-  style?: CSSProperties
-  draw?: boolean
-}) {
+// Hand-drawn glyph vocabulary standing in for the reference's bestiary — a
+// still eye (watching), a wave (steady rhythm), a coiled snake
+// (transformation), a sunburst (the reveal). Thick, confident, single-stroke.
+function EyeGlyph({ color, className, style }: { color: string; className?: string; style?: CSSProperties }) {
   return (
-    <svg viewBox="0 0 400 200" fill="none" className={className} style={style}>
-      <path
-        d="M10,100 C50,15 90,185 130,95 C170,5 210,195 250,100 C280,25 320,165 390,80"
-        stroke={color}
-        strokeWidth="14"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={
-          draw
-            ? { strokeDasharray: 1000, strokeDashoffset: 1000, animation: 'reimagineDraw 1.1s ease-out forwards' }
-            : undefined
-        }
-      />
+    <svg viewBox="0 0 60 40" fill="none" className={className} style={style}>
+      <path d="M4,20 Q30,2 56,20 Q30,38 4,20 Z" stroke={color} strokeWidth="4" strokeLinejoin="round" />
+      <circle cx="30" cy="20" r="7" fill={color} />
     </svg>
   )
 }
 
-function Dots({ color, className }: { color: string; className?: string }) {
+function WaveGlyph({ color, className, style }: { color: string; className?: string; style?: CSSProperties }) {
   return (
-    <div className={`relative ${className || ''}`} style={{ width: 34, height: 34 }}>
-      <span className="absolute rounded-full" style={{ width: 10, height: 10, background: color, top: 0, left: 12 }} />
-      <span className="absolute rounded-full" style={{ width: 10, height: 10, background: color, top: 12, left: 0 }} />
-      <span className="absolute rounded-full" style={{ width: 10, height: 10, background: color, top: 12, left: 24 }} />
-      <span className="absolute rounded-full" style={{ width: 10, height: 10, background: color, top: 24, left: 12 }} />
+    <svg viewBox="0 0 70 30" fill="none" className={className} style={style}>
+      <path d="M2,20 Q12,6 22,20 T42,20 T62,20" stroke={color} strokeWidth="5" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+function SnakeGlyph({ color, className, style, draw }: { color: string; className?: string; style?: CSSProperties; draw?: boolean }) {
+  return (
+    <svg viewBox="0 0 60 50" fill="none" className={className} style={style}>
+      <path
+        d="M8,42 C-2,30 8,14 22,16 C34,18 34,30 24,30 C17,30 16,22 22,20"
+        stroke={color}
+        strokeWidth="6"
+        strokeLinecap="round"
+        fill="none"
+        style={draw ? { strokeDasharray: 300, strokeDashoffset: 300, animation: 'reimagineDraw 0.9s ease-out forwards' } : undefined}
+      />
+      <circle cx="21.5" cy="19" r="3" fill={color} />
+    </svg>
+  )
+}
+
+function SunGlyph({ color, className, style }: { color: string; className?: string; style?: CSSProperties }) {
+  const rays = 8
+  return (
+    <svg viewBox="0 0 60 60" fill="none" className={className} style={style}>
+      {Array.from({ length: rays }).map((_, i) => {
+        const angle = (i / rays) * Math.PI * 2
+        const x1 = 30 + Math.cos(angle) * 13
+        const y1 = 30 + Math.sin(angle) * 13
+        const x2 = 30 + Math.cos(angle) * 27
+        const y2 = 30 + Math.sin(angle) * 27
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="5" strokeLinecap="round" />
+      })}
+      <circle cx="30" cy="30" r="9" fill={color} />
+    </svg>
+  )
+}
+
+const ENERGY_GLYPHS = [EyeGlyph, WaveGlyph, SnakeGlyph, SunGlyph]
+
+function MotifStrip({ color }: { color: string }) {
+  return (
+    <div className="flex justify-center gap-3">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <span key={i} className="rounded-full" style={{ width: 5, height: 5, background: color, opacity: 0.55 }} />
+      ))}
+    </div>
+  )
+}
+
+// Museum-placard double border — a thin outer rule, a black gap, a thin
+// inner rule, content inside. One accent color per card, never blended.
+function SpecimenCard({
+  color,
+  children,
+  className,
+}: {
+  color: string
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={className} style={{ border: `2px solid ${color}`, padding: 4 }}>
+      <div style={{ border: `1px solid ${color}` }} className="p-6 md:p-8">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// Letterpress double-strike: a faint offset duplicate behind the main line,
+// like print misregistration.
+function StruckText({ text, color, ghostColor, className }: { text: string; color: string; ghostColor: string; className?: string }) {
+  return (
+    <div className="relative w-full">
+      <p className={`absolute inset-0 w-full ${className || ''}`} style={{ color: ghostColor, opacity: 0.5, transform: 'translate(3px,3px)' }}>
+        {text}
+      </p>
+      <p className={`relative w-full ${className || ''}`} style={{ color }}>
+        {text}
+      </p>
     </div>
   )
 }
@@ -289,95 +345,41 @@ function ReimagineContent() {
   const trail = messages.slice(0, Math.max(stageStartIdx, 0))
   const stage = messages.slice(Math.max(stageStartIdx, 0))
   const energyColor = ENERGY_COLORS[energyIndex]
-  // Cycles per exchange so a longer back-and-forth moves through the whole
-  // palette instead of staying one color the entire conversation.
   const visionColor = ENERGY_COLORS[trail.length % ENERGY_COLORS.length]
 
   return (
     <div className="relative h-screen bg-[#111110] overflow-hidden">
       <style>{KEYFRAMES}</style>
 
-      {/* Ambient decoration — all four accents present at once as big soft
-          organic blobs, plus a drifting doodle. Deliberately loud. */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div
-          className="absolute opacity-95"
-          style={{
-            width: '46vw',
-            height: '40vw',
-            top: '-15%',
-            left: '-12%',
-            background: '#8B5CF6',
-            borderRadius: '62% 38% 55% 45% / 45% 55% 45% 55%',
-            animation: 'reimagineFloatA 20s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute opacity-95"
-          style={{
-            width: '38vw',
-            height: '34vw',
-            bottom: '-13%',
-            right: '-10%',
-            background: '#F59E0B',
-            borderRadius: '48% 52% 40% 60% / 55% 45% 60% 40%',
-            animation: 'reimagineFloatB 24s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute opacity-90"
-          style={{
-            width: '28vw',
-            height: '26vw',
-            top: '6%',
-            right: '-8%',
-            background: '#10B981',
-            borderRadius: '55% 45% 60% 40% / 40% 60% 40% 60%',
-            animation: 'reimagineFloatB 27s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute opacity-90"
-          style={{
-            width: '24vw',
-            height: '22vw',
-            bottom: '8%',
-            left: '-6%',
-            background: '#EF4444',
-            borderRadius: '45% 55% 50% 50% / 55% 45% 55% 45%',
-            animation: 'reimagineFloatA 23s ease-in-out infinite',
-          }}
-        />
-        <Squiggle
-          color="#e8e6e1"
-          className="absolute w-[38vw] max-w-[420px] opacity-60"
-          style={{ bottom: '4%', left: '22%', animation: 'reimagineFloatA 26s ease-in-out infinite' }}
-        />
-      </div>
-      <div className="fixed top-[14%] right-[10%] z-0 opacity-90 hidden md:block">
-        <Dots color="#111110" />
-      </div>
-      <div className="fixed bottom-[16%] left-[6%] z-0 opacity-90 hidden md:block">
-        <Dots color="#111110" />
+      {/* Specimen-wall texture: tiny scattered eye glyphs, very faint,
+          echoing the density of the reference collage without competing
+          with the cards. */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-[0.08]">
+        <EyeGlyph color="#8B5CF6" className="absolute w-12" style={{ top: '8%', left: '6%', animation: 'reimagineDrift 9s ease-in-out infinite' }} />
+        <EyeGlyph color="#10B981" className="absolute w-10" style={{ top: '20%', right: '10%', animation: 'reimagineDrift 11s ease-in-out infinite' }} />
+        <EyeGlyph color="#F59E0B" className="absolute w-14" style={{ bottom: '18%', left: '12%', animation: 'reimagineDrift 10s ease-in-out infinite' }} />
+        <EyeGlyph color="#EF4444" className="absolute w-11" style={{ bottom: '10%', right: '8%', animation: 'reimagineDrift 8s ease-in-out infinite' }} />
+        <EyeGlyph color="#8B5CF6" className="absolute w-9" style={{ top: '45%', left: '3%', animation: 'reimagineDrift 12s ease-in-out infinite' }} />
+        <EyeGlyph color="#10B981" className="absolute w-9" style={{ top: '55%', right: '4%', animation: 'reimagineDrift 9.5s ease-in-out infinite' }} />
       </div>
 
       <button
         onClick={() => router.push(`/write?piece_id=${pieceId}`)}
         className="fixed top-6 left-6 z-30 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors"
       >
-        <span className="w-5 h-5 rounded-full flex items-center justify-center bg-[#1f1f1d]">‹</span>
+        <span className="w-5 h-5 rounded-full flex items-center justify-center border border-[#4a4946]">‹</span>
         Back
       </button>
 
       <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 pt-24 pb-44">
-        <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div className="max-w-xl mx-auto w-full space-y-8">
           {trail.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
               {trail.map((msg, i) => (
                 <span
                   key={i}
-                  className={`inline-block text-xs font-bold px-3 py-1.5 rounded-full ${
-                    msg.role === 'user' ? 'bg-[#e8e6e1] text-[#111110]' : 'bg-[#1f1f1d] text-[#a8a6a0]'
+                  className={`inline-block text-xs font-bold px-3 py-1 border ${
+                    msg.role === 'user' ? 'border-[#e8e6e1] text-[#e8e6e1]' : 'border-[#4a4946] text-[#8c8a87]'
                   }`}
                 >
                   {msg.content}
@@ -386,117 +388,113 @@ function ReimagineContent() {
             </div>
           )}
 
-          <div key={stageStartIdx} className="space-y-5" style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
-            <div className="flex justify-center">
-              <span
-                className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full"
-                style={{ background: visionColor, color: '#111110' }}
-              >
-                01 · Vision
-              </span>
-            </div>
+          <div key={stageStartIdx} style={{ animation: 'reimagineRise 0.5s ease-out both' }}>
+            <SpecimenCard color={visionColor} className="mx-auto">
+              <div className="flex items-center justify-center gap-2 mb-5">
+                <EyeGlyph color={visionColor} className="w-7" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: visionColor }}>
+                  I · The Vision
+                </span>
+              </div>
 
-            {stage.map((msg, i) =>
-              msg.role === 'assistant' ? (
-                <div
-                  key={i}
-                  className="mx-auto rounded-[2rem] px-8 py-10 md:px-12 md:py-14"
-                  style={{ background: visionColor }}
-                >
-                  <p className="text-3xl md:text-5xl font-bold leading-[1.1] tracking-tight text-[#111110] text-center whitespace-pre-wrap">
+              {stage.map((msg, i) =>
+                msg.role === 'assistant' ? (
+                  <StruckText
+                    key={i}
+                    text={msg.content}
+                    color="#e8e6e1"
+                    ghostColor={visionColor}
+                    className="text-2xl md:text-4xl font-bold leading-[1.15] tracking-tight text-center whitespace-pre-wrap"
+                  />
+                ) : (
+                  <p key={i} className="text-base font-medium text-[#a8a6a0] text-center italic whitespace-pre-wrap mt-3">
                     {msg.content}
                   </p>
-                </div>
-              ) : (
-                <div key={i} className="flex justify-center">
-                  <p
-                    className="inline-block text-base font-bold px-4 py-2 rounded-full bg-[#1f1f1d] text-[#e8e6e1] whitespace-pre-wrap"
-                  >
-                    {msg.content}
-                  </p>
-                </div>
-              )
-            )}
+                )
+              )}
 
-            {isLoading && (
-              <p className="text-3xl font-black text-[#4a4946] text-center">···</p>
-            )}
+              {isLoading && <p className="text-2xl font-black text-[#4a4946] text-center mt-3">···</p>}
+            </SpecimenCard>
           </div>
 
           {pendingLens && !isLoading && (
-            <div className="relative max-w-xl mx-auto pt-4">
-              <Squiggle
+            <div
+              className="relative"
+              style={{
+                opacity: lensVisible ? 1 : 0,
+                transform: lensVisible ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
+              }}
+            >
+              <SnakeGlyph
                 color={energyColor}
-                className="absolute w-40 -top-6 -left-10 opacity-80 pointer-events-none hidden sm:block"
                 draw={lensVisible}
+                className="absolute w-16 -top-8 -left-6 opacity-90 pointer-events-none hidden sm:block"
               />
-              <div
-                className="relative rounded-[2rem] p-7 md:p-9 space-y-6 text-center"
-                style={{
-                  background: energyColor,
-                  opacity: lensVisible ? 1 : 0,
-                  transform: lensVisible ? 'scale(1) rotate(0deg)' : 'scale(0.85) rotate(-3deg)',
-                  transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
-                }}
-              >
-                <span className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full bg-[#111110] text-[#e8e6e1]">
-                  02 · The Lens
-                </span>
-                <p className="text-xl md:text-2xl font-bold leading-snug text-[#111110]">{pendingLens.lens}</p>
-
-                <div className="flex items-center justify-center gap-4 pt-1">
-                  {ENERGY_SCALE.map((label, i) => (
-                    <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-1.5">
-                      <span
-                        className="rounded-full transition-transform duration-200"
-                        style={{
-                          width: i === energyIndex ? 22 : 16,
-                          height: i === energyIndex ? 22 : 16,
-                          background: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.35)',
-                          transform: i === energyIndex && energyPulsing ? 'scale(1.3)' : 'scale(1)',
-                        }}
-                      />
-                      <span
-                        className="text-[9px] font-bold uppercase tracking-widest"
-                        style={{ color: i === energyIndex ? '#111110' : 'rgba(17,17,16,0.5)' }}
-                      >
-                        {label}
-                      </span>
-                    </button>
-                  ))}
+              <SpecimenCard color={energyColor} className="mx-auto">
+                <div className="flex items-center justify-center gap-2 mb-5">
+                  <SnakeGlyph color={energyColor} className="w-7" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: energyColor }}>
+                    II · The Lens
+                  </span>
                 </div>
 
-                <button
-                  onClick={runReimagine}
-                  disabled={isGenerating}
-                  className="px-9 py-3 rounded-full text-xs font-black tracking-[0.25em] uppercase transition-transform hover:scale-105 disabled:opacity-50"
-                  style={{ background: '#111110', color: '#e8e6e1' }}
-                >
-                  {isGenerating ? 'Reimagining…' : output ? 'Run it again ▸' : 'Run it ▸'}
-                </button>
-                <p className="text-xs font-medium" style={{ color: 'rgba(17,17,16,0.6)' }}>
-                  keep talking below any time to change the lens
-                </p>
-              </div>
+                <p className="text-xl md:text-2xl font-bold leading-snug text-[#e8e6e1] text-center">{pendingLens.lens}</p>
+
+                <div className="my-6">
+                  <MotifStrip color={energyColor} />
+                </div>
+
+                <div className="flex items-center justify-center gap-6">
+                  {ENERGY_SCALE.map((label, i) => {
+                    const Glyph = ENERGY_GLYPHS[i]
+                    const active = i === energyIndex
+                    return (
+                      <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-2">
+                        <Glyph
+                          color={active ? ENERGY_COLORS[i] : '#4a4946'}
+                          className="w-9"
+                          style={{ transform: active && energyPulsing ? 'scale(1.3)' : 'scale(1)', transition: 'transform 0.2s' }}
+                        />
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-widest"
+                          style={{ color: active ? ENERGY_COLORS[i] : '#4a4946' }}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex justify-center mt-7">
+                  <button
+                    onClick={runReimagine}
+                    disabled={isGenerating}
+                    className="px-8 py-2.5 text-xs font-black tracking-[0.25em] uppercase transition-colors disabled:opacity-50"
+                    style={{ border: `2px solid ${energyColor}`, color: energyColor, background: 'transparent' }}
+                  >
+                    {isGenerating ? 'Reimagining…' : output ? 'Run it again' : 'Run it'}
+                  </button>
+                </div>
+                <p className="text-xs font-medium text-[#4a4946] text-center mt-3">keep talking below any time to change the lens</p>
+              </SpecimenCard>
             </div>
           )}
 
           {(output || isGenerating) && (
-            <div
-              className="max-w-xl mx-auto rounded-[2rem] p-7 md:p-9 space-y-5"
-              style={{ background: '#161614', border: `6px solid ${energyColor}` }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span
-                  className="inline-block text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full"
-                  style={{ background: energyColor, color: '#111110' }}
-                >
-                  03 · The Result
-                </span>
+            <SpecimenCard color={energyColor} className="mx-auto">
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="flex items-center gap-2">
+                  <SunGlyph color={energyColor} className="w-7" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: energyColor }}>
+                    III · The Result
+                  </span>
+                </div>
                 {output && !isGenerating && (
                   <button
                     onClick={copyOutput}
-                    className="text-xs font-bold uppercase tracking-widest text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors flex-shrink-0"
+                    className="text-xs font-bold uppercase tracking-widest text-[#8c8a87] hover:text-[#e8e6e1] transition-colors flex-shrink-0"
                   >
                     {copied ? 'Copied' : 'Copy'}
                   </button>
@@ -508,14 +506,14 @@ function ReimagineContent() {
               ) : (
                 <p className="text-xl font-bold text-[#4a4946]">reimagining···</p>
               )}
-            </div>
+            </SpecimenCard>
           )}
         </div>
       </div>
 
       {error && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30">
-          <p className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#1f1f1d]" style={{ color: '#EF4444' }}>
+          <p className="text-xs font-bold px-3 py-1.5 border border-[#EF4444]" style={{ color: '#EF4444' }}>
             {error}
           </p>
         </div>
@@ -523,62 +521,62 @@ function ReimagineContent() {
 
       <div
         className="fixed bottom-0 left-0 right-0 z-20 px-6 py-6"
-        style={{ background: 'linear-gradient(to top, #111110 60%, transparent)' }}
+        style={{ background: 'linear-gradient(to top, #111110 65%, transparent)' }}
       >
         <div className="max-w-xl mx-auto w-full flex items-center gap-3">
           <textarea
-              ref={textareaRef}
-              value={inputText}
-              onChange={(e) => {
-                setInputText(e.target.value)
-                e.target.style.height = 'auto'
-                e.target.style.height = e.target.scrollHeight + 'px'
+            ref={textareaRef}
+            value={inputText}
+            onChange={(e) => {
+              setInputText(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
+                handleSend()
+              }
+            }}
+            placeholder="say what it wants to become…"
+            disabled={isLoading}
+            rows={1}
+            className="flex-1 bg-[#111110] border border-[#2e2d2a] px-4 py-2.5 text-base font-medium text-[#e8e6e1] placeholder:text-[#4a4946] disabled:opacity-50 focus:outline-none focus:border-[#8c8a87]"
+            style={{ resize: 'none', overflowY: 'auto', maxHeight: '120px' }}
+          />
+
+          <button
+            onClick={handleRecordToggle}
+            disabled={isLoading}
+            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+            className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+              isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+            }`}
+            style={{ border: `2px solid ${isRecording ? '#8B5CF6' : '#4a4946'}` }}
+          >
+            <span
+              className="block rounded-full"
+              style={{
+                width: 9,
+                height: 9,
+                background: isRecording ? '#8B5CF6' : '#8c8a87',
+                animation: isRecording ? 'reimagineWiggle 0.5s ease-in-out infinite' : 'none',
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
-                  handleSend()
-                }
-              }}
-              placeholder="say what it wants to become…"
-              disabled={isLoading}
-              rows={1}
-              className="flex-1 bg-[#1c1c1a] rounded-full px-5 py-3 text-base font-medium text-[#e8e6e1] placeholder:text-[#4a4946] disabled:opacity-50 focus:outline-none"
-              style={{ resize: 'none', overflowY: 'auto', maxHeight: '120px' }}
             />
+          </button>
 
-            <button
-              onClick={handleRecordToggle}
-              disabled={isLoading}
-              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-              className={`relative w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-              }`}
-              style={{ background: isRecording ? '#8B5CF6' : '#1c1c1a' }}
-            >
-              <span
-                className="block rounded-full"
-                style={{
-                  width: 10,
-                  height: 10,
-                  background: isRecording ? '#111110' : '#8c8a87',
-                  animation: isRecording ? 'reimagineWiggle 0.5s ease-in-out infinite' : 'none',
-                }}
-              />
-            </button>
-
-            <button
-              onClick={handleSend}
-              disabled={!inputText.trim() || isLoading}
-              className="px-6 py-3 rounded-full text-xs font-black tracking-widest uppercase transition-transform hover:scale-105 flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ background: '#e8e6e1', color: '#111110' }}
-            >
-              Send
-            </button>
-          </div>
-
-          {isRecording && <p className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest mt-3 text-center">Listening</p>}
+          <button
+            onClick={handleSend}
+            disabled={!inputText.trim() || isLoading}
+            className="px-5 py-2.5 text-xs font-black tracking-widest uppercase transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ border: '2px solid #e8e6e1', color: '#e8e6e1', background: 'transparent' }}
+          >
+            Send
+          </button>
         </div>
+
+        {isRecording && <p className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest mt-3 text-center">Listening</p>}
       </div>
+    </div>
   )
 }
 
