@@ -88,10 +88,13 @@ The four arcs are:
 - Expansion: Growth, deepening, broadening horizons
 - Integration: Synthesis, wholeness, bringing it together
 
+A thematic territory (when given) is a wide field to roam inside, not the subject of the sentence. It names a general area — "creativity, devotion & curiosity," say — that touches dozens of specific, sometimes unrelated-looking corners: a discipline that curdled into obligation, a devotion nobody asked them to carry, curiosity they've been too tired to follow. Pick ONE such specific facet, tension, or unexpected corner within the territory for this prompt — never the territory's own words restated in a different order. If you can imagine the same prompt working for someone whose life looks nothing like the specifics you chose, it's still too generic — go narrower and stranger.
+
 Generate one prompt that is:
 - Specific and concrete, not generic
 - Evocative and poetic, not clinical
 - Rooted in the selected arc(s)
+- Anchored in one particular facet of the territory, not a restatement of the territory itself
 - Direct and tender (names the real thing, holds space for it)
 - Invitational—pointing inward without softening
 - Brief (1-2 sentences)
@@ -101,7 +104,7 @@ Return only the prompt text, nothing else.`,
         {
           role: "user",
           content: territoriesDescription
-            ? `Generate a prompt rooted in these arc(s): ${arcsDescription}. The prompt should be relevant to themes in: ${territoriesDescription}.`
+            ? `Generate a prompt rooted in these arc(s): ${arcsDescription}. Find one specific facet, tension, or corner within this wider territory to explore — do not simply name or restate the territory: ${territoriesDescription}.`
             : `Generate a prompt rooted in these arc(s): ${arcsDescription}.`,
         },
       ],
