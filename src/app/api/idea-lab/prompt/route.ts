@@ -9,6 +9,7 @@ interface PromptRequest {
   randomArcs?: boolean;
   territories?: string[] | null;
   randomTerritories?: boolean;
+  energy?: string;
 }
 
 interface PromptResponse {
@@ -62,6 +63,21 @@ const ENTRY_ANGLES = [
 function getRandomAngle(): string {
   return ENTRY_ANGLES[Math.floor(Math.random() * ENTRY_ANGLES.length)];
 }
+
+// The confirmed Portrait tends to skew toward harder material — that's what
+// gets confirmed as a real, recurring pattern. Without a live signal for how
+// someone is actually doing today, prompts default to that same weight every
+// time, which can pile on during a stretch that's already heavy, or feel
+// tone-deaf on a lighter day. This lets the person say which they want.
+const ENERGY_STEER: Record<string, string> = {
+  heavy:
+    "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there, not redirect them. Lean into the harder or more shadow-toned material above if it resonates — this is exactly the moment it's useful for, not something to soften or route around. Help them name and explore what's actually present.",
+  low: "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there, not redirect them. Lean into the harder or more shadow-toned material above if it resonates — this is exactly the moment it's useful for, not something to soften or route around. Help them name and explore what's actually present.",
+  light:
+    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. Lean into whatever above points at momentum, curiosity, or what's working — don't default to harder or shadow-toned material just because it's available, unless the arc or territory genuinely calls for it.",
+  bright:
+    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. Lean into whatever above points at momentum, curiosity, or what's working — don't default to harder or shadow-toned material just because it's available, unless the arc or territory genuinely calls for it.",
+};
 
 export async function POST(request: NextRequest): Promise<NextResponse<PromptResponse>> {
   try {
@@ -140,6 +156,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
 
     const groundingBlock = contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
     const angle = getRandomAngle();
+    const energySteer = body.energy ? ENERGY_STEER[body.energy] : undefined;
 
     const response = await anthropic.messages.create({
       model: MODELS.fast,
@@ -147,6 +164,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       system: `You are Companheiro, generating a creative prompt that invites someone deeper into their own unfolding.
 
 ${groundingBlock}Use the material above (when present) to ground the prompt in something specific and recognizable about this actual person — not to reference it directly or explain it back to them, just to make the specifics of the prompt feel like they could only be written for this person. If there's nothing above, ground it in the entry angle instead. Never treat this as a confrontation or ask them to process something — it's raw material for a concrete detail, nothing more.
+${energySteer ? `\n${energySteer}\n` : ""}
 
 The four arcs are:
 - Breakaway: Disruption, stepping away from what no longer serves

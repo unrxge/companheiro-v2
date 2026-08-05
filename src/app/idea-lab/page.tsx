@@ -45,6 +45,16 @@ const TERRITORY_LABELS: Record<string, string> = {
   slow_living_life_in_service: 'Slow living & life in service',
 }
 
+const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const
+type EnergyLevel = (typeof ENERGY_LEVELS)[number]
+const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = {
+  heavy: 'Heavy',
+  low: 'Low',
+  steady: 'Steady',
+  light: 'Light',
+  bright: 'Bright',
+}
+
 // Keys are the selected arcs sorted alphabetically and comma-joined.
 const ALIVE_PROMPTS: Record<string, string> = {
   default: 'What feels alive today?',
@@ -69,6 +79,7 @@ export default function IdeaLabPage() {
   const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
   const [useRandomTerritories, setUseRandomTerritories] = useState(false)
+  const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('steady')
   const [captures, setCaptures] = useState<Capture[]>([])
   const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
@@ -157,7 +168,8 @@ export default function IdeaLabPage() {
         randomArcs?: boolean
         territories?: Territory[] | null
         randomTerritories?: boolean
-      } = {}
+        energy?: EnergyLevel
+      } = { energy: energyLevel }
 
       if (useRandomArcs) {
         payload.randomArcs = true
@@ -299,6 +311,33 @@ export default function IdeaLabPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Emotional Energy */}
+          <div className="space-y-4">
+            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Where&apos;s your energy right now?</h2>
+            <div className="grid grid-cols-5 gap-2">
+              {ENERGY_LEVELS.map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setEnergyLevel(level)}
+                  className={`py-3 rounded border text-xs font-medium transition-all ${
+                    energyLevel === level
+                      ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                  }`}
+                >
+                  {ENERGY_LEVEL_LABELS[level]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-[#4a4946]">
+              {energyLevel === 'steady'
+                ? "Prompts draw from your portrait as usual."
+                : energyLevel === 'heavy' || energyLevel === 'low'
+                  ? 'Prompts will help you explore what feels heavy right now, rather than steer you away from it.'
+                  : "Prompts will match this lighter energy instead of defaulting to harder material."}
+            </p>
           </div>
 
           {/* What feels alive prompt */}
