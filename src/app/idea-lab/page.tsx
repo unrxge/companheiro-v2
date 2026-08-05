@@ -79,7 +79,8 @@ export default function IdeaLabPage() {
   const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
   const [useRandomTerritories, setUseRandomTerritories] = useState(false)
-  const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('steady')
+  const [energyIndex, setEnergyIndex] = useState(2)
+  const energyLevel = ENERGY_LEVELS[energyIndex]
   const [captures, setCaptures] = useState<Capture[]>([])
   const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
@@ -315,21 +316,23 @@ export default function IdeaLabPage() {
 
           {/* Emotional Energy */}
           <div className="space-y-4">
-            <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Where&apos;s your energy right now?</h2>
-            <div className="grid grid-cols-5 gap-2">
-              {ENERGY_LEVELS.map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setEnergyLevel(level)}
-                  className={`py-3 rounded border text-xs font-medium transition-all ${
-                    energyLevel === level
-                      ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
-                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
-                  }`}
-                >
-                  {ENERGY_LEVEL_LABELS[level]}
-                </button>
-              ))}
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Where&apos;s your energy right now?</h2>
+              <span className="text-sm text-[#d4d2cd] font-medium">{ENERGY_LEVEL_LABELS[energyLevel]}</span>
+            </div>
+            <div className="space-y-1.5">
+              <input
+                type="range"
+                min={0}
+                max={ENERGY_LEVELS.length - 1}
+                value={energyIndex}
+                onChange={(e) => setEnergyIndex(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[#2e2d2a] accent-[#e8e6e1]"
+              />
+              <div className="flex justify-between text-xs text-[#4a4946]">
+                <span>Heavy</span>
+                <span>Bright</span>
+              </div>
             </div>
             <p className="text-xs text-[#4a4946]">
               {energyLevel === 'steady'

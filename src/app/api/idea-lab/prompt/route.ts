@@ -64,19 +64,21 @@ function getRandomAngle(): string {
   return ENTRY_ANGLES[Math.floor(Math.random() * ENTRY_ANGLES.length)];
 }
 
-// The confirmed Portrait tends to skew toward harder material — that's what
-// gets confirmed as a real, recurring pattern. Without a live signal for how
-// someone is actually doing today, prompts default to that same weight every
-// time, which can pile on during a stretch that's already heavy, or feel
-// tone-deaf on a lighter day. This lets the person say which they want.
+// Steers which end of the TERRITORY's own range to draw the facet from —
+// deliberately not the Portrait. The Portrait is personal history and tends
+// to skew toward harder material (that's what gets confirmed as a real
+// recurring pattern), so leaning on it for tone would mean a "heavy" day
+// reaches into the person's own shadow patterns rather than the theme's.
+// Every territory already contains both weight and lightness on its own;
+// this just picks which corner of it to enter through today.
 const ENERGY_STEER: Record<string, string> = {
   heavy:
-    "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there, not redirect them. Lean into the harder or more shadow-toned material above if it resonates — this is exactly the moment it's useful for, not something to soften or route around. Help them name and explore what's actually present.",
-  low: "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there, not redirect them. Lean into the harder or more shadow-toned material above if it resonates — this is exactly the moment it's useful for, not something to soften or route around. Help them name and explore what's actually present.",
+    "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there. When you choose the facet or corner of the territory to explore, reach for the harder, heavier, more shadow-toned end of that territory's own range — not by pulling from anything personal about them, just by choosing the weightier thing the territory itself contains. Meet them in weight; don't force lightness.",
+  low: "They're naming that they're in a heavy, low stretch right now and want this prompt to meet them there. When you choose the facet or corner of the territory to explore, reach for the harder, heavier, more shadow-toned end of that territory's own range — not by pulling from anything personal about them, just by choosing the weightier thing the territory itself contains. Meet them in weight; don't force lightness.",
   light:
-    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. Lean into whatever above points at momentum, curiosity, or what's working — don't default to harder or shadow-toned material just because it's available, unless the arc or territory genuinely calls for it.",
+    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. When you choose the facet or corner of the territory to explore, reach for the lighter, more expansive, hopeful end of that territory's own range — the parts of it that feel like relief, momentum, or aliveness, without ignoring the theme itself.",
   bright:
-    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. Lean into whatever above points at momentum, curiosity, or what's working — don't default to harder or shadow-toned material just because it's available, unless the arc or territory genuinely calls for it.",
+    "They're naming that they're in a lighter, more energized stretch right now and want the prompt to match that. When you choose the facet or corner of the territory to explore, reach for the lighter, more expansive, hopeful end of that territory's own range — the parts of it that feel like relief, momentum, or aliveness, without ignoring the theme itself.",
 };
 
 export async function POST(request: NextRequest): Promise<NextResponse<PromptResponse>> {
@@ -164,7 +166,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       system: `You are Companheiro, generating a creative prompt that invites someone deeper into their own unfolding.
 
 ${groundingBlock}Use the material above (when present) to ground the prompt in something specific and recognizable about this actual person — not to reference it directly or explain it back to them, just to make the specifics of the prompt feel like they could only be written for this person. If there's nothing above, ground it in the entry angle instead. Never treat this as a confrontation or ask them to process something — it's raw material for a concrete detail, nothing more.
-${energySteer ? `\n${energySteer}\n` : ""}
 
 The four arcs are:
 - Breakaway: Disruption, stepping away from what no longer serves
@@ -173,6 +174,7 @@ The four arcs are:
 - Integration: Synthesis, wholeness, bringing it together
 
 A thematic territory (when given) is a wide field to roam inside, not the subject of the sentence. It names a general area — "creativity, devotion & curiosity," say — that touches dozens of specific, sometimes unrelated-looking corners: a discipline that curdled into obligation, a devotion nobody asked them to carry, curiosity they've been too tired to follow. Pick ONE such specific facet, tension, or unexpected corner within the territory for this prompt — never the territory's own words restated in a different order. If you can imagine the same prompt working for someone whose life looks nothing like the specifics you chose, it's still too generic — go narrower and stranger.
+${energySteer ? `\n${energySteer}\n` : ""}
 
 Generate one prompt that is:
 - Specific and concrete, not generic
