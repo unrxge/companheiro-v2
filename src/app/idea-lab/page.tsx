@@ -75,12 +75,14 @@ const ALIVE_PROMPTS: Record<string, string> = {
 export default function IdeaLabPage() {
   const router = useRouter()
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
+  const [skipArcs, setSkipArcs] = useState(false)
   const [useRandomArcs, setUseRandomArcs] = useState(false)
   const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
   const [useRandomTerritories, setUseRandomTerritories] = useState(false)
   const [energyIndex, setEnergyIndex] = useState(2)
   const energyLevel = ENERGY_LEVELS[energyIndex]
+  const [impersonal, setImpersonal] = useState(false)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
@@ -119,6 +121,15 @@ export default function IdeaLabPage() {
   const handleRandomArcs = () => {
     setUseRandomArcs(!useRandomArcs)
     if (!useRandomArcs) {
+      setSkipArcs(false)
+      setSelectedArcs([])
+    }
+  }
+
+  const handleSkipArcs = () => {
+    setSkipArcs(!skipArcs)
+    if (!skipArcs) {
+      setUseRandomArcs(false)
       setSelectedArcs([])
     }
   }
@@ -155,8 +166,15 @@ export default function IdeaLabPage() {
   }
 
   const handleGeneratePrompt = async () => {
-    if (selectedArcs.length === 0 && !useRandomArcs) {
-      setError('Please select at least one arc or use random')
+    const arcsProvided = selectedArcs.length > 0 || useRandomArcs
+    const territoriesProvided = selectedTerritories.length > 0 || useRandomTerritories
+
+    if (!arcsProvided && !skipArcs) {
+      setError('Please select at least one arc, use random, or skip arcs')
+      return
+    }
+    if (skipArcs && !territoriesProvided) {
+      setError('Skipping arcs needs a territory to explore — select one or use random')
       return
     }
 
@@ -165,14 +183,17 @@ export default function IdeaLabPage() {
 
     try {
       const payload: {
-        arcs?: Arc[]
+        arcs?: Arc[] | null
         randomArcs?: boolean
         territories?: Territory[] | null
         randomTerritories?: boolean
         energy?: EnergyLevel
-      } = { energy: energyLevel }
+        impersonal?: boolean
+      } = { energy: energyLevel, impersonal }
 
-      if (useRandomArcs) {
+      if (skipArcs) {
+        payload.arcs = null
+      } else if (useRandomArcs) {
         payload.randomArcs = true
       } else {
         payload.arcs = selectedArcs
@@ -230,26 +251,43 @@ export default function IdeaLabPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Select your arc(s)</h2>
-              <button
-                onClick={handleRandomArcs}
-                className={`px-3 py-1 rounded border text-xs transition-all ${
-                  useRandomArcs
-                    ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
-                    : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
-                }`}
-                title="Randomize arc selection"
-              >
-                🎲
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRandomArcs}
+                  className={`px-3 py-1 rounded border text-xs transition-all ${
+                    useRandomArcs
+                      ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                  }`}
+                  title="Randomize arc selection"
+                >
+                  🎲
+                </button>
+                <button
+                  onClick={handleSkipArcs}
+                  className={`px-3 py-1 rounded border text-xs font-medium transition-all ${
+                    skipArcs
+                      ? 'bg-[#2e2d2a] border-[#4a4946] text-[#d4d2cd]'
+                      : 'bg-transparent border-[#2e2d2a] text-[#8c8a87] hover:border-[#4a4946]'
+                  }`}
+                >
+                  Skip
+                </button>
+              </div>
             </div>
+            {skipArcs && (
+              <p className="text-xs text-[#4a4946]">
+                No arc — the prompt will stay purely inside the selected territory, without a directional frame.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
                 <button
                   key={arc}
                   onClick={() => toggleArc(arc)}
-                  disabled={useRandomArcs}
+                  disabled={useRandomArcs || skipArcs}
                   className={`p-4 rounded border transition-all ${
-                    useRandomArcs
+                    useRandomArcs || skipArcs
                       ? 'bg-transparent border-[#1a1a18] text-[#3d3c39] cursor-not-allowed opacity-40'
                       : selectedArcs.includes(arc)
                         ? 'bg-[#e8e6e1] border-[#e8e6e1] text-[#111110]'
@@ -335,12 +373,44 @@ export default function IdeaLabPage() {
               </div>
             </div>
             <p className="text-xs text-[#4a4946]">
-              {energyLevel === 'steady'
-                ? "Prompts draw from your portrait as usual."
-                : energyLevel === 'heavy' || energyLevel === 'low'
-                  ? 'Prompts will help you explore what feels heavy right now, rather than steer you away from it.'
-                  : "Prompts will match this lighter energy instead of defaulting to harder material."}
+              {impersonal
+                ? 'No personal grounding right now, so this only shapes which end of the territory itself gets explored.'
+                : energyLevel === 'steady'
+                  ? 'Prompts draw from your portrait as usual.'
+                  : energyLevel === 'heavy' || energyLevel === 'low'
+                    ? 'Prompts will help you explore what feels heavy right now, rather than steer you away from it.'
+                    : 'Prompts will match this lighter energy instead of defaulting to harder material.'}
             </p>
+          </div>
+
+          {/* Impersonal mode */}
+          <div className="space-y-2">
+            <button
+              onClick={() => setImpersonal(!impersonal)}
+              className={`w-full flex items-center justify-between gap-2 p-4 rounded border transition-all ${
+                impersonal
+                  ? 'bg-[#2e2d2a] border-[#4a4946]'
+                  : 'bg-transparent border-[#2e2d2a] hover:border-[#4a4946]'
+              }`}
+            >
+              <span className="text-left">
+                <span className="block text-sm font-medium text-[#d4d2cd]">Impersonal mode</span>
+                <span className="block text-xs text-[#8c8a87] mt-0.5">
+                  No portrait, no active work — just the arc and territory on their own terms
+                </span>
+              </span>
+              <span
+                className={`flex-shrink-0 w-9 h-5 rounded-full relative transition-colors ${
+                  impersonal ? 'bg-[#e8e6e1]' : 'bg-[#1a1a18]'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#111110] transition-transform ${
+                    impersonal ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </span>
+            </button>
           </div>
 
           {/* What feels alive prompt */}

@@ -5,11 +5,12 @@ import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 
 interface PromptRequest {
-  arcs?: string[];
+  arcs?: string[] | null;
   randomArcs?: boolean;
   territories?: string[] | null;
   randomTerritories?: boolean;
   energy?: string;
+  impersonal?: boolean;
 }
 
 interface PromptResponse {
@@ -90,14 +91,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
 
     const body: PromptRequest = await request.json();
 
-    if ((!body.arcs || body.arcs.length === 0) && !body.randomArcs) {
+    const arcsSkipped = body.arcs === null;
+    if (!arcsSkipped && (!body.arcs || body.arcs.length === 0) && !body.randomArcs) {
       return NextResponse.json(
         { prompt: "" },
         { status: 400 }
       );
     }
 
-    const finalArcs = body.randomArcs ? getRandomArcs() : body.arcs || [];
+    const finalArcs = arcsSkipped ? [] : body.randomArcs ? getRandomArcs() : body.arcs || [];
     const arcsDescription = finalArcs.join(", ");
 
     let territoriesDescription: string;
@@ -122,41 +124,51 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     // from conceptualise/zoom-out/writing too, not just check-ins) plus
     // what's actually in motion right now. Operational, not confrontational —
     // nothing here requires the person to have processed anything out loud.
-    const [portraitEntries, { data: activePieces }, { data: queueIdeas }] = await Promise.all([
-      getActivePortrait(auth),
-      supabase
-        .from("pieces")
-        .select("title, arc, thematic_territory, stage")
-        .eq("user_id", user.id)
-        .neq("stage", "posted")
-        .limit(8),
-      supabase
-        .from("ideas")
-        .select("title, one_sentence, arc")
-        .eq("user_id", user.id)
-        .in("status", ["ready", "developing"])
-        .limit(8),
-    ]);
+    // Skipped entirely in impersonal mode — no DB round trip, no reference
+    // to the person at all.
+    let groundingBlock = "";
+    if (!body.impersonal) {
+      const [portraitEntries, { data: activePieces }, { data: queueIdeas }] = await Promise.all([
+        getActivePortrait(auth),
+        supabase
+          .from("pieces")
+          .select("title, arc, thematic_territory, stage")
+          .eq("user_id", user.id)
+          .neq("stage", "posted")
+          .limit(8),
+        supabase
+          .from("ideas")
+          .select("title, one_sentence, arc")
+          .eq("user_id", user.id)
+          .in("status", ["ready", "developing"])
+          .limit(8),
+      ]);
 
-    const contextParts: string[] = [];
-    const portraitBlock = formatPortraitForPrompt(portraitEntries);
-    if (portraitBlock) contextParts.push(portraitBlock);
+      const contextParts: string[] = [];
+      const portraitBlock = formatPortraitForPrompt(portraitEntries);
+      if (portraitBlock) contextParts.push(portraitBlock);
 
-    if (activePieces && activePieces.length > 0) {
-      contextParts.push(
-        "WHAT'S ACTIVELY IN MOTION:\n" +
-          activePieces.map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, stage: ${p.stage})`).join("\n")
-      );
+      if (activePieces && activePieces.length > 0) {
+        contextParts.push(
+          "WHAT'S ACTIVELY IN MOTION:\n" +
+            activePieces.map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, stage: ${p.stage})`).join("\n")
+        );
+      }
+
+      if (queueIdeas && queueIdeas.length > 0) {
+        contextParts.push(
+          "IDEAS ALREADY QUEUED:\n" +
+            queueIdeas.map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`).join("\n")
+        );
+      }
+
+      groundingBlock = contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
     }
 
-    if (queueIdeas && queueIdeas.length > 0) {
-      contextParts.push(
-        "IDEAS ALREADY QUEUED:\n" +
-          queueIdeas.map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`).join("\n")
-      );
-    }
+    const groundingInstruction = body.impersonal
+      ? "IMPERSONAL MODE: nothing is known about who's asking, and it should stay that way. Do not invent or assume anything personal — no imagined specifics about a life, a relationship, a history. Explore the territory and arc purely on their own terms, drawing only from the entry angle below and the general human range the theme itself contains."
+      : `${groundingBlock}Use the material above (when present) to ground the prompt in something specific and recognizable about this actual person — not to reference it directly or explain it back to them, just to make the specifics of the prompt feel like they could only be written for this person. If there's nothing above, ground it in the entry angle instead. Never treat this as a confrontation or ask them to process something — it's raw material for a concrete detail, nothing more.`;
 
-    const groundingBlock = contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
     const angle = getRandomAngle();
     const energySteer = body.energy ? ENERGY_STEER[body.energy] : undefined;
 
@@ -165,7 +177,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       max_tokens: 220,
       system: `You are Companheiro, generating a creative prompt that invites someone deeper into their own unfolding.
 
-${groundingBlock}Use the material above (when present) to ground the prompt in something specific and recognizable about this actual person — not to reference it directly or explain it back to them, just to make the specifics of the prompt feel like they could only be written for this person. If there's nothing above, ground it in the entry angle instead. Never treat this as a confrontation or ask them to process something — it's raw material for a concrete detail, nothing more.
+${groundingInstruction}
 
 The four arcs are:
 - Breakaway: Disruption, stepping away from what no longer serves
@@ -175,12 +187,11 @@ The four arcs are:
 
 A thematic territory (when given) is a wide field to roam inside, not the subject of the sentence. It names a general area — "creativity, devotion & curiosity," say — that touches dozens of specific, sometimes unrelated-looking corners: a discipline that curdled into obligation, a devotion nobody asked them to carry, curiosity they've been too tired to follow. Pick ONE such specific facet, tension, or unexpected corner within the territory for this prompt — never the territory's own words restated in a different order. If you can imagine the same prompt working for someone whose life looks nothing like the specifics you chose, it's still too generic — go narrower and stranger.
 ${energySteer ? `\n${energySteer}\n` : ""}
-
+${arcsDescription ? "" : "No arc was given for this one — don't force a Breakaway/Beginning/Expansion/Integration framing onto it. Let the territory carry the whole prompt on its own terms.\n"}
 Generate one prompt that is:
 - Specific and concrete, not generic
 - Evocative and poetic, not clinical
-- Rooted in the selected arc(s)
-- Anchored in one particular facet of the territory, not a restatement of the territory itself
+${arcsDescription ? "- Rooted in the selected arc(s)\n" : ""}- Anchored in one particular facet of the territory, not a restatement of the territory itself
 - One idea, plainly said — not several abstract clauses stacked into a single sentence
 - Direct and tender (names the real thing, holds space for it)
 - Invitational—pointing inward without softening
@@ -190,9 +201,12 @@ Return only the prompt text, nothing else.`,
       messages: [
         {
           role: "user",
-          content: territoriesDescription
-            ? `Generate a prompt rooted in these arc(s): ${arcsDescription}. Enter this wider territory through: ${angle}. Do not simply name or restate the territory itself: ${territoriesDescription}.`
-            : `Generate a prompt rooted in these arc(s): ${arcsDescription}. Enter it through: ${angle}.`,
+          content: [
+            arcsDescription ? `Generate a prompt rooted in these arc(s): ${arcsDescription}.` : "Generate a prompt with no arc framing.",
+            territoriesDescription
+              ? `Enter this wider territory through: ${angle}. Do not simply name or restate the territory itself: ${territoriesDescription}.`
+              : `Enter it through: ${angle}.`,
+          ].join(" "),
         },
       ],
     });
