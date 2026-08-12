@@ -324,10 +324,17 @@ export default function CheckInPage() {
     setError(null)
 
     try {
+      // Full conversation, including the challenge/deeper-work exchange —
+      // the root of what's worth journaling about often surfaces there,
+      // not in the opening entry alone.
+      const fullConversation = messages
+        .map((msg) => `${msg.role === 'user' ? 'You' : 'Companheiro'}: ${msg.text}`)
+        .join('\n\n')
+
       const res = await fetch('/api/check-in/journal-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: transcript.trim() || initialEntry }),
+        body: JSON.stringify({ raw_entry: initialEntry, full_conversation: fullConversation }),
       })
 
       const data = await res.json()
@@ -684,6 +691,16 @@ export default function CheckInPage() {
                   >
                     {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
                   </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleLog}
+                    disabled={isLogging}
+                    className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    {isLogging ? 'Saving...' : 'Log this check-in'}
+                  </button>
                   <button
                     onClick={handleJournalPrompt}
                     disabled={isLoadingJournal}
@@ -692,14 +709,6 @@ export default function CheckInPage() {
                     {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={handleLog}
-                  disabled={isLogging}
-                  className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {isLogging ? 'Saving...' : 'Log this check-in'}
-                </button>
               )}
             </div>
           )}
