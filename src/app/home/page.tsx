@@ -267,8 +267,28 @@ function HomeContent() {
                 borderTop: activePieces.length > 0 ? '1px solid #1f1d1b' : 'none',
                 display: 'flex',
                 justifyContent: 'flex-end',
+                gap: '16px',
               }}
             >
+              <a
+                href="/idea-lab"
+                style={{
+                  color: '#6a6866',
+                  fontSize: '12px',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '4px',
+                  cursor: 'pointer',
+                  transition: 'color 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
+                }}
+              >
+                New idea
+              </a>
               <a
                 href="/project-board"
                 style={{
