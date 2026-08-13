@@ -266,13 +266,18 @@ export default function CheckInPage() {
     setError(null)
 
     try {
-      // The transcript box is cleared after the initial send, so challenge
-      // works from the logged entry, not the (usually empty) input box.
-      const challengeInput = transcript.trim() || initialEntry
+      // Send the whole conversation so far (the initial entry plus the
+      // reflection already given), not just the raw transcript — otherwise
+      // the deeper-work call has no idea a reflection already happened and
+      // ends up re-doing it.
+      const priorHistory = messages.map((m) => ({
+        role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+        content: m.text,
+      }))
       const res = await fetch('/api/check-in/deeper-work', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: challengeInput }),
+        body: JSON.stringify({ messages: priorHistory }),
       })
 
       if (!res.ok) {
