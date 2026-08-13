@@ -51,7 +51,7 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 
 | Table | Read By | Write By | Selection | Notes |
 |-------|---------|----------|-----------|-------|
-| `check_ins` | `/api/drought/analyse` (specific cols) | `/api/check-in/log` | Explicit columns | Frozen schema for drought analysis; additions safe if nullable |
+| `check_ins` | `/api/trajectory/converse`, `lib/companion-context.ts` (specific cols) | `/api/check-in/log` | Explicit columns | Drought protocol removed 2026-08; additions safe if nullable |
 | `pieces` | `/api/project-board/*` (specific cols) | `/api/project-board/*` | Mixed | Project board reads exact columns; safe to add optional fields |
 | `ideas` | `/api/idea-lab/*` (specific cols) | `/api/idea-lab/*` | Explicit columns | Idea development flow; verify arc/territory assumptions |
 | `captures` | `/api/idea-lab/captures` | `/api/collector/capture` | Explicit columns | Collector flow; safe to extend |

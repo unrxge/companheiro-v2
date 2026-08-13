@@ -21,8 +21,7 @@ export interface PortraitEntry {
   last_reinforced_at: string
 }
 
-// Reads the confirmed, undecayed portrait for injection into a conversation.
-// Everything here was explicitly confirmed by the user — never silent.
+// Reads the undecayed active portrait for injection into a conversation.
 export async function getActivePortrait(
   { supabase, user }: AuthedContext
 ): Promise<PortraitEntry[]> {
@@ -45,7 +44,7 @@ export function formatPortraitForPrompt(entries: PortraitEntry[]): string {
   if (entries.length === 0) return ''
 
   const lines = entries.map((e) => `- [${e.kind}] ${e.statement}`)
-  return `WHO THIS PERSON IS (confirmed patterns from working with them over time — use these to adapt your STRATEGY: which questions you ask, when to challenge vs. hold, which pattern to name first. Never use these to soften the companion voice or avoid a hard truth):\n${lines.join('\n')}`
+  return `WHO THIS PERSON IS (patterns observed from working with them over time — use these to adapt your STRATEGY: which questions you ask, when to challenge vs. hold, which pattern to name first. Never use these to soften the companion voice or avoid a hard truth):\n${lines.join('\n')}`
 }
 
 const DISTILL_SYSTEM_PROMPT = `You are a quiet observer distilling what a piece of material reveals about a specific person — how they process things, what keeps recurring, how they approach ideas, and what kind of guidance actually reaches them.
@@ -72,9 +71,38 @@ Return as JSON:
 }
 If nothing qualifies, return { "reinforce_ids": [], "new_entries": [] }.`
 
+// Keeps the portrait small and current by retiring the weakest active entry
+// once the cap is exceeded — not a growing dossier.
+async function enforceActiveCap({ supabase, user }: AuthedContext): Promise<void> {
+  const { data: active } = await supabase
+    .from('portrait_entries')
+    .select('id, reinforcement_count, last_reinforced_at')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+
+  if (active && active.length > ACTIVE_ENTRY_CAP) {
+    const weakest = [...active].sort((a, b) => {
+      if (a.reinforcement_count !== b.reinforcement_count) {
+        return a.reinforcement_count - b.reinforcement_count
+      }
+      return new Date(a.last_reinforced_at).getTime() - new Date(b.last_reinforced_at).getTime()
+    })[0]
+
+    if (weakest) {
+      await supabase
+        .from('portrait_entries')
+        .update({ status: 'dormant' })
+        .eq('id', weakest.id)
+        .eq('user_id', user.id)
+    }
+  }
+}
+
 // Proposes 0-2 new portrait entries and/or reinforces existing ones based on
-// fresh material. Called after check-in log, core-concept save, and
-// trajectory commit. Never blocks on failure — this is enrichment, not core.
+// fresh material, activating new entries immediately — no confirmation gate,
+// per user request. Called after check-in log, core-concept save, trajectory
+// commit, and write-chat distillation. Never blocks on failure — this is
+// enrichment, not core.
 export async function distillPortrait(
   auth: AuthedContext,
   source: PortraitSource,
@@ -131,48 +159,12 @@ export async function distillPortrait(
         kind: e.kind,
         statement: e.statement,
         source,
-        status: 'pending' as const,
+        status: 'active' as const,
       }))
       await supabase.from('portrait_entries').insert(rows)
+      await enforceActiveCap(auth)
     }
   } catch (error) {
     console.error('distillPortrait error:', error)
-  }
-}
-
-// Promotes a pending entry to active, enforcing the cap by retiring the
-// weakest existing active entry if needed — keeps this a small living
-// portrait, not a growing dossier.
-export async function confirmPortraitEntry(
-  { supabase, user }: AuthedContext,
-  entryId: string
-): Promise<void> {
-  await supabase
-    .from('portrait_entries')
-    .update({ status: 'active', last_reinforced_at: new Date().toISOString() })
-    .eq('id', entryId)
-    .eq('user_id', user.id)
-
-  const { data: active } = await supabase
-    .from('portrait_entries')
-    .select('id, reinforcement_count, last_reinforced_at')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-
-  if (active && active.length > ACTIVE_ENTRY_CAP) {
-    const weakest = [...active].sort((a, b) => {
-      if (a.reinforcement_count !== b.reinforcement_count) {
-        return a.reinforcement_count - b.reinforcement_count
-      }
-      return new Date(a.last_reinforced_at).getTime() - new Date(b.last_reinforced_at).getTime()
-    })[0]
-
-    if (weakest) {
-      await supabase
-        .from('portrait_entries')
-        .update({ status: 'dormant' })
-        .eq('id', weakest.id)
-        .eq('user_id', user.id)
-    }
   }
 }

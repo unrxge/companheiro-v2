@@ -20,8 +20,6 @@ export type IdeaStatus = 'developing' | 'ready' | 'active' | 'complete' | 'archi
 export type ProjectStatus = 'active' | 'complete' | 'archived'
 export type PieceFormat = 'substack' | 'short_form' | 'both'
 export type PieceStage = 'conceptualising' | 'writing' | 'translating' | 'executing' | 'posted'
-export type PatternType = 'energy' | 'arc' | 'creative'
-export type ActionTaken = 'none' | 'board_adjusted' | 'library_suggested'
 export type LibraryType = 'music' | 'writing' | 'prompt' | 'reminder'
 export type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 export type TaskType = 'creation' | 'execution'
@@ -71,38 +69,6 @@ export interface Database {
           arc_texture?: ArcType | null
           check_in_type?: CheckInType | null
           dream_content?: string | null
-        }
-      }
-      drought_observations: {
-        Row: {
-          id: string
-          user_id: string
-          created_at: string
-          observation: string
-          pattern_type: PatternType
-          confirmed_by_user: boolean
-          user_response: string | null
-          action_taken: ActionTaken
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          created_at?: string
-          observation: string
-          pattern_type: PatternType
-          confirmed_by_user?: boolean
-          user_response?: string | null
-          action_taken?: ActionTaken
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          created_at?: string
-          observation?: string
-          pattern_type?: PatternType
-          confirmed_by_user?: boolean
-          user_response?: string | null
-          action_taken?: ActionTaken
         }
       }
       captures: {
@@ -412,8 +378,6 @@ export interface Database {
       project_status: ProjectStatus
       piece_format: PieceFormat
       piece_stage: PieceStage
-      pattern_type: PatternType
-      action_taken: ActionTaken
       library_type: LibraryType
       check_in_type: CheckInType
       task_type: TaskType

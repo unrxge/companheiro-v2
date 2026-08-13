@@ -20,12 +20,6 @@ interface Message {
   text: string
 }
 
-interface PendingPortraitEntry {
-  id: string
-  kind: string
-  statement: string
-}
-
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
   morning: 'Morning',
   after_work: 'After work',
@@ -48,12 +42,6 @@ export default function CheckInPage() {
   const [isLogging, setIsLogging] = useState(false)
   const [logSuccess, setLogSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pendingEntry, setPendingEntry] = useState<PendingPortraitEntry | null>(null)
-  const [isLoadingObservation, setIsLoadingObservation] = useState(true)
-  const [showResponse, setShowResponse] = useState(false)
-  const [userResponse, setUserResponse] = useState('')
-  const [isConfirming, setIsConfirming] = useState(false)
-  const [observationDismissed, setObservationDismissed] = useState(false)
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(false)
   const [engagedWithChallenge, setEngagedWithChallenge] = useState(false)
   const [showLogButton, setShowLogButton] = useState(false)
@@ -74,22 +62,6 @@ export default function CheckInPage() {
       threadRef.current.scrollTop = threadRef.current.scrollHeight
     }
   }, [messages])
-
-  useEffect(() => {
-    const fetchPendingEntry = async () => {
-      try {
-        const res = await fetch('/api/portrait/pending')
-        const data = await res.json()
-        setPendingEntry(data.entry || null)
-      } catch (err) {
-        console.error('Failed to fetch pending portrait entry:', err)
-      } finally {
-        setIsLoadingObservation(false)
-      }
-    }
-
-    fetchPendingEntry()
-  }, [])
 
   const startRecording = async () => {
     setError(null)
@@ -393,33 +365,6 @@ export default function CheckInPage() {
     }
   }
 
-  const handleObservationConfirm = async (felt_right: boolean) => {
-    if (!pendingEntry) return
-    setIsConfirming(true)
-
-    try {
-      const res = await fetch('/api/portrait/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: pendingEntry.id,
-          confirmed: felt_right,
-          correction: felt_right ? undefined : userResponse.trim(),
-        }),
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to save response')
-      }
-
-      setObservationDismissed(true)
-    } catch (err) {
-      console.error('Error confirming observation:', err)
-    } finally {
-      setIsConfirming(false)
-    }
-  }
-
   const hasAiResponded = messages.some((m) => m.role === 'ai')
 
   if (logSuccess) {
@@ -545,56 +490,6 @@ export default function CheckInPage() {
         }`}
       >
         <div className="w-full max-w-xl space-y-4">
-          {/* Pending portrait observation card */}
-          {pendingEntry && !observationDismissed && !isLoadingObservation && (
-            <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 mb-2 space-y-3">
-              <p className="text-base text-[#d4d2cd] leading-relaxed">
-                {pendingEntry.statement}
-              </p>
-
-              {!showResponse ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleObservationConfirm(true)}
-                    disabled={isConfirming}
-                    className="flex-1 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    That feels right
-                  </button>
-                  <button
-                    onClick={() => setShowResponse(true)}
-                    disabled={isConfirming}
-                    className="flex-1 py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded transition-colors hover:border-[#4a4946] hover:text-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Not quite
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <textarea
-                    value={userResponse}
-                    onChange={(e) => {
-                      setUserResponse(e.target.value)
-                      e.target.style.height = 'auto'
-                      e.target.style.height = e.target.scrollHeight + 'px'
-                    }}
-                    placeholder="What's actually going on..."
-                    rows={1}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-                    style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
-                  />
-                  <button
-                    onClick={() => handleObservationConfirm(false)}
-                    disabled={isConfirming || !userResponse.trim()}
-                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isConfirming ? 'Saving...' : 'Send'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Record button - always visible */}
           <div className="flex justify-center mb-2">
             <button
