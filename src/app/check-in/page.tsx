@@ -447,6 +447,187 @@ export default function CheckInPage() {
 
   const hasAiResponded = messages.some((m) => m.role === 'ai')
 
+  // Shared between the idle (snap-scroll) and active-conversation layouts —
+  // defined once so both branches below render the identical element rather
+  // than duplicating ~120 lines of JSX.
+  const mainInputArea = (
+    <div className="w-full max-w-xl space-y-4">
+      {/* Record button - always visible */}
+      <div className="flex justify-center mb-2">
+        <button
+          onClick={handleRecordToggle}
+          disabled={isProcessing || isLoadingChallenge}
+          aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+          className={`
+                w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
+                ${isProcessing || isLoadingChallenge ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
+                ${isRecording
+                  ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
+                  : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
+                }
+              `}
+        >
+          {isRecording ? (
+            <span className="block w-5 h-5 bg-[#111110] rounded-sm" />
+          ) : (
+            <span className="block w-5 h-5 bg-[#3d3c39] rounded-full" />
+          )}
+        </button>
+      </div>
+
+      {isRecording && (
+        <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
+          Recording
+        </p>
+      )}
+
+      {isPunctuating && (
+        <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
+          Punctuating...
+        </p>
+      )}
+
+      {/* Editable transcript */}
+      {(transcript || isRecording) && (
+        <textarea
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          placeholder="Your words will appear here..."
+          rows={4}
+          className="w-full bg-[#161614] border border-[#2e2d2a] rounded-lg px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed transition-colors"
+        />
+      )}
+
+      {error && (
+        <p className="text-xs text-red-400">{error}</p>
+      )}
+
+      {/* Send button - when user has text and either AI hasn't responded yet OR they're in a conversation */}
+      {transcript.trim() && (!hasAiResponded || showLogButton) && (
+        <button
+          onClick={handleSend}
+          disabled={isProcessing}
+          className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {isProcessing ? 'Processing...' : 'Send'}
+        </button>
+      )}
+
+      {/* Journal prompt display */}
+      {showJournalPrompt && journalPrompt && (
+        <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-3">
+          <p className="text-xs text-[#4a4946] uppercase tracking-widest">Journal prompt</p>
+          <p className="text-base text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(journalPrompt)
+            }}
+            className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
+          >
+            Copy prompt
+          </button>
+        </div>
+      )}
+
+      {/* Action buttons - after AI has responded */}
+      {hasAiResponded && confirmedType && !logSuccess && (
+        <div className="space-y-2">
+          {!showLogButton ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleLog}
+                disabled={isLogging}
+                className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isLogging ? 'Saving...' : 'Log this check-in'}
+              </button>
+              <button
+                onClick={handleChallenge}
+                disabled={isLoadingChallenge}
+                className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={handleLog}
+                disabled={isLogging}
+                className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isLogging ? 'Saving...' : 'Log this check-in'}
+              </button>
+              <button
+                onClick={handleJournalPrompt}
+                disabled={isLoadingJournal}
+                className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  const pastCheckInsSection = !isLoadingHistory && pastCheckIns.length > 0 && (
+    <div
+      ref={pastCheckInsRef}
+      className="min-h-full snap-start snap-always px-6 py-16 border-t border-[#1f1f1d] max-w-2xl mx-auto w-full"
+    >
+      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
+      <div className="space-y-6">
+        {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn) => {
+          const isOpen = expandedCheckInIds.has(checkIn.id)
+          return (
+            <div key={checkIn.id} className="space-y-3">
+              <button
+                onClick={() => toggleCheckInExpanded(checkIn.id)}
+                className="w-full flex items-start justify-between gap-3 text-left group"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-[#4a4946] mb-1">
+                    {formatDateAsRelative(checkIn.created_at)}
+                    {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
+                  </p>
+                  <p className="text-base text-[#d4d2cd] leading-relaxed group-hover:text-[#e8e6e1] transition-colors">
+                    {previewText(checkIn.raw_entry)}
+                  </p>
+                </div>
+                <span className="text-[#4a4946] text-xs flex-shrink-0 mt-1">{isOpen ? '▾' : '▸'}</span>
+              </button>
+              {isOpen && (
+                <div className="space-y-4 pl-3 border-l border-[#1f1f1d]">
+                  {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
+                    <p
+                      key={i}
+                      className={`text-base leading-relaxed ${
+                        msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
+                      }`}
+                    >
+                      {msg.text}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
+        <button
+          onClick={() => setHistoryExpanded(true)}
+          className="mt-8 text-xs text-[#6b6966] hover:text-[#d4d2cd] underline underline-offset-2 transition-colors"
+        >
+          Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
+        </button>
+      )}
+    </div>
+  )
+
   if (logSuccess) {
     return (
       <div className="min-h-screen bg-[#111110] flex items-center justify-center">
@@ -478,7 +659,7 @@ export default function CheckInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111110] flex flex-col">
+    <div className={`bg-[#111110] flex flex-col ${messages.length === 0 ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* Back button */}
       <div className="px-6 py-3 border-b border-[#1f1f1d] flex items-center justify-between">
         <button
@@ -569,198 +750,19 @@ export default function CheckInPage() {
         </div>
       )}
 
-      {/* Main input area — min-h-screen (not flex-1) when idle so the hero
-          always claims a full viewport outright, rather than depending on
-          flexbox to shrink it correctly once the past-check-ins section is
-          appended after it. flex-1 + min-height:auto shrink behavior is
-          inconsistent across browsers, especially mobile Safari with its
-          dynamic viewport chrome — this avoids relying on it entirely. */}
-      <div
-        className={`${
-          messages.length === 0
-            ? 'min-h-screen flex flex-col items-center justify-center px-6 py-12'
-            : 'px-6 py-6 max-w-xl mx-auto w-full'
-        }`}
-      >
-        <div className="w-full max-w-xl space-y-4">
-          {/* Record button - always visible */}
-          <div className="flex justify-center mb-2">
-            <button
-              onClick={handleRecordToggle}
-              disabled={isProcessing || isLoadingChallenge}
-              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-              className={`
-                w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
-                ${isProcessing || isLoadingChallenge ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
-                ${isRecording
-                  ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
-                  : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
-                }
-              `}
-            >
-              {isRecording ? (
-                <span className="block w-5 h-5 bg-[#111110] rounded-sm" />
-              ) : (
-                <span className="block w-5 h-5 bg-[#3d3c39] rounded-full" />
-              )}
-            </button>
+      {/* Idle state: hero + past check-ins share a snap-scroll region so any
+          scroll, even minimal, commits fully to the next section instead of
+          scrolling incrementally. Active-conversation state keeps its own
+          internal-scroll-thread layout, untouched below. */}
+      {messages.length === 0 ? (
+        <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
+          <div className="h-full snap-start snap-always flex flex-col items-center justify-center px-6 py-12">
+            {mainInputArea}
           </div>
-
-          {isRecording && (
-            <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
-              Recording
-            </p>
-          )}
-
-          {isPunctuating && (
-            <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
-              Punctuating...
-            </p>
-          )}
-
-          {/* Editable transcript */}
-          {(transcript || isRecording) && (
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Your words will appear here..."
-              rows={4}
-              className="w-full bg-[#161614] border border-[#2e2d2a] rounded-lg px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed transition-colors"
-            />
-          )}
-
-          {error && (
-            <p className="text-xs text-red-400">{error}</p>
-          )}
-
-          {/* Send button - when user has text and either AI hasn't responded yet OR they're in a conversation */}
-          {transcript.trim() && (!hasAiResponded || showLogButton) && (
-            <button
-              onClick={handleSend}
-              disabled={isProcessing}
-              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {isProcessing ? 'Processing...' : 'Send'}
-            </button>
-          )}
-
-          {/* Journal prompt display */}
-          {showJournalPrompt && journalPrompt && (
-            <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-3">
-              <p className="text-xs text-[#4a4946] uppercase tracking-widest">Journal prompt</p>
-              <p className="text-base text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(journalPrompt)
-                }}
-                className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
-              >
-                Copy prompt
-              </button>
-            </div>
-          )}
-
-          {/* Action buttons - after AI has responded */}
-          {hasAiResponded && confirmedType && !logSuccess && (
-            <div className="space-y-2">
-              {!showLogButton ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleLog}
-                    disabled={isLogging}
-                    className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isLogging ? 'Saving...' : 'Log this check-in'}
-                  </button>
-                  <button
-                    onClick={handleChallenge}
-                    disabled={isLoadingChallenge}
-                    className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleLog}
-                    disabled={isLogging}
-                    className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isLogging ? 'Saving...' : 'Log this check-in'}
-                  </button>
-                  <button
-                    onClick={handleJournalPrompt}
-                    disabled={isLoadingJournal}
-                    className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          {pastCheckInsSection}
         </div>
-      </div>
-
-      {/* Past check-ins — only shown at rest, not mid-conversation. Fully
-          expanded (not an accordion at the section level), just positioned
-          below the fold so the record button stays the focal point on
-          arrival. Reachable by scrolling, or the "Past check-ins ↓" link
-          above. Each entry itself is collapsed to a one-line preview —
-          showing five full conversations by default was too much text to
-          scan; tap one to open it. */}
-      {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
-        <div ref={pastCheckInsRef} className="px-6 py-16 border-t border-[#1f1f1d] max-w-xl mx-auto w-full">
-          <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
-          <div className="space-y-6">
-            {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn) => {
-              const isOpen = expandedCheckInIds.has(checkIn.id)
-              return (
-                <div key={checkIn.id} className="space-y-3">
-                  <button
-                    onClick={() => toggleCheckInExpanded(checkIn.id)}
-                    className="w-full flex items-start justify-between gap-3 text-left group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[#4a4946] mb-1">
-                        {formatDateAsRelative(checkIn.created_at)}
-                        {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
-                      </p>
-                      <p className="text-base text-[#d4d2cd] leading-relaxed group-hover:text-[#e8e6e1] transition-colors">
-                        {previewText(checkIn.raw_entry)}
-                      </p>
-                    </div>
-                    <span className="text-[#4a4946] text-xs flex-shrink-0 mt-1">{isOpen ? '▾' : '▸'}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="space-y-4 pl-3 border-l border-[#1f1f1d]">
-                      {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
-                        <p
-                          key={i}
-                          className={`text-base leading-relaxed ${
-                            msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
-                          }`}
-                        >
-                          {msg.text}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
-            <button
-              onClick={() => setHistoryExpanded(true)}
-              className="mt-8 text-xs text-[#6b6966] hover:text-[#d4d2cd] underline underline-offset-2 transition-colors"
-            >
-              Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
-            </button>
-          )}
-        </div>
+      ) : (
+        <div className="px-6 py-6 max-w-xl mx-auto w-full">{mainInputArea}</div>
       )}
     </div>
   )
