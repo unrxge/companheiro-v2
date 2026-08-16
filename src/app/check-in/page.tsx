@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
+import { formatDateAsRelative } from '@/lib/dates'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
@@ -18,6 +19,35 @@ interface Signals {
 interface Message {
   role: 'user' | 'ai'
   text: string
+}
+
+interface PastCheckIn {
+  id: string
+  created_at: string
+  raw_entry: string
+  full_conversation: string | null
+  energy: EnergyLevel
+  inner_weather: string
+  arc_texture: ArcType | null
+  check_in_type: CheckInType | null
+}
+
+// full_conversation is stored flattened as "You: ...\n\nCompanheiro: ...".
+// Split back into bubbles, falling back to the raw entry alone if a check-in
+// predates conversation tracking or something went wrong on log.
+function parseConversation(fullConversation: string | null, rawEntry: string): Message[] {
+  if (!fullConversation?.trim()) {
+    return rawEntry ? [{ role: 'user', text: rawEntry }] : []
+  }
+
+  return fullConversation
+    .split(/\n\n(?=(?:You|Companheiro): )/)
+    .map((chunk) => {
+      const match = chunk.match(/^(You|Companheiro): ([\s\S]*)$/)
+      if (!match) return null
+      return { role: match[1] === 'You' ? ('user' as const) : ('ai' as const), text: match[2].trim() }
+    })
+    .filter((m): m is Message => m !== null)
 }
 
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
@@ -50,18 +80,41 @@ export default function CheckInPage() {
   const [journalPrompt, setJournalPrompt] = useState('')
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
   const [isPunctuating, setIsPunctuating] = useState(false)
+  const [pastCheckIns, setPastCheckIns] = useState<PastCheckIn[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const pastCheckInsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (threadRef.current) {
       threadRef.current.scrollTop = threadRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch('/api/check-in/history')
+        const data = await res.json()
+        setPastCheckIns(data.checkIns || [])
+      } catch (err) {
+        console.error('Failed to fetch check-in history:', err)
+      } finally {
+        setIsLoadingHistory(false)
+      }
+    }
+
+    fetchHistory()
+  }, [])
+
+  const scrollToHistory = () => {
+    pastCheckInsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const startRecording = async () => {
     setError(null)
@@ -405,13 +458,21 @@ export default function CheckInPage() {
   return (
     <div className="min-h-screen bg-[#111110] flex flex-col">
       {/* Back button */}
-      <div className="px-6 py-3 border-b border-[#1f1f1d]">
+      <div className="px-6 py-3 border-b border-[#1f1f1d] flex items-center justify-between">
         <button
           onClick={() => router.push('/home')}
           className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
         >
           ← Home
         </button>
+        {!isLoadingHistory && pastCheckIns.length > 0 && (
+          <button
+            onClick={scrollToHistory}
+            className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+          >
+            Past check-ins ↓
+          </button>
+        )}
       </div>
 
       {/* Conversation thread */}
@@ -614,6 +675,37 @@ export default function CheckInPage() {
           )}
         </div>
       </div>
+
+      {/* Past check-ins — fully expanded, just positioned below the fold so
+          the record button stays the focal point of the module on arrival.
+          Reachable by scrolling, or by the "Past check-ins ↓" link above. */}
+      {!isLoadingHistory && pastCheckIns.length > 0 && (
+        <div ref={pastCheckInsRef} className="px-6 py-16 border-t border-[#1f1f1d] max-w-xl mx-auto w-full">
+          <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
+          <div className="space-y-10">
+            {pastCheckIns.map((checkIn) => (
+              <div key={checkIn.id} className="space-y-3">
+                <p className="text-xs text-[#4a4946]">
+                  {formatDateAsRelative(checkIn.created_at)}
+                  {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
+                </p>
+                <div className="space-y-4">
+                  {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
+                    <p
+                      key={i}
+                      className={`text-base leading-relaxed ${
+                        msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
+                      }`}
+                    >
+                      {msg.text}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
