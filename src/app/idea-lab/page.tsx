@@ -437,7 +437,7 @@ export default function IdeaLabPage() {
                 placeholder="What do you think? Write your response..."
                 rows={1}
                 className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-                style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
+                style={{ resize: 'none', overflowY: 'auto', maxHeight: '50vh' }}
               />
 
               <button

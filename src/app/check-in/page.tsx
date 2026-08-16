@@ -575,7 +575,7 @@ export default function CheckInPage() {
   const pastCheckInsSection = !isLoadingHistory && pastCheckIns.length > 0 && (
     <div
       ref={pastCheckInsRef}
-      className="min-h-full snap-start snap-always px-6 py-16 border-t border-[#1f1f1d] max-w-2xl mx-auto w-full"
+      className="min-h-full snap-start snap-always px-6 py-16 border-t border-[#1f1f1d] max-w-3xl mx-auto w-full"
     >
       <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
       <div className="space-y-6">
