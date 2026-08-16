@@ -50,6 +50,14 @@ function parseConversation(fullConversation: string | null, rawEntry: string): M
     .filter((m): m is Message => m !== null)
 }
 
+const HISTORY_PAGE_SIZE = 5
+
+function previewText(text: string, maxLen = 80): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= maxLen) return trimmed
+  return trimmed.slice(0, maxLen).trimEnd() + '…'
+}
+
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
   morning: 'Morning',
   after_work: 'After work',
@@ -82,6 +90,8 @@ export default function CheckInPage() {
   const [isPunctuating, setIsPunctuating] = useState(false)
   const [pastCheckIns, setPastCheckIns] = useState<PastCheckIn[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -114,6 +124,18 @@ export default function CheckInPage() {
 
   const scrollToHistory = () => {
     pastCheckInsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const toggleCheckInExpanded = (id: string) => {
+    setExpandedCheckInIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
   }
 
   const startRecording = async () => {
@@ -465,7 +487,7 @@ export default function CheckInPage() {
         >
           ← Home
         </button>
-        {!isLoadingHistory && pastCheckIns.length > 0 && (
+        {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
           <button
             onClick={scrollToHistory}
             className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
@@ -547,11 +569,16 @@ export default function CheckInPage() {
         </div>
       )}
 
-      {/* Main input area */}
+      {/* Main input area — min-h-screen (not flex-1) when idle so the hero
+          always claims a full viewport outright, rather than depending on
+          flexbox to shrink it correctly once the past-check-ins section is
+          appended after it. flex-1 + min-height:auto shrink behavior is
+          inconsistent across browsers, especially mobile Safari with its
+          dynamic viewport chrome — this avoids relying on it entirely. */}
       <div
         className={`${
           messages.length === 0
-            ? 'flex-1 flex flex-col items-center justify-center px-6 py-12'
+            ? 'min-h-screen flex flex-col items-center justify-center px-6 py-12'
             : 'px-6 py-6 max-w-xl mx-auto w-full'
         }`}
       >
@@ -676,34 +703,63 @@ export default function CheckInPage() {
         </div>
       </div>
 
-      {/* Past check-ins — fully expanded, just positioned below the fold so
-          the record button stays the focal point of the module on arrival.
-          Reachable by scrolling, or by the "Past check-ins ↓" link above. */}
-      {!isLoadingHistory && pastCheckIns.length > 0 && (
+      {/* Past check-ins — only shown at rest, not mid-conversation. Fully
+          expanded (not an accordion at the section level), just positioned
+          below the fold so the record button stays the focal point on
+          arrival. Reachable by scrolling, or the "Past check-ins ↓" link
+          above. Each entry itself is collapsed to a one-line preview —
+          showing five full conversations by default was too much text to
+          scan; tap one to open it. */}
+      {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
         <div ref={pastCheckInsRef} className="px-6 py-16 border-t border-[#1f1f1d] max-w-xl mx-auto w-full">
           <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
-          <div className="space-y-10">
-            {pastCheckIns.map((checkIn) => (
-              <div key={checkIn.id} className="space-y-3">
-                <p className="text-xs text-[#4a4946]">
-                  {formatDateAsRelative(checkIn.created_at)}
-                  {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
-                </p>
-                <div className="space-y-4">
-                  {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
-                    <p
-                      key={i}
-                      className={`text-base leading-relaxed ${
-                        msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
-                      }`}
-                    >
-                      {msg.text}
-                    </p>
-                  ))}
+          <div className="space-y-6">
+            {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn) => {
+              const isOpen = expandedCheckInIds.has(checkIn.id)
+              return (
+                <div key={checkIn.id} className="space-y-3">
+                  <button
+                    onClick={() => toggleCheckInExpanded(checkIn.id)}
+                    className="w-full flex items-start justify-between gap-3 text-left group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[#4a4946] mb-1">
+                        {formatDateAsRelative(checkIn.created_at)}
+                        {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
+                      </p>
+                      <p className="text-base text-[#d4d2cd] leading-relaxed group-hover:text-[#e8e6e1] transition-colors">
+                        {previewText(checkIn.raw_entry)}
+                      </p>
+                    </div>
+                    <span className="text-[#4a4946] text-xs flex-shrink-0 mt-1">{isOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-4 pl-3 border-l border-[#1f1f1d]">
+                      {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
+                        <p
+                          key={i}
+                          className={`text-base leading-relaxed ${
+                            msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
+                          }`}
+                        >
+                          {msg.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
+
+          {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
+            <button
+              onClick={() => setHistoryExpanded(true)}
+              className="mt-8 text-xs text-[#6b6966] hover:text-[#d4d2cd] underline underline-offset-2 transition-colors"
+            >
+              Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
+            </button>
+          )}
         </div>
       )}
     </div>
