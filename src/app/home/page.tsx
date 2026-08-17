@@ -1,6 +1,40 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import { motion } from 'motion/react'
+
+function UnderlineLink({
+  href,
+  children,
+  style,
+}: {
+  href: string
+  children: React.ReactNode
+  style?: React.CSSProperties
+}) {
+  return (
+    <a
+      href={href}
+      className="group relative inline-block"
+      style={{
+        color: '#6a6866',
+        fontSize: '12px',
+        cursor: 'pointer',
+        transition: 'color 0.2s ease',
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        ;(e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
+      }}
+    >
+      {children}
+      <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-[#e8e6e0]/70 transition-all duration-300 ease-out group-hover:w-full" />
+    </a>
+  )
+}
 
 interface ActivePiece {
   id: string
@@ -109,66 +143,96 @@ function HomeContent() {
     }
   }
 
+  const greetingWords = greeting.split(' ')
+
   return (
     <div
       style={{
+        position: 'relative',
         minHeight: '100vh',
         background: 'radial-gradient(ellipse at top, #161412 0%, #0f0e0d 70%)',
-        padding: '24px',
-        maxWidth: '1200px',
-        margin: '0 auto',
+        overflow: 'hidden',
       }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <p
-            style={{
-              color: '#4a4846',
-              fontSize: '11px',
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              marginBottom: '12px',
-              margin: 0,
-            }}
-          >
-            Companheiro
-          </p>
-          <h1
-            style={{
-              color: '#e8e6e0',
-              fontSize: '28px',
-              fontWeight: 300,
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {greeting}
-          </h1>
-        </div>
-        <a
-          href="/portrait"
-          style={{
-            color: '#6a6866',
-            fontSize: '12px',
-            textDecoration: 'underline',
-            textUnderlineOffset: '4px',
-            marginTop: '4px',
-          }}
+      {/* Cinematic noise texture overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          opacity: 0.035,
+          mixBlendMode: 'overlay',
+          pointerEvents: 'none',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '128px 128px',
+        }}
+      />
+
+      <div style={{ position: 'relative', padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
         >
-          My portrait
-        </a>
-      </div>
+          <div>
+            <p
+              style={{
+                color: '#4a4846',
+                fontSize: '11px',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                marginBottom: '12px',
+                margin: 0,
+              }}
+            >
+              Companheiro
+            </p>
+            <h1
+              style={{
+                color: '#e8e6e0',
+                fontSize: '32px',
+                fontWeight: 300,
+                margin: 0,
+                letterSpacing: '-0.02em',
+                overflow: 'hidden',
+              }}
+            >
+              {greetingWords.map((word, i) => (
+                <motion.span
+                  key={i}
+                  style={{ display: 'inline-block', marginRight: '0.28em' }}
+                  initial={{ y: '110%', opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}
+                >
+                  {word}
+                </motion.span>
+              ))}
+            </h1>
+          </div>
+          <UnderlineLink href="/portrait" style={{ marginTop: '4px' }}>
+            My portrait
+          </UnderlineLink>
+        </motion.div>
 
       {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left column: In Progress section */}
-        <div className="md:col-span-2">
+        <motion.div
+          className="md:col-span-2"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+        >
           <div
             style={{
-              backgroundColor: '#141312',
-              border: '1px solid #1f1d1b',
-              borderRadius: '12px',
+              backgroundColor: 'rgba(232, 230, 224, 0.03)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(232, 230, 224, 0.08)',
+              borderRadius: '16px',
               padding: '16px',
               display: 'flex',
               flexDirection: 'column',
@@ -270,55 +334,25 @@ function HomeContent() {
                 gap: '16px',
               }}
             >
-              <a
-                href="/idea-lab"
-                style={{
-                  color: '#6a6866',
-                  fontSize: '12px',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '4px',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
-                }}
-              >
-                New idea
-              </a>
-              <a
-                href="/project-board"
-                style={{
-                  color: '#6a6866',
-                  fontSize: '12px',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '4px',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
-                }}
-              >
-                View full board →
-              </a>
+              <UnderlineLink href="/idea-lab">New idea</UnderlineLink>
+              <UnderlineLink href="/project-board">View full board →</UnderlineLink>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Right column: Capture widget */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
+        >
           <div
             style={{
-              backgroundColor: '#141312',
-              border: '1px solid #1f1d1b',
-              borderRadius: '12px',
+              backgroundColor: 'rgba(232, 230, 224, 0.03)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(232, 230, 224, 0.08)',
+              borderRadius: '16px',
               padding: '16px',
               display: 'flex',
               flexDirection: 'column',
@@ -378,25 +412,40 @@ function HomeContent() {
               {captureError && (
                 <p style={{ color: '#f87171', fontSize: '11px', margin: 0 }}>{captureError}</p>
               )}
-              <button
+              <motion.button
                 onClick={handleQuickCapture}
                 disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())}
+                whileHover={{ scale: 1.015 }}
+                whileTap={{ scale: 0.985 }}
                 style={{
                   width: '100%',
-                  padding: '10px',
-                  backgroundColor: justCaptured ? '#10B981' : '#e8e6e0',
-                  color: justCaptured ? '#0f0e0d' : '#111110',
-                  fontSize: '12px',
-                  fontWeight: 500,
+                  padding: '1px',
+                  background: justCaptured
+                    ? '#10B981'
+                    : 'linear-gradient(90deg, rgba(232,230,224,0.9), rgba(232,230,224,0.35), rgba(232,230,224,0.9))',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: isCapturing ? 'not-allowed' : 'pointer',
                   opacity: isCapturing || (!captureUrl.trim() && !captureNote.trim() && !justCaptured) ? 0.4 : 1,
-                  transition: 'all 0.2s ease',
+                  transition: 'opacity 0.2s ease',
                 }}
               >
-                {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
-              </button>
+                <span
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '9px',
+                    borderRadius: '7px',
+                    backgroundColor: justCaptured ? '#0f0e0d' : '#111110',
+                    color: justCaptured ? '#10B981' : '#e8e6e0',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    transition: 'background-color 0.2s ease, color 0.2s ease',
+                  }}
+                >
+                  {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
+                </span>
+              </motion.button>
             </div>
 
             {/* Recent captures */}
@@ -465,35 +514,23 @@ function HomeContent() {
                   justifyContent: 'flex-end',
                 }}
               >
-                <a
-                  href="/collector"
-                  style={{
-                    color: '#6a6866',
-                    fontSize: '12px',
-                    textDecoration: 'underline',
-                    textUnderlineOffset: '4px',
-                    cursor: 'pointer',
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
-                  }}
-                >
-                  View all captures →
-                </a>
+                <UnderlineLink href="/collector">View all captures →</UnderlineLink>
               </div>
             </div>
           </div>
+        </motion.div>
         </div>
       </div>
 
       {/* Floating check-in mic button */}
-      <a
+      <motion.a
         href="/check-in"
         aria-label="Start check-in"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.95 }}
         style={{
           position: 'fixed',
           bottom: '24px',
@@ -506,19 +543,16 @@ function HomeContent() {
           alignItems: 'center',
           justifyContent: 'center',
           textDecoration: 'none',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-          transition: 'all 0.2s ease',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(232, 230, 224, 0.08)',
           zIndex: 50,
         }}
         onMouseEnter={(e) => {
           const el = e.currentTarget as HTMLAnchorElement
           el.style.backgroundColor = '#d4d2cd'
-          el.style.transform = 'scale(1.05)'
         }}
         onMouseLeave={(e) => {
           const el = e.currentTarget as HTMLAnchorElement
           el.style.backgroundColor = '#e8e6e0'
-          el.style.transform = 'scale(1)'
         }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111110" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -527,7 +561,7 @@ function HomeContent() {
           <line x1="12" y1="19" x2="12" y2="23" />
           <line x1="8" y1="23" x2="16" y2="23" />
         </svg>
-      </a>
+      </motion.a>
     </div>
   )
 }
