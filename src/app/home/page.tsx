@@ -2,14 +2,18 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'motion/react'
+import { useCardTheme } from '@/hooks/useCardTheme'
+import { cardPalette } from '@/lib/card-theme'
 
 function UnderlineLink({
   href,
   children,
+  color,
   style,
 }: {
   href: string
   children: React.ReactNode
+  color: string
   style?: React.CSSProperties
 }) {
   return (
@@ -17,22 +21,53 @@ function UnderlineLink({
       href={href}
       className="group relative inline-block"
       style={{
-        color: '#6a6866',
+        color,
         fontSize: '12px',
         cursor: 'pointer',
         transition: 'color 0.2s ease',
         ...style,
       }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLAnchorElement).style.color = '#e8e6e0'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLAnchorElement).style.color = '#6a6866'
-      }}
     >
       {children}
-      <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-[#e8e6e0]/70 transition-all duration-300 ease-out group-hover:w-full" />
+      <span
+        className="absolute -bottom-0.5 left-0 h-px w-0 transition-all duration-300 ease-out group-hover:w-full"
+        style={{ backgroundColor: color }}
+      />
     </a>
+  )
+}
+
+function ThemeToggle({ theme, onToggle }: { theme: 'light' | 'dark'; onToggle: () => void }) {
+  return (
+    <motion.button
+      onClick={onToggle}
+      aria-label={theme === 'light' ? 'Switch to dark cards' : 'Switch to light cards'}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.93 }}
+      style={{
+        width: '36px',
+        height: '36px',
+        borderRadius: '50%',
+        border: '1px solid rgba(232, 230, 224, 0.14)',
+        backgroundColor: 'rgba(232, 230, 224, 0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+    >
+      {theme === 'light' ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      )}
+    </motion.button>
   )
 }
 
@@ -50,6 +85,9 @@ interface RecentCapture {
 }
 
 function HomeContent() {
+  const { theme, toggle } = useCardTheme('light')
+  const c = cardPalette[theme]
+
   const [activePieces, setActivePieces] = useState<ActivePiece[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
@@ -145,6 +183,16 @@ function HomeContent() {
 
   const greetingWords = greeting.split(' ')
 
+  const eyebrowStyle: React.CSSProperties = {
+    color: c.textSecondary,
+    fontSize: '11px',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: 'var(--font-geist-sans)',
+    fontWeight: 600,
+    margin: 0,
+  }
+
   return (
     <div
       style={{
@@ -179,10 +227,12 @@ function HomeContent() {
           <div>
             <p
               style={{
-                color: '#4a4846',
+                color: '#5c5a57',
                 fontSize: '11px',
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
                 marginBottom: '12px',
                 margin: 0,
               }}
@@ -192,8 +242,9 @@ function HomeContent() {
             <h1
               style={{
                 color: '#e8e6e0',
-                fontSize: '32px',
-                fontWeight: 300,
+                fontSize: '34px',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 700,
                 margin: 0,
                 letterSpacing: '-0.02em',
                 overflow: 'hidden',
@@ -212,9 +263,12 @@ function HomeContent() {
               ))}
             </h1>
           </div>
-          <UnderlineLink href="/portrait" style={{ marginTop: '4px' }}>
-            My portrait
-          </UnderlineLink>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '6px', flexShrink: 0 }}>
+            <UnderlineLink href="/portrait" color="#8c8a87" style={{ whiteSpace: 'nowrap' }}>
+              My portrait
+            </UnderlineLink>
+            <ThemeToggle theme={theme} onToggle={toggle} />
+          </div>
         </motion.div>
 
       {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}
@@ -228,33 +282,20 @@ function HomeContent() {
         >
           <div
             style={{
-              backgroundColor: 'rgba(232, 230, 224, 0.03)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: '1px solid rgba(232, 230, 224, 0.08)',
-              borderRadius: '16px',
-              padding: '16px',
+              backgroundColor: c.cardBg,
+              boxShadow: c.shadow,
+              borderRadius: '22px',
+              padding: '20px',
               display: 'flex',
               flexDirection: 'column',
             }}
           >
-            <p
-              style={{
-                color: '#4a4846',
-                fontSize: '11px',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                marginBottom: '16px',
-                margin: 0,
-              }}
-            >
-              In progress
-            </p>
+            <p style={{ ...eyebrowStyle, marginBottom: '16px' }}>In progress</p>
 
             {isLoading ? (
-              <p style={{ color: '#3d3c39', fontSize: '12px' }}>Loading...</p>
+              <p style={{ color: c.textMuted, fontSize: '12px' }}>Loading...</p>
             ) : activePieces.length === 0 ? (
-              <p style={{ color: '#6a6866', fontSize: '13px', lineHeight: '1.6' }}>
+              <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6' }}>
                 Nothing in motion yet. Start from the project board.
               </p>
             ) : (
@@ -270,13 +311,12 @@ function HomeContent() {
                       padding: '16px 0',
                       cursor: 'pointer',
                       textDecoration: 'none',
-                      borderBottom: index < activePieces.length - 1 ? '1px solid #1f1d1b' : 'none',
+                      borderBottom: index < activePieces.length - 1 ? `1px solid ${c.divider}` : 'none',
                       transition: 'all 0.2s ease',
                     }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLAnchorElement
                       el.style.paddingLeft = '8px'
-                      el.style.color = '#e8e6e0'
                     }}
                     onMouseLeave={(e) => {
                       const el = e.currentTarget as HTMLAnchorElement
@@ -295,7 +335,7 @@ function HomeContent() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
-                          color: '#e8e6e0',
+                          color: c.textPrimary,
                           fontSize: '13px',
                           margin: 0,
                           overflow: 'hidden',
@@ -312,12 +352,12 @@ function HomeContent() {
                         gap: '8px',
                         alignItems: 'center',
                         fontSize: '11px',
-                        color: '#8c8a87',
+                        color: c.textSecondary,
                         flexShrink: 0,
                       }}
                     >
                       <span>{piece.arc}</span>
-                      <span style={{ color: '#3d3c39' }}>•</span>
+                      <span style={{ color: c.textMuted }}>•</span>
                       <span>{piece.stage}</span>
                     </div>
                   </a>
@@ -328,14 +368,14 @@ function HomeContent() {
             <div
               style={{
                 paddingTop: activePieces.length > 0 ? '16px' : 0,
-                borderTop: activePieces.length > 0 ? '1px solid #1f1d1b' : 'none',
+                borderTop: activePieces.length > 0 ? `1px solid ${c.divider}` : 'none',
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: '16px',
               }}
             >
-              <UnderlineLink href="/idea-lab">New idea</UnderlineLink>
-              <UnderlineLink href="/project-board">View full board →</UnderlineLink>
+              <UnderlineLink href="/idea-lab" color={c.textSecondary}>New idea</UnderlineLink>
+              <UnderlineLink href="/project-board" color={c.textSecondary}>View full board →</UnderlineLink>
             </div>
           </div>
         </motion.div>
@@ -348,29 +388,16 @@ function HomeContent() {
         >
           <div
             style={{
-              backgroundColor: 'rgba(232, 230, 224, 0.03)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: '1px solid rgba(232, 230, 224, 0.08)',
-              borderRadius: '16px',
-              padding: '16px',
+              backgroundColor: c.cardBg,
+              boxShadow: c.shadow,
+              borderRadius: '22px',
+              padding: '20px',
               display: 'flex',
               flexDirection: 'column',
               height: '100%',
             }}
           >
-            <p
-              style={{
-                color: '#4a4846',
-                fontSize: '11px',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                marginBottom: '16px',
-                margin: 0,
-              }}
-            >
-              Capture what&apos;s alive
-            </p>
+            <p style={eyebrowStyle}>Capture what&apos;s alive</p>
 
             {/* Quick capture form */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
@@ -381,12 +408,12 @@ function HomeContent() {
                 placeholder="Paste a link that inspired you..."
                 style={{
                   width: '100%',
-                  backgroundColor: '#1c1c1a',
-                  border: '1px solid #2a2825',
-                  borderRadius: '6px',
+                  backgroundColor: c.inputBg,
+                  border: `1px solid ${c.inputBorder}`,
+                  borderRadius: '10px',
                   padding: '10px 12px',
                   fontSize: '13px',
-                  color: '#e8e6e0',
+                  color: c.textPrimary,
                   outline: 'none',
                 }}
               />
@@ -400,12 +427,12 @@ function HomeContent() {
                 }}
                 style={{
                   width: '100%',
-                  backgroundColor: '#1c1c1a',
-                  border: '1px solid #2a2825',
-                  borderRadius: '6px',
+                  backgroundColor: c.inputBg,
+                  border: `1px solid ${c.inputBorder}`,
+                  borderRadius: '10px',
                   padding: '10px 12px',
                   fontSize: '13px',
-                  color: '#e8e6e0',
+                  color: c.textPrimary,
                   outline: 'none',
                 }}
               />
@@ -419,32 +446,19 @@ function HomeContent() {
                 whileTap={{ scale: 0.985 }}
                 style={{
                   width: '100%',
-                  padding: '1px',
-                  background: justCaptured
-                    ? '#10B981'
-                    : 'linear-gradient(90deg, rgba(232,230,224,0.9), rgba(232,230,224,0.35), rgba(232,230,224,0.9))',
+                  padding: '10px',
+                  background: justCaptured ? '#10B981' : theme === 'light' ? '#171613' : '#e8e6e0',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   cursor: isCapturing ? 'not-allowed' : 'pointer',
                   opacity: isCapturing || (!captureUrl.trim() && !captureNote.trim() && !justCaptured) ? 0.4 : 1,
-                  transition: 'opacity 0.2s ease',
+                  transition: 'opacity 0.2s ease, background-color 0.2s ease',
+                  color: justCaptured ? '#0f0e0d' : theme === 'light' ? '#f7f6f3' : '#111110',
+                  fontSize: '12px',
+                  fontWeight: 600,
                 }}
               >
-                <span
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '9px',
-                    borderRadius: '7px',
-                    backgroundColor: justCaptured ? '#0f0e0d' : '#111110',
-                    color: justCaptured ? '#10B981' : '#e8e6e0',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    transition: 'background-color 0.2s ease, color 0.2s ease',
-                  }}
-                >
-                  {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
-                </span>
+                {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
               </motion.button>
             </div>
 
@@ -453,7 +467,7 @@ function HomeContent() {
               style={{
                 marginTop: '16px',
                 paddingTop: '16px',
-                borderTop: '1px solid #1f1d1b',
+                borderTop: `1px solid ${c.divider}`,
                 display: 'flex',
                 flexDirection: 'column',
                 flex: 1,
@@ -461,9 +475,9 @@ function HomeContent() {
               }}
             >
               {isLoadingCaptures ? (
-                <p style={{ color: '#3d3c39', fontSize: '12px' }}>Loading...</p>
+                <p style={{ color: c.textMuted, fontSize: '12px' }}>Loading...</p>
               ) : recentCaptures.length === 0 ? (
-                <p style={{ color: '#6a6866', fontSize: '13px', lineHeight: '1.6' }}>
+                <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6' }}>
                   Nothing captured yet.
                 </p>
               ) : (
@@ -476,7 +490,7 @@ function HomeContent() {
                         display: 'block',
                         padding: '10px 0',
                         textDecoration: 'none',
-                        borderBottom: index < recentCaptures.length - 1 ? '1px solid #1f1d1b' : 'none',
+                        borderBottom: index < recentCaptures.length - 1 ? `1px solid ${c.divider}` : 'none',
                         transition: 'all 0.2s ease',
                       }}
                       onMouseEnter={(e) => {
@@ -488,7 +502,7 @@ function HomeContent() {
                     >
                       <p
                         style={{
-                          color: '#d4d2cd',
+                          color: c.textPrimary,
                           fontSize: '12px',
                           margin: 0,
                           lineHeight: '1.5',
@@ -500,7 +514,7 @@ function HomeContent() {
                       >
                         {capture.unpacked}
                       </p>
-                      <span style={{ color: '#6a6866', fontSize: '11px' }}>{capture.arc}</span>
+                      <span style={{ color: c.textSecondary, fontSize: '11px' }}>{capture.arc}</span>
                     </a>
                   ))}
                 </div>
@@ -514,7 +528,7 @@ function HomeContent() {
                   justifyContent: 'flex-end',
                 }}
               >
-                <UnderlineLink href="/collector">View all captures →</UnderlineLink>
+                <UnderlineLink href="/collector" color={c.textSecondary}>View all captures →</UnderlineLink>
               </div>
             </div>
           </div>
