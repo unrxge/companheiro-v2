@@ -201,8 +201,8 @@ function HomeContent() {
 
   const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
   const pipelineStats = [
-    { label: 'Active', value: pieceCounts?.active ?? 0, color: '#10B981' },
     { label: 'Queue', value: pieceCounts?.queue ?? 0, color: '#F59E0B' },
+    { label: 'Active', value: pieceCounts?.active ?? 0, color: '#10B981' },
     { label: 'Completed', value: pieceCounts?.completed ?? 0, color: '#8B5CF6' },
   ]
 
@@ -223,11 +223,12 @@ function HomeContent() {
           style={{
             marginBottom: '32px',
             display: 'flex',
-            justifyContent: 'space-between',
+            flexWrap: 'wrap',
             alignItems: 'flex-start',
+            rowGap: '12px',
           }}
         >
-          <div>
+          <div style={{ flexShrink: 0 }}>
             <p
               style={{
                 color: '#6e6c67',
@@ -245,12 +246,13 @@ function HomeContent() {
             <h1
               style={{
                 color: '#e8e6e0',
-                fontSize: '34px',
+                fontSize: 'clamp(24px, 8vw, 34px)',
                 fontFamily: 'var(--font-geist-sans)',
                 fontWeight: 700,
                 margin: 0,
                 letterSpacing: '-0.02em',
                 overflow: 'hidden',
+                whiteSpace: 'nowrap',
               }}
             >
               {greetingWords.map((word, i) => (
@@ -266,7 +268,7 @@ function HomeContent() {
               ))}
             </h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '6px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
             <UnderlineLink href="/portrait" color="#8c8a87" style={{ whiteSpace: 'nowrap' }}>
               My portrait
             </UnderlineLink>
