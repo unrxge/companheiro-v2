@@ -93,12 +93,42 @@ export default function CheckInPage() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
 
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const pastCheckInsRef = useRef<HTMLDivElement>(null)
+
+  // Stop any in-progress speech when leaving the page, so it doesn't keep
+  // talking after navigation.
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  const handleSpeak = (text: string, index: number) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+
+    // Pressing the button on the message currently playing stops it.
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel()
+      setSpeakingIndex(null)
+      return
+    }
+
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.onend = () => setSpeakingIndex(null)
+    utterance.onerror = () => setSpeakingIndex(null)
+    setSpeakingIndex(index)
+    window.speechSynthesis.speak(utterance)
+  }
 
   useEffect(() => {
     if (threadRef.current) {
@@ -141,6 +171,12 @@ export default function CheckInPage() {
   const startRecording = async () => {
     setError(null)
     setTranscript('')
+
+    // Don't let the AI's read-aloud voice talk over the mic input.
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+      setSpeakingIndex(null)
+    }
 
     const SpeechRecognitionAPI =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -685,7 +721,11 @@ export default function CheckInPage() {
           className="flex-1 overflow-y-auto px-6 pt-12 pb-4 max-w-xl mx-auto w-full"
         >
           <div className="space-y-6">
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              const isStreamingLast =
+                (isProcessing || isLoadingChallenge) && i === messages.length - 1 && msg.role === 'ai'
+
+              return (
               <div key={i}>
                 <p
                   className={`text-base leading-relaxed ${
@@ -696,8 +736,27 @@ export default function CheckInPage() {
                 >
                   {msg.text}
                 </p>
+                {msg.role === 'ai' && msg.text && !isStreamingLast && (
+                  <button
+                    onClick={() => handleSpeak(msg.text, i)}
+                    aria-label={speakingIndex === i ? 'Stop reading aloud' : 'Read aloud'}
+                    className="mt-1.5 text-[#4a4946] hover:text-[#8c8a87] transition-colors"
+                  >
+                    {speakingIndex === i ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      </svg>
+                    )}
+                  </button>
+                )}
               </div>
-            ))}
+              )
+            })}
 
             {isProcessing && (
               <div className="text-[#4a4946] text-sm">...</div>
