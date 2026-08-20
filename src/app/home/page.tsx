@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'motion/react'
 import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette } from '@/lib/card-theme'
+import { cardPalette, headerPalette } from '@/lib/card-theme'
 
 function UnderlineLink({
   href,
@@ -198,36 +198,31 @@ function HomeContent() {
       style={{
         position: 'relative',
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at top, #161412 0%, #0f0e0d 70%)',
-        overflow: 'hidden',
+        backgroundColor: c.containerBg,
+        transition: 'background-color 0.3s ease',
       }}
     >
-      {/* Cinematic noise texture overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          opacity: 0.035,
-          mixBlendMode: 'overlay',
-          pointerEvents: 'none',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '128px 128px',
-        }}
-      />
-
       <div style={{ position: 'relative', padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header */}
+        {/* Header: constant black block, independent of the light/dark card toggle */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
-          style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
+          style={{
+            marginBottom: '24px',
+            backgroundColor: headerPalette.bg,
+            boxShadow: headerPalette.shadow,
+            borderRadius: '22px',
+            padding: '24px 24px 28px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+          }}
         >
           <div>
             <p
               style={{
-                color: '#5c5a57',
+                color: '#6e6c67',
                 fontSize: '11px',
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
@@ -587,13 +582,13 @@ export default function HomePage() {
         <div
           style={{
             minHeight: '100vh',
-            background: 'radial-gradient(ellipse at top, #161412 0%, #0f0e0d 70%)',
+            backgroundColor: cardPalette.light.containerBg,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <p style={{ color: '#4a4846' }}>Loading...</p>
+          <p style={{ color: '#9b9891' }}>Loading...</p>
         </div>
       }
     >
