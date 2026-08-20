@@ -4,72 +4,9 @@ import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'motion/react'
 import { useCardTheme } from '@/hooks/useCardTheme'
 import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
-
-function UnderlineLink({
-  href,
-  children,
-  color,
-  style,
-}: {
-  href: string
-  children: React.ReactNode
-  color: string
-  style?: React.CSSProperties
-}) {
-  return (
-    <a
-      href={href}
-      className="group relative inline-block"
-      style={{
-        color,
-        fontSize: '12px',
-        cursor: 'pointer',
-        transition: 'color 0.2s ease',
-        ...style,
-      }}
-    >
-      {children}
-      <span
-        className="absolute -bottom-0.5 left-0 h-px w-0 transition-all duration-300 ease-out group-hover:w-full"
-        style={{ backgroundColor: accentColor }}
-      />
-    </a>
-  )
-}
-
-function ThemeToggle({ theme, onToggle }: { theme: 'light' | 'dark'; onToggle: () => void }) {
-  return (
-    <motion.button
-      onClick={onToggle}
-      aria-label={theme === 'light' ? 'Switch to dark cards' : 'Switch to light cards'}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.93 }}
-      style={{
-        width: '36px',
-        height: '36px',
-        borderRadius: '50%',
-        border: '1px solid rgba(232, 230, 224, 0.14)',
-        backgroundColor: 'rgba(232, 230, 224, 0.06)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        flexShrink: 0,
-      }}
-    >
-      {theme === 'light' ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-      )}
-    </motion.button>
-  )
-}
+import { UnderlineLink } from '@/components/ui/underline-link'
+import { IconButton } from '@/components/ui/icon-button'
+import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 
 interface ActivePiece {
   id: string
@@ -269,30 +206,13 @@ function HomeContent() {
             </h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
-            <motion.a
-              href="/portrait"
-              aria-label="My portrait"
-              title="My portrait"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.93 }}
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                border: '1px solid rgba(232, 230, 224, 0.14)',
-                backgroundColor: 'rgba(232, 230, 224, 0.06)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
+            <IconButton href="/portrait" ariaLabel="My portrait">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
               </svg>
-            </motion.a>
-            <ThemeToggle theme={theme} onToggle={toggle} />
+            </IconButton>
+            <ThemeToggleButton theme={theme} onToggle={toggle} />
           </div>
         </motion.div>
 

@@ -3,6 +3,11 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea'
+import { useCardTheme } from '@/hooks/useCardTheme'
+import { cardPalette, shellBackground } from '@/lib/card-theme'
+import { UnderlineLink } from '@/components/ui/underline-link'
+import { IconButton } from '@/components/ui/icon-button'
+import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 
 interface Task {
   id: string
@@ -93,6 +98,8 @@ const TONE_STYLES: Record<string, { bg: string; border: string; text: string }> 
 
 function ProjectBoardContent() {
   const router = useRouter()
+  const { theme, toggle } = useCardTheme('light')
+  const c = cardPalette[theme]
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -376,19 +383,39 @@ function ProjectBoardContent() {
 
   if (isLoading) {
     return (
-      <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
+      <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
         {/* Header - matches loaded state so nothing jumps once data arrives */}
-        <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
-          <div className="w-16" />
-          <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Project Board</h1>
-          <div className="w-16" />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            padding: '16px 24px',
+            borderBottom: `1px solid ${c.divider}`,
+          }}
+        >
+          <div />
+          <h1
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontWeight: 700,
+              fontSize: '20px',
+              color: c.textPrimary,
+              margin: 0,
+              textAlign: 'center',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Project Board
+          </h1>
+          <div />
         </div>
 
         {/* Mobile tab bar skeleton */}
-        <div className="md:hidden flex border-b border-[#1f1f1d]" style={{ backgroundColor: '#1a1917' }}>
+        <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}`, backgroundColor: c.containerBg }}>
           {['Queue', 'Active', 'Completed'].map((name) => (
             <div key={name} className="flex-1 py-3 flex items-center justify-center">
-              <div className="h-3 w-14 bg-[#2a2825] rounded animate-pulse" />
+              <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
             </div>
           ))}
         </div>
@@ -402,12 +429,12 @@ function ProjectBoardContent() {
           ].map((col, i) => (
             <div
               key={i}
-              className={`flex flex-col px-4 py-3 space-y-3 ${col.border ? 'border-r border-[#1f1f1d]' : ''}`}
-              style={{ width: col.width }}
+              className="flex flex-col px-4 py-3 space-y-3"
+              style={{ width: col.width, borderRight: col.border ? `1px solid ${c.divider}` : 'none' }}
             >
-              <div className="h-3 w-16 bg-[#2a2825] rounded animate-pulse mb-2" />
+              <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
               {[...Array(3)].map((_, j) => (
-                <div key={j} className="h-20 bg-[#161614] border border-[#1f1f1d] rounded-lg animate-pulse" />
+                <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
               ))}
             </div>
           ))}
@@ -416,7 +443,7 @@ function ProjectBoardContent() {
         {/* Mobile skeleton cards */}
         <div className="md:hidden flex-1 px-4 py-3 space-y-3">
           {[...Array(3)].map((_, j) => (
-            <div key={j} className="h-20 bg-[#161614] border border-[#1f1f1d] rounded-lg animate-pulse" />
+            <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
           ))}
         </div>
       </div>
@@ -445,9 +472,10 @@ function ProjectBoardContent() {
       style={{
         width: '100%',
         textAlign: 'left',
-        backgroundColor: '#161614',
-        border: '1px solid #1f1f1d',
-        borderRadius: '8px',
+        backgroundColor: c.cardBg,
+        boxShadow: c.shadow,
+        border: '1px solid transparent',
+        borderRadius: '12px',
         padding: '12px',
         cursor: dragItem ? 'grab' : 'pointer',
         transition: 'border-color 0.2s, opacity 0.2s',
@@ -461,7 +489,7 @@ function ProjectBoardContent() {
         (e.currentTarget as HTMLButtonElement).style.borderColor = color
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = '#1f1f1d'
+        (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'
       }}
     >
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
@@ -477,7 +505,7 @@ function ProjectBoardContent() {
         />
         <p
           style={{
-            color: '#e8e6e0',
+            color: c.textPrimary,
             fontWeight: 500,
             fontSize: '13px',
             margin: 0,
@@ -492,7 +520,7 @@ function ProjectBoardContent() {
       {arc && (
         <p
           style={{
-            color: '#4a4946',
+            color: c.textMuted,
             fontSize: '11px',
             margin: '8px 0 0 0',
           }}
@@ -503,8 +531,18 @@ function ProjectBoardContent() {
     </button>
   )
 
+  const columnEyebrow: React.CSSProperties = {
+    color: c.textSecondary,
+    fontSize: '11px',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: 'var(--font-geist-sans)',
+    fontWeight: 600,
+    margin: 0,
+  }
+
   return (
-    <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
       <style>{`
         @keyframes strikethrough {
           from {
@@ -523,28 +561,44 @@ function ProjectBoardContent() {
       `}</style>
 
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          padding: '16px 24px',
+          borderBottom: `1px solid ${c.divider}`,
+        }}
+      >
         <div>
-          <button
-            onClick={() => router.push('/idea-lab')}
-            className="text-xs text-[#a8a6a0] underline underline-offset-2 hover:text-[#e8e6e1] transition-colors"
-          >
+          <UnderlineLink onClick={() => router.push('/idea-lab')} color="#8c8a87">
             New idea
-          </button>
+          </UnderlineLink>
         </div>
-        <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Project Board</h1>
-        <div>
-          <button
-            onClick={() => router.push('/home')}
-            className="text-xs text-[#a8a6a0] underline underline-offset-2 hover:text-[#e8e6e1] transition-colors"
-          >
-            Home
-          </button>
+        <h1
+          style={{
+            fontFamily: 'var(--font-geist-sans)',
+            fontWeight: 700,
+            fontSize: '20px',
+            color: '#e8e6e0',
+            margin: 0,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          Project Board
+        </h1>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
+          <ThemeToggleButton theme={theme} onToggle={toggle} />
+          <IconButton onClick={() => router.push('/home')} ariaLabel="Home">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" />
+            </svg>
+          </IconButton>
         </div>
       </div>
 
       {/* Mobile Tab Bar - Hidden on md+ */}
-      <div className="md:hidden flex border-b border-[#1f1f1d]" style={{ backgroundColor: '#1a1917' }}>
+      <div className="md:hidden flex" style={{ backgroundColor: c.containerBg, borderBottom: `1px solid ${c.divider}` }}>
         {[
           { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length },
           { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
@@ -557,7 +611,7 @@ function ProjectBoardContent() {
               flex: 1,
               padding: '12px',
               border: 'none',
-              backgroundColor: activeTab === tab.name ? '#1f1d1b' : 'transparent',
+              backgroundColor: activeTab === tab.name ? c.cardBg : 'transparent',
               borderBottom: activeTab === tab.name ? `2px solid ${tab.color}` : '1px solid transparent',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -575,10 +629,10 @@ function ProjectBoardContent() {
                 backgroundColor: tab.color,
               }}
             />
-            <span style={{ color: '#e8e6e0', fontSize: '12px', fontWeight: 500 }}>
+            <span style={{ color: c.textPrimary, fontSize: '12px', fontWeight: 500 }}>
               {tab.name}
             </span>
-            <span style={{ color: '#4a4946', fontSize: '11px' }}>({tab.count})</span>
+            <span style={{ color: c.textMuted, fontSize: '11px' }}>({tab.count})</span>
           </button>
         ))}
       </div>
@@ -587,23 +641,25 @@ function ProjectBoardContent() {
       <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Queue Column */}
         <div
-          className={`w-[20%] border-r flex flex-col transition-colors ${
-            dragOverColumn === 'Queue' ? 'bg-[#1a1917] border-[#F59E0B]/40' : 'border-[#1f1f1d]'
-          }`}
+          className="w-[20%] flex flex-col transition-colors"
+          style={{
+            backgroundColor: dragOverColumn === 'Queue' ? c.cardBgInner : c.containerBg,
+            borderRight: `1px solid ${c.divider}`,
+          }}
           onDragOver={(e) => {
             e.preventDefault()
             setDragOverColumn('Queue')
           }}
-          onDragLeave={() => setDragOverColumn((c) => (c === 'Queue' ? null : c))}
+          onDragLeave={() => setDragOverColumn((col) => (col === 'Queue' ? null : col))}
           onDrop={(e) => {
             e.preventDefault()
             handleDropOnColumn('Queue')
           }}
         >
-          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
-            <h2 className="text-sm font-medium text-[#e8e6e1]">Queue</h2>
-            <span className="text-xs text-[#4a4946]">({queue.length})</span>
+            <h2 style={columnEyebrow}>Queue</h2>
+            <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
             {queue.map((idea) =>
@@ -617,23 +673,25 @@ function ProjectBoardContent() {
 
         {/* Active Column */}
         <div
-          className={`w-[60%] border-r flex flex-col transition-colors ${
-            dragOverColumn === 'Active' ? 'bg-[#1a1917] border-[#10B981]/40' : 'border-[#1f1f1d]'
-          }`}
+          className="w-[60%] flex flex-col transition-colors"
+          style={{
+            backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : c.containerBg,
+            borderRight: `1px solid ${c.divider}`,
+          }}
           onDragOver={(e) => {
             e.preventDefault()
             setDragOverColumn('Active')
           }}
-          onDragLeave={() => setDragOverColumn((c) => (c === 'Active' ? null : c))}
+          onDragLeave={() => setDragOverColumn((col) => (col === 'Active' ? null : col))}
           onDrop={(e) => {
             e.preventDefault()
             handleDropOnColumn('Active')
           }}
         >
-          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
-            <h2 className="text-sm font-medium text-[#e8e6e1]">Active</h2>
-            <span className="text-xs text-[#4a4946]">({active.length})</span>
+            <h2 style={columnEyebrow}>Active</h2>
+            <span style={{ color: c.textMuted, fontSize: '11px' }}>({active.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
             {active.map((piece) =>
@@ -647,23 +705,22 @@ function ProjectBoardContent() {
 
         {/* Completed Column */}
         <div
-          className={`w-[20%] flex flex-col transition-colors ${
-            dragOverColumn === 'Completed' ? 'bg-[#1a1917]' : ''
-          }`}
+          className="w-[20%] flex flex-col transition-colors"
+          style={{ backgroundColor: dragOverColumn === 'Completed' ? c.cardBgInner : c.containerBg }}
           onDragOver={(e) => {
             e.preventDefault()
             setDragOverColumn('Completed')
           }}
-          onDragLeave={() => setDragOverColumn((c) => (c === 'Completed' ? null : c))}
+          onDragLeave={() => setDragOverColumn((col) => (col === 'Completed' ? null : col))}
           onDrop={(e) => {
             e.preventDefault()
             handleDropOnColumn('Completed')
           }}
         >
-          <div className="px-4 py-3 border-b border-[#1f1f1d] flex items-center gap-2">
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
-            <h2 className="text-sm font-medium text-[#e8e6e1]">Completed</h2>
-            <span className="text-xs text-[#4a4946]">({completed.length})</span>
+            <h2 style={columnEyebrow}>Completed</h2>
+            <span style={{ color: c.textMuted, fontSize: '11px' }}>({completed.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
             {completed.map((piece) =>
@@ -674,7 +731,7 @@ function ProjectBoardContent() {
       </div>
 
       {/* Mobile Layout - Single Column with Tabs */}
-      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3 pb-28">
+      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3 pb-28" style={{ backgroundColor: c.containerBg }}>
         <div className="space-y-3">
           {activeTab === 'Queue' &&
             queue.map((idea) =>
