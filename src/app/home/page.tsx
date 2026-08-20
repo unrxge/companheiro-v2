@@ -398,7 +398,7 @@ function HomeContent() {
           </div>
 
           {/* Ideas: proportional bar showing how the total splits across Active/Queue/Completed */}
-          <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: `1px solid ${c.divider}` }}>
+          <div style={{ marginTop: '24px' }}>
             <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Ideas</p>
             <div
               style={{
