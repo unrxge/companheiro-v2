@@ -80,7 +80,7 @@ interface ActivePiece {
 
 interface RecentCapture {
   id: string
-  unpacked: string
+  raw_input: string
   arc: string
 }
 
@@ -268,10 +268,30 @@ function HomeContent() {
               ))}
             </h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
-            <UnderlineLink href="/portrait" color="#8c8a87" style={{ whiteSpace: 'nowrap' }}>
-              My portrait
-            </UnderlineLink>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
+            <motion.a
+              href="/portrait"
+              aria-label="My portrait"
+              title="My portrait"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.93 }}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                border: '1px solid rgba(232, 230, 224, 0.14)',
+                backgroundColor: 'rgba(232, 230, 224, 0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+              </svg>
+            </motion.a>
             <ThemeToggle theme={theme} onToggle={toggle} />
           </div>
         </motion.div>
@@ -586,7 +606,7 @@ function HomeContent() {
                           overflow: 'hidden',
                         }}
                       >
-                        {capture.unpacked}
+                        {capture.raw_input}
                       </p>
                       <span style={{ color: c.textSecondary, fontSize: '11px' }}>{capture.arc}</span>
                     </a>
