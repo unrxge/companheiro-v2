@@ -4,6 +4,10 @@ export type CardTheme = 'light' | 'dark'
 
 export const shellBackground = 'radial-gradient(ellipse at top, #161412 0%, #0f0e0d 70%)'
 
+// Brand accent — used for hover/highlight indicators (underlines, active
+// row markers) across the refreshed pages, independent of theme or text color.
+export const accentColor = '#a53f2b'
+
 // Below the header, a "container" panel sits on the shell and holds the
 // cards — this is what toggles between light and dark.
 export const cardPalette = {

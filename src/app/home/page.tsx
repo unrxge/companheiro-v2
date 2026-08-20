@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'motion/react'
 import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground } from '@/lib/card-theme'
+import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
 
 function UnderlineLink({
   href,
@@ -31,7 +31,7 @@ function UnderlineLink({
       {children}
       <span
         className="absolute -bottom-0.5 left-0 h-px w-0 transition-all duration-300 ease-out group-hover:w-full"
-        style={{ backgroundColor: color }}
+        style={{ backgroundColor: accentColor }}
       />
     </a>
   )
@@ -582,16 +582,18 @@ function HomeContent() {
                       href="/collector"
                       style={{
                         display: 'block',
-                        padding: '10px 0',
+                        padding: '10px 0 10px 10px',
+                        marginLeft: '-10px',
+                        borderLeft: '2px solid transparent',
                         textDecoration: 'none',
                         borderBottom: index < recentCaptures.length - 1 ? `1px solid ${c.divider}` : 'none',
-                        transition: 'all 0.2s ease',
+                        transition: 'border-color 0.2s ease',
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLAnchorElement).style.paddingLeft = '4px'
+                        (e.currentTarget as HTMLAnchorElement).style.borderLeftColor = accentColor
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLAnchorElement).style.paddingLeft = '0'
+                        (e.currentTarget as HTMLAnchorElement).style.borderLeftColor = 'transparent'
                       }}
                     >
                       <p
