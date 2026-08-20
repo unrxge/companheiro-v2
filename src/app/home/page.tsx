@@ -365,8 +365,8 @@ function HomeContent() {
                       </p>
                     </div>
                     <div
+                      className="hidden md:flex"
                       style={{
-                        display: 'flex',
                         gap: '8px',
                         alignItems: 'center',
                         fontSize: '11px',
