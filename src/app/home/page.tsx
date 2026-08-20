@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { motion } from 'motion/react'
 import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, headerPalette } from '@/lib/card-theme'
+import { cardPalette, shellBackground } from '@/lib/card-theme'
 
 function UnderlineLink({
   href,
@@ -199,27 +199,29 @@ function HomeContent() {
     margin: 0,
   }
 
+  const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
+  const pipelineStats = [
+    { label: 'Active', value: pieceCounts?.active ?? 0, color: '#10B981' },
+    { label: 'Queue', value: pieceCounts?.queue ?? 0, color: '#F59E0B' },
+    { label: 'Completed', value: pieceCounts?.completed ?? 0, color: '#8B5CF6' },
+  ]
+
   return (
     <div
       style={{
         position: 'relative',
         minHeight: '100vh',
-        backgroundColor: c.containerBg,
-        transition: 'background-color 0.3s ease',
+        background: shellBackground,
       }}
     >
       <div style={{ position: 'relative', padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header: constant black block, independent of the light/dark card toggle */}
+        {/* Header: plain text on the shell, no card chrome of its own */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
           style={{
-            marginBottom: '24px',
-            backgroundColor: headerPalette.bg,
-            boxShadow: headerPalette.shadow,
-            borderRadius: '22px',
-            padding: '24px 24px 28px',
+            marginBottom: '32px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'flex-start',
@@ -272,42 +274,19 @@ function HomeContent() {
           </div>
         </motion.div>
 
-        {/* Stat strip: a quiet pulse on the pipeline, using counts already fetched for "In progress" */}
+        {/* Container: the panel the header is enveloped by, holding all cards */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: 'easeOut' }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '28px',
-            padding: '0 4px',
-            marginBottom: '24px',
+            backgroundColor: c.containerBg,
+            boxShadow: c.containerShadow,
+            borderRadius: '28px',
+            padding: '24px',
+            transition: 'background-color 0.3s ease',
           }}
         >
-          {[
-            { label: 'Active', value: pieceCounts?.active, dot: '#10B981' },
-            { label: 'Queue', value: pieceCounts?.queue, dot: '#F59E0B' },
-            { label: 'Completed', value: pieceCounts?.completed, dot: '#8B5CF6' },
-          ].map((stat) => (
-            <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: stat.dot, display: 'inline-block' }} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontWeight: 700,
-                  fontSize: '18px',
-                  color: c.textPrimary,
-                }}
-              >
-                {stat.value ?? '–'}
-              </span>
-              <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
-            </div>
-          ))}
-        </motion.div>
-
       {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left column: In Progress section */}
@@ -571,6 +550,63 @@ function HomeContent() {
           </div>
         </motion.div>
         </div>
+
+        {/* Pipeline: proportional bar showing how the total splits across Active/Queue/Completed */}
+        <div style={{ marginTop: '28px', paddingTop: '24px', borderTop: `1px solid ${c.divider}` }}>
+          <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Pipeline</p>
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: '10px',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              backgroundColor: c.divider,
+            }}
+          >
+            {total > 0 &&
+              pipelineStats
+                .filter((stat) => stat.value > 0)
+                .map((stat) => (
+                  <div
+                    key={stat.label}
+                    style={{
+                      flexGrow: stat.value,
+                      flexBasis: 0,
+                      backgroundColor: stat.color,
+                      transition: 'flex-grow 0.4s ease',
+                    }}
+                  />
+                ))}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '16px' }}>
+            {pipelineStats.map((stat) => (
+              <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: stat.color,
+                    display: 'inline-block',
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontWeight: 700,
+                    fontSize: '18px',
+                    color: c.textPrimary,
+                  }}
+                >
+                  {stat.value}
+                </span>
+                <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        </motion.div>
       </div>
 
       {/* Floating check-in mic button */}
@@ -624,13 +660,13 @@ export default function HomePage() {
         <div
           style={{
             minHeight: '100vh',
-            backgroundColor: cardPalette.light.containerBg,
+            background: shellBackground,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <p style={{ color: '#9b9891' }}>Loading...</p>
+          <p style={{ color: '#6a6866' }}>Loading...</p>
         </div>
       }
     >
