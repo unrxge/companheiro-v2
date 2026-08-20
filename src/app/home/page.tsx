@@ -91,6 +91,7 @@ function HomeContent() {
   const [activePieces, setActivePieces] = useState<ActivePiece[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
+  const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(null)
 
   const [recentCaptures, setRecentCaptures] = useState<RecentCapture[]>([])
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
@@ -112,6 +113,11 @@ function HomeContent() {
         const res = await fetch('/api/project-board/pieces')
         const data = await res.json()
         setActivePieces((data.active || []).slice(0, 5))
+        setPieceCounts({
+          active: (data.active || []).length,
+          queue: (data.queue || []).length,
+          completed: (data.archived || []).length,
+        })
       } catch (err) {
         console.error('Failed to fetch active pieces:', err)
       } finally {
@@ -264,6 +270,42 @@ function HomeContent() {
             </UnderlineLink>
             <ThemeToggle theme={theme} onToggle={toggle} />
           </div>
+        </motion.div>
+
+        {/* Stat strip: a quiet pulse on the pipeline, using counts already fetched for "In progress" */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15, ease: 'easeOut' }}
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '28px',
+            padding: '0 4px',
+            marginBottom: '24px',
+          }}
+        >
+          {[
+            { label: 'Active', value: pieceCounts?.active, dot: '#10B981' },
+            { label: 'Queue', value: pieceCounts?.queue, dot: '#F59E0B' },
+            { label: 'Completed', value: pieceCounts?.completed, dot: '#8B5CF6' },
+          ].map((stat) => (
+            <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: stat.dot, display: 'inline-block' }} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontWeight: 700,
+                  fontSize: '18px',
+                  color: c.textPrimary,
+                }}
+              >
+                {stat.value ?? '–'}
+              </span>
+              <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
+            </div>
+          ))}
         </motion.div>
 
       {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}
