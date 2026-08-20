@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea'
 import { useCardTheme } from '@/hooks/useCardTheme'
 import { cardPalette, shellBackground } from '@/lib/card-theme'
-import { UnderlineLink } from '@/components/ui/underline-link'
 import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 
@@ -385,30 +384,24 @@ function ProjectBoardContent() {
     return (
       <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
         {/* Header - matches loaded state so nothing jumps once data arrives */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
-            alignItems: 'center',
-            padding: '16px 24px',
-            borderBottom: `1px solid ${c.divider}`,
-          }}
-        >
-          <div />
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', padding: '20px 24px', rowGap: '12px' }}>
           <h1
             style={{
               fontFamily: 'var(--font-geist-sans)',
               fontWeight: 700,
-              fontSize: '20px',
-              color: c.textPrimary,
+              fontSize: 'clamp(24px, 8vw, 34px)',
+              color: '#e8e6e0',
               margin: 0,
-              textAlign: 'center',
-              letterSpacing: '-0.01em',
+              letterSpacing: '-0.02em',
             }}
           >
             Project Board
           </h1>
-          <div />
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px' }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: c.divider }} />
+            ))}
+          </div>
         </div>
 
         {/* Mobile tab bar skeleton */}
@@ -561,33 +554,25 @@ function ProjectBoardContent() {
       `}</style>
 
       {/* Header */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          alignItems: 'center',
-          padding: '16px 24px',
-          borderBottom: `1px solid ${c.divider}`,
-        }}
-      >
-        <div>
-          <UnderlineLink onClick={() => router.push('/idea-lab')} color="#8c8a87">
-            New idea
-          </UnderlineLink>
-        </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', padding: '20px 24px', rowGap: '12px' }}>
         <h1
           style={{
             fontFamily: 'var(--font-geist-sans)',
             fontWeight: 700,
-            fontSize: '20px',
+            fontSize: 'clamp(24px, 8vw, 34px)',
             color: '#e8e6e0',
             margin: 0,
-            letterSpacing: '-0.01em',
+            letterSpacing: '-0.02em',
           }}
         >
           Project Board
         </h1>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </IconButton>
           <ThemeToggleButton theme={theme} onToggle={toggle} />
           <IconButton onClick={() => router.push('/home')} ariaLabel="Home">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
