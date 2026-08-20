@@ -394,6 +394,62 @@ function HomeContent() {
               <UnderlineLink href="/project-board" color={c.textSecondary}>View full board →</UnderlineLink>
             </div>
           </div>
+
+          {/* Ideas: proportional bar showing how the total splits across Active/Queue/Completed */}
+          <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: `1px solid ${c.divider}` }}>
+            <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Ideas</p>
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                height: '10px',
+                borderRadius: '999px',
+                overflow: 'hidden',
+                backgroundColor: c.divider,
+              }}
+            >
+              {total > 0 &&
+                pipelineStats
+                  .filter((stat) => stat.value > 0)
+                  .map((stat) => (
+                    <div
+                      key={stat.label}
+                      style={{
+                        flexGrow: stat.value,
+                        flexBasis: 0,
+                        backgroundColor: stat.color,
+                        transition: 'flex-grow 0.4s ease',
+                      }}
+                    />
+                  ))}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '16px' }}>
+              {pipelineStats.map((stat) => (
+                <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: stat.color,
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-geist-sans)',
+                      fontWeight: 700,
+                      fontSize: '18px',
+                      color: c.textPrimary,
+                    }}
+                  >
+                    {stat.value}
+                  </span>
+                  <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </motion.div>
 
         {/* Right column: Capture widget */}
@@ -549,62 +605,6 @@ function HomeContent() {
             </div>
           </div>
         </motion.div>
-        </div>
-
-        {/* Pipeline: proportional bar showing how the total splits across Active/Queue/Completed */}
-        <div style={{ marginTop: '28px', paddingTop: '24px', borderTop: `1px solid ${c.divider}` }}>
-          <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Pipeline</p>
-          <div
-            style={{
-              display: 'flex',
-              width: '100%',
-              height: '10px',
-              borderRadius: '999px',
-              overflow: 'hidden',
-              backgroundColor: c.divider,
-            }}
-          >
-            {total > 0 &&
-              pipelineStats
-                .filter((stat) => stat.value > 0)
-                .map((stat) => (
-                  <div
-                    key={stat.label}
-                    style={{
-                      flexGrow: stat.value,
-                      flexBasis: 0,
-                      backgroundColor: stat.color,
-                      transition: 'flex-grow 0.4s ease',
-                    }}
-                  />
-                ))}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '16px' }}>
-            {pipelineStats.map((stat) => (
-              <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: stat.color,
-                    display: 'inline-block',
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: 'var(--font-geist-sans)',
-                    fontWeight: 700,
-                    fontSize: '18px',
-                    color: c.textPrimary,
-                  }}
-                >
-                  {stat.value}
-                </span>
-                <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
-              </div>
-            ))}
-          </div>
         </div>
         </motion.div>
       </div>
