@@ -9,6 +9,7 @@ interface AutoResizeTextareaProps {
   disabled?: boolean
   minRows?: number
   className?: string
+  style?: React.CSSProperties
 }
 
 export default function AutoResizeTextarea({
@@ -18,6 +19,7 @@ export default function AutoResizeTextarea({
   disabled,
   minRows = 3,
   className,
+  style,
 }: AutoResizeTextareaProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -37,7 +39,7 @@ export default function AutoResizeTextarea({
       disabled={disabled}
       rows={minRows}
       className={className}
-      style={{ resize: 'none', overflowY: 'auto', maxHeight: '420px' }}
+      style={{ resize: 'none', overflowY: 'auto', maxHeight: '420px', ...style }}
     />
   )
 }

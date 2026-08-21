@@ -7,6 +7,7 @@ import { useCardTheme } from '@/hooks/useCardTheme'
 import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
 import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { ModalDialog } from '@/components/ui/modal-dialog'
 
 interface Task {
   id: string
@@ -86,8 +87,8 @@ interface Trajectory {
   created_at: string
 }
 
-// Kept as a small mood accent dot on the trajectory banner, not the banner's
-// own bg/border/text anymore — the banner now inverts against the card theme.
+// A small mood accent dot next to the trajectory text, not the card's own
+// bg/border/text — those are normal theme-aware card colors.
 const TONE_DOT_COLORS: Record<string, string> = {
   grounded: '#10B981',
   restless: '#F59E0B',
@@ -100,13 +101,12 @@ function ProjectBoardContent() {
   const router = useRouter()
   const { theme, toggle } = useCardTheme('light')
   const c = cardPalette[theme]
-  // Trajectory banner: white on dark mode, brand coral on light mode.
-  const bannerBg = theme === 'dark' ? cardPalette.light.cardBg : accentColor
-  const bannerBorder = bannerBg
-  const bannerText = theme === 'dark' ? cardPalette.light.textPrimary : '#ffffff'
-  const bannerMuted = theme === 'dark' ? cardPalette.light.textMuted : 'rgba(255, 255, 255, 0.75)'
-  const bannerButtonBg = theme === 'dark' ? accentColor : '#ffffff'
-  const bannerButtonText = theme === 'dark' ? '#ffffff' : accentColor
+  // Trajectory card: normal theme-aware card colors, no inversion. The Zoom
+  // out button is always the brand coral, regardless of theme.
+  const bannerBg = c.cardBg
+  const bannerBorder = 'transparent'
+  const bannerText = c.textPrimary
+  const bannerMuted = c.textMuted
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -302,6 +302,21 @@ function ProjectBoardContent() {
       }
     } catch (err) {
       console.error('Failed to activate idea:', err)
+    }
+  }
+
+  const handleDeleteIdea = async (ideaId: string) => {
+    if (!window.confirm('Delete this idea? This can\'t be undone.')) return
+    try {
+      await fetch('/api/project-board/idea', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea_id: ideaId }),
+      })
+      setQueue((prev) => prev.filter((idea) => idea.id !== ideaId))
+      if (selectedIdea?.id === ideaId) closeModal()
+    } catch (err) {
+      console.error('Failed to delete idea:', err)
     }
   }
 
@@ -510,74 +525,112 @@ function ProjectBoardContent() {
     arc: string,
     color: string,
     onClick: () => void,
-    dragItem?: { type: 'idea' | 'piece'; id: string }
+    dragItem?: { type: 'idea' | 'piece'; id: string },
+    onDelete?: () => void
   ) => (
-    <button
-      key={id}
-      onClick={onClick}
-      draggable={!!dragItem}
-      onDragStart={dragItem ? () => handleDragStart(dragItem.type, dragItem.id) : undefined}
-      onDragEnd={dragItem ? handleDragEnd : undefined}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        backgroundColor: c.cardBg,
-        boxShadow: c.shadow,
-        border: '1px solid transparent',
-        borderRadius: '12px',
-        padding: '12px',
-        cursor: dragItem ? 'grab' : 'pointer',
-        transition: 'border-color 0.2s, opacity 0.2s',
-        minHeight: '80px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        opacity: draggedItem?.id === id ? 0.4 : 1,
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = color
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'
-      }}
-    >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-        <div
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: color,
-            flexShrink: 0,
-            marginTop: '2px',
+    <div key={id} className="group" style={{ position: 'relative' }}>
+      <button
+        onClick={onClick}
+        draggable={!!dragItem}
+        onDragStart={dragItem ? () => handleDragStart(dragItem.type, dragItem.id) : undefined}
+        onDragEnd={dragItem ? handleDragEnd : undefined}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          backgroundColor: c.cardBg,
+          boxShadow: c.shadow,
+          border: '1px solid transparent',
+          borderRadius: '12px',
+          padding: '12px',
+          paddingRight: onDelete ? '32px' : '12px',
+          cursor: dragItem ? 'grab' : 'pointer',
+          transition: 'border-color 0.2s, opacity 0.2s',
+          minHeight: '80px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          opacity: draggedItem?.id === id ? 0.4 : 1,
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = color
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'
+        }}
+      >
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          <div
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: color,
+              flexShrink: 0,
+              marginTop: '2px',
+            }}
+          />
+          <p
+            style={{
+              color: c.textPrimary,
+              fontWeight: 500,
+              fontSize: '13px',
+              margin: 0,
+              whiteSpace: 'normal',
+              wordWrap: 'break-word',
+              lineHeight: '1.4',
+            }}
+          >
+            {title}
+          </p>
+        </div>
+        {arc && (
+          <p
+            style={{
+              color: c.textMuted,
+              fontSize: '11px',
+              margin: '8px 0 0 0',
+            }}
+          >
+            {arc}
+          </p>
+        )}
+      </button>
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
           }}
-        />
-        <p
+          aria-label="Delete idea"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
           style={{
-            color: c.textPrimary,
-            fontWeight: 500,
-            fontSize: '13px',
-            margin: 0,
-            whiteSpace: 'normal',
-            wordWrap: 'break-word',
-            lineHeight: '1.4',
-          }}
-        >
-          {title}
-        </p>
-      </div>
-      {arc && (
-        <p
-          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            width: '22px',
+            height: '22px',
+            borderRadius: '6px',
+            border: 'none',
+            background: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             color: c.textMuted,
-            fontSize: '11px',
-            margin: '8px 0 0 0',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
           }}
         >
-          {arc}
-        </p>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
+          </svg>
+        </button>
       )}
-    </button>
+    </div>
   )
 
   const columnEyebrow: React.CSSProperties = {
@@ -695,6 +748,7 @@ function ProjectBoardContent() {
             flexDirection: 'column',
             flex: 1,
             minHeight: 0,
+            marginBottom: '16px',
             transition: 'background-color 0.3s ease',
           }}
         >
@@ -764,12 +818,17 @@ function ProjectBoardContent() {
               <h2 style={columnEyebrow}>Queue</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
             </div>
-            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {queue.map((idea) =>
-                renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id), {
-                  type: 'idea',
-                  id: idea.id,
-                })
+                renderCard(
+                  idea.id,
+                  idea.title,
+                  idea.arc,
+                  '#F59E0B',
+                  () => openIdeaModal(idea.id),
+                  { type: 'idea', id: idea.id },
+                  () => handleDeleteIdea(idea.id)
+                )
               )}
             </div>
           </div>
@@ -798,7 +857,7 @@ function ProjectBoardContent() {
               <h2 style={columnEyebrow}>Active</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({active.length})</span>
             </div>
-            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {active.map((piece) =>
                 renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id), {
                   type: 'piece',
@@ -831,7 +890,7 @@ function ProjectBoardContent() {
               <h2 style={columnEyebrow}>Completed</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({completed.length})</span>
             </div>
-            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {completed.map((piece) =>
                 renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
               )}
@@ -840,11 +899,19 @@ function ProjectBoardContent() {
         </div>
 
         {/* Mobile Layout - Single Column with Tabs */}
-        <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-28">
+        <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
           <div className="space-y-3">
           {activeTab === 'Queue' &&
             queue.map((idea) =>
-              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
+              renderCard(
+                idea.id,
+                idea.title,
+                idea.arc,
+                '#F59E0B',
+                () => openIdeaModal(idea.id),
+                undefined,
+                () => handleDeleteIdea(idea.id)
+              )
             )}
           {activeTab === 'Active' &&
             active.map((piece) =>
@@ -857,197 +924,268 @@ function ProjectBoardContent() {
           </div>
         </div>
         </div>
-      </div>
 
-      {/* Trajectory Banner: same maxWidth/inset as the board above it, colors invert against the current card theme for contrast */}
-      <div className="fixed bottom-4 left-0 right-0 md:bottom-6 z-40 px-4 md:px-6 pointer-events-none">
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }} className="pointer-events-auto">
-          <div
-            className="border rounded-2xl shadow-lg px-4 md:px-5 py-3 flex items-center justify-between gap-4 transition-colors"
-            style={{ backgroundColor: bannerBg, borderColor: bannerBorder }}
-          >
-            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {trajectory?.tone && (
-                <span
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: TONE_DOT_COLORS[trajectory.tone] || bannerText,
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              {trajectory ? (
-                <p style={{ fontSize: '14px', lineHeight: 1.5, color: bannerText, margin: 0 }}>
-                  {trajectory.statement}
-                </p>
-              ) : (
-                <p style={{ fontSize: '13px', color: bannerMuted, margin: 0 }}>
-                  No trajectory set yet
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => router.push('/zoom-out')}
-              className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
-              style={{
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 600,
-                fontSize: '13px',
-                padding: '8px 16px',
-                backgroundColor: bannerButtonBg,
-                color: bannerButtonText,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.opacity = '1'
-              }}
-            >
-              {trajectory ? 'Zoom out' : 'Find your direction'}
-            </button>
+        {/* Trajectory card: embedded under the columns, normal card colors (no inversion) */}
+        <div
+          className="rounded-2xl shadow flex items-center justify-between gap-4"
+          style={{
+            backgroundColor: bannerBg,
+            border: `1px solid ${bannerBorder}`,
+            boxShadow: c.shadow,
+            padding: '14px 20px',
+            flexShrink: 0,
+          }}
+        >
+          <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {trajectory?.tone && (
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: TONE_DOT_COLORS[trajectory.tone] || bannerText,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {trajectory ? (
+              <p style={{ fontSize: '14px', lineHeight: 1.5, color: bannerText, margin: 0 }}>
+                {trajectory.statement}
+              </p>
+            ) : (
+              <p style={{ fontSize: '13px', color: bannerMuted, margin: 0 }}>
+                No trajectory set yet
+              </p>
+            )}
           </div>
+          <button
+            onClick={() => router.push('/zoom-out')}
+            className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontWeight: 600,
+              fontSize: '13px',
+              padding: '8px 16px',
+              backgroundColor: accentColor,
+              color: '#ffffff',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+            }}
+          >
+            {trajectory ? 'Zoom out' : 'Find your direction'}
+          </button>
         </div>
       </div>
 
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
-        <div className="fixed inset-0 bg-[#111110] z-50 flex flex-col">
-          <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start flex-shrink-0 gap-4">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
-              <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', backgroundColor: c.containerBg }}>
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              backgroundColor: c.cardBg,
+              boxShadow: c.shadow,
+              padding: '16px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              flexShrink: 0,
+              gap: '16px',
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 700, fontSize: '18px', color: c.textPrimary, margin: 0 }}>
+                {selectedPiece.title}
+              </h2>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: c.textMuted }}>
                 <span>{selectedPiece.arc}</span>
                 <span>•</span>
                 <span>{selectedPiece.thematic_territory}</span>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
               {/* Moved up from the bottom of the modal so writing is one click away, no scrolling past Core Concept/Tasks first */}
               <button
                 onClick={() => {
                   if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
                 }}
-                className="px-4 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors whitespace-nowrap"
+                className="transition-opacity whitespace-nowrap"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: accentColor,
+                  color: '#ffffff',
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+                }}
               >
                 {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
               </button>
               <button
                 onClick={closeModal}
-                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+                aria-label="Close"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: c.textMuted,
+                  transition: 'color 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
+                }}
               >
-                ✕
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+          <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
               {/* Core Concept Section */}
               {coreConceptDraft && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Core Concept</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">One Sentence</p>
-                      <input
-                        type="text"
-                        value={coreConceptDraft.one_sentence}
-                        onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors"
-                      />
-                    </div>
+                <div
+                  style={{
+                    backgroundColor: c.cardBg,
+                    boxShadow: c.shadow,
+                    borderRadius: '16px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Core Concept</p>
 
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Conviction</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.conviction_statement}
-                        onChange={(value) => handleCoreConceptChange('conviction_statement', value)}
-                        minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
-                      />
+                  {([
+                    { key: 'one_sentence', label: 'One Sentence', minRows: 1 },
+                    { key: 'conviction_statement', label: 'Conviction', minRows: 2 },
+                    { key: 'emotional_journey', label: 'Emotional Journey', minRows: 2 },
+                    { key: 'core_truth', label: 'Core Truth', minRows: 2 },
+                    { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
+                    { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
+                    { key: 'open_threads', label: 'Open Threads', minRows: 2, placeholder: '- Thread one\n- Thread two' },
+                  ] as const).map((field) => (
+                    <div key={field.key}>
+                      <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+                        {field.label}
+                      </p>
+                      {field.key === 'one_sentence' ? (
+                        <input
+                          type="text"
+                          value={coreConceptDraft.one_sentence}
+                          onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
+                          style={{
+                            width: '100%',
+                            backgroundColor: c.inputBg,
+                            border: `1px solid ${c.inputBorder}`,
+                            borderRadius: '10px',
+                            padding: '10px 12px',
+                            fontSize: '14px',
+                            color: c.textPrimary,
+                            outline: 'none',
+                          }}
+                        />
+                      ) : (
+                        <AutoResizeTextarea
+                          value={coreConceptDraft[field.key]}
+                          onChange={(value) => handleCoreConceptChange(field.key, value)}
+                          minRows={field.minRows}
+                          placeholder={'placeholder' in field ? field.placeholder : undefined}
+                          style={{
+                            width: '100%',
+                            backgroundColor: c.inputBg,
+                            border: `1px solid ${c.inputBorder}`,
+                            borderRadius: '10px',
+                            padding: '10px 12px',
+                            fontSize: '14px',
+                            color: c.textPrimary,
+                            outline: 'none',
+                            lineHeight: 1.6,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        />
+                      )}
                     </div>
+                  ))}
 
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Emotional Journey</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.emotional_journey}
-                        onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
-                        minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Core Truth</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.core_truth}
-                        onChange={(value) => handleCoreConceptChange('core_truth', value)}
-                        minRows={2}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Substack Goals</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.substack_goals}
-                        onChange={(value) => handleCoreConceptChange('substack_goals', value)}
-                        minRows={2}
-                        placeholder={"- Goal one\n- Goal two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Short Form Goals</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.short_form_goals}
-                        onChange={(value) => handleCoreConceptChange('short_form_goals', value)}
-                        minRows={2}
-                        placeholder={"- Goal one\n- Goal two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Open Threads</p>
-                      <AutoResizeTextarea
-                        value={coreConceptDraft.open_threads}
-                        onChange={(value) => handleCoreConceptChange('open_threads', value)}
-                        minRows={2}
-                        placeholder={"- Thread one\n- Thread two"}
-                        className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] focus:outline-none focus:border-[#4a4946] transition-colors leading-relaxed whitespace-pre-wrap"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleSaveCoreConcept}
-                      disabled={isSavingCoreConcept}
-                      className="w-full py-2 bg-[#2e2d2a] text-[#e8e6e1] text-xs font-medium rounded hover:bg-[#3d3c39] transition-colors disabled:opacity-50"
-                    >
-                      {isSavingCoreConcept ? 'Saving...' : coreConceptSaved ? 'Saved ✓' : 'Save changes'}
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleSaveCoreConcept}
+                    disabled={isSavingCoreConcept}
+                    className="transition-opacity disabled:opacity-50"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: accentColor,
+                      color: '#ffffff',
+                      fontFamily: 'var(--font-geist-sans)',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isSavingCoreConcept ? 'Saving...' : coreConceptSaved ? 'Saved ✓' : 'Save changes'}
+                  </button>
                 </div>
               )}
 
               {/* Tasks Section */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Tasks</h3>
-                <div className="space-y-2">
-                  {selectedPiece.tasks.length === 0 ? (
-                    <p className="text-sm text-[#3d3c39]">No tasks</p>
-                  ) : (
-                    <>
+              <div
+                style={{
+                  backgroundColor: c.cardBg,
+                  boxShadow: c.shadow,
+                  borderRadius: '16px',
+                  padding: '20px',
+                }}
+              >
+                <p style={{ ...columnEyebrow, marginBottom: '14px' }}>Tasks</p>
+
+                {selectedPiece.tasks.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>No tasks</p>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {selectedPiece.tasks
                         .filter((t) => t.status === 'pending')
                         .map((task) => (
                           <div
                             key={task.id}
-                            className="bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3"
+                            style={{
+                              backgroundColor: c.inputBg,
+                              border: `1px solid ${c.inputBorder}`,
+                              borderRadius: '10px',
+                              padding: '10px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                            }}
                           >
                             <input
                               type="checkbox"
@@ -1055,30 +1193,58 @@ function ProjectBoardContent() {
                               onChange={() => handleToggleTask(task.id, 'pending')}
                               className="accent-green-600 flex-shrink-0 cursor-pointer"
                             />
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="text-base text-[#d4d2cd]">{task.title}</span>
-                              <span className="text-xs text-[#4a4946] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: '13px', color: c.textPrimary }}>{task.title}</span>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  color: c.textMuted,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  backgroundColor: c.containerBg,
+                                  flexShrink: 0,
+                                }}
+                              >
                                 {task.type}
                               </span>
                             </div>
                             <button
                               onClick={() => handleDeleteTask(task.id)}
-                              className="text-xs text-[#6b6966] hover:text-red-300 transition-colors flex-shrink-0"
+                              style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
+                              }}
                             >
                               Delete
                             </button>
                           </div>
                         ))}
+                    </div>
 
-                      {selectedPiece.tasks.filter((t) => t.status === 'complete').length > 0 && (
-                        <div className="pt-2 space-y-2">
-                          <p className="text-xs text-[#4a4946] uppercase tracking-widest">Completed</p>
+                    {selectedPiece.tasks.filter((t) => t.status === 'complete').length > 0 && (
+                      <div style={{ marginTop: '14px' }}>
+                        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                          Completed
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {selectedPiece.tasks
                             .filter((t) => t.status === 'complete')
                             .map((task) => (
                               <div
                                 key={task.id}
-                                className="bg-[#111110] border border-[#1f1f1d] rounded p-3 flex items-center gap-3 opacity-60"
+                                style={{
+                                  backgroundColor: c.inputBg,
+                                  border: `1px solid ${c.inputBorder}`,
+                                  borderRadius: '10px',
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  opacity: 0.6,
+                                }}
                               >
                                 <input
                                   type="checkbox"
@@ -1086,61 +1252,103 @@ function ProjectBoardContent() {
                                   onChange={() => handleToggleTask(task.id, 'complete')}
                                   className="accent-green-600 flex-shrink-0 cursor-pointer"
                                 />
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className="text-base text-[#4a4946] line-through">{task.title}</span>
-                                  <span className="text-xs text-[#3d3c39] px-2 py-0.5 rounded bg-[#1f1f1d] flex-shrink-0">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '13px', color: c.textMuted, textDecoration: 'line-through' }}>{task.title}</span>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      color: c.textMuted,
+                                      padding: '2px 8px',
+                                      borderRadius: '999px',
+                                      backgroundColor: c.containerBg,
+                                      flexShrink: 0,
+                                    }}
+                                  >
                                     {task.type}
                                   </span>
                                 </div>
                               </div>
                             ))}
                         </div>
-                      )}
-                    </>
-                  )}
+                      </div>
+                    )}
+                  </>
+                )}
 
-                  {/* Add Task */}
-                  <div className="pt-3 border-t border-[#1f1f1d] space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newTaskInput}
-                        onChange={(e) => setNewTaskInput(e.target.value)}
-                        placeholder="Add task..."
-                        className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') handleAddTask()
-                        }}
-                      />
-                      <select
-                        value={newTaskType}
-                        onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
-                        className="bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-sm text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
-                      >
-                        <option value="creation">Creation</option>
-                        <option value="execution">Execution</option>
-                      </select>
-                      <button
-                        onClick={handleAddTask}
-                        className="px-3 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd]"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
+                {/* Add Task */}
+                <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${c.divider}`, display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={newTaskInput}
+                    onChange={(e) => setNewTaskInput(e.target.value)}
+                    placeholder="Add task..."
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleAddTask()
+                    }}
+                    style={{
+                      flex: 1,
+                      backgroundColor: c.inputBg,
+                      border: `1px solid ${c.inputBorder}`,
+                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      fontSize: '13px',
+                      color: c.textPrimary,
+                      outline: 'none',
+                    }}
+                  />
+                  <select
+                    value={newTaskType}
+                    onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
+                    style={{
+                      backgroundColor: c.inputBg,
+                      border: `1px solid ${c.inputBorder}`,
+                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      fontSize: '13px',
+                      color: c.textPrimary,
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="creation">Creation</option>
+                    <option value="execution">Execution</option>
+                  </select>
+                  <button
+                    onClick={handleAddTask}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: c.textPrimary,
+                      color: c.cardBg,
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Add
+                  </button>
                 </div>
               </div>
 
               {/* Actions */}
               {allTasksComplete && (
-                <div className="space-y-2 border-t border-[#1f1f1d] pt-4">
-                  <button
-                    onClick={handleCompletepiece}
-                    className="w-full py-2.5 bg-green-600/20 text-green-400 text-sm font-medium rounded hover:bg-green-600/30 transition-colors"
-                  >
-                    Mark piece complete
-                  </button>
-                </div>
+                <button
+                  onClick={handleCompletepiece}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    color: '#10B981',
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Mark piece complete
+                </button>
               )}
             </div>
           </div>
@@ -1149,70 +1357,117 @@ function ProjectBoardContent() {
 
       {/* Idea Modal */}
       {modalType === 'idea' && selectedIdea && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
-              <div className="flex-1">
-                <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedIdea.title}</h2>
-                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
-                  <span>{selectedIdea.arc}</span>
-                  <span>•</span>
-                  <span>{selectedIdea.thematic_territory}</span>
-                </div>
+        <ModalDialog
+          theme={theme}
+          onClose={closeModal}
+          title={selectedIdea.title}
+          subtitle={
+            <>
+              <span>{selectedIdea.arc}</span>
+              <span>•</span>
+              <span>{selectedIdea.thematic_territory}</span>
+            </>
+          }
+          headerActions={
+            <button
+              onClick={() => handleDeleteIdea(selectedIdea.id)}
+              aria-label="Delete idea"
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: c.textMuted,
+                transition: 'color 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
+              </svg>
+            </button>
+          }
+          footer={
+            <button
+              onClick={() => handleActivate(selectedIdea.id)}
+              className="w-full transition-colors"
+              style={{
+                padding: '10px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: accentColor,
+                color: '#ffffff',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+              }}
+            >
+              Activate idea
+            </button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {selectedIdea.one_sentence && (
+              <div>
+                <p style={columnEyebrow}>One sentence</p>
+                <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: 1.6, margin: '6px 0 0' }}>
+                  {selectedIdea.one_sentence}
+                </p>
               </div>
-              <button
-                onClick={closeModal}
-                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
-              >
-                ✕
-              </button>
-            </div>
+            )}
 
-            <div className="px-6 py-4 space-y-6">
-              {/* Idea Details */}
-              <div className="space-y-3">
-                {selectedIdea.one_sentence && (
-                  <div>
-                    <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">One Sentence</p>
-                    <p className="text-[#d4d2cd]">{selectedIdea.one_sentence}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Linked Tasks if piece exists */}
-              {selectedIdea.piece_id && selectedIdea.tasks && selectedIdea.tasks.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest">Linked Piece Tasks</h3>
-                  <div className="space-y-2">
-                    {selectedIdea.tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="bg-[#111110] border border-[#1f1f1d] rounded p-2 flex items-center justify-between text-xs"
+            {selectedIdea.piece_id && selectedIdea.tasks && selectedIdea.tasks.length > 0 && (
+              <div>
+                <p style={columnEyebrow}>Linked piece tasks</p>
+                <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                  {selectedIdea.tasks.map((task, index) => (
+                    <div
+                      key={task.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        padding: '10px 0',
+                        borderBottom: index < selectedIdea.tasks!.length - 1 ? `1px solid ${c.divider}` : 'none',
+                      }}
+                    >
+                      <span style={{ color: c.textPrimary, fontSize: '13px' }}>{task.title}</span>
+                      <span
+                        style={{
+                          color: c.textMuted,
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          backgroundColor: c.inputBg,
+                        }}
                       >
-                        <div className="flex items-center gap-2 flex-1">
-                          <span className="text-base text-[#d4d2cd]">{task.title}</span>
-                          <span className="text-[#4a4946] text-xs px-2 py-0.5 rounded bg-[#1f1f1d]">
-                            {task.type}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        {task.type}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              {/* Activate Button */}
-              <div className="border-t border-[#1f1f1d] pt-4">
-                <button
-                  onClick={() => handleActivate(selectedIdea.id)}
-                  className="w-full py-2 bg-[#F59E0B] text-[#111110] text-xs font-medium rounded hover:bg-[#f5a82b] transition-colors"
-                >
-                  Activate Idea
-                </button>
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        </ModalDialog>
       )}
     </div>
   )
