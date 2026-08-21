@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { generateTasks } from "@/lib/generate-tasks";
+import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
 
 interface SaveRequest {
@@ -110,6 +111,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       normalised_territory: normalisedTerritory,
     })
 
+    // Generate the poetic title that will represent this idea/piece
+    // everywhere in the UI until the user renames it while writing.
+    const poeticTitle = await generatePoeticTitle({
+      one_sentence: body.one_sentence,
+      conviction_statement: body.conviction_statement,
+      emotional_journey: body.emotional_journey,
+      core_truth: body.core_truth,
+    })
+    console.log('Generated poetic title:', poeticTitle)
+
     // Create idea
     console.log('Creating idea with:', {
       user_id: userId,
@@ -123,7 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       .insert([
         {
           user_id: userId,
-          title: body.one_sentence,
+          title: poeticTitle,
           one_sentence: body.one_sentence,
           arc: normalisedArc,
           thematic_territory: normalisedTerritory,
@@ -164,7 +175,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         {
           user_id: userId,
           idea_id: ideaId,
-          title: body.one_sentence,
+          title: poeticTitle,
           arc: normalisedArc,
           thematic_territory: normalisedTerritory,
           format: "substack",

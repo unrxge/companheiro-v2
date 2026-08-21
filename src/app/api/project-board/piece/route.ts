@@ -219,7 +219,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateRe
     if (body.substack_goals !== undefined) pieceUpdate.substack_goals = body.substack_goals;
     if (body.short_form_goals !== undefined) pieceUpdate.short_form_goals = body.short_form_goals;
     if (body.open_threads !== undefined) pieceUpdate.open_threads = parseOpenThreads(body.open_threads);
-    if (body.one_sentence !== undefined) pieceUpdate.title = body.one_sentence;
+    // Note: title is intentionally NOT synced from one_sentence here — title
+    // holds the poetic title generated at core-concept save time, and stays
+    // stable through edits to one_sentence. It only changes when the user
+    // renames it directly (e.g. from the Write page).
 
     if (Object.keys(pieceUpdate).length > 0) {
       const { error: updateError } = await supabase
@@ -240,7 +243,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateRe
     if (body.one_sentence !== undefined && piece.idea_id) {
       await supabase
         .from("ideas")
-        .update({ one_sentence: body.one_sentence, title: body.one_sentence })
+        .update({ one_sentence: body.one_sentence })
         .eq("id", piece.idea_id)
         .eq("user_id", userId);
     }
