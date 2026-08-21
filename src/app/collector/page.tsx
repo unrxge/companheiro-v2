@@ -376,7 +376,7 @@ export default function CollectorPage() {
             )}
 
             {selectedCapture.url && (
-              <div>
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
                 <p style={eyebrowStyle}>Source</p>
                 <a
                   href={selectedCapture.url}
@@ -390,7 +390,7 @@ export default function CollectorPage() {
             )}
 
             {selectedCapture.link_context && (
-              <div>
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
                 <p style={eyebrowStyle}>Analysis</p>
                 <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: 1.6, margin: '6px 0 0', whiteSpace: 'pre-line' }}>
                   {selectedCapture.link_context}

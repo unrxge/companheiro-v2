@@ -101,12 +101,6 @@ function ProjectBoardContent() {
   const router = useRouter()
   const { theme, toggle } = useCardTheme('light')
   const c = cardPalette[theme]
-  // Trajectory card: normal theme-aware card colors, no inversion. The Zoom
-  // out button is always the brand coral, regardless of theme.
-  const bannerBg = c.cardBg
-  const bannerBorder = 'transparent'
-  const bannerText = c.textPrimary
-  const bannerMuted = c.textMuted
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -542,7 +536,6 @@ function ProjectBoardContent() {
           border: '1px solid transparent',
           borderRadius: '12px',
           padding: '12px',
-          paddingRight: onDelete ? '32px' : '12px',
           cursor: dragItem ? 'grab' : 'pointer',
           transition: 'border-color 0.2s, opacity 0.2s',
           minHeight: '80px',
@@ -605,18 +598,20 @@ function ProjectBoardContent() {
           className="opacity-0 group-hover:opacity-100 transition-opacity"
           style={{
             position: 'absolute',
-            top: '10px',
-            right: '10px',
-            width: '22px',
-            height: '22px',
-            borderRadius: '6px',
-            border: 'none',
-            background: 'none',
+            top: '-7px',
+            right: '-7px',
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            border: `1px solid ${c.divider}`,
+            backgroundColor: c.cardBg,
+            boxShadow: c.shadow,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: c.textMuted,
             cursor: 'pointer',
+            padding: 0,
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
@@ -625,8 +620,8 @@ function ProjectBoardContent() {
             (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
       )}
@@ -748,7 +743,6 @@ function ProjectBoardContent() {
             flexDirection: 'column',
             flex: 1,
             minHeight: 0,
-            marginBottom: '16px',
             transition: 'background-color 0.3s ease',
           }}
         >
@@ -923,16 +917,13 @@ function ProjectBoardContent() {
             )}
           </div>
         </div>
-        </div>
 
-        {/* Trajectory card: embedded under the columns, normal card colors (no inversion) */}
+        {/* Trajectory row: same container as the board, separated only by a divider */}
         <div
-          className="rounded-2xl shadow flex items-center justify-between gap-4"
+          className="flex items-center justify-between gap-4"
           style={{
-            backgroundColor: bannerBg,
-            border: `1px solid ${bannerBorder}`,
-            boxShadow: c.shadow,
-            padding: '14px 20px',
+            borderTop: `1px solid ${c.divider}`,
+            padding: '16px 20px',
             flexShrink: 0,
           }}
         >
@@ -943,17 +934,17 @@ function ProjectBoardContent() {
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  backgroundColor: TONE_DOT_COLORS[trajectory.tone] || bannerText,
+                  backgroundColor: TONE_DOT_COLORS[trajectory.tone] || c.textPrimary,
                   flexShrink: 0,
                 }}
               />
             )}
             {trajectory ? (
-              <p style={{ fontSize: '14px', lineHeight: 1.5, color: bannerText, margin: 0 }}>
+              <p style={{ fontSize: '14px', lineHeight: 1.5, color: c.textPrimary, margin: 0 }}>
                 {trajectory.statement}
               </p>
             ) : (
-              <p style={{ fontSize: '13px', color: bannerMuted, margin: 0 }}>
+              <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>
                 No trajectory set yet
               </p>
             )}
@@ -978,6 +969,7 @@ function ProjectBoardContent() {
           >
             {trajectory ? 'Zoom out' : 'Find your direction'}
           </button>
+        </div>
         </div>
       </div>
 

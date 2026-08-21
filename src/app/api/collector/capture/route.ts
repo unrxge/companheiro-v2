@@ -79,7 +79,7 @@ When unpacking, be direct and tender:
 ${
   hasLinkContent
     ? `
-They shared a piece of content (details and possibly a thumbnail image are provided). Also produce "content_read": 2-3 sentences interpreting the content itself — what it is, what it's about, and crucially its FORMAT mechanics (how it's structured, what makes it work as a piece of content), since they often capture things whose format they want to put their own twist on. Read the thumbnail if provided.
+They shared a piece of content (details and possibly a thumbnail image are provided, including the platform's own caption/description — that's context for you, not something to output). Also produce "content_read": 2-3 sentences of YOUR OWN interpretation of the content — never quote or paraphrase the platform's caption/description back. Focus on what makes it work, its FORMAT mechanics (how it's structured, what makes it work as a piece of content), since they often capture things whose format they want to put their own twist on. Read the thumbnail if provided.
 `
     : ""
 }
