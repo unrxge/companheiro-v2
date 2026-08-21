@@ -100,9 +100,13 @@ function ProjectBoardContent() {
   const router = useRouter()
   const { theme, toggle } = useCardTheme('light')
   const c = cardPalette[theme]
-  // Trajectory banner intentionally inverts against the current card theme —
-  // a striking contrasty accent rather than blending into the board.
-  const banner = cardPalette[theme === 'light' ? 'dark' : 'light']
+  // Trajectory banner: white on dark mode, brand coral on light mode.
+  const bannerBg = theme === 'dark' ? cardPalette.light.cardBg : accentColor
+  const bannerBorder = bannerBg
+  const bannerText = theme === 'dark' ? cardPalette.light.textPrimary : '#ffffff'
+  const bannerMuted = theme === 'dark' ? cardPalette.light.textMuted : 'rgba(255, 255, 255, 0.75)'
+  const bannerButtonBg = theme === 'dark' ? accentColor : '#ffffff'
+  const bannerButtonText = theme === 'dark' ? '#ffffff' : accentColor
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -860,7 +864,7 @@ function ProjectBoardContent() {
         <div style={{ maxWidth: '1200px', margin: '0 auto' }} className="pointer-events-auto">
           <div
             className="border rounded-2xl shadow-lg px-4 md:px-5 py-3 flex items-center justify-between gap-4 transition-colors"
-            style={{ backgroundColor: banner.cardBg, borderColor: banner.divider }}
+            style={{ backgroundColor: bannerBg, borderColor: bannerBorder }}
           >
             <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {trajectory?.tone && (
@@ -869,17 +873,17 @@ function ProjectBoardContent() {
                     width: '8px',
                     height: '8px',
                     borderRadius: '50%',
-                    backgroundColor: TONE_DOT_COLORS[trajectory.tone] || accentColor,
+                    backgroundColor: TONE_DOT_COLORS[trajectory.tone] || bannerText,
                     flexShrink: 0,
                   }}
                 />
               )}
               {trajectory ? (
-                <p style={{ fontSize: '14px', lineHeight: 1.5, color: banner.textPrimary, margin: 0 }}>
+                <p style={{ fontSize: '14px', lineHeight: 1.5, color: bannerText, margin: 0 }}>
                   {trajectory.statement}
                 </p>
               ) : (
-                <p style={{ fontSize: '13px', color: banner.textMuted, margin: 0 }}>
+                <p style={{ fontSize: '13px', color: bannerMuted, margin: 0 }}>
                   No trajectory set yet
                 </p>
               )}
@@ -892,8 +896,8 @@ function ProjectBoardContent() {
                 fontWeight: 600,
                 fontSize: '13px',
                 padding: '8px 16px',
-                backgroundColor: accentColor,
-                color: '#ffffff',
+                backgroundColor: bannerButtonBg,
+                color: bannerButtonText,
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
@@ -911,8 +915,8 @@ function ProjectBoardContent() {
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
         <div className="fixed inset-0 bg-[#111110] z-50 flex flex-col">
-          <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start flex-shrink-0">
-            <div className="flex-1">
+          <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start flex-shrink-0 gap-4">
+            <div className="flex-1 min-w-0">
               <h2 className="text-lg font-medium text-[#e8e6e1]">{selectedPiece.title}</h2>
               <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
                 <span>{selectedPiece.arc}</span>
@@ -920,12 +924,23 @@ function ProjectBoardContent() {
                 <span>{selectedPiece.thematic_territory}</span>
               </div>
             </div>
-            <button
-              onClick={closeModal}
-              className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {/* Moved up from the bottom of the modal so writing is one click away, no scrolling past Core Concept/Tasks first */}
+              <button
+                onClick={() => {
+                  if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
+                }}
+                className="px-4 py-2 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors whitespace-nowrap"
+              >
+                {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
+              </button>
+              <button
+                onClick={closeModal}
+                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -1117,24 +1132,16 @@ function ProjectBoardContent() {
               </div>
 
               {/* Actions */}
-              <div className="space-y-2 border-t border-[#1f1f1d] pt-4">
-                <button
-                  onClick={() => {
-                    if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
-                  }}
-                  className="w-full py-2.5 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors"
-                >
-                  {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
-                </button>
-                {allTasksComplete && (
+              {allTasksComplete && (
+                <div className="space-y-2 border-t border-[#1f1f1d] pt-4">
                   <button
                     onClick={handleCompletepiece}
                     className="w-full py-2.5 bg-green-600/20 text-green-400 text-sm font-medium rounded hover:bg-green-600/30 transition-colors"
                   >
                     Mark piece complete
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
