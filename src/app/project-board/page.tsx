@@ -401,18 +401,36 @@ function ProjectBoardContent() {
         >
           {/* Header - matches loaded state so nothing jumps once data arrives */}
           <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
-            <h1
-              style={{
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 700,
-                fontSize: 'clamp(24px, 8vw, 34px)',
-                color: '#e8e6e0',
-                margin: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Project Board
-            </h1>
+            <div style={{ flexShrink: 0 }}>
+              <p
+                aria-hidden="true"
+                style={{
+                  color: '#6e6c67',
+                  fontSize: '11px',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontWeight: 600,
+                  marginBottom: '12px',
+                  margin: 0,
+                  visibility: 'hidden',
+                }}
+              >
+                Project Board
+              </p>
+              <h1
+                style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontWeight: 700,
+                  fontSize: 'clamp(24px, 8vw, 34px)',
+                  color: '#e8e6e0',
+                  margin: 0,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Project Board
+              </h1>
+            </div>
             <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', gap: '12px' }}>
               {[0, 1, 2].map((i) => (
                 <div key={i} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: c.divider }} />
@@ -616,18 +634,37 @@ function ProjectBoardContent() {
       >
         {/* Header */}
         <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
-          <h1
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontWeight: 700,
-              fontSize: 'clamp(24px, 8vw, 34px)',
-              color: '#e8e6e0',
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Project Board
-          </h1>
+          <div style={{ flexShrink: 0 }}>
+            {/* Invisible spacer matching the home/portrait eyebrow line, so the title sits at the exact same height */}
+            <p
+              aria-hidden="true"
+              style={{
+                color: '#6e6c67',
+                fontSize: '11px',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                marginBottom: '12px',
+                margin: 0,
+                visibility: 'hidden',
+              }}
+            >
+              Project Board
+            </p>
+            <h1
+              style={{
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 700,
+                fontSize: 'clamp(24px, 8vw, 34px)',
+                color: '#e8e6e0',
+                margin: 0,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Project Board
+            </h1>
+          </div>
           <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -818,46 +855,57 @@ function ProjectBoardContent() {
         </div>
       </div>
 
-      {/* Trajectory Banner: colors invert against the current card theme for contrast */}
-      <div
-        className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-40 border rounded-2xl shadow-lg px-4 md:px-6 py-4 flex items-center justify-between gap-4 transition-colors"
-        style={{ backgroundColor: banner.cardBg, borderColor: banner.divider }}
-      >
-        <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {trajectory?.tone && (
-            <span
+      {/* Trajectory Banner: same maxWidth/inset as the board above it, colors invert against the current card theme for contrast */}
+      <div className="fixed bottom-4 left-0 right-0 md:bottom-6 z-40 px-4 md:px-6 pointer-events-none">
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }} className="pointer-events-auto">
+          <div
+            className="border rounded-2xl shadow-lg px-4 md:px-5 py-3 flex items-center justify-between gap-4 transition-colors"
+            style={{ backgroundColor: banner.cardBg, borderColor: banner.divider }}
+          >
+            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {trajectory?.tone && (
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: TONE_DOT_COLORS[trajectory.tone] || accentColor,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              {trajectory ? (
+                <p style={{ fontSize: '14px', lineHeight: 1.5, color: banner.textPrimary, margin: 0 }}>
+                  {trajectory.statement}
+                </p>
+              ) : (
+                <p style={{ fontSize: '13px', color: banner.textMuted, margin: 0 }}>
+                  No trajectory set yet
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => router.push('/zoom-out')}
+              className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
               style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: TONE_DOT_COLORS[trajectory.tone] || accentColor,
-                flexShrink: 0,
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                fontSize: '13px',
+                padding: '8px 16px',
+                backgroundColor: accentColor,
+                color: '#ffffff',
               }}
-            />
-          )}
-          {trajectory ? (
-            <p className="text-base leading-snug" style={{ color: banner.textPrimary, margin: 0 }}>
-              {trajectory.statement}
-            </p>
-          ) : (
-            <p className="text-sm" style={{ color: banner.textMuted, margin: 0 }}>
-              No trajectory set yet
-            </p>
-          )}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+              }}
+            >
+              {trajectory ? 'Zoom out' : 'Find your direction'}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => router.push('/zoom-out')}
-          className="text-sm px-4 py-2 rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
-          style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 600, backgroundColor: accentColor, color: '#ffffff' }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.opacity = '1'
-          }}
-        >
-          {trajectory ? 'Zoom out' : 'Find your direction'}
-        </button>
       </div>
 
       {/* Piece Modal */}
