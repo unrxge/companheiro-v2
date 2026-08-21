@@ -131,19 +131,12 @@ Format your response as JSON:
     const cleanedText = textContent.text.replace(/```json\n?|\n?```/g, "").trim();
     const analysis = JSON.parse(cleanedText);
 
-    // Persist a self-contained record of what the linked content was —
-    // factual header + Claude's interpretation.
-    let linkContext: string | null = null;
-    if (hasLinkContent) {
-      const headerBits = [link!.platform, link!.author].filter(Boolean).join(" — ");
-      const header = [headerBits || null, link!.title ? `"${link!.title}"` : null]
-        .filter(Boolean)
-        .join(": ");
-      linkContext = [header || null, analysis.content_read || null]
-        .filter(Boolean)
-        .join("\n");
-      if (!linkContext) linkContext = null;
-    }
+    // Persist only Claude's own interpretation of the linked content — not
+    // the platform/author/title metadata, which is source description, not
+    // analysis.
+    const linkContext: string | null = hasLinkContent && analysis.content_read
+      ? analysis.content_read
+      : null;
 
     // Insert into captures table
     const { data: captureData, error: insertError } = await supabase

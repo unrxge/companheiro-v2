@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { motion } from 'motion/react'
+import { useCardTheme } from '@/hooks/useCardTheme'
+import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { ModalDialog } from '@/components/ui/modal-dialog'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type ThematicTerritory =
@@ -37,11 +42,15 @@ const TERRITORY_LABELS: Record<ThematicTerritory, string> = {
   slow_living_life_in_service: 'Slow living & life in service',
 }
 
+function territoryLabel(territory: string): string {
+  return TERRITORY_LABELS[territory as ThematicTerritory] || territory
+}
+
 export default function CollectorPage() {
-  const router = useRouter()
-  const [isRecording, setIsRecording] = useState(false)
-  const [transcript, setTranscript] = useState('')
-  const [manualInput, setManualInput] = useState('')
+  const { theme, toggle } = useCardTheme('light')
+  const c = cardPalette[theme]
+
+  const [input, setInput] = useState('')
   const [url, setUrl] = useState('')
   const [isCapturing, setIsCapturing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,12 +59,7 @@ export default function CollectorPage() {
   const [previousCaptures, setPreviousCaptures] = useState<PreviousCapture[]>([])
   const [isLoadingPrevious, setIsLoadingPrevious] = useState(true)
   const [selectedCapture, setSelectedCapture] = useState<PreviousCapture | null>(null)
-  const [isPunctuating, setIsPunctuating] = useState(false)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
-
-  // Fetch previous captures on mount
   useEffect(() => {
     const fetchPreviousCaptures = async () => {
       try {
@@ -75,100 +79,12 @@ export default function CollectorPage() {
   const handleCaptureAnother = () => {
     setShowSuccess(false)
     setCaptureResult(null)
-    setTranscript('')
-    setManualInput('')
+    setInput('')
     setUrl('')
   }
 
-  const startRecording = async () => {
-    setError(null)
-
-    const SpeechRecognitionAPI =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    if (!SpeechRecognitionAPI) {
-      setError('Speech recognition not supported in your browser')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition: any = new SpeechRecognitionAPI()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    recognition.onstart = () => {
-      setIsRecording(true)
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i][0].isFinal) {
-          setTranscript((prev) => prev + transcript + ' ')
-        }
-      }
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error)
-      setError(`Error: ${event.error}`)
-      setIsRecording(false)
-    }
-
-    recognition.onend = () => {
-      setIsRecording(false)
-      // Punctuate the transcript after recording ends
-      if (transcript.trim()) {
-        punctuateTranscript(transcript.trim())
-      }
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-  }
-
-  const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      setIsRecording(false)
-    }
-  }
-
-  const handleRecordToggle = () => {
-    if (isRecording) {
-      stopRecording()
-    } else {
-      startRecording()
-    }
-  }
-
-  const punctuateTranscript = async (rawText: string) => {
-    if (!rawText.trim()) return
-    setIsPunctuating(true)
-    try {
-      const res = await fetch('/api/punctuate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText }),
-      })
-      const data = await res.json()
-      if (data.punctuated) {
-        setTranscript(data.punctuated)
-      }
-    } catch (err) {
-      console.error('Punctuation error:', err)
-    } finally {
-      setIsPunctuating(false)
-    }
-  }
-
   const handleCapture = async () => {
-    const input = transcript.trim() || manualInput.trim()
-    if (!input) {
+    if (!input.trim()) {
       setError('Please add some text to capture')
       return
     }
@@ -181,7 +97,7 @@ export default function CollectorPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          raw_input: input,
+          raw_input: input.trim(),
           url: url.trim() || undefined,
         }),
       })
@@ -203,279 +119,290 @@ export default function CollectorPage() {
     }
   }
 
-  // Success display
-  if (showSuccess && captureResult) {
-    return (
-      <div className="flex h-screen flex-col bg-[#111110]">
-        {/* Back button */}
-        <div className="px-6 py-3 border-b border-[#1f1f1d]">
-          <button
-            onClick={() => router.push('/home')}
-            className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
-          >
-            ← Home
-          </button>
-        </div>
-
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-          <div className="max-w-xl w-full space-y-6">
-            <div className="space-y-4">
-              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">Captured</h2>
-
-              <p className="text-base text-[#d4d2cd] leading-relaxed">
-                {captureResult.unpacked}
-              </p>
-
-              {captureResult.link_context && (
-                <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3 space-y-1">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
-                  <p className="text-base text-[#d4d2cd] leading-relaxed whitespace-pre-line">
-                    {captureResult.link_context}
-                  </p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3">
-                  <p className="text-xs text-[#4a4946] mb-1">Arc</p>
-                  <p className="text-sm font-medium text-[#e8e6e1]">{captureResult.arc}</p>
-                </div>
-                <div className="bg-[#161614] border border-[#1f1f1d] rounded p-3">
-                  <p className="text-xs text-[#4a4946] mb-1">Territory</p>
-                  <p className="text-xs font-medium text-[#e8e6e1]">
-                    {TERRITORY_LABELS[captureResult.thematic_territory]}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleCaptureAnother}
-              className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd]"
-            >
-              Capture another
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  const eyebrowStyle: React.CSSProperties = {
+    color: c.textSecondary,
+    fontSize: '11px',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: 'var(--font-geist-sans)',
+    fontWeight: 600,
+    margin: 0,
   }
 
-  // Main capture interface
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    backgroundColor: c.inputBg,
+    border: `1px solid ${c.inputBorder}`,
+    borderRadius: '10px',
+    padding: '12px 14px',
+    fontSize: '14px',
+    color: c.textPrimary,
+    outline: 'none',
+  }
+
   return (
-    <div className="flex h-screen flex-col bg-[#111110]">
-      {/* Back button */}
-      <div className="px-6 py-3 border-b border-[#1f1f1d]">
-        <button
-          onClick={() => router.push('/home')}
-          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+    <div style={{ position: 'relative', minHeight: '100vh', background: shellBackground }}>
+      <div style={{ position: 'relative', padding: '24px', maxWidth: '640px', margin: '0 auto' }}>
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px' }}
         >
-          ← Home
-        </button>
-      </div>
+          <div style={{ flexShrink: 0 }}>
+            <IconButton href="/home" ariaLabel="Back to home">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </IconButton>
+            <h1
+              style={{
+                color: '#e8e6e0',
+                fontSize: 'clamp(24px, 8vw, 34px)',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 700,
+                margin: '16px 0 0',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Capture
+            </h1>
+          </div>
+          <div style={{ marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
+            <ThemeToggleButton theme={theme} onToggle={toggle} />
+          </div>
+        </motion.div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="max-w-xl w-full space-y-6">
-          {error && (
-            <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
-              <p className="text-xs text-red-200">{error}</p>
-            </div>
-          )}
+        {/* Container */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+          style={{
+            backgroundColor: c.containerBg,
+            boxShadow: c.containerShadow,
+            borderRadius: '28px',
+            padding: '24px',
+            transition: 'background-color 0.3s ease',
+          }}
+        >
+          {showSuccess && captureResult ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={eyebrowStyle}>Captured</p>
 
-          {/* Text input area - shown when there's any content */}
-          {(transcript || manualInput) && (
-            <div className="space-y-3">
-              <textarea
-                value={transcript || manualInput}
-                onChange={(e) => {
-                  if (transcript) {
-                    setTranscript(e.target.value)
-                  } else {
-                    setManualInput(e.target.value)
-                  }
-                  e.target.style.height = 'auto'
-                  e.target.style.height = e.target.scrollHeight + 'px'
-                }}
-                rows={1}
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-                style={{ resize: 'none', overflowY: 'auto', maxHeight: '150px' }}
-              />
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '16px', padding: '20px' }}>
+                <p style={{ fontSize: '15px', lineHeight: 1.6, color: c.textPrimary, margin: 0 }}>
+                  {captureResult.unpacked}
+                </p>
+
+                {captureResult.link_context && (
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${c.divider}` }}>
+                    <p style={{ ...eyebrowStyle, marginBottom: '8px' }}>Analysis</p>
+                    <p style={{ fontSize: '13px', lineHeight: 1.6, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>
+                      {captureResult.link_context}
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px' }}>
+                  <div style={{ backgroundColor: c.inputBg, borderRadius: '10px', padding: '10px 12px' }}>
+                    <p style={{ fontSize: '10px', color: c.textMuted, margin: '0 0 2px' }}>Arc</p>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: c.textPrimary, margin: 0 }}>{captureResult.arc}</p>
+                  </div>
+                  <div style={{ backgroundColor: c.inputBg, borderRadius: '10px', padding: '10px 12px' }}>
+                    <p style={{ fontSize: '10px', color: c.textMuted, margin: '0 0 2px' }}>Territory</p>
+                    <p style={{ fontSize: '12px', fontWeight: 600, color: c.textPrimary, margin: 0 }}>
+                      {territoryLabel(captureResult.thematic_territory)}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <button
-                onClick={handleCapture}
-                disabled={isCapturing || (!transcript.trim() && !manualInput.trim())}
-                className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={handleCaptureAnother}
+                className="transition-opacity"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: accentColor,
+                  color: '#ffffff',
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
               >
-                {isCapturing ? 'Capturing...' : 'Capture'}
+                Capture another
               </button>
             </div>
-          )}
-
-          {/* Record button */}
-          <div className="flex justify-center">
-            <button
-              onClick={handleRecordToggle}
-              disabled={isCapturing}
-              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-              className={`
-                w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
-                ${isCapturing ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
-                ${isRecording
-                  ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
-                  : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
-                }
-              `}
-            >
-              {isRecording ? (
-                <span className="block w-5 h-5 bg-[#111110] rounded-sm" />
-              ) : (
-                <span className="block w-5 h-5 bg-[#3d3c39] rounded-full" />
-              )}
-            </button>
-          </div>
-
-          {isRecording && (
-            <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
-              Recording
-            </p>
-          )}
-
-          {isPunctuating && (
-            <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
-              Punctuating...
-            </p>
-          )}
-
-          {/* Manual text input - shown below record button */}
-          {!transcript && !isRecording && (
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                placeholder="or type here..."
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && manualInput.trim()) {
-                    handleCapture()
-                  }
-                }}
-              />
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="URL (optional)"
-                className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Previously Captured Section */}
-      {!showSuccess && (
-        <div className="px-6 py-6 border-t border-[#1f1f1d] max-w-xl mx-auto w-full">
-          <h3 className="text-xs text-[#4a4946] uppercase tracking-widest mb-3">
-            Previously captured
-          </h3>
-
-          {isLoadingPrevious ? (
-            <p className="text-xs text-[#3d3c39]">Loading...</p>
-          ) : previousCaptures.length === 0 ? (
-            <p className="text-xs text-[#3d3c39]">No captures yet</p>
           ) : (
-            <div className="space-y-2">
-              {previousCaptures.map((capture) => (
-                <button
-                  key={capture.id}
-                  onClick={() => setSelectedCapture(capture)}
-                  className="w-full text-left bg-[#161614] border border-[#1f1f1d] rounded p-3 hover:border-[#4a4946] transition-colors"
+            <>
+              {/* Capture form */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {error && (
+                  <p style={{ fontSize: '12px', color: '#f87171', margin: 0 }}>{error}</p>
+                )}
+
+                <textarea
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    e.target.style.height = 'auto'
+                    e.target.style.height = e.target.scrollHeight + 'px'
+                  }}
+                  placeholder="What caught your eye?"
+                  rows={2}
+                  style={{ ...fieldStyle, resize: 'none', overflowY: 'auto', maxHeight: '220px', lineHeight: 1.6 }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && input.trim() && !isCapturing) {
+                      e.preventDefault()
+                      handleCapture()
+                    }
+                  }}
+                />
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="Paste a link"
+                  style={fieldStyle}
+                />
+                <motion.button
+                  onClick={handleCapture}
+                  disabled={isCapturing || !input.trim()}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className="transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: accentColor,
+                    color: '#ffffff',
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: isCapturing ? 'not-allowed' : 'pointer',
+                  }}
                 >
-                  <p className="text-base text-[#d4d2cd] leading-relaxed line-clamp-2">
-                    {capture.unpacked}
+                  {isCapturing ? 'Capturing...' : 'Capture'}
+                </motion.button>
+              </div>
+
+              {/* Previously captured */}
+              <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: `1px solid ${c.divider}` }}>
+                <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Previously captured</p>
+
+                {isLoadingPrevious ? (
+                  <p style={{ fontSize: '12px', color: c.textMuted, margin: 0 }}>Loading...</p>
+                ) : previousCaptures.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: c.textSecondary, lineHeight: 1.6, margin: 0 }}>
+                    Nothing captured yet.
                   </p>
-                  <div className="flex gap-2 items-center text-xs mt-2">
-                    <span className="text-[#4a4946]">Arc:</span>
-                    <span className="text-[#8c8a87]">{capture.arc}</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {previousCaptures.map((capture, index) => (
+                      <button
+                        key={capture.id}
+                        onClick={() => setSelectedCapture(capture)}
+                        style={{
+                          textAlign: 'left',
+                          background: 'none',
+                          padding: '12px 0 12px 10px',
+                          marginLeft: '-10px',
+                          borderLeft: '2px solid transparent',
+                          borderBottom: index < previousCaptures.length - 1 ? `1px solid ${c.divider}` : 'none',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderLeftColor = accentColor
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.borderLeftColor = 'transparent'
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: '13px',
+                            lineHeight: 1.5,
+                            color: c.textPrimary,
+                            margin: 0,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {capture.raw_input}
+                        </p>
+                        <span style={{ fontSize: '11px', color: c.textMuted }}>{capture.arc}</span>
+                      </button>
+                    ))}
                   </div>
-                </button>
-              ))}
-            </div>
+                )}
+              </div>
+            </>
           )}
-        </div>
-      )}
+        </motion.div>
+      </div>
 
       {/* Capture Detail Modal */}
       {selectedCapture && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-start">
-              <div className="flex-1">
-                <h2 className="text-lg font-medium text-[#e8e6e1]">Captured idea</h2>
-                <div className="flex gap-3 mt-2 text-xs text-[#8c8a87]">
-                  <span>{selectedCapture.arc}</span>
-                  <span>•</span>
-                  <span>{selectedCapture.thematic_territory}</span>
-                </div>
+        <ModalDialog
+          theme={theme}
+          onClose={() => setSelectedCapture(null)}
+          title="Capture"
+          subtitle={
+            <>
+              <span>{selectedCapture.arc}</span>
+              <span>•</span>
+              <span>{territoryLabel(selectedCapture.thematic_territory)}</span>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {selectedCapture.raw_input && (
+              <div>
+                <p style={eyebrowStyle}>Raw input</p>
+                <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: 1.6, margin: '6px 0 0' }}>
+                  {selectedCapture.raw_input}
+                </p>
               </div>
-              <button
-                onClick={() => setSelectedCapture(null)}
-                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
-              >
-                ✕
-              </button>
-            </div>
+            )}
 
-            <div className="px-6 py-4 space-y-6">
-              {/* URL */}
-              {selectedCapture.url && (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Source</p>
-                  <a
-                    href={selectedCapture.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-[#10B981] hover:text-[#06d6a0] transition-colors break-all"
-                  >
-                    {selectedCapture.url}
-                  </a>
-                </div>
-              )}
-
-              {/* Content read — what the linked content actually is */}
-              {selectedCapture.link_context && (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">The content</p>
-                  <p className="text-base text-[#d4d2cd] leading-relaxed whitespace-pre-line">
-                    {selectedCapture.link_context}
-                  </p>
-                </div>
-              )}
-
-              {/* Raw input */}
-              {selectedCapture.raw_input && (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Raw input</p>
-                  <p className="text-base text-[#d4d2cd] leading-relaxed">{selectedCapture.raw_input}</p>
-                </div>
-              )}
-
-              {/* Unpacked text */}
-              {selectedCapture.unpacked && (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest">Unpacked</p>
-                  <p className="text-base text-[#d4d2cd] leading-relaxed">{selectedCapture.unpacked}</p>
-                </div>
-              )}
-
-              {/* Created at */}
-              <div className="text-xs text-[#8c8a87] pt-4 border-t border-[#1f1f1d]">
-                Captured on {new Date(selectedCapture.created_at).toLocaleDateString()}
+            {selectedCapture.url && (
+              <div>
+                <p style={eyebrowStyle}>Source</p>
+                <a
+                  href={selectedCapture.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '13px', color: accentColor, wordBreak: 'break-all', marginTop: '6px', display: 'inline-block' }}
+                >
+                  {selectedCapture.url}
+                </a>
               </div>
-            </div>
+            )}
+
+            {selectedCapture.link_context && (
+              <div>
+                <p style={eyebrowStyle}>Analysis</p>
+                <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: 1.6, margin: '6px 0 0', whiteSpace: 'pre-line' }}>
+                  {selectedCapture.link_context}
+                </p>
+              </div>
+            )}
+
+            <p style={{ fontSize: '11px', color: c.textMuted, margin: 0, paddingTop: '4px', borderTop: `1px solid ${c.divider}` }}>
+              Captured on {new Date(selectedCapture.created_at).toLocaleDateString()}
+            </p>
           </div>
-        </div>
+        </ModalDialog>
       )}
     </div>
   )
