@@ -405,7 +405,15 @@ function ProjectBoardContent() {
         </div>
 
         {/* Mobile tab bar skeleton */}
-        <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}`, backgroundColor: c.containerBg }}>
+        <div
+          className="md:hidden flex"
+          style={{
+            borderBottom: `1px solid ${c.divider}`,
+            backgroundColor: c.containerBg,
+            borderTopLeftRadius: '24px',
+            borderTopRightRadius: '24px',
+          }}
+        >
           {['Queue', 'Active', 'Completed'].map((name) => (
             <div key={name} className="flex-1 py-3 flex items-center justify-center">
               <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
@@ -414,7 +422,10 @@ function ProjectBoardContent() {
         </div>
 
         {/* Desktop skeleton columns */}
-        <div className="hidden md:flex flex-1 overflow-hidden">
+        <div
+          className="hidden md:flex flex-1 overflow-hidden"
+          style={{ borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}
+        >
           {[
             { width: '20%', border: true },
             { width: '60%', border: true },
@@ -434,7 +445,7 @@ function ProjectBoardContent() {
         </div>
 
         {/* Mobile skeleton cards */}
-        <div className="md:hidden flex-1 px-4 py-3 space-y-3">
+        <div className="md:hidden flex-1 px-4 py-3 space-y-3" style={{ backgroundColor: c.containerBg }}>
           {[...Array(3)].map((_, j) => (
             <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
           ))}
@@ -554,7 +565,7 @@ function ProjectBoardContent() {
       `}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', padding: '20px 24px', rowGap: '12px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', padding: '28px 24px 20px', rowGap: '12px' }}>
         <h1
           style={{
             fontFamily: 'var(--font-geist-sans)',
@@ -563,6 +574,7 @@ function ProjectBoardContent() {
             color: '#e8e6e0',
             margin: 0,
             letterSpacing: '-0.02em',
+            lineHeight: 1,
           }}
         >
           Project Board
@@ -583,7 +595,15 @@ function ProjectBoardContent() {
       </div>
 
       {/* Mobile Tab Bar - Hidden on md+ */}
-      <div className="md:hidden flex" style={{ backgroundColor: c.containerBg, borderBottom: `1px solid ${c.divider}` }}>
+      <div
+        className="md:hidden flex"
+        style={{
+          backgroundColor: c.containerBg,
+          borderBottom: `1px solid ${c.divider}`,
+          borderTopLeftRadius: '24px',
+          borderTopRightRadius: '24px',
+        }}
+      >
         {[
           { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length },
           { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
@@ -623,7 +643,10 @@ function ProjectBoardContent() {
       </div>
 
       {/* Desktop Layout - 3 Columns */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
+      <div
+        className="hidden md:flex flex-1 overflow-hidden"
+        style={{ borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}
+      >
         {/* Queue Column */}
         <div
           className="w-[20%] flex flex-col transition-colors"
@@ -735,7 +758,7 @@ function ProjectBoardContent() {
 
       {/* Trajectory Banner */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-40 border-t px-4 md:px-6 py-4 flex items-center justify-between gap-4 transition-colors ${
+        className={`fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-40 border rounded-2xl shadow-lg px-4 md:px-6 py-4 flex items-center justify-between gap-4 transition-colors ${
           (trajectory?.tone && TONE_STYLES[trajectory.tone]) ? TONE_STYLES[trajectory.tone].bg : TONE_STYLES.default.bg
         } ${
           (trajectory?.tone && TONE_STYLES[trajectory.tone]) ? TONE_STYLES[trajectory.tone].border : TONE_STYLES.default.border
@@ -756,7 +779,8 @@ function ProjectBoardContent() {
         </div>
         <button
           onClick={() => router.push('/zoom-out')}
-          className="text-sm font-medium text-[#e8e6e1] bg-[#2e2d2a] hover:bg-[#3d3c39] px-4 py-2 rounded transition-colors whitespace-nowrap flex-shrink-0"
+          className="text-sm font-medium text-[#e8e6e1] bg-[#2e2d2a] hover:bg-[#3d3c39] px-4 py-2 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
+          style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 600 }}
         >
           {trajectory ? 'Zoom out' : 'Find your direction'}
         </button>
