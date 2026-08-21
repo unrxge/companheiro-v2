@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea'
 import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground } from '@/lib/card-theme'
+import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
 import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 
@@ -86,19 +86,23 @@ interface Trajectory {
   created_at: string
 }
 
-const TONE_STYLES: Record<string, { bg: string; border: string; text: string }> = {
-  grounded: { bg: 'bg-[#0d1f17]', border: 'border-[#10B981]/40', text: 'text-[#6ee7b7]' },
-  restless: { bg: 'bg-[#231a0c]', border: 'border-[#F59E0B]/40', text: 'text-[#fbbf6a]' },
-  tender: { bg: 'bg-[#241420]', border: 'border-[#F472B6]/40', text: 'text-[#f9a8d4]' },
-  expansive: { bg: 'bg-[#1c1729]', border: 'border-[#8B5CF6]/40', text: 'text-[#c4b5fd]' },
-  urgent: { bg: 'bg-[#251313]', border: 'border-[#EF4444]/40', text: 'text-[#fca5a5]' },
-  default: { bg: 'bg-[#161614]', border: 'border-[#1f1f1d]', text: 'text-[#d4d2cd]' },
+// Kept as a small mood accent dot on the trajectory banner, not the banner's
+// own bg/border/text anymore — the banner now inverts against the card theme.
+const TONE_DOT_COLORS: Record<string, string> = {
+  grounded: '#10B981',
+  restless: '#F59E0B',
+  tender: '#F472B6',
+  expansive: '#8B5CF6',
+  urgent: '#EF4444',
 }
 
 function ProjectBoardContent() {
   const router = useRouter()
   const { theme, toggle } = useCardTheme('light')
   const c = cardPalette[theme]
+  // Trajectory banner intentionally inverts against the current card theme —
+  // a striking contrasty accent rather than blending into the board.
+  const banner = cardPalette[theme === 'light' ? 'dark' : 'light']
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -383,72 +387,91 @@ function ProjectBoardContent() {
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
-        {/* Header - matches loaded state so nothing jumps once data arrives */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', padding: '20px 24px', rowGap: '12px' }}>
-          <h1
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontWeight: 700,
-              fontSize: 'clamp(24px, 8vw, 34px)',
-              color: '#e8e6e0',
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Project Board
-          </h1>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px' }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: c.divider }} />
-            ))}
-          </div>
-        </div>
-
-        {/* Mobile tab bar skeleton */}
         <div
-          className="md:hidden flex"
           style={{
-            borderBottom: `1px solid ${c.divider}`,
-            backgroundColor: c.containerBg,
-            borderTopLeftRadius: '24px',
-            borderTopRightRadius: '24px',
+            padding: '24px',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
           }}
         >
-          {['Queue', 'Active', 'Completed'].map((name) => (
-            <div key={name} className="flex-1 py-3 flex items-center justify-center">
-              <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
-            </div>
-          ))}
-        </div>
-
-        {/* Desktop skeleton columns */}
-        <div
-          className="hidden md:flex flex-1 overflow-hidden"
-          style={{ borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}
-        >
-          {[
-            { width: '20%', border: true },
-            { width: '60%', border: true },
-            { width: '20%', border: false },
-          ].map((col, i) => (
-            <div
-              key={i}
-              className="flex flex-col px-4 py-3 space-y-3"
-              style={{ width: col.width, borderRight: col.border ? `1px solid ${c.divider}` : 'none' }}
+          {/* Header - matches loaded state so nothing jumps once data arrives */}
+          <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 700,
+                fontSize: 'clamp(24px, 8vw, 34px)',
+                color: '#e8e6e0',
+                margin: 0,
+                letterSpacing: '-0.02em',
+              }}
             >
-              <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
+              Project Board
+            </h1>
+            <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', gap: '12px' }}>
+              {[0, 1, 2].map((i) => (
+                <div key={i} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: c.divider }} />
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: c.containerBg,
+              boxShadow: c.containerShadow,
+              borderRadius: '28px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            {/* Mobile tab bar skeleton */}
+            <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              {['Queue', 'Active', 'Completed'].map((name) => (
+                <div key={name} className="flex-1 py-3 flex items-center justify-center">
+                  <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop skeleton columns */}
+            <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+              {[
+                { width: '240px', border: true },
+                { width: undefined, border: true },
+                { width: '240px', border: false },
+              ].map((col, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col px-4 py-3 space-y-3"
+                  style={{
+                    width: col.width,
+                    flex: col.width ? '0 0 auto' : '1 1 0%',
+                    borderRight: col.border ? `1px solid ${c.divider}` : 'none',
+                  }}
+                >
+                  <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
+                  {[...Array(3)].map((_, j) => (
+                    <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Mobile skeleton cards */}
+            <div className="md:hidden flex-1 px-4 py-3 space-y-3">
               {[...Array(3)].map((_, j) => (
                 <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
               ))}
             </div>
-          ))}
-        </div>
-
-        {/* Mobile skeleton cards */}
-        <div className="md:hidden flex-1 px-4 py-3 space-y-3" style={{ backgroundColor: c.containerBg }}>
-          {[...Array(3)].map((_, j) => (
-            <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
-          ))}
+          </div>
         </div>
       </div>
     )
@@ -562,49 +585,81 @@ function ProjectBoardContent() {
         .complete-task {
           animation: strikethrough 0.3s ease-out forwards;
         }
+        .board-scroll::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .board-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .board-scroll::-webkit-scrollbar-thumb {
+          background-color: ${c.divider};
+          border-radius: 999px;
+        }
+        .board-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: ${c.divider} transparent;
+        }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', padding: '28px 24px 20px', rowGap: '12px' }}>
-        <h1
-          style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontWeight: 700,
-            fontSize: 'clamp(24px, 8vw, 34px)',
-            color: '#e8e6e0',
-            margin: 0,
-            letterSpacing: '-0.02em',
-            lineHeight: 1,
-          }}
-        >
-          Project Board
-        </h1>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </IconButton>
-          <ThemeToggleButton theme={theme} onToggle={toggle} />
-          <IconButton onClick={() => router.push('/home')} ariaLabel="Home">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" />
-            </svg>
-          </IconButton>
-        </div>
-      </div>
-
-      {/* Mobile Tab Bar - Hidden on md+ */}
       <div
-        className="md:hidden flex"
         style={{
-          backgroundColor: c.containerBg,
-          borderBottom: `1px solid ${c.divider}`,
-          borderTopLeftRadius: '24px',
-          borderTopRightRadius: '24px',
+          padding: '24px',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
         }}
       >
-        {[
+        {/* Header */}
+        <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontWeight: 700,
+              fontSize: 'clamp(24px, 8vw, 34px)',
+              color: '#e8e6e0',
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Project Board
+          </h1>
+          <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </IconButton>
+            <ThemeToggleButton theme={theme} onToggle={toggle} />
+            <IconButton onClick={() => router.push('/home')} ariaLabel="Home">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" />
+              </svg>
+            </IconButton>
+          </div>
+        </div>
+
+        {/* Kanban container: same rounded-panel treatment as the home/portrait containers */}
+        <div
+          style={{
+            backgroundColor: c.containerBg,
+            boxShadow: c.containerShadow,
+            borderRadius: '28px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            transition: 'background-color 0.3s ease',
+          }}
+        >
+        {/* Mobile Tab Bar - Hidden on md+ */}
+        <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
+          {[
           { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length },
           { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
           { name: 'Completed' as MobileTab, color: '#8B5CF6', count: completed.length },
@@ -642,105 +697,110 @@ function ProjectBoardContent() {
         ))}
       </div>
 
-      {/* Desktop Layout - 3 Columns */}
-      <div
-        className="hidden md:flex flex-1 overflow-hidden"
-        style={{ borderTopLeftRadius: '24px', borderTopRightRadius: '24px' }}
-      >
-        {/* Queue Column */}
-        <div
-          className="w-[20%] flex flex-col transition-colors"
-          style={{
-            backgroundColor: dragOverColumn === 'Queue' ? c.cardBgInner : c.containerBg,
-            borderRight: `1px solid ${c.divider}`,
-          }}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragOverColumn('Queue')
-          }}
-          onDragLeave={() => setDragOverColumn((col) => (col === 'Queue' ? null : col))}
-          onDrop={(e) => {
-            e.preventDefault()
-            handleDropOnColumn('Queue')
-          }}
-        >
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
-            <h2 style={columnEyebrow}>Queue</h2>
-            <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
+        {/* Desktop Layout - 3 Columns */}
+        <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+          {/* Queue Column - fixed width, doesn't shrink when the board narrows */}
+          <div
+            className="flex flex-col transition-colors"
+            style={{
+              width: '240px',
+              flex: '0 0 auto',
+              backgroundColor: dragOverColumn === 'Queue' ? c.cardBgInner : 'transparent',
+              borderRight: `1px solid ${c.divider}`,
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOverColumn('Queue')
+            }}
+            onDragLeave={() => setDragOverColumn((col) => (col === 'Queue' ? null : col))}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDropOnColumn('Queue')
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
+              <h2 style={columnEyebrow}>Queue</h2>
+              <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
+            </div>
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+              {queue.map((idea) =>
+                renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id), {
+                  type: 'idea',
+                  id: idea.id,
+                })
+              )}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
-            {queue.map((idea) =>
-              renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id), {
-                type: 'idea',
-                id: idea.id,
-              })
-            )}
+
+          {/* Active Column - the main focus; absorbs all the width the board gives up */}
+          <div
+            className="flex flex-col transition-colors"
+            style={{
+              flex: '1 1 0%',
+              minWidth: 0,
+              backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : 'transparent',
+              borderRight: `1px solid ${c.divider}`,
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOverColumn('Active')
+            }}
+            onDragLeave={() => setDragOverColumn((col) => (col === 'Active' ? null : col))}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDropOnColumn('Active')
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
+              <h2 style={columnEyebrow}>Active</h2>
+              <span style={{ color: c.textMuted, fontSize: '11px' }}>({active.length})</span>
+            </div>
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+              {active.map((piece) =>
+                renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id), {
+                  type: 'piece',
+                  id: piece.id,
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Completed Column - fixed width, doesn't shrink when the board narrows */}
+          <div
+            className="flex flex-col transition-colors"
+            style={{
+              width: '240px',
+              flex: '0 0 auto',
+              backgroundColor: dragOverColumn === 'Completed' ? c.cardBgInner : 'transparent',
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOverColumn('Completed')
+            }}
+            onDragLeave={() => setDragOverColumn((col) => (col === 'Completed' ? null : col))}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDropOnColumn('Completed')
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
+              <h2 style={columnEyebrow}>Completed</h2>
+              <span style={{ color: c.textMuted, fontSize: '11px' }}>({completed.length})</span>
+            </div>
+            <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
+              {completed.map((piece) =>
+                renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Active Column */}
-        <div
-          className="w-[60%] flex flex-col transition-colors"
-          style={{
-            backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : c.containerBg,
-            borderRight: `1px solid ${c.divider}`,
-          }}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragOverColumn('Active')
-          }}
-          onDragLeave={() => setDragOverColumn((col) => (col === 'Active' ? null : col))}
-          onDrop={(e) => {
-            e.preventDefault()
-            handleDropOnColumn('Active')
-          }}
-        >
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
-            <h2 style={columnEyebrow}>Active</h2>
-            <span style={{ color: c.textMuted, fontSize: '11px' }}>({active.length})</span>
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
-            {active.map((piece) =>
-              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id), {
-                type: 'piece',
-                id: piece.id,
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Completed Column */}
-        <div
-          className="w-[20%] flex flex-col transition-colors"
-          style={{ backgroundColor: dragOverColumn === 'Completed' ? c.cardBgInner : c.containerBg }}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragOverColumn('Completed')
-          }}
-          onDragLeave={() => setDragOverColumn((col) => (col === 'Completed' ? null : col))}
-          onDrop={(e) => {
-            e.preventDefault()
-            handleDropOnColumn('Completed')
-          }}
-        >
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
-            <h2 style={columnEyebrow}>Completed</h2>
-            <span style={{ color: c.textMuted, fontSize: '11px' }}>({completed.length})</span>
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 pb-24 space-y-3">
-            {completed.map((piece) =>
-              renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Layout - Single Column with Tabs */}
-      <div className="md:hidden flex-1 overflow-y-auto px-4 py-3 pb-28" style={{ backgroundColor: c.containerBg }}>
-        <div className="space-y-3">
+        {/* Mobile Layout - Single Column with Tabs */}
+        <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-28">
+          <div className="space-y-3">
           {activeTab === 'Queue' &&
             queue.map((idea) =>
               renderCard(idea.id, idea.title, idea.arc, '#F59E0B', () => openIdeaModal(idea.id))
@@ -753,34 +813,48 @@ function ProjectBoardContent() {
             completed.map((piece) =>
               renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
             )}
+          </div>
+        </div>
         </div>
       </div>
 
-      {/* Trajectory Banner */}
+      {/* Trajectory Banner: colors invert against the current card theme for contrast */}
       <div
-        className={`fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-40 border rounded-2xl shadow-lg px-4 md:px-6 py-4 flex items-center justify-between gap-4 transition-colors ${
-          (trajectory?.tone && TONE_STYLES[trajectory.tone]) ? TONE_STYLES[trajectory.tone].bg : TONE_STYLES.default.bg
-        } ${
-          (trajectory?.tone && TONE_STYLES[trajectory.tone]) ? TONE_STYLES[trajectory.tone].border : TONE_STYLES.default.border
-        }`}
+        className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-40 border rounded-2xl shadow-lg px-4 md:px-6 py-4 flex items-center justify-between gap-4 transition-colors"
+        style={{ backgroundColor: banner.cardBg, borderColor: banner.divider }}
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {trajectory?.tone && (
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: TONE_DOT_COLORS[trajectory.tone] || accentColor,
+                flexShrink: 0,
+              }}
+            />
+          )}
           {trajectory ? (
-            <p
-              className={`text-base leading-snug ${
-                TONE_STYLES[trajectory.tone || '']?.text || TONE_STYLES.default.text
-              }`}
-            >
+            <p className="text-base leading-snug" style={{ color: banner.textPrimary, margin: 0 }}>
               {trajectory.statement}
             </p>
           ) : (
-            <p className="text-sm text-[#8c8a87]">No trajectory set yet</p>
+            <p className="text-sm" style={{ color: banner.textMuted, margin: 0 }}>
+              No trajectory set yet
+            </p>
           )}
         </div>
         <button
           onClick={() => router.push('/zoom-out')}
-          className="text-sm font-medium text-[#e8e6e1] bg-[#2e2d2a] hover:bg-[#3d3c39] px-4 py-2 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-          style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 600 }}
+          className="text-sm px-4 py-2 rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
+          style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 600, backgroundColor: accentColor, color: '#ffffff' }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+          }}
         >
           {trajectory ? 'Zoom out' : 'Find your direction'}
         </button>
