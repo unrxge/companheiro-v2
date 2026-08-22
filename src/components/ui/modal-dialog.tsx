@@ -40,8 +40,8 @@ export function ModalDialog({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '16px',
-          backgroundColor: 'rgba(15, 14, 13, 0.7)',
-          backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(10, 9, 8, 0.82)',
+          backdropFilter: 'blur(6px)',
         }}
       >
         <motion.div

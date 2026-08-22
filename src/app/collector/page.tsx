@@ -365,9 +365,9 @@ export default function CollectorPage() {
             </>
           }
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {selectedCapture.raw_input && (
-              <div>
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
                 <p style={eyebrowStyle}>Raw input</p>
                 <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: 1.6, margin: '6px 0 0' }}>
                   {selectedCapture.raw_input}

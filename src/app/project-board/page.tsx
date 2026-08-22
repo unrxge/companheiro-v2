@@ -513,6 +513,9 @@ function ProjectBoardContent() {
     selectedPiece.tasks.length > 0 &&
     selectedPiece.tasks.every((t) => t.status === 'complete')
 
+  const completedTaskCount = selectedPiece?.tasks.filter((t) => t.status === 'complete').length ?? 0
+  const totalTaskCount = selectedPiece?.tasks.length ?? 0
+
   const renderCard = (
     id: string,
     title: string,
@@ -918,71 +921,89 @@ function ProjectBoardContent() {
           </div>
         </div>
 
-        {/* Trajectory row: same container as the board, separated only by a divider */}
+        {/* Trajectory: own floating rounded card, inset in the container, divided from the board above */}
         <div
-          className="flex items-center justify-between gap-4"
           style={{
             borderTop: `1px solid ${c.divider}`,
-            padding: '16px 20px',
+            padding: '16px',
             flexShrink: 0,
           }}
         >
-          <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {trajectory?.tone && (
-              <span
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: TONE_DOT_COLORS[trajectory.tone] || c.textPrimary,
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            {trajectory ? (
-              <p style={{ fontSize: '14px', lineHeight: 1.5, color: c.textPrimary, margin: 0 }}>
-                {trajectory.statement}
-              </p>
-            ) : (
-              <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>
-                No trajectory set yet
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => router.push('/zoom-out')}
-            className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
+          <div
+            className="flex items-center justify-between gap-4"
             style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontWeight: 600,
-              fontSize: '13px',
-              padding: '8px 16px',
-              backgroundColor: accentColor,
-              color: '#ffffff',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+              backgroundColor: c.cardBg,
+              boxShadow: c.shadow,
+              borderRadius: '16px',
+              padding: '14px 20px',
             }}
           >
-            {trajectory ? 'Zoom out' : 'Find your direction'}
-          </button>
+            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {trajectory?.tone && (
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: TONE_DOT_COLORS[trajectory.tone] || c.textPrimary,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              {trajectory ? (
+                <p style={{ fontSize: '14px', lineHeight: 1.5, color: c.textPrimary, margin: 0 }}>
+                  {trajectory.statement}
+                </p>
+              ) : (
+                <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>
+                  No trajectory set yet
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => router.push('/zoom-out')}
+              className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0"
+              style={{
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                fontSize: '13px',
+                padding: '8px 16px',
+                backgroundColor: accentColor,
+                color: '#ffffff',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+              }}
+            >
+              {trajectory ? 'Zoom out' : 'Find your direction'}
+            </button>
+          </div>
         </div>
         </div>
       </div>
 
       {/* Piece Modal */}
       {modalType === 'piece' && selectedPiece && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', backgroundColor: c.containerBg }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground, padding: '16px' }}>
           <div
             style={{
-              position: 'sticky',
-              top: 0,
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              padding: '16px 24px',
+              height: '100%',
+              backgroundColor: c.containerBg,
+              boxShadow: c.containerShadow,
+              borderRadius: '28px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              transition: 'background-color 0.3s ease',
+            }}
+          >
+          <div
+            style={{
+              borderBottom: `1px solid ${c.divider}`,
+              padding: '20px 28px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-start',
@@ -1157,7 +1178,35 @@ function ProjectBoardContent() {
                   padding: '20px',
                 }}
               >
-                <p style={{ ...columnEyebrow, marginBottom: '14px' }}>Tasks</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', gap: '12px' }}>
+                  <p style={columnEyebrow}>Tasks</p>
+                  {totalTaskCount > 0 && (
+                    <span style={{ fontSize: '11px', color: c.textMuted, flexShrink: 0 }}>
+                      {completedTaskCount} of {totalTaskCount} done
+                    </span>
+                  )}
+                </div>
+
+                {totalTaskCount > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      height: '6px',
+                      borderRadius: '999px',
+                      overflow: 'hidden',
+                      backgroundColor: c.divider,
+                      marginBottom: '16px',
+                    }}
+                  >
+                    {completedTaskCount > 0 && (
+                      <div style={{ flexGrow: completedTaskCount, flexBasis: 0, backgroundColor: '#10B981', transition: 'flex-grow 0.4s ease' }} />
+                    )}
+                    {totalTaskCount - completedTaskCount > 0 && (
+                      <div style={{ flexGrow: totalTaskCount - completedTaskCount, flexBasis: 0, backgroundColor: 'transparent' }} />
+                    )}
+                  </div>
+                )}
 
                 {selectedPiece.tasks.length === 0 ? (
                   <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>No tasks</p>
@@ -1344,6 +1393,7 @@ function ProjectBoardContent() {
               )}
             </div>
           </div>
+          </div>
         </div>
       )}
 
@@ -1415,9 +1465,9 @@ function ProjectBoardContent() {
             </button>
           }
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {selectedIdea.one_sentence && (
-              <div>
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
                 <p style={columnEyebrow}>One sentence</p>
                 <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: 1.6, margin: '6px 0 0' }}>
                   {selectedIdea.one_sentence}
@@ -1426,9 +1476,9 @@ function ProjectBoardContent() {
             )}
 
             {selectedIdea.piece_id && selectedIdea.tasks && selectedIdea.tasks.length > 0 && (
-              <div>
+              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
                 <p style={columnEyebrow}>Linked piece tasks</p>
-                <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginTop: '10px' }}>
                   {selectedIdea.tasks.map((task, index) => (
                     <div
                       key={task.id}
