@@ -88,7 +88,7 @@ export default function IdeaLabPage() {
   const [useRandomTerritories, setUseRandomTerritories] = useState(false)
   const [energyIndex, setEnergyIndex] = useState(2)
   const energyLevel = ENERGY_LEVELS[energyIndex]
-  const [impersonal, setImpersonal] = useState(false)
+  const [impersonal, setImpersonal] = useState(true)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
