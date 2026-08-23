@@ -15,6 +15,7 @@ interface PiecesResponse {
     id: string;
     title: string;
     arc: string;
+    thematic_territory: string;
     one_sentence: string;
     status: "ready" | "developing";
   }>;
@@ -22,6 +23,7 @@ interface PiecesResponse {
     id: string;
     title: string;
     arc: string;
+    thematic_territory: string;
     created_at: string;
   }>;
 }
@@ -52,13 +54,13 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
         .order("created_at", { ascending: false }),
       supabase
         .from("ideas")
-        .select("id, title, arc, one_sentence, status")
+        .select("id, title, arc, thematic_territory, one_sentence, status")
         .eq("user_id", userId)
         .in("status", ["ready", "developing"])
         .order("created_at", { ascending: false }),
       supabase
         .from("pieces")
-        .select("id, title, arc, created_at")
+        .select("id, title, arc, thematic_territory, created_at")
         .eq("user_id", userId)
         .eq("stage", "posted")
         .order("created_at", { ascending: false }),

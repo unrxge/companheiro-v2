@@ -38,6 +38,7 @@ interface QueueCard {
   id: string
   title: string
   arc: string
+  thematic_territory: string
   one_sentence: string
   status: 'ready' | 'developing'
 }
@@ -46,6 +47,7 @@ interface CompletedCard {
   id: string
   title: string
   arc: string
+  thematic_territory: string
   created_at: string
 }
 
@@ -89,6 +91,15 @@ interface Trajectory {
 
 // A small mood accent dot next to the trajectory text, not the card's own
 // bg/border/text — those are normal theme-aware card colors.
+// Same labels as idea-lab's TERRITORY_LABELS — thematic_territory is stored
+// as a snake_case slug, this is what makes it human-readable in the UI.
+const TERRITORY_LABELS: Record<string, string> = {
+  creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
+  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
+  inner_child_tending_expression: 'Inner child tending & expression',
+  slow_living_life_in_service: 'Slow living & life in service',
+}
+
 const TONE_DOT_COLORS: Record<string, string> = {
   grounded: '#10B981',
   restless: '#F59E0B',
@@ -635,7 +646,8 @@ function ProjectBoardContent() {
     color: string,
     onClick: () => void,
     dragItem?: { type: 'idea' | 'piece'; id: string },
-    onDelete?: () => void
+    onDelete?: () => void,
+    territory?: string
   ) => (
     <div key={id} className="group" style={{ position: 'relative' }}>
       <button
@@ -691,7 +703,7 @@ function ProjectBoardContent() {
             {title}
           </p>
         </div>
-        {arc && (
+        {(arc || territory) && (
           <p
             style={{
               color: c.textMuted,
@@ -700,6 +712,8 @@ function ProjectBoardContent() {
             }}
           >
             {arc}
+            {arc && territory && ' • '}
+            {territory && (TERRITORY_LABELS[territory] || territory)}
           </p>
         )}
       </button>
@@ -938,7 +952,8 @@ function ProjectBoardContent() {
                   '#F59E0B',
                   () => openIdeaModal(idea.id),
                   { type: 'idea', id: idea.id },
-                  () => handleDeleteIdea(idea.id)
+                  () => handleDeleteIdea(idea.id),
+                  idea.thematic_territory
                 )
               )}
             </div>
@@ -971,10 +986,16 @@ function ProjectBoardContent() {
             </div>
             <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {active.map((piece) =>
-                renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id), {
-                  type: 'piece',
-                  id: piece.id,
-                })
+                renderCard(
+                  piece.id,
+                  piece.title,
+                  piece.arc,
+                  '#10B981',
+                  () => openPieceModal(piece.id),
+                  { type: 'piece', id: piece.id },
+                  undefined,
+                  piece.thematic_territory
+                )
               )}
             </div>
           </div>
@@ -1004,7 +1025,16 @@ function ProjectBoardContent() {
             </div>
             <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {completed.map((piece) =>
-                renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
+                renderCard(
+                  piece.id,
+                  piece.title,
+                  piece.arc,
+                  '#8B5CF6',
+                  () => openPieceModal(piece.id),
+                  undefined,
+                  undefined,
+                  piece.thematic_territory
+                )
               )}
             </div>
           </div>
@@ -1022,16 +1052,35 @@ function ProjectBoardContent() {
                 '#F59E0B',
                 () => openIdeaModal(idea.id),
                 undefined,
-                () => handleDeleteIdea(idea.id)
+                () => handleDeleteIdea(idea.id),
+                idea.thematic_territory
               )
             )}
           {activeTab === 'Active' &&
             active.map((piece) =>
-              renderCard(piece.id, piece.title, piece.arc, '#10B981', () => openPieceModal(piece.id))
+              renderCard(
+                piece.id,
+                piece.title,
+                piece.arc,
+                '#10B981',
+                () => openPieceModal(piece.id),
+                undefined,
+                undefined,
+                piece.thematic_territory
+              )
             )}
           {activeTab === 'Completed' &&
             completed.map((piece) =>
-              renderCard(piece.id, piece.title, piece.arc, '#8B5CF6', () => openPieceModal(piece.id))
+              renderCard(
+                piece.id,
+                piece.title,
+                piece.arc,
+                '#8B5CF6',
+                () => openPieceModal(piece.id),
+                undefined,
+                undefined,
+                piece.thematic_territory
+              )
             )}
           </div>
         </div>
@@ -1132,7 +1181,7 @@ function ProjectBoardContent() {
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
                   <span>{selectedPiece.arc}</span>
                   <span>•</span>
-                  <span>{selectedPiece.thematic_territory}</span>
+                  <span>{TERRITORY_LABELS[selectedPiece.thematic_territory] || selectedPiece.thematic_territory}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginTop: '4px' }}>
@@ -1745,7 +1794,7 @@ function ProjectBoardContent() {
             <>
               <span>{selectedIdea.arc}</span>
               <span>•</span>
-              <span>{selectedIdea.thematic_territory}</span>
+              <span>{TERRITORY_LABELS[selectedIdea.thematic_territory] || selectedIdea.thematic_territory}</span>
             </>
           }
           headerActions={
