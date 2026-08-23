@@ -1050,99 +1050,90 @@ function ProjectBoardContent() {
         </div>
       </div>
 
-      {/* Piece Modal */}
+      {/* Piece Modal: mirrors the page-level shell -> header-on-shell -> container structure exactly */}
       {modalType === 'piece' && selectedPiece && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground, padding: '16px' }}>
-          <div
-            style={{
-              height: '100%',
-              backgroundColor: c.containerBg,
-              boxShadow: c.containerShadow,
-              borderRadius: '28px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'background-color 0.3s ease',
-            }}
-          >
-          <div
-            style={{
-              borderBottom: `1px solid ${c.divider}`,
-              padding: '20px 28px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              flexShrink: 0,
-              gap: '16px',
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 700, fontSize: '18px', color: c.textPrimary, margin: 0 }}>
-                {selectedPiece.title}
-              </h2>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: c.textMuted }}>
-                <span>{selectedPiece.arc}</span>
-                <span>•</span>
-                <span>{selectedPiece.thematic_territory}</span>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
+          <div style={{ height: '100%', maxWidth: '960px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            {/* Header: plain text + actions floating directly on the dark shell, no card chrome of its own */}
+            <div
+              style={{
+                marginBottom: '24px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexShrink: 0,
+                gap: '16px',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <h2
+                  style={{
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontWeight: 700,
+                    fontSize: 'clamp(22px, 5vw, 28px)',
+                    color: '#e8e6e0',
+                    margin: 0,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {selectedPiece.title}
+                </h2>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
+                  <span>{selectedPiece.arc}</span>
+                  <span>•</span>
+                  <span>{selectedPiece.thematic_territory}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginTop: '4px' }}>
+                {/* Moved up from the bottom of the modal so writing is one click away, no scrolling past Core Concept/Tasks first */}
+                <button
+                  onClick={() => {
+                    if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
+                  }}
+                  className="transition-opacity whitespace-nowrap"
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: accentColor,
+                    color: '#ffffff',
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.opacity = '1'
+                  }}
+                >
+                  {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
+                </button>
+                <IconButton onClick={closeModal} ariaLabel="Close">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </IconButton>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-              {/* Moved up from the bottom of the modal so writing is one click away, no scrolling past Core Concept/Tasks first */}
-              <button
-                onClick={() => {
-                  if (selectedPiece) window.location.href = `/write?piece_id=${selectedPiece.id}`
-                }}
-                className="transition-opacity whitespace-nowrap"
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  backgroundColor: accentColor,
-                  color: '#ffffff',
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.opacity = '1'
-                }}
-              >
-                {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
-              </button>
-              <button
-                onClick={closeModal}
-                aria-label="Close"
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: c.textMuted,
-                  transition: 'color 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
 
+            {/* Container: the toggleable rounded panel, starts below the header, holds all the cards */}
+            <div
+              style={{
+                backgroundColor: c.containerBg,
+                boxShadow: c.containerShadow,
+                borderRadius: '28px',
+                overflow: 'hidden',
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'background-color 0.3s ease',
+              }}
+            >
           <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
             <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Core Concept: two sectional cards side by side, not one long form */}
@@ -1425,6 +1416,7 @@ function ProjectBoardContent() {
                 </button>
               )}
             </div>
+          </div>
           </div>
           </div>
         </div>
