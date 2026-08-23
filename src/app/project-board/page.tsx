@@ -106,14 +106,14 @@ const PLAIN_FIELDS = [
   { key: 'conviction_statement', label: 'Conviction', minRows: 2, boxed: false },
 ] as const
 
+// Core Truth stands out with an accent-line rule instead of a boxed outline.
 const CONCEPT_FIELDS = [
-  { key: 'core_truth', label: 'Core Truth', minRows: 2 },
+  { key: 'core_truth', label: 'Core Truth', minRows: 2, boxed: false, accentLine: true },
 ] as const
 
 const DIRECTION_FIELDS = [
   { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two', boxed: false },
   { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two', boxed: false },
-  { key: 'open_threads', label: 'Open Threads', minRows: 2, placeholder: '- Thread one\n- Thread two' },
 ] as const
 
 function ProjectBoardContent() {
@@ -146,6 +146,7 @@ function ProjectBoardContent() {
   const [isSavingCoreConcept, setIsSavingCoreConcept] = useState(false)
   const [coreConceptSaved, setCoreConceptSaved] = useState(false)
   const [isJourneyExpanded, setIsJourneyExpanded] = useState(false)
+  const [newOpenThreadInput, setNewOpenThreadInput] = useState('')
 
   useEffect(() => {
     fetchBoard()
@@ -194,6 +195,7 @@ function ProjectBoardContent() {
         })
         setCoreConceptSaved(false)
         setIsJourneyExpanded(false)
+        setNewOpenThreadInput('')
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
@@ -203,6 +205,25 @@ function ProjectBoardContent() {
   const handleCoreConceptChange = (field: keyof NonNullable<typeof coreConceptDraft>, value: string) => {
     setCoreConceptDraft((prev) => (prev ? { ...prev, [field]: value } : prev))
     setCoreConceptSaved(false)
+  }
+
+  const parseOpenThreads = (raw: string) =>
+    raw
+      .split('\n')
+      .map((line) => line.replace(/^\s*[-•\d.)]+\s*/, '').trim())
+      .filter(Boolean)
+
+  const handleAddOpenThread = () => {
+    if (!coreConceptDraft || !newOpenThreadInput.trim()) return
+    const items = [...parseOpenThreads(coreConceptDraft.open_threads), newOpenThreadInput.trim()]
+    handleCoreConceptChange('open_threads', items.map((t) => `- ${t}`).join('\n'))
+    setNewOpenThreadInput('')
+  }
+
+  const handleRemoveOpenThread = (index: number) => {
+    if (!coreConceptDraft) return
+    const items = parseOpenThreads(coreConceptDraft.open_threads).filter((_, i) => i !== index)
+    handleCoreConceptChange('open_threads', items.map((t) => `- ${t}`).join('\n'))
   }
 
   const handleSaveCoreConcept = async () => {
@@ -546,12 +567,15 @@ function ProjectBoardContent() {
     .filter(Boolean)
   const JOURNEY_COLORS = Object.values(TONE_DOT_COLORS)
 
+  const openThreadItems = parseOpenThreads(coreConceptDraft?.open_threads ?? '')
+
   const renderConceptField = (
     field: (typeof PLAIN_FIELDS)[number] | (typeof CONCEPT_FIELDS)[number] | (typeof DIRECTION_FIELDS)[number]
   ) => {
     if (!coreConceptDraft) return null
     const isBoxed = !('boxed' in field) || field.boxed
     const isBold = 'bold' in field && field.bold
+    const isAccentLine = 'accentLine' in field && field.accentLine
     return (
       <div key={field.key}>
         <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
@@ -567,7 +591,8 @@ function ProjectBoardContent() {
             backgroundColor: isBoxed ? c.inputBg : 'transparent',
             border: isBoxed ? `1px solid ${c.inputBorder}` : 'none',
             borderRadius: isBoxed ? '10px' : 0,
-            padding: isBoxed ? '10px 12px' : 0,
+            padding: isBoxed ? '10px 12px' : isAccentLine ? '2px 0 2px 14px' : 0,
+            ...(isAccentLine ? { borderLeft: `2px solid ${accentColor}` } : {}),
             fontSize: '14px',
             fontWeight: isBold ? 700 : 400,
             color: c.textPrimary,
@@ -1142,69 +1167,17 @@ function ProjectBoardContent() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                     {PLAIN_FIELDS.map((field) => renderConceptField(field))}
 
-                    {/* Emotional Journey: a "linear path" widget, collapsed by default */}
+                    {/* Emotional Journey: interlocking arrow segments, one per beat, each labeled and colored */}
                     <div>
-                      <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
-                        Emotional Journey
-                      </p>
-                      <button
-                        onClick={() => setIsJourneyExpanded((v) => !v)}
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          background: 'none',
-                          border: 'none',
-                          padding: 0,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            width: '100%',
-                            height: '10px',
-                            borderRadius: '999px',
-                            overflow: 'hidden',
-                            backgroundColor: c.divider,
-                          }}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
+                          Emotional Journey
+                        </p>
+                        <button
+                          onClick={() => setIsJourneyExpanded((v) => !v)}
+                          aria-label={isJourneyExpanded ? 'Collapse' : 'Expand'}
+                          style={{ background: 'none', border: 'none', padding: '2px', cursor: 'pointer', display: 'flex' }}
                         >
-                          {journeyBeats.length > 0 ? (
-                            journeyBeats.map((beat, i) => (
-                              <div
-                                key={i}
-                                style={{
-                                  flexGrow: Math.max(beat.length, 8),
-                                  flexBasis: 0,
-                                  backgroundColor: JOURNEY_COLORS[i % JOURNEY_COLORS.length],
-                                  transition: 'flex-grow 0.4s ease',
-                                }}
-                              />
-                            ))
-                          ) : (
-                            <div style={{ flexGrow: 1, flexBasis: 0 }} />
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                          <p
-                            style={{
-                              fontSize: '13px',
-                              color: c.textSecondary,
-                              margin: 0,
-                              lineHeight: 1.5,
-                              flex: 1,
-                              minWidth: 0,
-                              ...(isJourneyExpanded
-                                ? {}
-                                : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
-                            }}
-                          >
-                            {coreConceptDraft.emotional_journey
-                              ? coreConceptDraft.emotional_journey.split('\n')[0]
-                              : 'No journey mapped yet — tap to add one'}
-                          </p>
                           <svg
                             width="12"
                             height="12"
@@ -1214,14 +1187,70 @@ function ProjectBoardContent() {
                             strokeWidth="2.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            style={{ flexShrink: 0, transform: isJourneyExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}
+                            style={{ transform: isJourneyExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}
                           >
                             <path d="m6 9 6 6 6-6" />
                           </svg>
+                        </button>
+                      </div>
+
+                      <div
+                        onClick={() => setIsJourneyExpanded((v) => !v)}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '6px', cursor: 'pointer' }}
+                      >
+                        {/* Interlocking arrow bar: each beat is a chevron pointing into the next, giving a continuum feel */}
+                        <div style={{ display: 'flex', width: '100%', height: '20px' }}>
+                          {journeyBeats.length > 0 ? (
+                            journeyBeats.map((beat, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  flexGrow: Math.max(beat.length, 8),
+                                  flexBasis: 0,
+                                  marginLeft: i === 0 ? 0 : '-10px',
+                                  backgroundColor: JOURNEY_COLORS[i % JOURNEY_COLORS.length],
+                                  clipPath:
+                                    i === 0
+                                      ? 'polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%)'
+                                      : 'polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%)',
+                                  transition: 'flex-grow 0.4s ease',
+                                }}
+                              />
+                            ))
+                          ) : (
+                            <div style={{ flexGrow: 1, flexBasis: 0, backgroundColor: c.divider, borderRadius: '4px' }} />
+                          )}
                         </div>
-                      </button>
-                      {isJourneyExpanded && (
-                        <div style={{ marginTop: '10px' }}>
+
+                        {/* Per-segment labels, roughly aligned under their rectangle via matching flex-grow weights */}
+                        {journeyBeats.length > 0 && (
+                          <div style={{ display: 'flex', width: '100%' }}>
+                            {journeyBeats.map((beat, i) => (
+                              <span
+                                key={i}
+                                style={{
+                                  flexGrow: Math.max(beat.length, 8),
+                                  flexBasis: 0,
+                                  minWidth: 0,
+                                  fontSize: '10px',
+                                  fontWeight: 600,
+                                  color: JOURNEY_COLORS[i % JOURNEY_COLORS.length],
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  paddingLeft: i === 0 ? 0 : '8px',
+                                }}
+                              >
+                                {beat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Single editable surface — a read-only preview when collapsed, the same text becomes an editable textarea when expanded */}
+                      <div style={{ marginTop: '10px' }}>
+                        {isJourneyExpanded ? (
                           <AutoResizeTextarea
                             value={coreConceptDraft.emotional_journey}
                             onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
@@ -1239,8 +1268,26 @@ function ProjectBoardContent() {
                               whiteSpace: 'pre-wrap',
                             }}
                           />
-                        </div>
-                      )}
+                        ) : (
+                          <p
+                            onClick={() => setIsJourneyExpanded(true)}
+                            style={{
+                              fontSize: '13px',
+                              color: c.textSecondary,
+                              margin: 0,
+                              lineHeight: 1.5,
+                              cursor: 'pointer',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {coreConceptDraft.emotional_journey
+                              ? coreConceptDraft.emotional_journey.split('\n')[0]
+                              : 'No journey mapped yet — tap to add one'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1257,6 +1304,78 @@ function ProjectBoardContent() {
                       }}
                     >
                       {CONCEPT_FIELDS.map((field) => renderConceptField(field))}
+
+                      {/* Open Threads: bullet list instead of a free text box */}
+                      <div>
+                        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                          Open Threads
+                        </p>
+                        {openThreadItems.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
+                            {openThreadItems.map((thread, index) => (
+                              <div
+                                key={index}
+                                className="group"
+                                style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '4px 0' }}
+                              >
+                                <span style={{ color: accentColor, fontSize: '13px', lineHeight: 1.6, flexShrink: 0 }}>•</span>
+                                <span style={{ fontSize: '13px', color: c.textPrimary, lineHeight: 1.6, flex: 1, minWidth: 0 }}>
+                                  {thread}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveOpenThread(index)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                                  onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            value={newOpenThreadInput}
+                            onChange={(e) => setNewOpenThreadInput(e.target.value)}
+                            placeholder="Add a thread..."
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') handleAddOpenThread()
+                            }}
+                            style={{
+                              flex: 1,
+                              backgroundColor: c.inputBg,
+                              border: `1px solid ${c.inputBorder}`,
+                              borderRadius: '10px',
+                              padding: '8px 12px',
+                              fontSize: '13px',
+                              color: c.textPrimary,
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            onClick={handleAddOpenThread}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              backgroundColor: c.textPrimary,
+                              color: c.cardBg,
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <div
