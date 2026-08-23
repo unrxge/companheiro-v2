@@ -147,6 +147,7 @@ function ProjectBoardContent() {
   const [coreConceptSaved, setCoreConceptSaved] = useState(false)
   const [isJourneyExpanded, setIsJourneyExpanded] = useState(false)
   const [newOpenThreadInput, setNewOpenThreadInput] = useState('')
+  const [newJourneyStepInput, setNewJourneyStepInput] = useState('')
 
   useEffect(() => {
     fetchBoard()
@@ -196,6 +197,7 @@ function ProjectBoardContent() {
         setCoreConceptSaved(false)
         setIsJourneyExpanded(false)
         setNewOpenThreadInput('')
+        setNewJourneyStepInput('')
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
@@ -224,6 +226,27 @@ function ProjectBoardContent() {
     if (!coreConceptDraft) return
     const items = parseOpenThreads(coreConceptDraft.open_threads).filter((_, i) => i !== index)
     handleCoreConceptChange('open_threads', items.map((t) => `- ${t}`).join('\n'))
+  }
+
+  const handleAddJourneyStep = () => {
+    if (!coreConceptDraft || !newJourneyStepInput.trim()) return
+    const steps = coreConceptDraft.emotional_journey ? coreConceptDraft.emotional_journey.split('\n') : []
+    steps.push(newJourneyStepInput.trim())
+    handleCoreConceptChange('emotional_journey', steps.join('\n'))
+    setNewJourneyStepInput('')
+  }
+
+  const handleUpdateJourneyStep = (index: number, value: string) => {
+    if (!coreConceptDraft) return
+    const steps = coreConceptDraft.emotional_journey.split('\n')
+    steps[index] = value
+    handleCoreConceptChange('emotional_journey', steps.join('\n'))
+  }
+
+  const handleRemoveJourneyStep = (index: number) => {
+    if (!coreConceptDraft) return
+    const steps = coreConceptDraft.emotional_journey.split('\n').filter((_, i) => i !== index)
+    handleCoreConceptChange('emotional_journey', steps.join('\n'))
   }
 
   const handleSaveCoreConcept = async () => {
@@ -517,9 +540,9 @@ function ProjectBoardContent() {
             {/* Desktop skeleton columns */}
             <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
               {[
-                { width: '240px', border: true },
+                { width: '260px', border: true },
                 { width: undefined, border: true },
-                { width: '240px', border: false },
+                { width: '260px', border: false },
               ].map((col, i) => (
                 <div
                   key={i}
@@ -558,13 +581,13 @@ function ProjectBoardContent() {
   const completedTaskCount = selectedPiece?.tasks.filter((t) => t.status === 'complete').length ?? 0
   const totalTaskCount = selectedPiece?.tasks.length ?? 0
 
-  // Emotional journey as a segmented bar, same proportional-flexGrow technique as
-  // home's Ideas bar — each line of the journey is treated as one beat/part of the
-  // arc and gets its own color, cycling through the tone palette.
-  const journeyBeats = (coreConceptDraft?.emotional_journey ?? '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+  // Emotional journey as an editable list of steps, one per line of the stored
+  // string. `journeySteps` keeps every line (including a momentarily-blank one
+  // being typed into) so row identity/order stays stable while editing;
+  // `journeyBeats` is the trimmed, blank-free version used for the bar/label
+  // visuals, which don't need to track an in-progress edit.
+  const journeySteps = coreConceptDraft?.emotional_journey ? coreConceptDraft.emotional_journey.split('\n') : []
+  const journeyBeats = journeySteps.map((line) => line.trim()).filter(Boolean)
   const JOURNEY_COLORS = Object.values(TONE_DOT_COLORS)
 
   const openThreadItems = parseOpenThreads(coreConceptDraft?.open_threads ?? '')
@@ -878,13 +901,15 @@ function ProjectBoardContent() {
         ))}
       </div>
 
-        {/* Desktop Layout - 3 Columns */}
-        <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+        {/* Desktop Layout - 3 Columns. Widths sum to 1080px (was 240+600+240) and the
+            row is centered via maxWidth+margin:auto so any leftover container width
+            splits evenly on both sides instead of showing as a gap on the right. */}
+        <div className="hidden md:flex flex-1" style={{ minHeight: 0, maxWidth: '1080px', margin: '0 auto', width: '100%' }}>
           {/* Queue Column - fixed width, doesn't shrink when the board narrows */}
           <div
             className="flex flex-col transition-colors"
             style={{
-              width: '240px',
+              width: '260px',
               flex: '0 0 auto',
               backgroundColor: dragOverColumn === 'Queue' ? c.cardBgInner : 'transparent',
               borderRight: `1px solid ${c.divider}`,
@@ -924,7 +949,7 @@ function ProjectBoardContent() {
             className="flex flex-col transition-colors"
             style={{
               flex: '1 1 0%',
-              maxWidth: '600px',
+              maxWidth: '560px',
               minWidth: 0,
               backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : 'transparent',
               borderRight: `1px solid ${c.divider}`,
@@ -958,7 +983,7 @@ function ProjectBoardContent() {
           <div
             className="flex flex-col transition-colors"
             style={{
-              width: '240px',
+              width: '260px',
               flex: '0 0 auto',
               backgroundColor: dragOverColumn === 'Completed' ? c.cardBgInner : 'transparent',
             }}
@@ -1248,46 +1273,97 @@ function ProjectBoardContent() {
                         )}
                       </div>
 
-                      {/* Single editable surface — a read-only preview when collapsed, the same text becomes an editable textarea when expanded */}
-                      <div style={{ marginTop: '10px' }}>
-                        {isJourneyExpanded ? (
-                          <AutoResizeTextarea
-                            value={coreConceptDraft.emotional_journey}
-                            onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
-                            minRows={3}
-                            style={{
-                              width: '100%',
-                              backgroundColor: c.inputBg,
-                              border: `1px solid ${c.inputBorder}`,
-                              borderRadius: '10px',
-                              padding: '10px 12px',
-                              fontSize: '14px',
-                              color: c.textPrimary,
-                              outline: 'none',
-                              lineHeight: 1.6,
-                              whiteSpace: 'pre-wrap',
-                            }}
-                          />
-                        ) : (
-                          <p
-                            onClick={() => setIsJourneyExpanded(true)}
-                            style={{
-                              fontSize: '13px',
-                              color: c.textSecondary,
-                              margin: 0,
-                              lineHeight: 1.5,
-                              cursor: 'pointer',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {coreConceptDraft.emotional_journey
-                              ? coreConceptDraft.emotional_journey.split('\n')[0]
-                              : 'No journey mapped yet — tap to add one'}
-                          </p>
-                        )}
-                      </div>
+                      {/* Editable step list — collapsed by default, expands into add/edit/delete controls per step */}
+                      {isJourneyExpanded && (
+                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {journeySteps.length === 0 && (
+                            <p style={{ fontSize: '13px', color: c.textMuted, margin: '0 0 6px' }}>
+                              No steps yet — add the first beat below.
+                            </p>
+                          )}
+                          {journeySteps.map((step, index) => (
+                            <div
+                              key={index}
+                              className="group"
+                              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' }}
+                            >
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  flexShrink: 0,
+                                  backgroundColor: JOURNEY_COLORS[index % JOURNEY_COLORS.length],
+                                }}
+                              />
+                              <input
+                                type="text"
+                                value={step}
+                                onChange={(e) => handleUpdateJourneyStep(index, e.target.value)}
+                                style={{
+                                  flex: 1,
+                                  minWidth: 0,
+                                  background: 'none',
+                                  border: 'none',
+                                  outline: 'none',
+                                  fontSize: '13px',
+                                  color: c.textPrimary,
+                                  padding: '2px 0',
+                                }}
+                              />
+                              <button
+                                onClick={() => handleRemoveJourneyStep(index)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                                onMouseEnter={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                            <input
+                              type="text"
+                              value={newJourneyStepInput}
+                              onChange={(e) => setNewJourneyStepInput(e.target.value)}
+                              placeholder="Add a step..."
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') handleAddJourneyStep()
+                              }}
+                              style={{
+                                flex: 1,
+                                backgroundColor: c.inputBg,
+                                border: `1px solid ${c.inputBorder}`,
+                                borderRadius: '10px',
+                                padding: '8px 12px',
+                                fontSize: '13px',
+                                color: c.textPrimary,
+                                outline: 'none',
+                              }}
+                            />
+                            <button
+                              onClick={handleAddJourneyStep}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                backgroundColor: c.textPrimary,
+                                color: c.cardBg,
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
