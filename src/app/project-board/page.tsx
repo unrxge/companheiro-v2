@@ -99,9 +99,11 @@ const TONE_DOT_COLORS: Record<string, string> = {
 
 // One sentence / conviction sit uncarded above the grid; emotional journey
 // gets its own path widget. Only core_truth remains in the sectional grid.
+// `boxed: false` fields render with no input chrome (background/border/radius) —
+// just bare text on whatever surface they sit on.
 const PLAIN_FIELDS = [
-  { key: 'one_sentence', label: 'One Sentence', minRows: 1 },
-  { key: 'conviction_statement', label: 'Conviction', minRows: 2 },
+  { key: 'one_sentence', label: 'One Sentence', minRows: 1, boxed: false, bold: true },
+  { key: 'conviction_statement', label: 'Conviction', minRows: 2, boxed: false },
 ] as const
 
 const CONCEPT_FIELDS = [
@@ -109,8 +111,8 @@ const CONCEPT_FIELDS = [
 ] as const
 
 const DIRECTION_FIELDS = [
-  { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
-  { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
+  { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two', boxed: false },
+  { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two', boxed: false },
   { key: 'open_threads', label: 'Open Threads', minRows: 2, placeholder: '- Thread one\n- Thread two' },
 ] as const
 
@@ -535,51 +537,45 @@ function ProjectBoardContent() {
   const completedTaskCount = selectedPiece?.tasks.filter((t) => t.status === 'complete').length ?? 0
   const totalTaskCount = selectedPiece?.tasks.length ?? 0
 
+  // Emotional journey as a segmented bar, same proportional-flexGrow technique as
+  // home's Ideas bar — each line of the journey is treated as one beat/part of the
+  // arc and gets its own color, cycling through the tone palette.
+  const journeyBeats = (coreConceptDraft?.emotional_journey ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const JOURNEY_COLORS = Object.values(TONE_DOT_COLORS)
+
   const renderConceptField = (
     field: (typeof PLAIN_FIELDS)[number] | (typeof CONCEPT_FIELDS)[number] | (typeof DIRECTION_FIELDS)[number]
   ) => {
     if (!coreConceptDraft) return null
+    const isBoxed = !('boxed' in field) || field.boxed
+    const isBold = 'bold' in field && field.bold
     return (
       <div key={field.key}>
         <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
           {field.label}
         </p>
-        {field.key === 'one_sentence' ? (
-          <input
-            type="text"
-            value={coreConceptDraft.one_sentence}
-            onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
-            style={{
-              width: '100%',
-              backgroundColor: c.inputBg,
-              border: `1px solid ${c.inputBorder}`,
-              borderRadius: '10px',
-              padding: '10px 12px',
-              fontSize: '14px',
-              color: c.textPrimary,
-              outline: 'none',
-            }}
-          />
-        ) : (
-          <AutoResizeTextarea
-            value={coreConceptDraft[field.key]}
-            onChange={(value) => handleCoreConceptChange(field.key, value)}
-            minRows={field.minRows}
-            placeholder={'placeholder' in field ? field.placeholder : undefined}
-            style={{
-              width: '100%',
-              backgroundColor: c.inputBg,
-              border: `1px solid ${c.inputBorder}`,
-              borderRadius: '10px',
-              padding: '10px 12px',
-              fontSize: '14px',
-              color: c.textPrimary,
-              outline: 'none',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-wrap',
-            }}
-          />
-        )}
+        <AutoResizeTextarea
+          value={coreConceptDraft[field.key]}
+          onChange={(value) => handleCoreConceptChange(field.key, value)}
+          minRows={field.minRows}
+          placeholder={'placeholder' in field ? field.placeholder : undefined}
+          style={{
+            width: '100%',
+            backgroundColor: isBoxed ? c.inputBg : 'transparent',
+            border: isBoxed ? `1px solid ${c.inputBorder}` : 'none',
+            borderRadius: isBoxed ? '10px' : 0,
+            padding: isBoxed ? '10px 12px' : 0,
+            fontSize: '14px',
+            fontWeight: isBold ? 700 : 400,
+            color: c.textPrimary,
+            outline: 'none',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap',
+          }}
+        />
       </div>
     )
   }
@@ -1165,30 +1161,31 @@ function ProjectBoardContent() {
                           gap: '10px',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          {[0, 1, 2, 3, 4].map((i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 4 ? 1 : undefined }}>
-                              <span
+                        <div
+                          style={{
+                            display: 'flex',
+                            width: '100%',
+                            height: '10px',
+                            borderRadius: '999px',
+                            overflow: 'hidden',
+                            backgroundColor: c.divider,
+                          }}
+                        >
+                          {journeyBeats.length > 0 ? (
+                            journeyBeats.map((beat, i) => (
+                              <div
+                                key={i}
                                 style={{
-                                  width: i === 0 || i === 4 ? '9px' : '6px',
-                                  height: i === 0 || i === 4 ? '9px' : '6px',
-                                  borderRadius: '50%',
-                                  flexShrink: 0,
-                                  backgroundColor: i === 0 ? accentColor : i === 4 ? c.textMuted : c.divider,
+                                  flexGrow: Math.max(beat.length, 8),
+                                  flexBasis: 0,
+                                  backgroundColor: JOURNEY_COLORS[i % JOURNEY_COLORS.length],
+                                  transition: 'flex-grow 0.4s ease',
                                 }}
                               />
-                              {i < 4 && (
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    height: '2px',
-                                    marginLeft: '3px',
-                                    background: i === 0 ? `linear-gradient(to right, ${accentColor}, ${c.divider})` : c.divider,
-                                  }}
-                                />
-                              )}
-                            </div>
-                          ))}
+                            ))
+                          ) : (
+                            <div style={{ flexGrow: 1, flexBasis: 0 }} />
+                          )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                           <p
