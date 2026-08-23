@@ -97,12 +97,14 @@ const TONE_DOT_COLORS: Record<string, string> = {
   urgent: '#EF4444',
 }
 
-// Core Concept split into two sectional cards instead of one long form —
-// the identity of the piece, and where it's headed.
-const CONCEPT_FIELDS = [
+// One sentence / conviction sit uncarded above the grid; emotional journey
+// gets its own path widget. Only core_truth remains in the sectional grid.
+const PLAIN_FIELDS = [
   { key: 'one_sentence', label: 'One Sentence', minRows: 1 },
   { key: 'conviction_statement', label: 'Conviction', minRows: 2 },
-  { key: 'emotional_journey', label: 'Emotional Journey', minRows: 2 },
+] as const
+
+const CONCEPT_FIELDS = [
   { key: 'core_truth', label: 'Core Truth', minRows: 2 },
 ] as const
 
@@ -141,6 +143,7 @@ function ProjectBoardContent() {
   } | null>(null)
   const [isSavingCoreConcept, setIsSavingCoreConcept] = useState(false)
   const [coreConceptSaved, setCoreConceptSaved] = useState(false)
+  const [isJourneyExpanded, setIsJourneyExpanded] = useState(false)
 
   useEffect(() => {
     fetchBoard()
@@ -188,6 +191,7 @@ function ProjectBoardContent() {
           open_threads: (data.piece.open_threads || []).map((t: string) => `- ${t}`).join('\n'),
         })
         setCoreConceptSaved(false)
+        setIsJourneyExpanded(false)
       }
     } catch (err) {
       console.error('Failed to fetch piece:', err)
@@ -532,7 +536,7 @@ function ProjectBoardContent() {
   const totalTaskCount = selectedPiece?.tasks.length ?? 0
 
   const renderConceptField = (
-    field: (typeof CONCEPT_FIELDS)[number] | (typeof DIRECTION_FIELDS)[number]
+    field: (typeof PLAIN_FIELDS)[number] | (typeof CONCEPT_FIELDS)[number] | (typeof DIRECTION_FIELDS)[number]
   ) => {
     if (!coreConceptDraft) return null
     return (
@@ -1053,7 +1057,7 @@ function ProjectBoardContent() {
       {/* Piece Modal: mirrors the page-level shell -> header-on-shell -> container structure exactly */}
       {modalType === 'piece' && selectedPiece && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
-          <div style={{ height: '100%', maxWidth: '960px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: '100%', maxWidth: '960px', margin: '0 auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
             {/* Header: plain text + actions floating directly on the dark shell, no card chrome of its own */}
             <div
               style={{
@@ -1125,7 +1129,7 @@ function ProjectBoardContent() {
               style={{
                 backgroundColor: c.containerBg,
                 boxShadow: c.containerShadow,
-                borderRadius: '28px',
+                borderRadius: '28px 28px 0 0',
                 overflow: 'hidden',
                 flex: 1,
                 minHeight: 0,
@@ -1135,10 +1139,114 @@ function ProjectBoardContent() {
               }}
             >
           <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Core Concept: two sectional cards side by side, not one long form */}
+            <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px 48px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              {/* Core Concept: one sentence / conviction / emotional journey sit uncarded, above the sectional grid */}
               {coreConceptDraft && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {PLAIN_FIELDS.map((field) => renderConceptField(field))}
+
+                    {/* Emotional Journey: a "linear path" widget, collapsed by default */}
+                    <div>
+                      <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
+                        Emotional Journey
+                      </p>
+                      <button
+                        onClick={() => setIsJourneyExpanded((v) => !v)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          {[0, 1, 2, 3, 4].map((i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 4 ? 1 : undefined }}>
+                              <span
+                                style={{
+                                  width: i === 0 || i === 4 ? '9px' : '6px',
+                                  height: i === 0 || i === 4 ? '9px' : '6px',
+                                  borderRadius: '50%',
+                                  flexShrink: 0,
+                                  backgroundColor: i === 0 ? accentColor : i === 4 ? c.textMuted : c.divider,
+                                }}
+                              />
+                              {i < 4 && (
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    height: '2px',
+                                    marginLeft: '3px',
+                                    background: i === 0 ? `linear-gradient(to right, ${accentColor}, ${c.divider})` : c.divider,
+                                  }}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <p
+                            style={{
+                              fontSize: '13px',
+                              color: c.textSecondary,
+                              margin: 0,
+                              lineHeight: 1.5,
+                              flex: 1,
+                              minWidth: 0,
+                              ...(isJourneyExpanded
+                                ? {}
+                                : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+                            }}
+                          >
+                            {coreConceptDraft.emotional_journey
+                              ? coreConceptDraft.emotional_journey.split('\n')[0]
+                              : 'No journey mapped yet — tap to add one'}
+                          </p>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke={c.textMuted}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ flexShrink: 0, transform: isJourneyExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}
+                          >
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </div>
+                      </button>
+                      {isJourneyExpanded && (
+                        <div style={{ marginTop: '10px' }}>
+                          <AutoResizeTextarea
+                            value={coreConceptDraft.emotional_journey}
+                            onChange={(value) => handleCoreConceptChange('emotional_journey', value)}
+                            minRows={3}
+                            style={{
+                              width: '100%',
+                              backgroundColor: c.inputBg,
+                              border: `1px solid ${c.inputBorder}`,
+                              borderRadius: '10px',
+                              padding: '10px 12px',
+                              fontSize: '14px',
+                              color: c.textPrimary,
+                              outline: 'none',
+                              lineHeight: 1.6,
+                              whiteSpace: 'pre-wrap',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div
                       style={{
@@ -1151,7 +1259,6 @@ function ProjectBoardContent() {
                         gap: '14px',
                       }}
                     >
-                      <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Concept</p>
                       {CONCEPT_FIELDS.map((field) => renderConceptField(field))}
                     </div>
 
@@ -1236,20 +1343,27 @@ function ProjectBoardContent() {
                   <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>No tasks</p>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
                       {selectedPiece.tasks
                         .filter((t) => t.status === 'pending')
-                        .map((task) => (
+                        .map((task, index, arr) => (
                           <div
                             key={task.id}
                             style={{
-                              backgroundColor: c.inputBg,
-                              border: `1px solid ${c.inputBorder}`,
-                              borderRadius: '10px',
-                              padding: '10px 12px',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '10px',
+                              padding: '10px 8px 10px 10px',
+                              marginLeft: '-10px',
+                              borderLeft: '2px solid transparent',
+                              borderBottom: index < arr.length - 1 ? `1px solid ${c.divider}` : 'none',
+                              transition: 'border-color 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.borderLeftColor = accentColor
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLDivElement).style.borderLeftColor = 'transparent'
                             }}
                           >
                             <input
@@ -1291,24 +1405,31 @@ function ProjectBoardContent() {
 
                     {selectedPiece.tasks.filter((t) => t.status === 'complete').length > 0 && (
                       <div style={{ marginTop: '14px' }}>
-                        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
                           Completed
                         </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
                           {selectedPiece.tasks
                             .filter((t) => t.status === 'complete')
-                            .map((task) => (
+                            .map((task, index, arr) => (
                               <div
                                 key={task.id}
                                 style={{
-                                  backgroundColor: c.inputBg,
-                                  border: `1px solid ${c.inputBorder}`,
-                                  borderRadius: '10px',
-                                  padding: '10px 12px',
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '10px',
+                                  padding: '10px 8px 10px 10px',
+                                  marginLeft: '-10px',
+                                  borderLeft: '2px solid transparent',
+                                  borderBottom: index < arr.length - 1 ? `1px solid ${c.divider}` : 'none',
                                   opacity: 0.6,
+                                  transition: 'border-color 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  (e.currentTarget as HTMLDivElement).style.borderLeftColor = accentColor
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLDivElement).style.borderLeftColor = 'transparent'
                                 }}
                               >
                                 <input
