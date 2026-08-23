@@ -97,6 +97,21 @@ const TONE_DOT_COLORS: Record<string, string> = {
   urgent: '#EF4444',
 }
 
+// Core Concept split into two sectional cards instead of one long form —
+// the identity of the piece, and where it's headed.
+const CONCEPT_FIELDS = [
+  { key: 'one_sentence', label: 'One Sentence', minRows: 1 },
+  { key: 'conviction_statement', label: 'Conviction', minRows: 2 },
+  { key: 'emotional_journey', label: 'Emotional Journey', minRows: 2 },
+  { key: 'core_truth', label: 'Core Truth', minRows: 2 },
+] as const
+
+const DIRECTION_FIELDS = [
+  { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
+  { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
+  { key: 'open_threads', label: 'Open Threads', minRows: 2, placeholder: '- Thread one\n- Thread two' },
+] as const
+
 function ProjectBoardContent() {
   const router = useRouter()
   const { theme, toggle } = useCardTheme('light')
@@ -516,6 +531,55 @@ function ProjectBoardContent() {
   const completedTaskCount = selectedPiece?.tasks.filter((t) => t.status === 'complete').length ?? 0
   const totalTaskCount = selectedPiece?.tasks.length ?? 0
 
+  const renderConceptField = (
+    field: (typeof CONCEPT_FIELDS)[number] | (typeof DIRECTION_FIELDS)[number]
+  ) => {
+    if (!coreConceptDraft) return null
+    return (
+      <div key={field.key}>
+        <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+          {field.label}
+        </p>
+        {field.key === 'one_sentence' ? (
+          <input
+            type="text"
+            value={coreConceptDraft.one_sentence}
+            onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
+            style={{
+              width: '100%',
+              backgroundColor: c.inputBg,
+              border: `1px solid ${c.inputBorder}`,
+              borderRadius: '10px',
+              padding: '10px 12px',
+              fontSize: '14px',
+              color: c.textPrimary,
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <AutoResizeTextarea
+            value={coreConceptDraft[field.key]}
+            onChange={(value) => handleCoreConceptChange(field.key, value)}
+            minRows={field.minRows}
+            placeholder={'placeholder' in field ? field.placeholder : undefined}
+            style={{
+              width: '100%',
+              backgroundColor: c.inputBg,
+              border: `1px solid ${c.inputBorder}`,
+              borderRadius: '10px',
+              padding: '10px 12px',
+              fontSize: '14px',
+              color: c.textPrimary,
+              outline: 'none',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap',
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   const renderCard = (
     id: string,
     title: string,
@@ -830,11 +894,12 @@ function ProjectBoardContent() {
             </div>
           </div>
 
-          {/* Active Column - the main focus; absorbs all the width the board gives up */}
+          {/* Active Column - the main focus; absorbs the width the board gives up, capped so it doesn't stretch too wide */}
           <div
             className="flex flex-col transition-colors"
             style={{
               flex: '1 1 0%',
+              maxWidth: '600px',
               minWidth: 0,
               backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : 'transparent',
               borderRight: `1px solid ${c.divider}`,
@@ -1079,73 +1144,41 @@ function ProjectBoardContent() {
           </div>
 
           <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              {/* Core Concept Section */}
+            <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Core Concept: two sectional cards side by side, not one long form */}
               {coreConceptDraft && (
-                <div
-                  style={{
-                    backgroundColor: c.cardBg,
-                    boxShadow: c.shadow,
-                    borderRadius: '16px',
-                    padding: '20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                  }}
-                >
-                  <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Core Concept</p>
-
-                  {([
-                    { key: 'one_sentence', label: 'One Sentence', minRows: 1 },
-                    { key: 'conviction_statement', label: 'Conviction', minRows: 2 },
-                    { key: 'emotional_journey', label: 'Emotional Journey', minRows: 2 },
-                    { key: 'core_truth', label: 'Core Truth', minRows: 2 },
-                    { key: 'substack_goals', label: 'Substack Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
-                    { key: 'short_form_goals', label: 'Short Form Goals', minRows: 2, placeholder: '- Goal one\n- Goal two' },
-                    { key: 'open_threads', label: 'Open Threads', minRows: 2, placeholder: '- Thread one\n- Thread two' },
-                  ] as const).map((field) => (
-                    <div key={field.key}>
-                      <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
-                        {field.label}
-                      </p>
-                      {field.key === 'one_sentence' ? (
-                        <input
-                          type="text"
-                          value={coreConceptDraft.one_sentence}
-                          onChange={(e) => handleCoreConceptChange('one_sentence', e.target.value)}
-                          style={{
-                            width: '100%',
-                            backgroundColor: c.inputBg,
-                            border: `1px solid ${c.inputBorder}`,
-                            borderRadius: '10px',
-                            padding: '10px 12px',
-                            fontSize: '14px',
-                            color: c.textPrimary,
-                            outline: 'none',
-                          }}
-                        />
-                      ) : (
-                        <AutoResizeTextarea
-                          value={coreConceptDraft[field.key]}
-                          onChange={(value) => handleCoreConceptChange(field.key, value)}
-                          minRows={field.minRows}
-                          placeholder={'placeholder' in field ? field.placeholder : undefined}
-                          style={{
-                            width: '100%',
-                            backgroundColor: c.inputBg,
-                            border: `1px solid ${c.inputBorder}`,
-                            borderRadius: '10px',
-                            padding: '10px 12px',
-                            fontSize: '14px',
-                            color: c.textPrimary,
-                            outline: 'none',
-                            lineHeight: 1.6,
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        />
-                      )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div
+                      style={{
+                        backgroundColor: c.cardBg,
+                        boxShadow: c.shadow,
+                        borderRadius: '16px',
+                        padding: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                      }}
+                    >
+                      <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Concept</p>
+                      {CONCEPT_FIELDS.map((field) => renderConceptField(field))}
                     </div>
-                  ))}
+
+                    <div
+                      style={{
+                        backgroundColor: c.cardBg,
+                        boxShadow: c.shadow,
+                        borderRadius: '16px',
+                        padding: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                      }}
+                    >
+                      <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Goals & threads</p>
+                      {DIRECTION_FIELDS.map((field) => renderConceptField(field))}
+                    </div>
+                  </div>
 
                   <button
                     onClick={handleSaveCoreConcept}
@@ -1153,7 +1186,7 @@ function ProjectBoardContent() {
                     className="transition-opacity disabled:opacity-50"
                     style={{
                       width: '100%',
-                      padding: '10px',
+                      padding: '11px',
                       borderRadius: '10px',
                       border: 'none',
                       backgroundColor: accentColor,
