@@ -19,9 +19,11 @@ type Territory =
 
 interface Capture {
   id: string
+  raw_input: string
   unpacked: string
   arc: string
   thematic_territory: string
+  url?: string | null
   created_at: string
 }
 
@@ -535,7 +537,7 @@ export default function IdeaLabPage() {
                       <p style={{
                         fontFamily: 'var(--font-geist-sans)',
                         fontSize: '26px',
-                        fontWeight: 300,
+                        fontWeight: 500,
                         color: c.textPrimary,
                         margin: '0 0 10px',
                         lineHeight: 1.25,
@@ -796,7 +798,7 @@ export default function IdeaLabPage() {
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>
-                          {capture.unpacked}
+                          {capture.raw_input}
                         </p>
                         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -980,15 +982,80 @@ export default function IdeaLabPage() {
             </motion.button>
           }
         >
-          <p style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontSize: '15px',
-            color: c.textPrimary,
-            lineHeight: 1.65,
-            margin: 0,
-          }}>
-            {selectedCapture.unpacked}
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {selectedCapture.raw_input && (
+              <div>
+                <p style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: c.textSecondary,
+                  margin: '0 0 8px',
+                }}>What I captured</p>
+                <p style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontSize: '15px',
+                  color: c.textPrimary,
+                  lineHeight: 1.65,
+                  margin: 0,
+                }}>
+                  {selectedCapture.raw_input}
+                </p>
+              </div>
+            )}
+
+            {selectedCapture.url && (
+              <div style={{ paddingTop: '12px', borderTop: `1px solid ${c.divider}` }}>
+                <p style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: c.textSecondary,
+                  margin: '0 0 6px',
+                }}>Source</p>
+                <a
+                  href={selectedCapture.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontFamily: 'var(--font-geist-sans)',
+                    fontSize: '13px',
+                    color: accentColor,
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {selectedCapture.url}
+                </a>
+              </div>
+            )}
+
+            {selectedCapture.unpacked && (
+              <div style={{ paddingTop: '12px', borderTop: `1px solid ${c.divider}` }}>
+                <p style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: c.textSecondary,
+                  margin: '0 0 8px',
+                }}>Analysis</p>
+                <p style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  fontSize: '14px',
+                  color: c.textSecondary,
+                  lineHeight: 1.65,
+                  margin: 0,
+                }}>
+                  {selectedCapture.unpacked}
+                </p>
+              </div>
+            )}
+          </div>
         </ModalDialog>
       )}
     </div>
