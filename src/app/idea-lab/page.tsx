@@ -31,6 +31,14 @@ const ARC_DEFINITIONS: Record<Arc, string> = {
   Integration: 'Synthesis, wholeness, bringing it together',
 }
 
+// Per-arc accent colors — shown only when selected, telling a story about each direction.
+const ARC_ACCENT: Record<Arc, string> = {
+  Breakaway:   '#a53f2b', // coral — disruption has heat
+  Beginning:   '#2a7a5c', // deep emerald — fresh starts, new life
+  Expansion:   '#5f4fa0', // muted indigo — depth, breadth of vision
+  Integration: '#8a6820', // warm amber-earth — synthesis, wholeness
+}
+
 const TERRITORIES: Territory[] = [
   'creativity_devotion_curiosity',
   'healthy_masculinity_emotional_regulation',
@@ -52,14 +60,18 @@ const TERRITORY_SHORT: Record<string, string> = {
   slow_living_life_in_service: 'Slow Living',
 }
 
+// Per-territory accent colors — mirrors the Arc palette logic.
+const TERRITORY_ACCENT: Record<string, string> = {
+  creativity_devotion_curiosity:            '#a53f2b', // coral — creative fire
+  healthy_masculinity_emotional_regulation: '#2a5f80', // slate blue — groundedness
+  inner_child_tending_expression:           '#8a6820', // amber — warmth, play
+  slow_living_life_in_service:              '#2a7a5c', // emerald — calm, nature
+}
+
 const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const
 type EnergyLevel = (typeof ENERGY_LEVELS)[number]
 const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = {
-  heavy: 'Heavy',
-  low: 'Low',
-  steady: 'Steady',
-  light: 'Light',
-  bright: 'Bright',
+  heavy: 'Heavy', low: 'Low', steady: 'Steady', light: 'Light', bright: 'Bright',
 }
 
 export default function IdeaLabPage() {
@@ -82,7 +94,6 @@ export default function IdeaLabPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [hoveredCapture, setHoveredCapture] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/idea-lab/captures')
@@ -174,7 +185,7 @@ export default function IdeaLabPage() {
   const isGenerateDisabled =
     (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
 
-  // ── Shared style helpers ──────────────────────────────────────────────────
+  // ── Style helpers ──────────────────────────────────────────────────────────
 
   const eyebrow: React.CSSProperties = {
     fontFamily: 'var(--font-geist-sans)',
@@ -187,24 +198,17 @@ export default function IdeaLabPage() {
     margin: 0,
   }
 
-  // Pill — used for arc, territory, and the Random/Skip meta-controls.
-  // All share the same radius so they read as one visual language.
-  const pill = (active: boolean, muted: boolean, variant: 'primary' | 'meta' = 'primary'): React.CSSProperties => ({
-    padding: variant === 'meta' ? '4px 11px' : '7px 14px',
+  // Content pills for arc/territory — each gets its own accent when selected.
+  const contentPill = (active: boolean, muted: boolean, activeColor: string): React.CSSProperties => ({
+    padding: '7px 14px',
     borderRadius: '999px',
-    border: `1px solid ${active
-      ? (variant === 'meta' ? c.textMuted : 'transparent')
-      : c.inputBorder}`,
-    backgroundColor: active
-      ? (variant === 'meta' ? c.inputBg : accentColor)
-      : 'transparent',
-    color: active
-      ? (variant === 'meta' ? c.textPrimary : '#fff')
-      : c.textMuted,
-    fontSize: variant === 'meta' ? '11px' : '12px',
+    border: `1px solid ${active ? 'transparent' : c.inputBorder}`,
+    backgroundColor: active ? activeColor : 'transparent',
+    color: active ? '#fff' : c.textSecondary,
+    fontSize: '12px',
     fontWeight: active ? 600 : 400,
-    cursor: (muted && variant === 'primary') ? 'default' : 'pointer',
-    opacity: (muted && !active && variant === 'primary') ? 0.35 : 1,
+    cursor: muted ? 'default' : 'pointer',
+    opacity: muted && !active ? 0.35 : 1,
     transition: 'all 0.15s ease',
     lineHeight: 1,
     flexShrink: 0,
@@ -220,7 +224,7 @@ export default function IdeaLabPage() {
   return (
     <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Shell header — sits on the dark shell, no background of its own */}
+      {/* Shell header */}
       <div style={{
         maxWidth: 1200,
         margin: '0 auto',
@@ -275,10 +279,10 @@ export default function IdeaLabPage() {
           transition: 'background-color 0.3s ease',
         }}>
 
-          {/* ── Main grid: Lens (left) + Stage (right) ── */}
+          {/* ── Main grid: Lens + Stage ── */}
           <div className="idea-lab-grid">
 
-            {/* The Lens */}
+            {/* Left — The Lens */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -298,9 +302,43 @@ export default function IdeaLabPage() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <span style={eyebrow}>Arc</span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={handleRandomArcs} style={pill(useRandomArcs, false, 'meta')}>Random</button>
-                    <button onClick={handleSkipArcs} style={pill(skipArcs, false, 'meta')}>Skip</button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Random/Skip: no border, text-style, standard hover */}
+                    <motion.button
+                      onClick={handleRandomArcs}
+                      whileHover={{ opacity: 0.65 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '3px 0',
+                        color: useRandomArcs ? c.textPrimary : c.textMuted,
+                        fontSize: '11px',
+                        fontWeight: useRandomArcs ? 600 : 400,
+                        cursor: 'pointer',
+                        letterSpacing: '0.01em',
+                      }}
+                    >
+                      Random
+                    </motion.button>
+                    <span style={{ color: c.divider, fontSize: '11px', alignSelf: 'center' }}>·</span>
+                    <motion.button
+                      onClick={handleSkipArcs}
+                      whileHover={{ opacity: 0.65 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '3px 0',
+                        color: skipArcs ? c.textPrimary : c.textMuted,
+                        fontSize: '11px',
+                        fontWeight: skipArcs ? 600 : 400,
+                        cursor: 'pointer',
+                        letterSpacing: '0.01em',
+                      }}
+                    >
+                      Skip
+                    </motion.button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
@@ -309,7 +347,7 @@ export default function IdeaLabPage() {
                       key={arc}
                       onClick={() => !useRandomArcs && !skipArcs && toggleArc(arc)}
                       title={ARC_DEFINITIONS[arc]}
-                      style={pill(selectedArcs.includes(arc), useRandomArcs || skipArcs)}
+                      style={contentPill(selectedArcs.includes(arc), useRandomArcs || skipArcs, ARC_ACCENT[arc])}
                     >
                       {arc}
                     </button>
@@ -323,9 +361,42 @@ export default function IdeaLabPage() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <span style={eyebrow}>Territory</span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={handleRandomTerritories} style={pill(useRandomTerritories, false, 'meta')}>Random</button>
-                    <button onClick={handleSkipTerritories} style={pill(skipTerritories, false, 'meta')}>Skip</button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <motion.button
+                      onClick={handleRandomTerritories}
+                      whileHover={{ opacity: 0.65 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '3px 0',
+                        color: useRandomTerritories ? c.textPrimary : c.textMuted,
+                        fontSize: '11px',
+                        fontWeight: useRandomTerritories ? 600 : 400,
+                        cursor: 'pointer',
+                        letterSpacing: '0.01em',
+                      }}
+                    >
+                      Random
+                    </motion.button>
+                    <span style={{ color: c.divider, fontSize: '11px', alignSelf: 'center' }}>·</span>
+                    <motion.button
+                      onClick={handleSkipTerritories}
+                      whileHover={{ opacity: 0.65 }}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '3px 0',
+                        color: skipTerritories ? c.textPrimary : c.textMuted,
+                        fontSize: '11px',
+                        fontWeight: skipTerritories ? 600 : 400,
+                        cursor: 'pointer',
+                        letterSpacing: '0.01em',
+                      }}
+                    >
+                      Skip
+                    </motion.button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
@@ -334,7 +405,7 @@ export default function IdeaLabPage() {
                       key={t}
                       onClick={() => !skipTerritories && !useRandomTerritories && toggleTerritory(t)}
                       title={TERRITORY_LABELS[t]}
-                      style={pill(selectedTerritories.includes(t), skipTerritories || useRandomTerritories)}
+                      style={contentPill(selectedTerritories.includes(t), skipTerritories || useRandomTerritories, TERRITORY_ACCENT[t])}
                     >
                       {TERRITORY_SHORT[t]}
                     </button>
@@ -348,7 +419,7 @@ export default function IdeaLabPage() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <span style={eyebrow}>Energy</span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: c.textPrimary }}>
+                  <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', fontWeight: 600, color: c.textPrimary }}>
                     {ENERGY_LEVEL_LABELS[energyLevel]}
                   </span>
                 </div>
@@ -388,6 +459,7 @@ export default function IdeaLabPage() {
                       backgroundColor: impersonal ? c.textPrimary : 'transparent',
                       color: impersonal ? c.containerBg : c.textMuted,
                       fontSize: '12px',
+                      fontFamily: 'var(--font-geist-sans)',
                       fontWeight: 500,
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
@@ -403,6 +475,7 @@ export default function IdeaLabPage() {
                       backgroundColor: !impersonal ? c.textPrimary : 'transparent',
                       color: !impersonal ? c.containerBg : c.textMuted,
                       fontSize: '12px',
+                      fontFamily: 'var(--font-geist-sans)',
                       fontWeight: 500,
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
@@ -420,7 +493,7 @@ export default function IdeaLabPage() {
 
             </motion.div>
 
-            {/* The Stage */}
+            {/* Right — The Stage */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -454,31 +527,11 @@ export default function IdeaLabPage() {
                       padding: '64px 52px',
                       textAlign: 'center',
                       gap: '32px',
-                      position: 'relative',
                     }}
                   >
-                    {/* Ghost question mark */}
-                    <div
-                      aria-hidden
-                      style={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -55%)',
-                        fontSize: '320px',
-                        fontWeight: 300,
-                        color: c.textPrimary,
-                        opacity: 0.04,
-                        fontFamily: 'Georgia, "Times New Roman", serif',
-                        lineHeight: 1,
-                        userSelect: 'none',
-                        pointerEvents: 'none',
-                        letterSpacing: '-0.05em',
-                      }}
-                    >?</div>
-
-                    <div style={{ position: 'relative' }}>
+                    <div>
                       <p style={{
+                        fontFamily: 'var(--font-geist-sans)',
                         fontSize: '26px',
                         fontWeight: 300,
                         color: c.textPrimary,
@@ -488,7 +541,13 @@ export default function IdeaLabPage() {
                       }}>
                         The question is waiting.
                       </p>
-                      <p style={{ fontSize: '14px', color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
+                      <p style={{
+                        fontFamily: 'var(--font-geist-sans)',
+                        fontSize: '14px',
+                        color: c.textMuted,
+                        margin: 0,
+                        lineHeight: 1.5,
+                      }}>
                         Configure your lens, then summon it.
                       </p>
                     </div>
@@ -499,7 +558,6 @@ export default function IdeaLabPage() {
                         border: '1px solid rgba(239,68,68,0.18)',
                         borderRadius: '10px',
                         padding: '10px 16px',
-                        position: 'relative',
                         maxWidth: '340px',
                         width: '100%',
                       }}>
@@ -507,28 +565,33 @@ export default function IdeaLabPage() {
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', position: 'relative' }}>
-                      <button
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                      <motion.button
                         onClick={handleGeneratePrompt}
                         disabled={isGenerateDisabled}
+                        whileHover={isGenerateDisabled ? {} : { opacity: 0.85 }}
+                        whileTap={isGenerateDisabled ? {} : { scale: 0.97 }}
                         style={{
                           padding: '14px 44px',
                           borderRadius: '14px',
                           border: 'none',
                           backgroundColor: isGenerateDisabled ? c.inputBg : accentColor,
                           color: isGenerateDisabled ? c.textMuted : '#ffffff',
+                          fontFamily: 'var(--font-geist-sans)',
                           fontSize: '15px',
                           fontWeight: 600,
                           cursor: isGenerateDisabled ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease',
                           letterSpacing: '-0.01em',
                         }}
                       >
                         {isGenerating ? 'Summoning...' : 'Generate a question →'}
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
                         onClick={() => router.push('/idea-lab/conceptualise')}
+                        whileHover={{ opacity: 0.65 }}
+                        whileTap={{ scale: 0.97 }}
                         style={{
+                          fontFamily: 'var(--font-geist-sans)',
                           fontSize: '12px',
                           color: c.textMuted,
                           background: 'none',
@@ -539,7 +602,7 @@ export default function IdeaLabPage() {
                         }}
                       >
                         Or start from scratch
-                      </button>
+                      </motion.button>
                     </div>
                   </motion.div>
                 ) : (
@@ -554,34 +617,34 @@ export default function IdeaLabPage() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                       <span style={{ ...eyebrow, paddingTop: '2px' }}>Your question</span>
-                      <button
+                      {/* Legible text button — no longer a tiny icon */}
+                      <motion.button
                         onClick={handleGeneratePrompt}
                         disabled={isGenerating}
-                        title="Ask again"
+                        whileHover={isGenerating ? {} : { opacity: 0.65 }}
+                        whileTap={isGenerating ? {} : { scale: 0.96 }}
                         style={{
                           flexShrink: 0,
-                          width: '30px',
-                          height: '30px',
-                          borderRadius: '50%',
+                          padding: '5px 12px',
+                          borderRadius: '999px',
                           border: `1px solid ${c.inputBorder}`,
                           backgroundColor: 'transparent',
+                          color: c.textMuted,
+                          fontFamily: 'var(--font-geist-sans)',
+                          fontSize: '11px',
+                          fontWeight: 500,
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: isGenerating ? 0.4 : 0.7,
-                          transition: 'opacity 0.15s ease',
+                          opacity: isGenerating ? 0.4 : 1,
+                          letterSpacing: '0.01em',
                         }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <path d="M1 6a5 5 0 1 0 5-5A5 5 0 0 0 2.1 2.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" />
-                          <path d="M1 1v3.5H4.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
+                        {isGenerating ? 'Asking...' : 'Ask again'}
+                      </motion.button>
                     </div>
 
-                    {/* The prompt — hero text */}
+                    {/* The prompt — hero text in Geist */}
                     <p style={{
+                      fontFamily: 'var(--font-geist-sans)',
                       fontSize: '22px',
                       fontWeight: 300,
                       color: c.textPrimary,
@@ -612,6 +675,7 @@ export default function IdeaLabPage() {
                           border: `1px solid ${c.inputBorder}`,
                           borderRadius: '12px',
                           padding: '14px 16px',
+                          fontFamily: 'var(--font-geist-sans)',
                           fontSize: '15px',
                           color: c.textPrimary,
                           outline: 'none',
@@ -620,7 +684,6 @@ export default function IdeaLabPage() {
                           maxHeight: '35vh',
                           lineHeight: 1.65,
                           boxSizing: 'border-box',
-                          fontFamily: 'inherit',
                         }}
                       />
                     </div>
@@ -639,6 +702,7 @@ export default function IdeaLabPage() {
                         border: 'none',
                         backgroundColor: c.textPrimary,
                         color: c.containerBg,
+                        fontFamily: 'var(--font-geist-sans)',
                         fontSize: '14px',
                         fontWeight: 600,
                         cursor: !responseText.trim() ? 'not-allowed' : 'pointer',
@@ -656,7 +720,7 @@ export default function IdeaLabPage() {
 
           </div>
 
-          {/* ── The Well: Capture Bank ── */}
+          {/* ── The Well: Capture Bank as horizontal carousel ── */}
           {!isLoadingCaptures && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -678,60 +742,97 @@ export default function IdeaLabPage() {
               </div>
 
               {captures.length === 0 ? (
-                <p style={{ fontSize: '13px', color: c.textMuted, lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '13px', color: c.textMuted, lineHeight: 1.5, margin: 0 }}>
                   No captures yet.{' '}
                   <Link href="/collector" style={{ color: accentColor, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
                     Start with Collector →
                   </Link>
                 </p>
               ) : (
-                <div className="idea-lab-captures">
-                  {captures.map((capture, idx) => (
-                    <div
-                      key={capture.id}
-                      onMouseEnter={() => setHoveredCapture(capture.id)}
-                      onMouseLeave={() => setHoveredCapture(null)}
-                      style={{
-                        padding: '14px 8px 14px 14px',
-                        marginLeft: '-14px',
-                        borderLeft: `2px solid ${hoveredCapture === capture.id ? accentColor : 'transparent'}`,
-                        borderBottom: idx < captures.length - 1 ? `1px solid ${c.divider}` : 'none',
-                        transition: 'border-left-color 0.15s ease',
-                      }}
-                    >
-                      <p style={{ fontSize: '13px', color: c.textPrimary, margin: '0 0 6px', lineHeight: 1.55 }}>
-                        {capture.unpacked}
-                      </p>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        {capture.arc && (
-                          <span style={{ fontSize: '11px', color: c.textMuted }}>{capture.arc}</span>
-                        )}
-                        {capture.arc && capture.thematic_territory && (
-                          <span style={{ fontSize: '11px', color: c.divider }}>·</span>
-                        )}
-                        {capture.thematic_territory && (
-                          <span style={{ fontSize: '11px', color: c.textMuted }}>
-                            {TERRITORY_SHORT[capture.thematic_territory] || capture.thematic_territory}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() =>
-                          router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
-                        }
+                /* Horizontal carousel — 3 visible + 4th fades out */
+                <div style={{ position: 'relative' }}>
+                  <div className="idea-lab-carousel">
+                    {captures.map((capture) => (
+                      <div
+                        key={capture.id}
+                        className="idea-lab-carousel-card"
                         style={{
-                          fontSize: '12px',
-                          color: accentColor,
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: 0,
+                          backgroundColor: c.cardBgInner,
+                          borderRadius: '14px',
+                          padding: '16px 18px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          flexShrink: 0,
                         }}
                       >
-                        Develop this →
-                      </button>
-                    </div>
-                  ))}
+                        <p style={{
+                          fontFamily: 'var(--font-geist-sans)',
+                          fontSize: '13px',
+                          color: c.textPrimary,
+                          margin: 0,
+                          lineHeight: 1.55,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 4,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {capture.unpacked}
+                        </p>
+                        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {capture.arc && (
+                              <span style={{ fontSize: '10px', color: c.textMuted, fontFamily: 'var(--font-geist-sans)' }}>
+                                {capture.arc}
+                              </span>
+                            )}
+                            {capture.arc && capture.thematic_territory && (
+                              <span style={{ fontSize: '10px', color: c.divider }}>·</span>
+                            )}
+                            {capture.thematic_territory && (
+                              <span style={{ fontSize: '10px', color: c.textMuted, fontFamily: 'var(--font-geist-sans)' }}>
+                                {TERRITORY_SHORT[capture.thematic_territory] || capture.thematic_territory}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() =>
+                              router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
+                            }
+                            style={{
+                              fontFamily: 'var(--font-geist-sans)',
+                              fontSize: '12px',
+                              color: accentColor,
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              textAlign: 'left',
+                            }}
+                          >
+                            Develop this →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Fade overlay — only shown when there are more than 3 captures */}
+                  {captures.length > 3 && (
+                    <div
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: '120px',
+                        background: `linear-gradient(to right, transparent, ${c.cardBg})`,
+                        pointerEvents: 'none',
+                        borderRadius: '0 14px 14px 0',
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </motion.div>
@@ -752,22 +853,37 @@ export default function IdeaLabPage() {
             grid-template-columns: 1fr;
           }
         }
-        .idea-lab-captures {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 0;
+
+        /* Horizontal carousel — 3 cards fully visible, 4th peeks under fade */
+        .idea-lab-carousel {
+          display: flex;
+          gap: 12px;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding-bottom: 2px;
         }
-        @media (max-width: 600px) {
-          .idea-lab-captures {
-            grid-template-columns: 1fr;
+        .idea-lab-carousel::-webkit-scrollbar {
+          display: none;
+        }
+        .idea-lab-carousel-card {
+          min-width: calc((100% - 24px) / 3.25);
+          scroll-snap-align: start;
+        }
+        @media (max-width: 800px) {
+          .idea-lab-carousel-card {
+            min-width: calc((100% - 12px) / 1.5);
           }
         }
+
+        /* Energy slider — warm palette: muted dark → coral → soft rose */
         .idea-lab-range {
           -webkit-appearance: none;
           appearance: none;
           height: 4px;
           border-radius: 999px;
-          background: linear-gradient(to right, #3a2520, #a53f2b 50%, #c47010);
+          background: linear-gradient(to right, #3a2520, ${accentColor} 50%, #d4907a);
           outline: none;
           cursor: pointer;
           width: 100%;
