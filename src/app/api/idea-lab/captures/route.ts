@@ -32,7 +32,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<CapturesR
       .eq("user_id", userId)
       .eq("status", "captured")
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(20);
 
     if (queryError) {
       console.error("Error fetching captures:", queryError);

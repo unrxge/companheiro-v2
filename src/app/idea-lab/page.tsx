@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
 import { useCardTheme } from '@/hooks/useCardTheme'
 import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
@@ -21,11 +22,6 @@ interface Capture {
   arc: string
   thematic_territory: string
   created_at: string
-}
-
-interface Continuation {
-  natural_continuations: string[]
-  what_it_opened: string
 }
 
 const ARC_DEFINITIONS: Record<Arc, string> = {
@@ -81,33 +77,19 @@ export default function IdeaLabPage() {
   const energyLevel = ENERGY_LEVELS[energyIndex]
   const [impersonal, setImpersonal] = useState(true)
   const [captures, setCaptures] = useState<Capture[]>([])
-  const [continuations, setContinuations] = useState<Continuation[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [hoveredCapture, setHoveredCapture] = useState<string | null>(null)
-  const [hoveredThread, setHoveredThread] = useState<number | null>(null)
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [capturesRes, continuationsRes] = await Promise.all([
-          fetch('/api/idea-lab/captures'),
-          fetch('/api/idea-lab/continuations'),
-        ])
-        const capturesData = await capturesRes.json()
-        const continuationsData = await continuationsRes.json()
-        setCaptures(capturesData.captures || [])
-        setContinuations(continuationsData.continuations || [])
-      } catch (err) {
-        console.error('Failed to fetch data:', err)
-      } finally {
-        setIsLoadingCaptures(false)
-      }
-    }
-    fetchData()
+    fetch('/api/idea-lab/captures')
+      .then((r) => r.json())
+      .then((data) => setCaptures(data.captures || []))
+      .catch((err) => console.error('Failed to fetch captures:', err))
+      .finally(() => setIsLoadingCaptures(false))
   }, [])
 
   const toggleArc = (arc: Arc) => {
@@ -192,157 +174,53 @@ export default function IdeaLabPage() {
   const isGenerateDisabled =
     (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
 
-  // Style helpers
-  const lbl: React.CSSProperties = {
+  // ── Shared style helpers ──────────────────────────────────────────────────
+
+  const eyebrow: React.CSSProperties = {
     fontFamily: 'var(--font-geist-sans)',
-    fontSize: '10px',
+    fontSize: '11px',
     fontWeight: 600,
-    color: c.textMuted,
+    color: c.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: '0.12em',
+    letterSpacing: '0.1em',
     display: 'block',
+    margin: 0,
   }
 
-  const pill = (active: boolean, muted: boolean): React.CSSProperties => ({
-    padding: '7px 13px',
+  // Pill — used for arc, territory, and the Random/Skip meta-controls.
+  // All share the same radius so they read as one visual language.
+  const pill = (active: boolean, muted: boolean, variant: 'primary' | 'meta' = 'primary'): React.CSSProperties => ({
+    padding: variant === 'meta' ? '4px 11px' : '7px 14px',
     borderRadius: '999px',
-    border: `1px solid ${active ? 'transparent' : c.inputBorder}`,
-    backgroundColor: active ? accentColor : 'transparent',
-    color: active ? '#fff' : c.textSecondary,
-    fontSize: '12px',
+    border: `1px solid ${active
+      ? (variant === 'meta' ? c.textMuted : 'transparent')
+      : c.inputBorder}`,
+    backgroundColor: active
+      ? (variant === 'meta' ? c.inputBg : accentColor)
+      : 'transparent',
+    color: active
+      ? (variant === 'meta' ? c.textPrimary : '#fff')
+      : c.textMuted,
+    fontSize: variant === 'meta' ? '11px' : '12px',
     fontWeight: active ? 600 : 400,
-    cursor: muted ? 'default' : 'pointer',
-    opacity: muted && !active ? 0.35 : 1,
+    cursor: (muted && variant === 'primary') ? 'default' : 'pointer',
+    opacity: (muted && !active && variant === 'primary') ? 0.35 : 1,
     transition: 'all 0.15s ease',
     lineHeight: 1,
-  })
-
-  const micro = (active: boolean): React.CSSProperties => ({
-    padding: '3px 9px',
-    borderRadius: '6px',
-    border: `1px solid ${active ? c.textMuted : c.inputBorder}`,
-    backgroundColor: active ? c.inputBg : 'transparent',
-    color: active ? c.textPrimary : c.textMuted,
-    fontSize: '11px',
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
+    flexShrink: 0,
   })
 
   const hdivider: React.CSSProperties = {
     height: '1px',
     backgroundColor: c.divider,
     margin: '20px -24px',
+    flexShrink: 0,
   }
-
-  const capturesCard = (
-    <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '20px', padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
-        <span style={{ ...lbl }}>Capture Bank</span>
-        {!isLoadingCaptures && (
-          <span style={{ fontSize: '11px', color: c.textMuted }}>
-            {captures.length} {captures.length === 1 ? 'item' : 'items'}
-          </span>
-        )}
-      </div>
-
-      {isLoadingCaptures ? (
-        <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>Loading...</p>
-      ) : captures.length === 0 ? (
-        <p style={{ fontSize: '13px', color: c.textMuted, lineHeight: 1.5, margin: 0 }}>
-          No captures yet.{' '}
-          <Link href="/collector" style={{ color: accentColor, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
-            Start with Collector →
-          </Link>
-        </p>
-      ) : (
-        captures.map((capture, idx) => (
-          <div
-            key={capture.id}
-            onMouseEnter={() => setHoveredCapture(capture.id)}
-            onMouseLeave={() => setHoveredCapture(null)}
-            style={{
-              padding: '12px 8px 12px 12px',
-              marginLeft: '-12px',
-              borderLeft: `2px solid ${hoveredCapture === capture.id ? accentColor : 'transparent'}`,
-              borderBottom: idx < captures.length - 1 ? `1px solid ${c.divider}` : 'none',
-              transition: 'border-left-color 0.15s ease',
-            }}
-          >
-            <p style={{ fontSize: '13px', color: c.textPrimary, margin: '0 0 6px', lineHeight: 1.5 }}>
-              {capture.unpacked}
-            </p>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', color: c.textMuted }}>{capture.arc}</span>
-              {capture.thematic_territory && (
-                <>
-                  <span style={{ fontSize: '11px', color: c.divider }}>·</span>
-                  <span style={{ fontSize: '11px', color: c.textMuted }}>
-                    {TERRITORY_SHORT[capture.thematic_territory] || capture.thematic_territory}
-                  </span>
-                </>
-              )}
-            </div>
-            <button
-              onClick={() =>
-                router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
-              }
-              style={{
-                fontSize: '12px',
-                color: accentColor,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              Develop this →
-            </button>
-          </div>
-        ))
-      )}
-    </div>
-  )
-
-  const threadsCard = continuations.length > 0 ? (
-    <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '20px', padding: '24px' }}>
-      <span style={{ ...lbl, marginBottom: '16px' }}>Open Threads</span>
-      {continuations.map((cont, idx) => (
-        <div
-          key={idx}
-          onMouseEnter={() => setHoveredThread(idx)}
-          onMouseLeave={() => setHoveredThread(null)}
-          style={{
-            padding: '14px 8px 14px 12px',
-            marginLeft: '-12px',
-            borderLeft: `2px solid ${hoveredThread === idx ? accentColor : 'transparent'}`,
-            borderBottom: idx < continuations.length - 1 ? `1px solid ${c.divider}` : 'none',
-            transition: 'border-left-color 0.15s ease',
-          }}
-        >
-          {cont.what_it_opened && (
-            <p style={{ fontSize: '13px', color: c.textPrimary, margin: '0 0 8px', lineHeight: 1.5 }}>
-              {cont.what_it_opened}
-            </p>
-          )}
-          {cont.natural_continuations.length > 0 && (
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {cont.natural_continuations.map((next, nIdx) => (
-                <li key={nIdx} style={{ fontSize: '12px', color: c.textMuted, lineHeight: 1.5 }}>
-                  <span style={{ color: accentColor, marginRight: '6px' }}>·</span>{next}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
-    </div>
-  ) : null
 
   return (
     <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Shell header */}
+      {/* Shell header — sits on the dark shell, no background of its own */}
       <div style={{
         maxWidth: 1200,
         margin: '0 auto',
@@ -359,17 +237,32 @@ export default function IdeaLabPage() {
             </svg>
           </IconButton>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '22px', fontWeight: 700, color: '#e8e6e0', margin: 0, lineHeight: 1.1 }}>
+            <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '11px', fontWeight: 600, color: '#6e6c67', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>
+              Companheiro
+            </p>
+            <h1 style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '22px', fontWeight: 700, color: '#e8e6e0', margin: '2px 0 0', lineHeight: 1.1 }}>
               Idea Lab
             </h1>
-            <p style={{ fontSize: '12px', color: '#6a6866', margin: '3px 0 0' }}>Open week mode</p>
           </div>
         </div>
         <ThemeToggleButton theme={theme} onToggle={toggle} />
       </div>
 
       {/* Container panel */}
-      <div style={{ flex: 1, maxWidth: 1200, margin: '16px auto 0', width: '100%', padding: '0 28px', display: 'flex', flexDirection: 'column' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{
+          flex: 1,
+          maxWidth: 1200,
+          margin: '16px auto 0',
+          width: '100%',
+          padding: '0 28px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <div style={{
           flex: 1,
           backgroundColor: c.containerBg,
@@ -379,28 +272,35 @@ export default function IdeaLabPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
+          transition: 'background-color 0.3s ease',
         }}>
 
-          {/* ── Main grid: Lens + Stage ── */}
+          {/* ── Main grid: Lens (left) + Stage (right) ── */}
           <div className="idea-lab-grid">
 
-            {/* Left — The Lens */}
-            <div style={{
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              borderRadius: '20px',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
+            {/* The Lens */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.08, ease: 'easeOut' }}
+              style={{
+                backgroundColor: c.cardBg,
+                boxShadow: c.shadow,
+                borderRadius: '22px',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'background-color 0.3s ease',
+              }}
+            >
 
               {/* Arc */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={lbl}>Arc</span>
+                  <span style={eyebrow}>Arc</span>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={handleRandomArcs} style={micro(useRandomArcs)}>Random</button>
-                    <button onClick={handleSkipArcs} style={micro(skipArcs)}>Skip</button>
+                    <button onClick={handleRandomArcs} style={pill(useRandomArcs, false, 'meta')}>Random</button>
+                    <button onClick={handleSkipArcs} style={pill(skipArcs, false, 'meta')}>Skip</button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
@@ -422,10 +322,10 @@ export default function IdeaLabPage() {
               {/* Territory */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={lbl}>Territory</span>
+                  <span style={eyebrow}>Territory</span>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={handleRandomTerritories} style={micro(useRandomTerritories)}>Random</button>
-                    <button onClick={handleSkipTerritories} style={micro(skipTerritories)}>Skip</button>
+                    <button onClick={handleRandomTerritories} style={pill(useRandomTerritories, false, 'meta')}>Random</button>
+                    <button onClick={handleSkipTerritories} style={pill(skipTerritories, false, 'meta')}>Skip</button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
@@ -447,7 +347,7 @@ export default function IdeaLabPage() {
               {/* Energy */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={lbl}>Energy</span>
+                  <span style={eyebrow}>Energy</span>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: c.textPrimary }}>
                     {ENERGY_LEVEL_LABELS[energyLevel]}
                   </span>
@@ -471,11 +371,11 @@ export default function IdeaLabPage() {
 
               {/* Question Mode */}
               <div>
-                <span style={{ ...lbl, marginBottom: '12px' }}>Question Mode</span>
+                <span style={{ ...eyebrow, marginBottom: '12px' }}>Question Mode</span>
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
-                  borderRadius: '10px',
+                  borderRadius: '11px',
                   border: `1px solid ${c.inputBorder}`,
                   overflow: 'hidden',
                 }}>
@@ -518,260 +418,347 @@ export default function IdeaLabPage() {
                 </p>
               </div>
 
-            </div>
+            </motion.div>
 
-            {/* Right — The Stage */}
-            <div style={{
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              borderRadius: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: '500px',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-
-              {!generatedPrompt ? (
-                /* Empty — expectant state */
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '64px 52px',
-                  textAlign: 'center',
-                  gap: '32px',
-                  position: 'relative',
-                }}>
-                  {/* Ghost decoration */}
-                  <div
-                    aria-hidden
+            {/* The Stage */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.14, ease: 'easeOut' }}
+              style={{
+                backgroundColor: c.cardBg,
+                boxShadow: c.shadow,
+                borderRadius: '22px',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'background-color 0.3s ease',
+              }}
+            >
+              <AnimatePresence mode="wait">
+                {!generatedPrompt ? (
+                  /* Empty — expectant */
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
                     style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -55%)',
-                      fontSize: '340px',
-                      fontWeight: 300,
-                      color: c.textPrimary,
-                      opacity: 0.04,
-                      fontFamily: 'Georgia, "Times New Roman", serif',
-                      lineHeight: 1,
-                      userSelect: 'none',
-                      pointerEvents: 'none',
-                      letterSpacing: '-0.05em',
-                    }}
-                  >?</div>
-
-                  <div style={{ position: 'relative' }}>
-                    <p style={{
-                      fontSize: '26px',
-                      fontWeight: 300,
-                      color: c.textPrimary,
-                      margin: '0 0 10px',
-                      lineHeight: 1.25,
-                      letterSpacing: '-0.03em',
-                    }}>
-                      The question is waiting.
-                    </p>
-                    <p style={{ fontSize: '14px', color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
-                      Configure your lens, then summon it.
-                    </p>
-                  </div>
-
-                  {error && (
-                    <div style={{
-                      backgroundColor: 'rgba(239,68,68,0.07)',
-                      border: '1px solid rgba(239,68,68,0.18)',
-                      borderRadius: '10px',
-                      padding: '10px 16px',
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '64px 52px',
+                      textAlign: 'center',
+                      gap: '32px',
                       position: 'relative',
-                      maxWidth: '360px',
-                      width: '100%',
-                    }}>
-                      <p style={{ fontSize: '12px', color: '#ef4444', margin: 0 }}>{error}</p>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', position: 'relative' }}>
-                    <button
-                      onClick={handleGeneratePrompt}
-                      disabled={isGenerateDisabled}
+                    }}
+                  >
+                    {/* Ghost question mark */}
+                    <div
+                      aria-hidden
                       style={{
-                        padding: '14px 44px',
-                        borderRadius: '14px',
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -55%)',
+                        fontSize: '320px',
+                        fontWeight: 300,
+                        color: c.textPrimary,
+                        opacity: 0.04,
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        lineHeight: 1,
+                        userSelect: 'none',
+                        pointerEvents: 'none',
+                        letterSpacing: '-0.05em',
+                      }}
+                    >?</div>
+
+                    <div style={{ position: 'relative' }}>
+                      <p style={{
+                        fontSize: '26px',
+                        fontWeight: 300,
+                        color: c.textPrimary,
+                        margin: '0 0 10px',
+                        lineHeight: 1.25,
+                        letterSpacing: '-0.03em',
+                      }}>
+                        The question is waiting.
+                      </p>
+                      <p style={{ fontSize: '14px', color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
+                        Configure your lens, then summon it.
+                      </p>
+                    </div>
+
+                    {error && (
+                      <div style={{
+                        backgroundColor: 'rgba(239,68,68,0.07)',
+                        border: '1px solid rgba(239,68,68,0.18)',
+                        borderRadius: '10px',
+                        padding: '10px 16px',
+                        position: 'relative',
+                        maxWidth: '340px',
+                        width: '100%',
+                      }}>
+                        <p style={{ fontSize: '12px', color: '#ef4444', margin: 0 }}>{error}</p>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', position: 'relative' }}>
+                      <button
+                        onClick={handleGeneratePrompt}
+                        disabled={isGenerateDisabled}
+                        style={{
+                          padding: '14px 44px',
+                          borderRadius: '14px',
+                          border: 'none',
+                          backgroundColor: isGenerateDisabled ? c.inputBg : accentColor,
+                          color: isGenerateDisabled ? c.textMuted : '#ffffff',
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          cursor: isGenerateDisabled ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        {isGenerating ? 'Summoning...' : 'Generate a question →'}
+                      </button>
+                      <button
+                        onClick={() => router.push('/idea-lab/conceptualise')}
+                        style={{
+                          fontSize: '12px',
+                          color: c.textMuted,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '3px',
+                        }}
+                      >
+                        Or start from scratch
+                      </button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  /* Active — the question is here */
+                  <motion.div
+                    key="active"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    style={{ padding: '36px', display: 'flex', flexDirection: 'column', gap: '28px' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                      <span style={{ ...eyebrow, paddingTop: '2px' }}>Your question</span>
+                      <button
+                        onClick={handleGeneratePrompt}
+                        disabled={isGenerating}
+                        title="Ask again"
+                        style={{
+                          flexShrink: 0,
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '50%',
+                          border: `1px solid ${c.inputBorder}`,
+                          backgroundColor: 'transparent',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: isGenerating ? 0.4 : 0.7,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M1 6a5 5 0 1 0 5-5A5 5 0 0 0 2.1 2.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" />
+                          <path d="M1 1v3.5H4.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* The prompt — hero text */}
+                    <p style={{
+                      fontSize: '22px',
+                      fontWeight: 300,
+                      color: c.textPrimary,
+                      margin: 0,
+                      lineHeight: 1.55,
+                      letterSpacing: '-0.02em',
+                    }}>
+                      {generatedPrompt}
+                    </p>
+
+                    <div style={{ height: '1px', backgroundColor: c.divider }} />
+
+                    <div>
+                      <span style={{ ...eyebrow, marginBottom: '10px' }}>Write your response</span>
+                      <textarea
+                        value={responseText}
+                        onChange={(e) => {
+                          setResponseText(e.target.value)
+                          e.target.style.height = 'auto'
+                          e.target.style.height = e.target.scrollHeight + 'px'
+                        }}
+                        placeholder="Begin here..."
+                        rows={5}
+                        className="idea-lab-textarea"
+                        style={{
+                          width: '100%',
+                          backgroundColor: c.inputBg,
+                          border: `1px solid ${c.inputBorder}`,
+                          borderRadius: '12px',
+                          padding: '14px 16px',
+                          fontSize: '15px',
+                          color: c.textPrimary,
+                          outline: 'none',
+                          resize: 'none',
+                          overflowY: 'auto',
+                          maxHeight: '35vh',
+                          lineHeight: 1.65,
+                          boxSizing: 'border-box',
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (responseText.trim()) {
+                          router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(responseText)}`)
+                        }
+                      }}
+                      disabled={!responseText.trim()}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        borderRadius: '12px',
                         border: 'none',
-                        backgroundColor: isGenerateDisabled ? c.inputBg : accentColor,
-                        color: isGenerateDisabled ? c.textMuted : '#ffffff',
-                        fontSize: '15px',
+                        backgroundColor: c.textPrimary,
+                        color: c.containerBg,
+                        fontSize: '14px',
                         fontWeight: 600,
-                        cursor: isGenerateDisabled ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s ease',
+                        cursor: !responseText.trim() ? 'not-allowed' : 'pointer',
+                        opacity: !responseText.trim() ? 0.25 : 1,
+                        transition: 'opacity 0.15s ease',
                         letterSpacing: '-0.01em',
                       }}
                     >
-                      {isGenerating ? 'Summoning...' : 'Generate a question →'}
+                      Begin conceptualisation →
                     </button>
-                    <button
-                      onClick={() => router.push('/idea-lab/conceptualise')}
-                      style={{
-                        fontSize: '12px',
-                        color: c.textMuted,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textDecoration: 'underline',
-                        textUnderlineOffset: '3px',
-                      }}
-                    >
-                      Or start from scratch
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Active — the question is here */
-                <div style={{ padding: '36px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                    <span style={{ ...lbl, paddingTop: '2px' }}>Your question</span>
-                    <button
-                      onClick={handleGeneratePrompt}
-                      disabled={isGenerating}
-                      title="Ask again"
-                      style={{
-                        flexShrink: 0,
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '50%',
-                        border: `1px solid ${c.inputBorder}`,
-                        backgroundColor: 'transparent',
-                        cursor: isGenerating ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        opacity: isGenerating ? 0.4 : 0.7,
-                        transition: 'opacity 0.15s ease',
-                      }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M1 6a5 5 0 1 0 5-5A5 5 0 0 0 2.1 2.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" />
-                        <path d="M1 1v3.5H4.5" stroke={c.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* The prompt — hero */}
-                  <p style={{
-                    fontSize: '22px',
-                    fontWeight: 300,
-                    color: c.textPrimary,
-                    margin: 0,
-                    lineHeight: 1.55,
-                    letterSpacing: '-0.02em',
-                  }}>
-                    {generatedPrompt}
-                  </p>
-
-                  <div style={{ height: '1px', backgroundColor: c.divider }} />
-
-                  <div>
-                    <span style={{ ...lbl, marginBottom: '10px' }}>Write your response</span>
-                    <textarea
-                      value={responseText}
-                      onChange={(e) => {
-                        setResponseText(e.target.value)
-                        e.target.style.height = 'auto'
-                        e.target.style.height = e.target.scrollHeight + 'px'
-                      }}
-                      placeholder="Begin here..."
-                      rows={5}
-                      className="idea-lab-textarea"
-                      style={{
-                        width: '100%',
-                        backgroundColor: c.inputBg,
-                        border: `1px solid ${c.inputBorder}`,
-                        borderRadius: '12px',
-                        padding: '14px 16px',
-                        fontSize: '15px',
-                        color: c.textPrimary,
-                        outline: 'none',
-                        resize: 'none',
-                        overflowY: 'auto',
-                        maxHeight: '35vh',
-                        lineHeight: 1.65,
-                        boxSizing: 'border-box',
-                        fontFamily: 'inherit',
-                      }}
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (responseText.trim()) {
-                        router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(responseText)}`)
-                      }
-                    }}
-                    disabled={!responseText.trim()}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      borderRadius: '12px',
-                      border: 'none',
-                      backgroundColor: c.textPrimary,
-                      color: c.containerBg,
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      cursor: !responseText.trim() ? 'not-allowed' : 'pointer',
-                      opacity: !responseText.trim() ? 0.25 : 1,
-                      transition: 'opacity 0.15s ease',
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    Begin conceptualisation →
-                  </button>
-
-                </div>
-              )}
-            </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
 
           </div>
 
-          {/* ── The Well: secondary support material ── */}
+          {/* ── The Well: Capture Bank ── */}
           {!isLoadingCaptures && (
-            continuations.length > 0 ? (
-              <div className="idea-lab-well">
-                {capturesCard}
-                {threadsCard}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2, ease: 'easeOut' }}
+              style={{
+                backgroundColor: c.cardBg,
+                boxShadow: c.shadow,
+                borderRadius: '22px',
+                padding: '24px',
+                transition: 'background-color 0.3s ease',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+                <span style={eyebrow}>Capture Bank</span>
+                <span style={{ fontSize: '11px', color: c.textMuted }}>
+                  {captures.length} {captures.length === 1 ? 'item' : 'items'}
+                </span>
               </div>
-            ) : (
-              capturesCard
-            )
+
+              {captures.length === 0 ? (
+                <p style={{ fontSize: '13px', color: c.textMuted, lineHeight: 1.5, margin: 0 }}>
+                  No captures yet.{' '}
+                  <Link href="/collector" style={{ color: accentColor, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                    Start with Collector →
+                  </Link>
+                </p>
+              ) : (
+                <div className="idea-lab-captures">
+                  {captures.map((capture, idx) => (
+                    <div
+                      key={capture.id}
+                      onMouseEnter={() => setHoveredCapture(capture.id)}
+                      onMouseLeave={() => setHoveredCapture(null)}
+                      style={{
+                        padding: '14px 8px 14px 14px',
+                        marginLeft: '-14px',
+                        borderLeft: `2px solid ${hoveredCapture === capture.id ? accentColor : 'transparent'}`,
+                        borderBottom: idx < captures.length - 1 ? `1px solid ${c.divider}` : 'none',
+                        transition: 'border-left-color 0.15s ease',
+                      }}
+                    >
+                      <p style={{ fontSize: '13px', color: c.textPrimary, margin: '0 0 6px', lineHeight: 1.55 }}>
+                        {capture.unpacked}
+                      </p>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {capture.arc && (
+                          <span style={{ fontSize: '11px', color: c.textMuted }}>{capture.arc}</span>
+                        )}
+                        {capture.arc && capture.thematic_territory && (
+                          <span style={{ fontSize: '11px', color: c.divider }}>·</span>
+                        )}
+                        {capture.thematic_territory && (
+                          <span style={{ fontSize: '11px', color: c.textMuted }}>
+                            {TERRITORY_SHORT[capture.thematic_territory] || capture.thematic_territory}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() =>
+                          router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
+                        }
+                        style={{
+                          fontSize: '12px',
+                          color: accentColor,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        Develop this →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           )}
 
         </div>
-      </div>
+      </motion.div>
 
       <style>{`
         .idea-lab-grid {
           display: grid;
           grid-template-columns: 310px 1fr;
           gap: 16px;
-          align-items: start;
+          align-items: stretch;
         }
         @media (max-width: 800px) {
           .idea-lab-grid {
             grid-template-columns: 1fr;
           }
         }
-        .idea-lab-well {
+        .idea-lab-captures {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 0;
         }
-        @media (max-width: 800px) {
-          .idea-lab-well {
+        @media (max-width: 600px) {
+          .idea-lab-captures {
             grid-template-columns: 1fr;
           }
         }
