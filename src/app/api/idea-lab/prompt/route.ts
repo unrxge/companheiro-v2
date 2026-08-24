@@ -69,6 +69,89 @@ Its lighter end: simple sensory richness — the quality of light, the weight of
 Its heavier end: the pull of speed and noise even when you know better; service given from depletion rather than fullness; the restlessness before quiet becomes a companion rather than a confrontation.`,
 };
 
+// Per-territory facet seeds drawn from the range maps — one is picked
+// randomly per generation to force the model into a different corner of
+// the territory each time, rather than defaulting to the same most-likely
+// interpretation. Covers both lighter and heavier ends of each range map.
+const TERRITORY_FACET_SEEDS: Record<string, string[]> = {
+  creativity_devotion_curiosity: [
+    "making as prayer, as aliveness — showing up to create as an act of presence with no other agenda",
+    "the thing made for no one — creation with no audience, no outcome, no justification",
+    "the work that wants to exist and asks only to be listened to, not invented",
+    "curiosity followed with nowhere particular to go — pure and agenda-free, just the pull",
+    "devotion that feels like love rather than duty — returning to the work because you want to, not because you must",
+    "the childlike wonder that precedes mastery and keeps outlasting it",
+    "sensitivity and attention as the core creative capacities, not talent or technique",
+    "ordinary moments as inexhaustible source material — the creative act of noticing",
+    "the faint pull of an idea not yet understood — before it has words or shape",
+    "creating from abundance rather than from need to prove, justify, or be seen",
+    "the specific thing that keeps pulling attention uninvited, appearing in unrelated places",
+    "the gap between what is made in private and what is allowed to be seen or called real",
+    "creative block as self-protection — what it is guarding against, and what it knows",
+    "devotion that has curdled into performance or obligation — the moment that shift happened",
+    "the inquiry that keeps getting redirected — the question you almost let yourself investigate",
+  ],
+  healthy_masculinity_emotional_regulation: [
+    "strength and tenderness as a single, non-contradictory thing — what that actually looks like in a moment",
+    "the courage of being truly known by another person — not admired, not needed, known",
+    "grief as a form of love rather than weakness — what that reframe opens up",
+    "the body as a reliable compass — a specific signal it gave that you either trusted or overrode",
+    "the moment you responded instead of reacted and felt the difference in your chest",
+    "clear boundaries carried without apology, guilt, or over-explanation",
+    "holding space for someone else because you've learned to hold it for yourself first",
+    "emotional steadiness as a quiet form of leadership — presence without performance",
+    "vulnerability that deepened connection rather than collapsed into shame",
+    "masculine tenderness as something that doesn't need defending or explaining",
+    "the warmth of letting a specific person actually know you — the risk and the relief of it",
+    "integrity lived in a small, unglamorous moment — not declared, just done",
+    "armor that once protected but now costs more than it gives",
+    "a pattern inherited from men who couldn't show theirs — where it shows up in you",
+    "performing strength while feeling nothing underneath — what that performance requires",
+  ],
+  inner_child_tending_expression: [
+    "play as a legitimate adult capacity — what it looks like when you actually let it happen",
+    "the specific dream that keeps returning despite being set aside long ago",
+    "the feeling of being genuinely absorbed in something with no concern for outcome or time",
+    "making something for no one and feeling the rightness of it — that particular freedom",
+    "wonder at something ordinary — a quality of light, a turn of language, a moment that landed",
+    "giving the younger version of yourself something specific it needed and didn't receive",
+    "self-compassion as a practice of returning gently, not a destination to eventually arrive at",
+    "the capacity to be moved by small things — what allows it and what closes it off",
+    "being absorbed without agenda — when that state was last real, and what it required",
+    "creativity as self-love — making as an act of care directed inward",
+    "the wonder that precedes understanding — staying with something before you know what it is",
+    "emotions as information to be met and listened to, not managed or redirected",
+    "the parts of yourself that were silenced or hurried past — what they were trying to say",
+    "grief for things that were never expressed — what they were, what they wanted",
+    "the inner critic as a voice that was never really yours — where it came from, whose it was",
+  ],
+  slow_living_life_in_service: [
+    "simplicity as a deliberate choice — what you released to get there, and what moved in when you did",
+    "the specific pleasure of an unhurried morning — the texture of it, what makes it possible",
+    "showing up fully to something small — what full presence in a minor moment actually feels like",
+    "silence as a companion rather than an absence — when that shift happened",
+    "slowness as a form of wisdom — something speed was keeping you from noticing",
+    "the feeling of mattering to a specific person in a specific moment — what that exchange was",
+    "contribution without performance — giving something when nobody was watching or counting",
+    "being part of something larger without needing to name or explain it",
+    "moving from self-discovery toward self-offering — the moment that direction became clear",
+    "service that comes from abundance rather than depletion — what the difference feels like",
+    "nourishment found in something that was always ordinary — what had to slow down for you to notice it",
+    "the body's own pace — what it actually asks for when the day stops demanding",
+    "the pull of speed and noise even when you know better — what still makes you reach for it",
+    "the restlessness before quiet became a companion — what that transition required",
+    "service given from depletion — the signals that name it, and what restores the source",
+  ],
+};
+
+function pickFacetSeed(territories: string[]): string | null {
+  const pool: string[] = territories.flatMap(
+    (t) => TERRITORY_FACET_SEEDS[t] ?? []
+  );
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 // Each arc as a directional force applied to a territory —
 // what the arc DOES to the content, not what it names.
 const ARC_VECTORS: Record<string, string> = {
@@ -135,24 +218,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
 
     const finalArcs = arcsSkipped ? [] : body.randomArcs ? getRandomArcs() : body.arcs || [];
 
-    // Resolve territories to their range maps and display names
-    let territoryRangeMapsText = "";
-    let territoryNamesText = "";
+    // Resolve territories once — reused for range maps, names, and seed pick.
+    const finalTerritories: string[] =
+      body.territories === null
+        ? []
+        : body.randomTerritories
+          ? getRandomTerritories()
+          : body.territories ?? [];
 
-    if (body.territories === null) {
-      // skipped — no territory context
-    } else if (body.randomTerritories) {
-      const randomTerritories = getRandomTerritories();
-      territoryNamesText = randomTerritories.map((t) => TERRITORY_LABELS[t]).join(", ");
-      territoryRangeMapsText = randomTerritories
-        .map((t) => `${TERRITORY_LABELS[t]}:\n${TERRITORY_RANGE_MAPS[t] ?? ""}`)
-        .join("\n\n");
-    } else if (body.territories && body.territories.length > 0) {
-      territoryNamesText = body.territories.map((t) => TERRITORY_LABELS[t] || t).join(", ");
-      territoryRangeMapsText = body.territories
-        .map((t) => `${TERRITORY_LABELS[t] || t}:\n${TERRITORY_RANGE_MAPS[t] ?? ""}`)
-        .join("\n\n");
-    }
+    const territoryNamesText = finalTerritories
+      .map((t) => TERRITORY_LABELS[t] || t)
+      .join(", ");
+
+    const territoryRangeMapsText = finalTerritories
+      .map((t) => `${TERRITORY_LABELS[t] || t}:\n${TERRITORY_RANGE_MAPS[t] ?? ""}`)
+      .join("\n\n");
+
+    // One random facet seed from the resolved territories forces a different
+    // corner of the range map each generation — prevents convergence.
+    const facetSeed = pickFacetSeed(finalTerritories);
 
     const isImpersonal = body.impersonal === true;
     const energy = body.energy ?? "steady";
@@ -238,7 +322,7 @@ ${territorySection}
 ENERGY:
 Facet — ${facetSteer}
 Tone — ${toneSteer}
-
+${facetSeed ? `\nFACET SEED — your required entry point into the territory today:\n${facetSeed}\nEnter from this specific corner. Do not restate the seed verbatim in the output — use it as the starting point, then let the arc's direction take it somewhere the seed alone doesn't name.\n` : ""}
 Find ONE specific, unexpected corner of this territory — shaped by the arc's direction and the energy's pull on the territory's range. Never restate the territory's own name or the arc's name inside the prompt. If you can imagine the same prompt working unchanged for someone whose life looks entirely unlike who this was written for, go narrower and stranger. A great prompt opens exactly one door, not a hallway.
 
 Return only the prompt text. No quotation marks, no preamble, no explanation.`;
