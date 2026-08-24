@@ -176,7 +176,7 @@ const ENERGY_FACET_STEER: Record<string, string> = {
   light:
     "Enter from the lighter end of the territory's range — the more expansive, hopeful, alive corners it contains.",
   bright:
-    "Enter from the lightest, most luminous end of the territory's range — the corners that feel like relief, discovery, aliveness, or grace.",
+    "Enter from the territory's most expansive, fully-inhabited corner — where this way of being is completely alive, not still being worked toward; where the grandest version of what's possible here becomes suddenly real and the ceiling disappears. If the facet seed touches something heavy, use it only as a launchpad: move through it in a single beat and take the prompt decisively toward what becomes possible on the other side. Never dwell in the weight when the energy is this high.",
 };
 
 const ENERGY_TONE_STEER: Record<string, string> = {
@@ -187,7 +187,7 @@ const ENERGY_TONE_STEER: Record<string, string> = {
   light:
     "Render with a sense of expansion and momentum — a tone that feels open, forward-facing, alive with possibility.",
   bright:
-    "Render in the spirit of Rick Rubin's creative mystique — quiet awe, almost aphoristic, as though the prompt arrives from somewhere larger than the writer. A sense of the universe as living source material; the self as receiver, not inventor. Spacious. Luminous. A tone that makes the ordinary feel sacred and the question feel like an invitation from life itself.",
+    "Render with charged, forward-surging wonder — not quiet awe but the specific electricity of a door thrown open into a much larger room. The prompt should feel like the one question that makes a person stop everything, put the phone down, and reach for their notebook right now. Urgent without anxiety. Alive with possibility at a scale that makes ordinary limitations feel suddenly irrelevant. Rubin's spirit in its most electrifying register: the universe as active co-conspirator, the work as something already alive and pulling toward the writer, not waiting to be invented. The reader should feel genuinely catapulted — out of stillness, into creation. Not inspirational-poster bright: specific, alive, and carrying real charge.",
 };
 
 function getRandomArcs(): string[] {
