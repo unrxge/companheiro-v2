@@ -642,15 +642,16 @@ export default function IdeaLabPage() {
                       </motion.button>
                     </div>
 
-                    {/* The prompt — hero text in Geist */}
+                    {/* The prompt — italic regular weight, pull-quote register */}
                     <p style={{
                       fontFamily: 'var(--font-geist-sans)',
                       fontSize: '22px',
-                      fontWeight: 300,
+                      fontWeight: 400,
+                      fontStyle: 'italic',
                       color: c.textPrimary,
                       margin: 0,
-                      lineHeight: 1.55,
-                      letterSpacing: '-0.02em',
+                      lineHeight: 1.6,
+                      letterSpacing: '-0.015em',
                     }}>
                       {generatedPrompt}
                     </p>
@@ -854,7 +855,7 @@ export default function IdeaLabPage() {
           }
         }
 
-        /* Horizontal carousel — 3 cards fully visible, 4th peeks under fade */
+        /* Horizontal carousel — exactly 3 cards visible, scroll for more */
         .idea-lab-carousel {
           display: flex;
           gap: 12px;
@@ -867,13 +868,17 @@ export default function IdeaLabPage() {
         .idea-lab-carousel::-webkit-scrollbar {
           display: none;
         }
+        /* flex: 0 0 <basis> is the reliable way to fix card width in an
+           overflowing flex container — percentage on min-width resolves
+           differently and stretches when few items are present. */
         .idea-lab-carousel-card {
-          min-width: calc((100% - 24px) / 3.25);
+          flex: 0 0 calc(33.33% - 8px);
+          min-width: 0;
           scroll-snap-align: start;
         }
         @media (max-width: 800px) {
           .idea-lab-carousel-card {
-            min-width: calc((100% - 12px) / 1.5);
+            flex: 0 0 calc(66.66% - 6px);
           }
         }
 
