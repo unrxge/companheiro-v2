@@ -8,6 +8,7 @@ import { useCardTheme } from '@/hooks/useCardTheme'
 import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
 import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { ModalDialog } from '@/components/ui/modal-dialog'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type Territory =
@@ -94,6 +95,7 @@ export default function IdeaLabPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
 
   useEffect(() => {
     fetch('/api/idea-lab/captures')
@@ -642,16 +644,14 @@ export default function IdeaLabPage() {
                       </motion.button>
                     </div>
 
-                    {/* The prompt — italic regular weight, pull-quote register */}
                     <p style={{
                       fontFamily: 'var(--font-geist-sans)',
                       fontSize: '22px',
-                      fontWeight: 400,
-                      fontStyle: 'italic',
+                      fontWeight: 500,
                       color: c.textPrimary,
                       margin: 0,
-                      lineHeight: 1.6,
-                      letterSpacing: '-0.015em',
+                      lineHeight: 1.5,
+                      letterSpacing: '-0.025em',
                     }}>
                       {generatedPrompt}
                     </p>
@@ -737,9 +737,23 @@ export default function IdeaLabPage() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
                 <span style={eyebrow}>Capture Bank</span>
-                <span style={{ fontSize: '11px', color: c.textMuted }}>
-                  {captures.length} {captures.length === 1 ? 'item' : 'items'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Link
+                    href="/collector"
+                    style={{
+                      fontFamily: 'var(--font-geist-sans)',
+                      fontSize: '11px',
+                      color: accentColor,
+                      textDecoration: 'none',
+                      letterSpacing: '0.01em',
+                    }}
+                  >
+                    Open Collector →
+                  </Link>
+                  <span style={{ fontSize: '11px', color: c.textMuted }}>
+                    {captures.length} {captures.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
               </div>
 
               {captures.length === 0 ? (
@@ -754,9 +768,12 @@ export default function IdeaLabPage() {
                 <div style={{ position: 'relative' }}>
                   <div className="idea-lab-carousel">
                     {captures.map((capture) => (
-                      <div
+                      <motion.div
                         key={capture.id}
                         className="idea-lab-carousel-card"
+                        onClick={() => setSelectedCapture(capture)}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
                         style={{
                           backgroundColor: c.cardBgInner,
                           borderRadius: '14px',
@@ -765,6 +782,7 @@ export default function IdeaLabPage() {
                           flexDirection: 'column',
                           gap: '10px',
                           flexShrink: 0,
+                          cursor: 'pointer',
                         }}
                       >
                         <p style={{
@@ -797,9 +815,10 @@ export default function IdeaLabPage() {
                             )}
                           </div>
                           <button
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation()
                               router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
-                            }
+                            }}
                             style={{
                               fontFamily: 'var(--font-geist-sans)',
                               fontSize: '12px',
@@ -814,7 +833,7 @@ export default function IdeaLabPage() {
                             Develop this →
                           </button>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
 
@@ -921,6 +940,57 @@ export default function IdeaLabPage() {
           border-color: ${accentColor} !important;
         }
       `}</style>
+
+      {/* Capture detail modal */}
+      {selectedCapture && (
+        <ModalDialog
+          theme={theme}
+          onClose={() => setSelectedCapture(null)}
+          title="Capture"
+          subtitle={
+            <>
+              {selectedCapture.arc && <span>{selectedCapture.arc}</span>}
+              {selectedCapture.arc && selectedCapture.thematic_territory && <span>·</span>}
+              {selectedCapture.thematic_territory && (
+                <span>{TERRITORY_SHORT[selectedCapture.thematic_territory] || selectedCapture.thematic_territory}</span>
+              )}
+            </>
+          }
+          footer={
+            <motion.button
+              onClick={() =>
+                router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(selectedCapture.unpacked)}`)
+              }
+              whileHover={{ opacity: 0.82 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: accentColor,
+                color: '#ffffff',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              Develop this →
+            </motion.button>
+          }
+        >
+          <p style={{
+            fontFamily: 'var(--font-geist-sans)',
+            fontSize: '15px',
+            color: c.textPrimary,
+            lineHeight: 1.65,
+            margin: 0,
+          }}>
+            {selectedCapture.unpacked}
+          </p>
+        </ModalDialog>
+      )}
     </div>
   )
 }
