@@ -169,23 +169,24 @@ const ARC_VECTORS: Record<string, string> = {
 // range to draw the facet from, and the rendering tone of the output.
 const ENERGY_FACET_STEER: Record<string, string> = {
   heavy:
-    "Enter from the heavier end of the territory's range — the weightier, shadow-toned corners it contains. Meet in weight; don't force lightness.",
-  low: "Enter from the heavier end of the territory's range — the weightier, shadow-toned corners it contains. Meet in weight; don't force lightness.",
+    "Enter from the heaviest, most unflinching corner of the territory — where the gap between aspiration and reality is honestly felt, where something real and unresolved lives. Don't soften or redirect toward the light.",
+  low: "Enter from the heaviest, most unflinching corner of the territory — where the gap between aspiration and reality is honestly felt, where something real and unresolved lives. Don't soften or redirect toward the light.",
   steady:
-    "Draw from the full range of the territory — neither forcing shadow nor reaching for lightness. Let the arc and territory find their natural entry point together.",
+    "Draw from the full range of the territory — neither forcing shadow nor reaching for peak brightness. Find the corner that feels most honest and generative for where this territory actually lives.",
   light:
-    "Enter from the lighter end of the territory's range — the more expansive, hopeful, alive corners it contains.",
+    "Enter from the expansive, forward-facing corners of the territory — where possibility is visible and the path feels genuinely open. Where this way of being starts to show what it can actually become.",
   bright:
     "Enter from the territory's most expansive, fully-inhabited corner — where this way of being is completely alive, not still being worked toward; where the grandest version of what's possible here becomes suddenly real and the ceiling disappears. If the facet seed touches something heavy, use it only as a launchpad: move through it in a single beat and take the prompt decisively toward what becomes possible on the other side. Never dwell in the weight when the energy is this high.",
 };
 
 const ENERGY_TONE_STEER: Record<string, string> = {
   heavy:
-    "Render with tenderness and slowness. Do not rush toward resolution or lightness. The tone should feel like a hand extended in the dark — unhurried, present, holding.",
-  low: "Render with tenderness and slowness. Do not rush toward resolution or lightness. The tone should feel like a hand extended in the dark — unhurried, present, holding.",
-  steady: "Render with a clear, grounded tone. Neither heavy nor lifted. Present and direct.",
+    "Render with unflinching, honest weight — not bleakness but the specific charge of a question that costs something to answer. The reader should feel: 'I've been circling this. I need to face it.' Not consoling, not hopeful — present and real. A different kind of catapult: into truth rather than creation. The question should feel like it was asked by someone who already knows what you've been avoiding.",
+  low: "Render with unflinching, honest weight — not bleakness but the specific charge of a question that costs something to answer. The reader should feel: 'I've been circling this. I need to face it.' Not consoling, not hopeful — present and real. A different kind of catapult: into truth rather than creation. The question should feel like it was asked by someone who already knows what you've been avoiding.",
+  steady:
+    "Render with clear, grounded presence — neither heavy nor lifted. The question should feel worth sitting with: honest and specific enough not to slide off, but not carrying the full weight of shadow or the full charge of possibility. Substantial. Direct. The reader should feel: 'Yes, that's worth going into.'",
   light:
-    "Render with a sense of expansion and momentum — a tone that feels open, forward-facing, alive with possibility.",
+    "Render with warm, forward-facing energy — the feeling of a conversation that's just getting interesting and opening up. The question should create genuine want-to: not urgency, but the pull of something worth exploring. The reader should feel momentum building — like this could go somewhere real if they let it.",
   bright:
     "Render with charged, forward-surging wonder — not quiet awe but the specific electricity of a door thrown open into a much larger room. The prompt should feel like the one question that makes a person stop everything, put the phone down, and reach for their notebook right now. Urgent without anxiety. Alive with possibility at a scale that makes ordinary limitations feel suddenly irrelevant. Rubin's spirit in its most electrifying register: the universe as active co-conspirator, the work as something already alive and pulling toward the writer, not waiting to be invented. The reader should feel genuinely catapulted — out of stillness, into creation. Not inspirational-poster bright: specific, alive, and carrying real charge.",
 };
@@ -300,8 +301,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
 
     // Rendering mode — impersonal = Open Invitation, personal = Charged Question
     const renderingSection = isImpersonal
-      ? `OUTPUT MODE — Open Invitation:
-Write one line (two only if the second genuinely adds what the first cannot carry alone — one is almost always stronger). Create space rather than ask a question. No question mark. A statement or observation that opens something real inside the territory, drops it, and stops. The reader should feel: "I know exactly where I am in this" — and find themselves already writing.
+      ? `OUTPUT MODE — Open Question:
+Write one question. Spacious and open-ended — no single right answer, many possible directions the writer could take it. It should feel like an invitation rather than an interrogation: wide enough that the writer doesn't feel funneled toward one answer, but specific enough to land somewhere real inside the territory. One sentence. Always ends with a question mark.
 
 IMPERSONAL: Nothing is known about who is asking and it must stay that way. Do not invent or assume anything personal. Explore the territory and arc purely on their own terms.`
       : `OUTPUT MODE — Charged Question:
