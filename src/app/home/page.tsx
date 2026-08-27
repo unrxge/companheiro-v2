@@ -160,12 +160,11 @@ function HomeContent() {
           style={{
             marginBottom: '32px',
             display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-            rowGap: '12px',
+            alignItems: 'flex-end',
+            gap: '12px',
           }}
         >
-          <div style={{ flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p
               style={{
                 color: '#6e6c67',
@@ -174,8 +173,7 @@ function HomeContent() {
                 textTransform: 'uppercase',
                 fontFamily: 'var(--font-geist-sans)',
                 fontWeight: 600,
-                marginBottom: '12px',
-                margin: 0,
+                margin: '0 0 12px',
               }}
             >
               Companheiro
@@ -183,7 +181,7 @@ function HomeContent() {
             <h1
               style={{
                 color: '#e8e6e0',
-                fontSize: 'clamp(24px, 8vw, 34px)',
+                fontSize: 'clamp(22px, 6vw, 34px)',
                 fontFamily: 'var(--font-geist-sans)',
                 fontWeight: 700,
                 margin: 0,
@@ -205,7 +203,7 @@ function HomeContent() {
               ))}
             </h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, paddingBottom: '2px' }}>
             <IconButton href="/portrait" ariaLabel="My portrait">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="8" r="4" />
