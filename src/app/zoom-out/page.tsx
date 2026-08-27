@@ -25,15 +25,6 @@ export default function ZoomOutPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [isCommitting, setIsCommitting] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
-  const [expandedMsgs, setExpandedMsgs] = useState<Set<number>>(new Set())
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
@@ -250,69 +241,21 @@ export default function ZoomOutPage() {
 
       <div ref={threadRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
         <div className="max-w-2xl mx-auto w-full space-y-6">
-          {messages.map((msg, i) => {
-            const isAssistant = msg.role === 'assistant'
-            const isLong = msg.content.length > 220
-            const isExpanded = expandedMsgs.has(i)
-            const collapse = isAssistant && isLong && !isExpanded && isMobile
-
-            return (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-xs px-4 py-3 rounded ${
-                    msg.role === 'user'
-                      ? 'bg-[#e8e6e1] text-[#111110]'
-                      : 'bg-[#161614] border border-[#1f1f1d] text-[#d4d2cd]'
-                  }`}
-                >
-                  <div style={{ position: 'relative' }}>
-                    <p
-                      className={`text-base leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'font-medium' : 'font-normal'}`}
-                      style={collapse ? {
-                        display: '-webkit-box',
-                        WebkitLineClamp: 4,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      } : undefined}
-                    >
-                      {msg.content}
-                    </p>
-                    {collapse && (
-                      <div
-                        aria-hidden
-                        style={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          height: '52px',
-                          background: 'linear-gradient(to bottom, transparent, #161614)',
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-                  </div>
-                  {collapse && (
-                    <button
-                      onClick={() => setExpandedMsgs(s => new Set([...s, i]))}
-                      style={{
-                        marginTop: '10px',
-                        fontSize: '11px',
-                        letterSpacing: '0.04em',
-                        color: '#8c8a87',
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Read more ↓
-                    </button>
-                  )}
-                </div>
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-xs px-4 py-3 rounded ${
+                  msg.role === 'user'
+                    ? 'bg-[#e8e6e1] text-[#111110]'
+                    : 'bg-[#161614] border border-[#1f1f1d] text-[#d4d2cd]'
+                }`}
+              >
+                <p className={`text-base leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'font-medium' : 'font-normal'}`}>
+                  {msg.content}
+                </p>
               </div>
-            )
-          })}
+            </div>
+          ))}
 
           {isLoading && (
             <div className="flex justify-start">
