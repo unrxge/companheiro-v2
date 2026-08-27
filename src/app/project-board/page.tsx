@@ -159,10 +159,19 @@ function ProjectBoardContent() {
   const [isJourneyExpanded, setIsJourneyExpanded] = useState(false)
   const [newOpenThreadInput, setNewOpenThreadInput] = useState('')
   const [newJourneyStepInput, setNewJourneyStepInput] = useState('')
+  const [bannerExpanded, setBannerExpanded] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     fetchBoard()
     fetchTrajectory()
+  }, [])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
   const fetchTrajectory = async () => {
@@ -814,39 +823,21 @@ function ProjectBoardContent() {
         }}
       >
         {/* Header */}
-        <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
-          <div style={{ flexShrink: 0 }}>
-            {/* Invisible spacer matching the home/portrait eyebrow line, so the title sits at the exact same height */}
-            <p
-              aria-hidden="true"
-              style={{
-                color: '#6e6c67',
-                fontSize: '11px',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 600,
-                marginBottom: '12px',
-                margin: 0,
-                visibility: 'hidden',
-              }}
-            >
-              Project Board
-            </p>
-            <h1
-              style={{
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 700,
-                fontSize: 'clamp(24px, 8vw, 34px)',
-                color: '#e8e6e0',
-                margin: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Project Board
-            </h1>
-          </div>
-          <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontWeight: 700,
+              fontSize: 'clamp(22px, 6vw, 34px)',
+              color: '#e8e6e0',
+              margin: 0,
+              letterSpacing: '-0.02em',
+              flex: 1,
+            }}
+          >
+            Project Board
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
             <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
@@ -1102,7 +1093,7 @@ function ProjectBoardContent() {
               padding: '14px 20px',
             }}
           >
-            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
               {trajectory?.tone && (
                 <span
                   style={{
@@ -1111,13 +1102,60 @@ function ProjectBoardContent() {
                     borderRadius: '50%',
                     backgroundColor: TONE_DOT_COLORS[trajectory.tone] || c.textPrimary,
                     flexShrink: 0,
+                    marginTop: '5px',
                   }}
                 />
               )}
               {trajectory ? (
-                <p style={{ fontSize: '14px', lineHeight: 1.5, color: c.textPrimary, margin: 0 }}>
-                  {trajectory.statement}
-                </p>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ position: 'relative' }}>
+                    <p style={{
+                      fontSize: '14px',
+                      lineHeight: 1.5,
+                      color: c.textPrimary,
+                      margin: 0,
+                      ...(isMobile && !bannerExpanded ? {
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      } : {}),
+                    }}>
+                      {trajectory.statement}
+                    </p>
+                    {isMobile && !bannerExpanded && (
+                      <div
+                        aria-hidden
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: '28px',
+                          background: `linear-gradient(to bottom, transparent, ${c.cardBg})`,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+                  </div>
+                  {isMobile && !bannerExpanded && (
+                    <button
+                      onClick={() => setBannerExpanded(true)}
+                      style={{
+                        marginTop: '4px',
+                        fontSize: '11px',
+                        letterSpacing: '0.04em',
+                        color: c.textMuted,
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      See more ↓
+                    </button>
+                  )}
+                </div>
               ) : (
                 <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>
                   No trajectory set yet
