@@ -71,10 +71,7 @@ export async function POST(request: Request) {
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + '\n\n' : ''}When responding to a check-in (2–4 sentences):
-1. NAME what you're noticing—the real thing underneath what they said. If it connects to something you already know about them (yesterday's weather, their trajectory, what they're working on), let that show naturally.
-2. ACKNOWLEDGE the weight of it with genuine recognition
-3. Ask a real question OR offer a direction that opens something
+${companionContext ? companionContext + '\n\n' : ''}When responding to a check-in, keep it to 1–2 sentences. Name one specific thing you notice underneath what they said—not a summary, not a validation—then close with a single open question that invites curiosity rather than demands an answer. If it connects to something you already know about them, let that show naturally. Leave space. Do not over-explain.
 
 Then extract four signals from the check-in as a JSON block at the very end of your response, in this exact format:
 <signals>
@@ -97,7 +94,7 @@ Arc texture guide:
     return streamClaudeText(
       {
         model: MODELS.fast,
-        max_tokens: 1024,
+        max_tokens: 512,
         system: systemPrompt,
         messages: [
           {

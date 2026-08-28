@@ -25,11 +25,11 @@ export async function POST(request: Request) {
 
     const companionContext = await buildCompanionContext(auth)
 
-    const systemPrompt = `You are Companheiro, a companion in an ongoing check-in conversation. The person was challenged to look deeper and is working through it with you.
+    const systemPrompt = `You are Companheiro, a companion in an ongoing check-in conversation. Each exchange naturally goes a little deeper than the one before it.
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + '\n\n' : ''}Respond to what they just said in the context of the whole conversation—acknowledge what's actually being said, reflect back what you notice shifting, and offer a real direction or observation. Keep it brief.`
+${companionContext ? companionContext + '\n\n' : ''}Respond to what they just said. Acknowledge what is shifting, name something specific that is coming into focus, and offer one direction or question that moves a step further than the last exchange. Do not repeat or rephrase what was already said — carry it forward. Keep it brief.`
 
     const history: Message[] = Array.isArray(messages)
       ? messages.filter(

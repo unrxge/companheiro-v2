@@ -80,9 +80,6 @@ export default function CheckInPage() {
   const [isLogging, setIsLogging] = useState(false)
   const [logSuccess, setLogSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isLoadingChallenge, setIsLoadingChallenge] = useState(false)
-  const [engagedWithChallenge, setEngagedWithChallenge] = useState(false)
-  const [showLogButton, setShowLogButton] = useState(false)
   const [initialEntry, setInitialEntry] = useState('')
   const [isLoadingJournal, setIsLoadingJournal] = useState(false)
   const [journalPrompt, setJournalPrompt] = useState('')
@@ -325,9 +322,10 @@ export default function CheckInPage() {
     setMessages((prev) => [...prev, { role: 'user', text: userText }])
     setTranscript('')
 
+    const alreadyResponded = messages.some((m) => m.role === 'ai')
+
     try {
-      // If they've been challenged, just get a response (no signal extraction)
-      if (showLogButton) {
+      if (alreadyResponded) {
         const res = await fetch('/api/check-in/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -369,41 +367,6 @@ export default function CheckInPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setIsProcessing(false)
-    }
-  }
-
-  const handleChallenge = async () => {
-    setIsLoadingChallenge(true)
-    setError(null)
-
-    try {
-      // Send the whole conversation so far (the initial entry plus the
-      // reflection already given), not just the raw transcript — otherwise
-      // the deeper-work call has no idea a reflection already happened and
-      // ends up re-doing it.
-      const priorHistory = messages.map((m) => ({
-        role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
-        content: m.text,
-      }))
-      const res = await fetch('/api/check-in/deeper-work', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: priorHistory }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? 'Failed to process')
-      }
-
-      setEngagedWithChallenge(true)
-      setShowLogButton(true)
-      setTranscript('')
-      await streamAiMessage(res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setIsLoadingChallenge(false)
     }
   }
 
@@ -462,7 +425,7 @@ export default function CheckInPage() {
           creative_readiness: signals.creative_readiness,
           arc_texture: signals.arc_texture,
           check_in_type: confirmedType,
-          engaged_with_deeper_work: engagedWithChallenge,
+          engaged_with_deeper_work: false,
         }),
       })
 
@@ -492,11 +455,11 @@ export default function CheckInPage() {
       <div className="flex justify-center mb-2">
         <button
           onClick={handleRecordToggle}
-          disabled={isProcessing || isLoadingChallenge}
+          disabled={isProcessing}
           aria-label={isRecording ? 'Stop recording' : 'Start recording'}
           className={`
                 w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
-                ${isProcessing || isLoadingChallenge ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
+                ${isProcessing ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
                 ${isRecording
                   ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
                   : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
@@ -539,7 +502,7 @@ export default function CheckInPage() {
       )}
 
       {/* Send button - when user has text and either AI hasn't responded yet OR they're in a conversation */}
-      {transcript.trim() && (!hasAiResponded || showLogButton) && (
+      {transcript.trim() && (
         <button
           onClick={handleSend}
           disabled={isProcessing}
@@ -565,44 +528,23 @@ export default function CheckInPage() {
         </div>
       )}
 
-      {/* Action buttons - after AI has responded */}
+      {/* Quiet action links - after AI has responded */}
       {hasAiResponded && confirmedType && !logSuccess && (
-        <div className="space-y-2">
-          {!showLogButton ? (
-            <div className="flex gap-2">
-              <button
-                onClick={handleLog}
-                disabled={isLogging}
-                className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isLogging ? 'Saving...' : 'Log this check-in'}
-              </button>
-              <button
-                onClick={handleChallenge}
-                disabled={isLoadingChallenge}
-                className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isLoadingChallenge ? 'Processing...' : 'Challenge me'}
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={handleLog}
-                disabled={isLogging}
-                className="flex-1 py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isLogging ? 'Saving...' : 'Log this check-in'}
-              </button>
-              <button
-                onClick={handleJournalPrompt}
-                disabled={isLoadingJournal}
-                className="flex-1 py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
-              </button>
-            </div>
-          )}
+        <div className="flex justify-center gap-6 pt-1">
+          <button
+            onClick={handleLog}
+            disabled={isLogging}
+            className="text-xs text-[#4a4946] hover:text-[#8c8a87] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {isLogging ? 'Saving...' : 'Log this check-in'}
+          </button>
+          <button
+            onClick={handleJournalPrompt}
+            disabled={isLoadingJournal}
+            className="text-xs text-[#4a4946] hover:text-[#8c8a87] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
+          </button>
         </div>
       )}
     </div>
@@ -679,8 +621,6 @@ export default function CheckInPage() {
               setInferredType(null)
               setConfirmedType(null)
               setShowTypeCorrection(false)
-              setEngagedWithChallenge(false)
-              setShowLogButton(false)
               setInitialEntry('')
               setJournalPrompt('')
               setShowJournalPrompt(false)
@@ -723,7 +663,7 @@ export default function CheckInPage() {
           <div className="space-y-6">
             {messages.map((msg, i) => {
               const isStreamingLast =
-                (isProcessing || isLoadingChallenge) && i === messages.length - 1 && msg.role === 'ai'
+                isProcessing && i === messages.length - 1 && msg.role === 'ai'
 
               return (
               <div key={i}>
