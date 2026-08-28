@@ -2,8 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
+import { useCardTheme } from '@/hooks/useCardTheme'
+import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
@@ -69,6 +74,9 @@ const ALL_CHECK_IN_TYPES: CheckInType[] = ['morning', 'after_work', 'evening', '
 
 export default function CheckInPage() {
   const router = useRouter()
+  const { theme, toggle } = useCardTheme('light')
+  const c = cardPalette[theme]
+
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -89,7 +97,6 @@ export default function CheckInPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
-
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -98,6 +105,16 @@ export default function CheckInPage() {
   const recognitionRef = useRef<any>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const pastCheckInsRef = useRef<HTMLDivElement>(null)
+
+  const eyebrow: React.CSSProperties = {
+    color: c.textSecondary,
+    fontSize: '11px',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    fontFamily: 'var(--font-geist-sans)',
+    fontWeight: 600,
+    margin: 0,
+  }
 
   // Stop any in-progress speech when leaving the page, so it doesn't keep
   // talking after navigation.
@@ -112,7 +129,6 @@ export default function CheckInPage() {
   const handleSpeak = (text: string, index: number) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
 
-    // Pressing the button on the message currently playing stops it.
     if (speakingIndex === index) {
       window.speechSynthesis.cancel()
       setSpeakingIndex(null)
@@ -145,7 +161,6 @@ export default function CheckInPage() {
         setIsLoadingHistory(false)
       }
     }
-
     fetchHistory()
   }, [])
 
@@ -156,11 +171,8 @@ export default function CheckInPage() {
   const toggleCheckInExpanded = (id: string) => {
     setExpandedCheckInIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -169,7 +181,6 @@ export default function CheckInPage() {
     setError(null)
     setTranscript('')
 
-    // Don't let the AI's read-aloud voice talk over the mic input.
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel()
       setSpeakingIndex(null)
@@ -210,7 +221,6 @@ export default function CheckInPage() {
       }
 
       recognition.onend = () => {
-        // Punctuate the final transcript after recording ends
         if (finalTranscript.trim()) {
           punctuateTranscript(finalTranscript.trim())
         }
@@ -262,9 +272,7 @@ export default function CheckInPage() {
         body: JSON.stringify({ text: rawText }),
       })
       const data = await res.json()
-      if (data.punctuated) {
-        setTranscript(data.punctuated)
-      }
+      if (data.punctuated) setTranscript(data.punctuated)
     } catch (err) {
       console.error('Punctuation error:', err)
     } finally {
@@ -273,15 +281,10 @@ export default function CheckInPage() {
   }
 
   const handleRecordToggle = () => {
-    if (isRecording) {
-      stopRecording()
-    } else {
-      startRecording()
-    }
+    if (isRecording) stopRecording()
+    else startRecording()
   }
 
-  // Streams an AI reply into the message thread, updating the last message
-  // as chunks arrive. Returns the parsed meta frame (if any).
   const streamAiMessage = async <M,>(res: Response, hideFrom: string[] = []): Promise<M | null> => {
     setMessages((prev) => [...prev, { role: 'ai', text: '' }])
     try {
@@ -298,7 +301,6 @@ export default function CheckInPage() {
       )
       return meta
     } catch (err) {
-      // Drop the empty/partial AI bubble on stream failure
       setMessages((prev) =>
         prev[prev.length - 1]?.role === 'ai' && !prev[prev.length - 1].text
           ? prev.slice(0, -1)
@@ -314,7 +316,6 @@ export default function CheckInPage() {
     setError(null)
 
     const userText = transcript.trim()
-    // History as it stood before this turn — sent to /respond for continuity
     const priorHistory = messages.map((m) => ({
       role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
       content: m.text,
@@ -331,32 +332,23 @@ export default function CheckInPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ response: userText, messages: priorHistory }),
         })
-
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
           throw new Error(data.error ?? 'Processing failed')
         }
-
         await streamAiMessage(res)
       } else {
-        // Initial check-in processing
         setInitialEntry(userText)
         const res = await fetch('/api/check-in/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ transcript: userText }),
         })
-
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
           throw new Error(data.error ?? 'Processing failed')
         }
-
-        const meta = await streamAiMessage<{
-          signals: Signals
-          inferredType: CheckInType
-        }>(res, ['<signals>'])
-
+        const meta = await streamAiMessage<{ signals: Signals; inferredType: CheckInType }>(res, ['<signals>'])
         if (meta) {
           setSignals(meta.signals)
           setInferredType(meta.inferredType)
@@ -373,27 +365,17 @@ export default function CheckInPage() {
   const handleJournalPrompt = async () => {
     setIsLoadingJournal(true)
     setError(null)
-
     try {
-      // Full conversation, including the challenge/deeper-work exchange —
-      // the root of what's worth journaling about often surfaces there,
-      // not in the opening entry alone.
       const fullConversation = messages
         .map((msg) => `${msg.role === 'user' ? 'You' : 'Companheiro'}: ${msg.text}`)
         .join('\n\n')
-
       const res = await fetch('/api/check-in/journal-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw_entry: initialEntry, full_conversation: fullConversation }),
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to generate prompt')
-      }
-
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate prompt')
       setJournalPrompt(data.prompt)
       setShowJournalPrompt(true)
     } catch (err) {
@@ -407,13 +389,10 @@ export default function CheckInPage() {
     if (!signals || !confirmedType) return
     setIsLogging(true)
     setError(null)
-
     try {
-      // Build full conversation from messages
       const fullConversation = messages
         .map((msg) => `${msg.role === 'user' ? 'You' : 'Companheiro'}: ${msg.text}`)
         .join('\n\n')
-
       const res = await fetch('/api/check-in/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -428,13 +407,8 @@ export default function CheckInPage() {
           engaged_with_deeper_work: false,
         }),
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Logging failed')
-      }
-
+      if (!res.ok) throw new Error(data.error ?? 'Logging failed')
       setLogSuccess(true)
     } catch (err) {
       console.error('Log error:', err)
@@ -446,105 +420,192 @@ export default function CheckInPage() {
 
   const hasAiResponded = messages.some((m) => m.role === 'ai')
 
-  // Shared between the idle (snap-scroll) and active-conversation layouts —
-  // defined once so both branches below render the identical element rather
-  // than duplicating ~120 lines of JSX.
   const mainInputArea = (
-    <div className="w-full max-w-xl space-y-4">
-      {/* Record button - always visible */}
-      <div className="flex justify-center mb-2">
-        <button
-          onClick={handleRecordToggle}
-          disabled={isProcessing}
-          aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-          className={`
-                w-20 h-20 rounded-full transition-all duration-300 flex items-center justify-center
-                ${isProcessing ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
-                ${isRecording
-                  ? 'bg-[#e8e6e1] shadow-[0_0_40px_rgba(232,230,225,0.15)]'
-                  : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946] hover:bg-[#222220] shadow-[0_0_0px_rgba(232,230,225,0)]  hover:shadow-[0_0_30px_rgba(232,230,225,0.06)]'
-                }
-              `}
-        >
-          {isRecording ? (
-            <span className="block w-5 h-5 bg-[#111110] rounded-sm" />
-          ) : (
-            <span className="block w-5 h-5 bg-[#3d3c39] rounded-full" />
-          )}
-        </button>
-      </div>
+    <div style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+      {/* Mic button */}
+      <motion.button
+        onClick={handleRecordToggle}
+        disabled={isProcessing}
+        whileHover={isProcessing ? {} : { scale: 1.04 }}
+        whileTap={isProcessing ? {} : { scale: 0.96 }}
+        style={{
+          width: '80px',
+          height: '80px',
+          borderRadius: '50%',
+          backgroundColor: isRecording ? '#ffffff' : c.cardBg,
+          border: `1.5px solid ${isRecording ? 'transparent' : c.inputBorder}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: isProcessing ? 'not-allowed' : 'pointer',
+          opacity: isProcessing ? 0.3 : 1,
+          boxShadow: isRecording
+            ? `0 0 0 6px rgba(165,63,43,0.12), ${c.shadow}`
+            : c.shadow,
+          transition: 'background-color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+        }}
+      >
+        {isRecording ? (
+          <span style={{ display: 'block', width: '20px', height: '20px', backgroundColor: accentColor, borderRadius: '4px' }} />
+        ) : (
+          <span style={{ display: 'block', width: '20px', height: '20px', backgroundColor: c.textMuted, borderRadius: '50%' }} />
+        )}
+      </motion.button>
 
-      {isRecording && (
-        <p className="text-center text-xs text-[#4a4946] tracking-widest uppercase">
-          Recording
-        </p>
-      )}
+      <AnimatePresence>
+        {isRecording && (
+          <motion.p
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            style={{ ...eyebrow, color: accentColor }}
+          >
+            Recording
+          </motion.p>
+        )}
+        {isPunctuating && !isRecording && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={eyebrow}
+          >
+            Punctuating...
+          </motion.p>
+        )}
+      </AnimatePresence>
 
-      {isPunctuating && (
-        <p className="text-center text-xs text-[#6b6966] tracking-widest uppercase">
-          Punctuating...
-        </p>
-      )}
-
-      {/* Editable transcript */}
       {(transcript || isRecording) && (
         <textarea
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
           placeholder="Your words will appear here..."
           rows={4}
-          className="w-full bg-[#161614] border border-[#2e2d2a] rounded-lg px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed transition-colors"
+          style={{
+            width: '100%',
+            backgroundColor: c.inputBg,
+            border: `1px solid ${c.inputBorder}`,
+            borderRadius: '12px',
+            padding: '12px 14px',
+            fontFamily: 'var(--font-geist-sans)',
+            fontSize: '15px',
+            color: c.textPrimary,
+            outline: 'none',
+            resize: 'none',
+            lineHeight: 1.6,
+            transition: 'border-color 0.2s ease',
+          }}
         />
       )}
 
       {error && (
-        <p className="text-xs text-red-400">{error}</p>
+        <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: '#f87171', margin: 0, alignSelf: 'flex-start' }}>
+          {error}
+        </p>
       )}
 
-      {/* Send button - when user has text and either AI hasn't responded yet OR they're in a conversation */}
       {transcript.trim() && (
-        <button
+        <motion.button
           onClick={handleSend}
           disabled={isProcessing}
-          className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          whileHover={isProcessing ? {} : { opacity: 0.85 }}
+          whileTap={isProcessing ? {} : { scale: 0.98 }}
+          style={{
+            width: '100%',
+            padding: '13px',
+            borderRadius: '12px',
+            border: 'none',
+            backgroundColor: accentColor,
+            color: '#ffffff',
+            fontFamily: 'var(--font-geist-sans)',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            opacity: isProcessing ? 0.4 : 1,
+            transition: 'opacity 0.2s ease',
+          }}
         >
           {isProcessing ? 'Processing...' : 'Send'}
-        </button>
+        </motion.button>
       )}
 
-      {/* Journal prompt display */}
       {showJournalPrompt && journalPrompt && (
-        <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-3">
-          <p className="text-xs text-[#4a4946] uppercase tracking-widest">Journal prompt</p>
-          <p className="text-base text-[#d4d2cd] leading-relaxed">{journalPrompt}</p>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            width: '100%',
+            backgroundColor: c.cardBg,
+            boxShadow: c.shadow,
+            borderRadius: '14px',
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
+          <p style={eyebrow}>Journal prompt</p>
+          <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '15px', color: c.textPrimary, lineHeight: 1.6, margin: 0 }}>
+            {journalPrompt}
+          </p>
           <button
-            onClick={() => {
-              navigator.clipboard.writeText(journalPrompt)
+            onClick={() => navigator.clipboard.writeText(journalPrompt)}
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '12px',
+              color: c.textMuted,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              textDecoration: 'underline',
+              textUnderlineOffset: '2px',
             }}
-            className="text-xs text-[#6b6966] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
           >
             Copy prompt
           </button>
-        </div>
+        </motion.div>
       )}
 
-      {/* Quiet action links - after AI has responded */}
       {hasAiResponded && confirmedType && !logSuccess && (
-        <div className="flex justify-center gap-6 pt-1">
-          <button
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', paddingTop: '4px' }}>
+          <motion.button
             onClick={handleLog}
             disabled={isLogging}
-            className="text-xs text-[#4a4946] hover:text-[#8c8a87] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            whileHover={isLogging ? {} : { opacity: 0.65 }}
+            whileTap={isLogging ? {} : { scale: 0.96 }}
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '12px',
+              color: c.textMuted,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: isLogging ? 'not-allowed' : 'pointer',
+              opacity: isLogging ? 0.3 : 1,
+            }}
           >
             {isLogging ? 'Saving...' : 'Log this check-in'}
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             onClick={handleJournalPrompt}
             disabled={isLoadingJournal}
-            className="text-xs text-[#4a4946] hover:text-[#8c8a87] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            whileHover={isLoadingJournal ? {} : { opacity: 0.65 }}
+            whileTap={isLoadingJournal ? {} : { scale: 0.96 }}
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '12px',
+              color: c.textMuted,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: isLoadingJournal ? 'not-allowed' : 'pointer',
+              opacity: isLoadingJournal ? 0.3 : 1,
+            }}
           >
             {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
-          </button>
+          </motion.button>
         </div>
       )}
     </div>
@@ -553,66 +614,126 @@ export default function CheckInPage() {
   const pastCheckInsSection = !isLoadingHistory && pastCheckIns.length > 0 && (
     <div
       ref={pastCheckInsRef}
-      className="min-h-full snap-start snap-always px-6 py-16 border-t border-[#1f1f1d] max-w-3xl mx-auto w-full"
+      className="snap-start snap-always"
+      style={{ minHeight: '100%', padding: '32px 24px 48px' }}
     >
-      <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-8">Past check-ins</p>
-      <div className="space-y-6">
-        {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn) => {
-          const isOpen = expandedCheckInIds.has(checkIn.id)
-          return (
-            <div key={checkIn.id} className="space-y-3">
-              <button
-                onClick={() => toggleCheckInExpanded(checkIn.id)}
-                className="w-full flex items-start justify-between gap-3 text-left group"
+      <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+        <p style={{ ...eyebrow, marginBottom: '24px' }}>Past check-ins</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn, index, arr) => {
+            const isOpen = expandedCheckInIds.has(checkIn.id)
+            return (
+              <div
+                key={checkIn.id}
+                style={{
+                  borderBottom: index < arr.length - 1 ? `1px solid ${c.divider}` : 'none',
+                  paddingBottom: '16px',
+                  marginBottom: '16px',
+                }}
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[#4a4946] mb-1">
-                    {formatDateAsRelative(checkIn.created_at)}
-                    {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
-                  </p>
-                  <p className="text-base text-[#d4d2cd] leading-relaxed group-hover:text-[#e8e6e1] transition-colors">
-                    {previewText(checkIn.raw_entry)}
-                  </p>
-                </div>
-                <span className="text-[#4a4946] text-xs flex-shrink-0 mt-1">{isOpen ? '▾' : '▸'}</span>
-              </button>
-              {isOpen && (
-                <div className="space-y-4 pl-3 border-l border-[#1f1f1d]">
-                  {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
-                    <p
-                      key={i}
-                      className={`text-base leading-relaxed ${
-                        msg.role === 'user' ? 'text-[#e8e6e1] font-medium' : 'text-[#8c8a87] font-normal'
-                      }`}
-                    >
-                      {msg.text}
+                <button
+                  onClick={() => toggleCheckInExpanded(checkIn.id)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '11px', color: c.textMuted, margin: '0 0 4px' }}>
+                      {formatDateAsRelative(checkIn.created_at)}
+                      {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
                     </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                    <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '15px', color: c.textPrimary, lineHeight: 1.55, margin: 0 }}>
+                      {previewText(checkIn.raw_entry)}
+                    </p>
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '11px', color: c.textMuted, flexShrink: 0, marginTop: '2px' }}>
+                    {isOpen ? '▾' : '▸'}
+                  </span>
+                </button>
 
-      {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
-        <button
-          onClick={() => setHistoryExpanded(true)}
-          className="mt-8 text-xs text-[#6b6966] hover:text-[#d4d2cd] underline underline-offset-2 transition-colors"
-        >
-          Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
-        </button>
-      )}
+                <AnimatePresence>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div style={{ paddingTop: '16px', paddingLeft: '12px', borderLeft: `2px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
+                          <p
+                            key={i}
+                            style={{
+                              fontFamily: 'var(--font-geist-sans)',
+                              fontSize: '14px',
+                              lineHeight: 1.6,
+                              margin: 0,
+                              color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                              fontWeight: msg.role === 'user' ? 500 : 400,
+                            }}
+                          >
+                            {msg.text}
+                          </p>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })}
+        </div>
+
+        {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
+          <motion.button
+            onClick={() => setHistoryExpanded(true)}
+            whileHover={{ opacity: 0.65 }}
+            style={{
+              marginTop: '8px',
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '12px',
+              color: c.textMuted,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textUnderlineOffset: '2px',
+            }}
+          >
+            Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
+          </motion.button>
+        )}
+      </div>
     </div>
   )
 
+  // ── Log success screen ──────────────────────────────────────────────────────
   if (logSuccess) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-        <div className="text-center space-y-3 px-6">
-          <p className="text-[#e8e6e1] text-lg font-medium">Check-in logged.</p>
-          <p className="text-[#6b6966] text-sm">Take it from here.</p>
-          <button
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          style={{ textAlign: 'center', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}
+        >
+          <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '18px', fontWeight: 500, color: '#e8e6e0', margin: 0, letterSpacing: '-0.01em' }}>
+            Check-in logged.
+          </p>
+          <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '14px', color: '#6a6866', margin: 0 }}>
+            Take it from here.
+          </p>
+          <motion.button
             onClick={() => {
               setLogSuccess(false)
               setMessages([])
@@ -625,143 +746,251 @@ export default function CheckInPage() {
               setJournalPrompt('')
               setShowJournalPrompt(false)
             }}
-            className="mt-4 text-[#4a4946] text-sm underline underline-offset-4 hover:text-[#8c8a87] transition-colors"
+            whileHover={{ opacity: 0.65 }}
+            style={{
+              marginTop: '16px',
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '13px',
+              color: '#6a6866',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textUnderlineOffset: '3px',
+            }}
           >
             New check-in
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       </div>
     )
   }
 
+  // ── Main page ───────────────────────────────────────────────────────────────
   return (
-    <div className={`bg-[#111110] flex flex-col ${messages.length === 0 ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
-      {/* Back button */}
-      <div className="px-6 py-3 border-b border-[#1f1f1d] flex items-center justify-between">
-        <button
-          onClick={() => router.push('/home')}
-          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
-        >
-          ← Home
-        </button>
-        {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
-          <button
-            onClick={scrollToHistory}
-            className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+    <div
+      style={{
+        background: shellBackground,
+        display: 'flex',
+        flexDirection: 'column',
+        ...(messages.length === 0 ? { height: '100vh', overflow: 'hidden' } : { minHeight: '100vh' }),
+      }}
+    >
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '12px',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ flexShrink: 0 }}>
+          <IconButton href="/home" ariaLabel="Back to home">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </IconButton>
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ ...eyebrow, color: '#6e6c67', marginBottom: '4px' }}>Companheiro</p>
+          <h1
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontWeight: 700,
+              fontSize: 'clamp(22px, 6vw, 34px)',
+              color: '#e8e6e0',
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
           >
-            Past check-ins ↓
-          </button>
-        )}
-      </div>
+            Check-in
+          </h1>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, paddingBottom: '2px' }}>
+          {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
+            <motion.button
+              onClick={scrollToHistory}
+              whileHover={{ opacity: 0.65 }}
+              style={{
+                fontFamily: 'var(--font-geist-sans)',
+                fontSize: '11px',
+                color: '#6e6c67',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                letterSpacing: '0.02em',
+              }}
+            >
+              History ↓
+            </motion.button>
+          )}
+          <ThemeToggleButton theme={theme} onToggle={toggle} />
+        </div>
+      </motion.div>
 
-      {/* Conversation thread */}
+      {/* Conversation thread — only shown once a message exists */}
       {messages.length > 0 && (
         <div
           ref={threadRef}
-          className="flex-1 overflow-y-auto px-6 pt-12 pb-4 max-w-xl mx-auto w-full"
+          style={{ flex: 1, overflowY: 'auto', padding: '24px', maxWidth: '560px', margin: '0 auto', width: '100%' }}
         >
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {messages.map((msg, i) => {
-              const isStreamingLast =
-                isProcessing && i === messages.length - 1 && msg.role === 'ai'
+              const isStreamingLast = isProcessing && i === messages.length - 1 && msg.role === 'ai'
 
               return (
-              <div key={i}>
-                <p
-                  className={`text-base leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'text-[#e8e6e1] font-medium'
-                      : 'text-[#8c8a87] font-normal'
-                  }`}
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
                 >
-                  {msg.text}
-                </p>
-                {msg.role === 'ai' && msg.text && !isStreamingLast && (
-                  <button
-                    onClick={() => handleSpeak(msg.text, i)}
-                    aria-label={speakingIndex === i ? 'Stop reading aloud' : 'Read aloud'}
-                    className="mt-1.5 text-[#4a4946] hover:text-[#8c8a87] transition-colors"
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-geist-sans)',
+                      fontSize: '16px',
+                      lineHeight: 1.65,
+                      margin: 0,
+                      color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                      fontWeight: msg.role === 'user' ? 500 : 400,
+                    }}
                   >
-                    {speakingIndex === i ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                      </svg>
-                    )}
-                  </button>
-                )}
-              </div>
+                    {msg.text}
+                  </p>
+                  {msg.role === 'ai' && msg.text && !isStreamingLast && (
+                    <button
+                      onClick={() => handleSpeak(msg.text, i)}
+                      aria-label={speakingIndex === i ? 'Stop reading aloud' : 'Read aloud'}
+                      style={{
+                        marginTop: '8px',
+                        color: c.textMuted,
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        transition: 'color 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textSecondary }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                    >
+                      {speakingIndex === i ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+                        </svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </motion.div>
               )
             })}
 
             {isProcessing && (
-              <div className="text-[#4a4946] text-sm">...</div>
+              <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '14px', color: c.textMuted, margin: 0 }}>...</p>
             )}
 
-            {/* Type detection confirmation */}
+            {/* Check-in type detection */}
             {hasAiResponded && inferredType && !logSuccess && (
-              <div className="pt-2 border-t border-[#1f1f1d] space-y-3">
-                {!showTypeCorrection ? (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs text-[#4a4946]">
-                      Detected as{' '}
-                      <span className="text-[#8c8a87] font-medium">
-                        {CHECK_IN_TYPE_LABELS[inferredType]}
-                      </span>
-                    </span>
-                    <button
-                      onClick={() => setShowTypeCorrection(true)}
-                      className="text-xs text-[#4a4946] underline underline-offset-2 hover:text-[#8c8a87] transition-colors"
+              <div style={{ paddingTop: '16px', borderTop: `1px solid ${c.divider}` }}>
+                <AnimatePresence mode="wait">
+                  {!showTypeCorrection ? (
+                    <motion.div
+                      key="detected"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}
                     >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-[#4a4946]">What kind of check-in is this?</p>
-                    <div className="flex flex-wrap gap-2">
-                      {ALL_CHECK_IN_TYPES.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setConfirmedType(type)
-                            setShowTypeCorrection(false)
-                          }}
-                          className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                            confirmedType === type
-                              ? 'bg-[#e8e6e1] text-[#111110] border-[#e8e6e1]'
-                              : 'bg-transparent text-[#6b6966] border-[#2e2d2a] hover:border-[#4a4946] hover:text-[#8c8a87]'
-                          }`}
-                        >
-                          {CHECK_IN_TYPE_LABELS[type]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted }}>
+                        Detected as{' '}
+                        <span style={{ color: c.textSecondary, fontWeight: 500 }}>
+                          {CHECK_IN_TYPE_LABELS[inferredType]}
+                        </span>
+                      </span>
+                      <button
+                        onClick={() => setShowTypeCorrection(true)}
+                        style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                      >
+                        Change
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="picker"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+                    >
+                      <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, margin: 0 }}>
+                        What kind of check-in is this?
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {ALL_CHECK_IN_TYPES.map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => { setConfirmedType(type); setShowTypeCorrection(false) }}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '999px',
+                              border: `1px solid ${confirmedType === type ? 'transparent' : c.inputBorder}`,
+                              backgroundColor: confirmedType === type ? accentColor : 'transparent',
+                              color: confirmedType === type ? '#ffffff' : c.textSecondary,
+                              fontFamily: 'var(--font-geist-sans)',
+                              fontSize: '12px',
+                              fontWeight: confirmedType === type ? 600 : 400,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {CHECK_IN_TYPE_LABELS[type]}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Idle state: hero + past check-ins share a snap-scroll region so any
-          scroll, even minimal, commits fully to the next section instead of
-          scrolling incrementally. Active-conversation state keeps its own
-          internal-scroll-thread layout, untouched below. */}
+      {/* Idle state: hero + snap-scroll history */}
       {messages.length === 0 ? (
-        <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
-          <div className="h-full snap-start snap-always flex flex-col items-center justify-center px-6 py-12">
+        <div className="snap-y snap-mandatory" style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Hero */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
+            className="snap-start snap-always"
+            style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+          >
             {mainInputArea}
-          </div>
+          </motion.div>
+
+          {/* Past check-ins */}
           {pastCheckInsSection}
         </div>
       ) : (
-        <div className="px-6 py-6 max-w-xl mx-auto w-full">{mainInputArea}</div>
+        /* Active conversation: input anchored below the thread */
+        <div style={{ padding: '16px 24px 32px', maxWidth: '560px', margin: '0 auto', width: '100%' }}>
+          {mainInputArea}
+        </div>
       )}
     </div>
   )
