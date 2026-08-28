@@ -602,8 +602,8 @@ export default function CheckInPage() {
     </div>
   )
 
-  // ── Past check-ins section ─────────────────────────────────────────────────
-  const pastCheckInsSection = !isLoadingHistory && pastCheckIns.length > 0 && (
+  // ── Past check-ins section — only visible in idle state ───────────────────
+  const pastCheckInsSection = messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
     <div
       ref={pastCheckInsRef}
       style={{
@@ -872,7 +872,7 @@ export default function CheckInPage() {
           padding: '20px 24px',
           display: 'flex',
           alignItems: 'center',
-          gap: '20px',
+          gap: '16px',
           flexShrink: 0,
         }}
       >
@@ -894,7 +894,7 @@ export default function CheckInPage() {
           style={{
             fontFamily: 'var(--font-geist-sans)',
             fontWeight: 700,
-            fontSize: 'clamp(22px, 6vw, 34px)',
+            fontSize: '20px',
             color: '#e8e6e0',
             margin: 0,
             letterSpacing: '-0.02em',
@@ -933,13 +933,13 @@ export default function CheckInPage() {
           scrollSnapType: 'y mandatory',
         }}
       >
-        {/* Section 1: main area — snaps to top, grows with content */}
+        {/* Section 1: main area — snaps at both ends so the full section is reachable */}
         <div
           style={{
             minHeight: '100%',
             display: 'flex',
             flexDirection: 'column',
-            scrollSnapAlign: 'start',
+            scrollSnapAlign: 'start end',
           }}
         >
           {messages.length === 0 ? (
