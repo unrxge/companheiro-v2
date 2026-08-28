@@ -474,9 +474,13 @@ export default function CheckInPage() {
       {(transcript || isRecording) && (
         <textarea
           value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
+          onChange={(e) => {
+            setTranscript(e.target.value)
+            e.target.style.height = 'auto'
+            e.target.style.height = e.target.scrollHeight + 'px'
+          }}
           placeholder="Your words will appear here..."
-          rows={4}
+          rows={1}
           style={{
             width: '100%',
             backgroundColor: c.inputBg,
@@ -489,6 +493,8 @@ export default function CheckInPage() {
             outline: 'none',
             resize: 'none',
             lineHeight: 1.6,
+            overflowY: 'auto',
+            maxHeight: '140px',
           }}
         />
       )}

@@ -254,7 +254,7 @@ export default function CollectorPage() {
                     e.target.style.height = e.target.scrollHeight + 'px'
                   }}
                   placeholder="What caught your eye?"
-                  rows={2}
+                  rows={1}
                   style={{ ...fieldStyle, resize: 'none', overflowY: 'auto', maxHeight: '220px', lineHeight: 1.6 }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && input.trim() && !isCapturing) {

@@ -670,7 +670,7 @@ export default function IdeaLabPage() {
                           e.target.style.height = e.target.scrollHeight + 'px'
                         }}
                         placeholder="Begin here..."
-                        rows={5}
+                        rows={1}
                         className="idea-lab-textarea"
                         style={{
                           width: '100%',
@@ -684,7 +684,7 @@ export default function IdeaLabPage() {
                           outline: 'none',
                           resize: 'none',
                           overflowY: 'auto',
-                          maxHeight: '35vh',
+                          maxHeight: '140px',
                           lineHeight: 1.65,
                           boxSizing: 'border-box',
                         }}

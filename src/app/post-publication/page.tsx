@@ -265,8 +265,9 @@ function PostPublicationContent() {
                 onFocus={() => setFocusedField('what_it_opened')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="What questions, ideas, or conversations did this spark?"
-                rows={3}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                rows={1}
+                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
+                style={{ maxHeight: '140px' }}
               />
             </div>
 
@@ -284,8 +285,9 @@ function PostPublicationContent() {
                 onFocus={() => setFocusedField('unresolved')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="What threads remain loose? What didn't you get to explore?"
-                rows={3}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                rows={1}
+                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
+                style={{ maxHeight: '140px' }}
               />
             </div>
 
@@ -303,8 +305,9 @@ function PostPublicationContent() {
                 onFocus={() => setFocusedField('natural_continuations')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="List potential next pieces or directions (one per line)"
-                rows={4}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                rows={1}
+                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
+                style={{ maxHeight: '140px' }}
               />
             </div>
 

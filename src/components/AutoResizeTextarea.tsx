@@ -17,7 +17,7 @@ export default function AutoResizeTextarea({
   onChange,
   placeholder,
   disabled,
-  minRows = 3,
+  minRows = 1,
   className,
   style,
 }: AutoResizeTextareaProps) {
