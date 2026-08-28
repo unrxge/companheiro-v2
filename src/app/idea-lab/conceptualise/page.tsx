@@ -18,9 +18,9 @@ interface Draft {
 
 const PHASE_LABELS: Record<number, string> = {
   1: 'First Contact',
-  2: 'Excavation',
-  3: 'Challenge',
-  4: 'Clarification',
+  2: 'Expansion',
+  3: 'The Reader',
+  4: 'The Principle',
   5: 'Declaration',
 }
 

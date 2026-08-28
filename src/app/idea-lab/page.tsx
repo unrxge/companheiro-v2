@@ -16,6 +16,9 @@ type Territory =
   | 'healthy_masculinity_emotional_regulation'
   | 'inner_child_tending_expression'
   | 'slow_living_life_in_service'
+  | 'craft_making_form'
+  | 'wonder_world_ideas'
+  | 'the_human_universal'
 
 interface Capture {
   id: string
@@ -47,6 +50,9 @@ const TERRITORIES: Territory[] = [
   'healthy_masculinity_emotional_regulation',
   'inner_child_tending_expression',
   'slow_living_life_in_service',
+  'craft_making_form',
+  'wonder_world_ideas',
+  'the_human_universal',
 ]
 
 const TERRITORY_LABELS: Record<string, string> = {
@@ -54,6 +60,9 @@ const TERRITORY_LABELS: Record<string, string> = {
   healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
   inner_child_tending_expression: 'Inner child tending & expression',
   slow_living_life_in_service: 'Slow living & life in service',
+  craft_making_form: 'Craft & the made thing',
+  wonder_world_ideas: "Wonder & the world's logic",
+  the_human_universal: 'What we share',
 }
 
 const TERRITORY_SHORT: Record<string, string> = {
@@ -61,6 +70,9 @@ const TERRITORY_SHORT: Record<string, string> = {
   healthy_masculinity_emotional_regulation: 'Healthy Masculinity',
   inner_child_tending_expression: 'Inner Child',
   slow_living_life_in_service: 'Slow Living',
+  craft_making_form: 'Craft & Making',
+  wonder_world_ideas: 'Wonder & Ideas',
+  the_human_universal: 'What We Share',
 }
 
 // Per-territory accent colors — mirrors the Arc palette logic.
@@ -69,6 +81,9 @@ const TERRITORY_ACCENT: Record<string, string> = {
   healthy_masculinity_emotional_regulation: '#2a5f80', // slate blue — groundedness
   inner_child_tending_expression:           '#8a6820', // amber — warmth, play
   slow_living_life_in_service:              '#2a7a5c', // emerald — calm, nature
+  craft_making_form:                        '#6b4226', // deep clay — material, making
+  wonder_world_ideas:                       '#1a5c7a', // teal — depth, curiosity
+  the_human_universal:                      '#4a6b2a', // forest — shared ground
 }
 
 const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const

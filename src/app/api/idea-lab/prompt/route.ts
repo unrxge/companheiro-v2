@@ -24,6 +24,9 @@ const ALL_TERRITORIES = [
   "healthy_masculinity_emotional_regulation",
   "inner_child_tending_expression",
   "slow_living_life_in_service",
+  "craft_making_form",
+  "wonder_world_ideas",
+  "the_human_universal",
 ];
 
 const TERRITORY_LABELS: Record<string, string> = {
@@ -31,6 +34,9 @@ const TERRITORY_LABELS: Record<string, string> = {
   healthy_masculinity_emotional_regulation: "Healthy masculinity & emotional regulation",
   inner_child_tending_expression: "Inner child tending & expression",
   slow_living_life_in_service: "Slow living & life in service",
+  craft_making_form: "Craft & the made thing",
+  wonder_world_ideas: "Wonder & the world's logic",
+  the_human_universal: "What we share",
 };
 
 // Full range maps — what each territory actually spans and contains,
@@ -67,6 +73,30 @@ Contains: the specific pleasure of an unhurried morning; showing up fully to som
 Its lighter end: simple sensory richness — the quality of light, the weight of a routine that holds you; moving from self-discovery toward self-offering; service that comes from abundance; nourishment found in what was always ordinary; the body's own pace as the right pace.
 
 Its heavier end: the pull of speed and noise even when you know better; service given from depletion rather than fullness; the restlessness before quiet becomes a companion rather than a confrontation.`,
+
+  craft_making_form: `What it means to make something as an act distinct from self-expression. The relationship between maker and material — what the material teaches, what the form demands, what the work knows that the maker didn't plan. Craft as a way of thinking, not just a medium for feeling. The ethics of attention: making something worthy of another person's limited time.
+
+Contains: the constraint that became the piece — what the limitation taught that freedom couldn't; what a reader actually receives vs. what the maker intended; form as thinking rather than packaging — how shape changes meaning; revision as the real work; why certain things outlast their moment; the difference between expression and communication; what it means to make something universal without making it generic; the moment a piece becomes more than was planned.
+
+Its lighter end: the joy of pure making; discovery in the doing; form as a kind of play; a piece coming alive in revision; craft as love for the reader; the made thing existing independently of its maker; making something worthy of a stranger's attention.
+
+Its heavier end: the gap between ambition and execution; the piece that serves its maker more than it serves anyone else; the habit of making for approval rather than meaning; work that avoids what it should face; the question of whether this thing actually needs to exist.`,
+
+  wonder_world_ideas: `Genuine intellectual curiosity about how things work — not as a personal exercise but as an orientation toward the world. Natural systems, human institutions, language, time, beauty, the hidden order underneath ordinary phenomena. The pleasure of following an idea past where you expected it to stop. Surprise as information. The world as endlessly strange when you look long enough.
+
+Contains: the pattern that appears in two unrelated places; the observation that can't be unobserved; a natural system with unexpected elegance; what beauty might actually be doing as distinct from how it feels; the idea that seems obvious once stated and impossible before; language as a record of what people needed to say; the moment a familiar thing becomes strange; the insight that arrived from the wrong direction; the question that makes the room larger.
+
+Its lighter end: pure delight in noticing; the pleasure of the unexpected connection; wonder without agenda; curiosity as a form of play; the world as inexhaustibly interesting; an idea following its own thread somewhere new.
+
+Its heavier end: the question that exposes something uncomfortable; the pattern that explains something you'd rather not explain; the observation that changes what you see and can't be walked back; the idea whose implications go further than intended.`,
+
+  the_human_universal: `Human experiences that any reader could recognize as true — not because they know you, but because they've been alive. Waiting, forgetting, the way time changes shape, what beauty does when it arrives unexpectedly, the structure of grief, how failure teaches things success conceals, the particular texture of belonging. The strangeness of being conscious at all.
+
+Contains: the experience everyone has had but almost no one has named precisely; the principle that shows up differently in different lives but is unmistakably the same thing; the moment that has no visible importance but somehow stays; the emotion without a clean word for it; what kindness actually is when you look closely; the way memory edits; what presence feels like vs. what its absence costs; the ordinary rendered strange by attention.
+
+Its lighter end: the beauty of recognition — this is true; the warmth of what connects us; ordinary life as rich source material; the principle that asks nothing personal of the writer; shared experience as a doorway into the universal.
+
+Its heavier end: the human capacity to ignore what's in front of us; the ways we fail each other through inattention; what gets lost when we only speak from personal experience; the experience that feels too common to name — and why naming it actually matters.`,
 };
 
 // Per-territory facet seeds drawn from the range maps — one is picked
@@ -141,6 +171,57 @@ const TERRITORY_FACET_SEEDS: Record<string, string[]> = {
     "the pull of speed and noise even when you know better — what still makes you reach for it",
     "the restlessness before quiet became a companion — what that transition required",
     "service given from depletion — the signals that name it, and what restores the source",
+  ],
+  craft_making_form: [
+    "the constraint that became the piece — what the limitation taught that freedom couldn't",
+    "what a reader actually receives vs. what the maker intended to give",
+    "form as thinking, not just packaging — the shape that changed the meaning",
+    "revision as where the real work happens — the gap between the first version and the true one",
+    "the piece that knew something the maker didn't — what it revealed by insisting on existing",
+    "making something worthy of a stranger's attention — what that actually requires",
+    "the difference between expressing yourself and making something for someone else",
+    "why certain forms outlast their moment — what they knew about the reader",
+    "the moment the work became more than was planned — what entered that wasn't invited",
+    "craft as love made formal — what it means to finish something because the reader deserves it",
+    "the piece that serves its maker more than it serves anyone else — how to tell the difference",
+    "the gap between ambition and execution — what lives in that space and whether it's generative",
+    "making for approval rather than meaning — when that shift happens and what it costs",
+    "the work that avoids what it should face — how a piece betrays its own best subject",
+    "whether this thing actually needs to exist — the question that clarifies everything else",
+  ],
+  wonder_world_ideas: [
+    "the pattern that appears in two unrelated places — what that repetition is trying to say",
+    "the observation that can't be unobserved — what you noticed that changed what you see",
+    "the moment a familiar thing became strange — what shifted and why it stays shifted",
+    "the insight that arrived from the wrong direction — what the surprise was actually teaching",
+    "beauty as information — what beautiful things might be telling us beyond how they feel",
+    "the question that makes the room larger — the one that opens rather than closes",
+    "language as a record of what people needed to say — what a word's history reveals",
+    "a natural system with unexpected elegance — what it teaches about design or order",
+    "the idea that feels obvious once stated and impossible before — what that says about knowledge",
+    "following an idea past where you expected it to stop — what's on the other side",
+    "pure delight in noticing — what becomes visible when you're not looking for anything specific",
+    "wonder without agenda — what curiosity feels like when it's not trying to arrive anywhere",
+    "the question that exposes something uncomfortable — the idea whose implications go too far",
+    "the pattern that explains something you'd rather not explain — what to do with that",
+    "the observation that changes what you see and can't be walked back — its permanence",
+  ],
+  the_human_universal: [
+    "the experience everyone has had but almost no one has named precisely — what that name would be",
+    "the moment that has no visible importance but somehow stays — why memory kept it",
+    "what beauty does when it arrives unexpectedly — the specific mechanism of being moved",
+    "the emotion that doesn't have a clean word for it — what it would need a word to say",
+    "what kindness actually is when you look closely — its exact structure and what it requires",
+    "the way memory edits — what it selects and what that selection means",
+    "what presence feels like vs. what its absence costs — the difference when you can name it",
+    "the principle that shows up differently in different lives but is unmistakably the same thing",
+    "the structure of grief — what it actually does and how it changes over time",
+    "how failure teaches things that success conceals — what you can only learn by losing",
+    "what time does when you're not paying attention — its texture in different kinds of waiting",
+    "the particular texture of belonging — what it feels like from the inside and why it matters",
+    "the strangeness of being conscious at all — the ordinary miracle that passes unnoticed",
+    "the ways we fail each other through inattention — what missing someone who's present costs",
+    "the experience that feels too common to name — and why naming it actually matters",
   ],
 };
 
