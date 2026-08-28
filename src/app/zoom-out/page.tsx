@@ -44,15 +44,39 @@ export default function ZoomOutPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const userScrolledUpRef = useRef(false)
+  const programmaticScrollRef = useRef(false)
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetchAIResponse([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Track manual scroll
   useEffect(() => {
+    const container = threadRef.current
+    if (!container) return
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return
+      const { scrollTop, scrollHeight, clientHeight } = container
+      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100
+    }
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Auto-scroll, interruptible
+  useEffect(() => {
+    if (userScrolledUpRef.current) return
+    programmaticScrollRef.current = true
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current)
+    programmaticScrollTimer.current = setTimeout(() => {
+      programmaticScrollRef.current = false
+    }, 800)
   }, [messages])
 
   const fetchAIResponse = async (conversationHistory: Message[]) => {
@@ -271,6 +295,7 @@ export default function ZoomOutPage() {
 
       {/* Thread */}
       <div
+        ref={threadRef}
         className="zoom-out-scroll"
         style={{ flex: 1, overflowY: 'auto', padding: '32px 24px 0' }}
       >
@@ -285,34 +310,58 @@ export default function ZoomOutPage() {
           }}
         >
           <AnimatePresence initial={false}>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                style={{
-                  display: 'flex',
-                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <p
+            {messages.map((msg, i) => {
+              const isStreamingLast =
+                isLoading && i === messages.length - 1 && msg.role === 'assistant'
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
                   style={{
-                    fontFamily: 'var(--font-geist-sans)',
-                    fontSize: '16px',
-                    lineHeight: 1.65,
-                    margin: 0,
-                    maxWidth: '88%',
-                    color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
-                    fontWeight: msg.role === 'user' ? 500 : 400,
-                    textAlign: msg.role === 'user' ? 'right' : 'left',
-                    whiteSpace: 'pre-wrap',
+                    display: 'flex',
+                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
                   }}
                 >
-                  {msg.content}
-                </p>
-              </motion.div>
-            ))}
+                  <div style={{ position: 'relative', maxWidth: '88%' }}>
+                    <p
+                      style={{
+                        fontFamily: 'var(--font-geist-sans)',
+                        fontSize: '16px',
+                        lineHeight: 1.65,
+                        margin: 0,
+                        color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                        fontWeight: msg.role === 'user' ? 500 : 400,
+                        textAlign: msg.role === 'user' ? 'right' : 'left',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {msg.content}
+                    </p>
+                    <AnimatePresence>
+                      {isStreamingLast && (
+                        <motion.div
+                          key="veil"
+                          initial={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.5, ease: 'easeOut' }}
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: '52px',
+                            background: 'linear-gradient(to top, #111110, transparent)',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )
+            })}
           </AnimatePresence>
 
           {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (

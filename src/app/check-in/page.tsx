@@ -100,6 +100,10 @@ export default function CheckInPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pastCheckInsRef = useRef<HTMLDivElement>(null)
+  // Interruptible scroll: user scrolling up stops auto-scroll until they return to bottom
+  const userScrolledUpRef = useRef(false)
+  const programmaticScrollRef = useRef(false)
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const eyebrow: React.CSSProperties = {
     color: c.textSecondary,
@@ -134,11 +138,28 @@ export default function CheckInPage() {
     window.speechSynthesis.speak(utterance)
   }
 
-  // Smooth scroll to keep latest generated content in view — gentle, only when needed
+  // Track manual scroll — stops auto-scroll when user scrolls up to read
   useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const container = scrollContainerRef.current
+    if (!container) return
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return
+      const { scrollTop, scrollHeight, clientHeight } = container
+      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100
     }
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Scroll to latest content, but only if user hasn't manually scrolled up
+  useEffect(() => {
+    if (messages.length === 0 || userScrolledUpRef.current) return
+    programmaticScrollRef.current = true
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current)
+    programmaticScrollTimer.current = setTimeout(() => {
+      programmaticScrollRef.current = false
+    }, 800)
   }, [messages, isProcessing])
 
   useEffect(() => {
@@ -989,18 +1010,40 @@ export default function CheckInPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <p
-                        style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '16px',
-                          lineHeight: 1.65,
-                          margin: 0,
-                          color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
-                          fontWeight: msg.role === 'user' ? 500 : 400,
-                        }}
-                      >
-                        {msg.text}
-                      </p>
+                      {/* Veil: gradient overlay fades out when streaming ends */}
+                      <div style={{ position: 'relative' }}>
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-geist-sans)',
+                            fontSize: '16px',
+                            lineHeight: 1.65,
+                            margin: 0,
+                            color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                            fontWeight: msg.role === 'user' ? 500 : 400,
+                          }}
+                        >
+                          {msg.text}
+                        </p>
+                        <AnimatePresence>
+                          {isStreamingLast && (
+                            <motion.div
+                              key="veil"
+                              initial={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.5, ease: 'easeOut' }}
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                height: '52px',
+                                background: 'linear-gradient(to top, #111110, transparent)',
+                                pointerEvents: 'none',
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
+                      </div>
                       {msg.role === 'ai' && msg.text && !isStreamingLast && (
                         <button
                           onClick={() => handleSpeak(msg.text, i)}
