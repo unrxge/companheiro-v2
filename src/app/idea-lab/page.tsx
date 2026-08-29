@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
@@ -11,11 +11,12 @@ import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
-type Territory =
-  | 'creativity_devotion_curiosity'
-  | 'healthy_masculinity_emotional_regulation'
-  | 'inner_child_tending_expression'
-  | 'slow_living_life_in_service'
+
+type PredefinedSlot = { type: 'predefined'; key: string }
+type CustomSlot    = { type: 'custom'; key: string; label: string }
+type TerritorySlot = PredefinedSlot | CustomSlot | null
+
+const MAX_SLOTS = 4
 
 interface Capture {
   id: string
@@ -42,34 +43,39 @@ const ARC_ACCENT: Record<Arc, string> = {
   Integration: '#8a6820', // warm amber-earth — synthesis, wholeness
 }
 
-const TERRITORIES: Territory[] = [
-  'creativity_devotion_curiosity',
-  'healthy_masculinity_emotional_regulation',
-  'inner_child_tending_expression',
-  'slow_living_life_in_service',
-]
-
-const TERRITORY_LABELS: Record<string, string> = {
-  creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
-  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
-  inner_child_tending_expression: 'Inner child tending & expression',
-  slow_living_life_in_service: 'Slow living & life in service',
-}
-
+// Short display labels and accent colors for the 4 predefined territories.
 const TERRITORY_SHORT: Record<string, string> = {
-  creativity_devotion_curiosity: 'Creativity & Devotion',
+  creativity_devotion_curiosity:            'Creativity & Devotion',
   healthy_masculinity_emotional_regulation: 'Healthy Masculinity',
-  inner_child_tending_expression: 'Inner Child',
-  slow_living_life_in_service: 'Slow Living',
+  inner_child_tending_expression:           'Inner Child',
+  slow_living_life_in_service:              'Slow Living',
+}
+const TERRITORY_LABELS: Record<string, string> = {
+  creativity_devotion_curiosity:            'Creativity, devotion & curiosity',
+  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
+  inner_child_tending_expression:           'Inner child tending & expression',
+  slow_living_life_in_service:              'Slow living & life in service',
+}
+const TERRITORY_ACCENT: Record<string, string> = {
+  creativity_devotion_curiosity:            '#a53f2b',
+  healthy_masculinity_emotional_regulation: '#2a5f80',
+  inner_child_tending_expression:           '#8a6820',
+  slow_living_life_in_service:              '#2a7a5c',
 }
 
-// Per-territory accent colors — mirrors the Arc palette logic.
-const TERRITORY_ACCENT: Record<string, string> = {
-  creativity_devotion_curiosity:            '#a53f2b', // coral — creative fire
-  healthy_masculinity_emotional_regulation: '#2a5f80', // slate blue — groundedness
-  inner_child_tending_expression:           '#8a6820', // amber — warmth, play
-  slow_living_life_in_service:              '#2a7a5c', // emerald — calm, nature
+function slotLabel(s: PredefinedSlot | CustomSlot): string {
+  return s.type === 'predefined' ? (TERRITORY_SHORT[s.key] || s.key) : s.label
 }
+function slotAccent(s: PredefinedSlot | CustomSlot): string {
+  return s.type === 'predefined' ? (TERRITORY_ACCENT[s.key] || accentColor) : accentColor
+}
+
+const DEFAULT_SLOTS: TerritorySlot[] = [
+  { type: 'predefined', key: 'creativity_devotion_curiosity' },
+  { type: 'predefined', key: 'healthy_masculinity_emotional_regulation' },
+  { type: 'predefined', key: 'inner_child_tending_expression' },
+  { type: 'predefined', key: 'slow_living_life_in_service' },
+]
 
 const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const
 type EnergyLevel = (typeof ENERGY_LEVELS)[number]
@@ -85,9 +91,23 @@ export default function IdeaLabPage() {
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
   const [skipArcs, setSkipArcs] = useState(false)
   const [useRandomArcs, setUseRandomArcs] = useState(false)
-  const [selectedTerritories, setSelectedTerritories] = useState<Territory[]>([])
+
+  // Territory config — up to MAX_SLOTS slots; null = empty (deletable/addable)
+  const [territorySlots, setTerritorySlots] = useState<TerritorySlot[]>(DEFAULT_SLOTS)
+  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true)
+  const [selectedTerritoryKeys, setSelectedTerritoryKeys] = useState<string[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
-  const [useRandomTerritories, setUseRandomTerritories] = useState(false)
+
+  // Delete UX
+  const [hoveringTerritoryKey, setHoveringTerritoryKey] = useState<string | null>(null)
+  const [mobileDeleteKey, setMobileDeleteKey] = useState<string | null>(null)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+
+  // Add-theme UX
+  const [addingInSlot, setAddingInSlot] = useState<number | null>(null)
+  const [newThemeInput, setNewThemeInput] = useState('')
+
   const [energyIndex, setEnergyIndex] = useState(2)
   const energyLevel = ENERGY_LEVELS[energyIndex]
   const [impersonal, setImpersonal] = useState(true)
@@ -100,12 +120,34 @@ export default function IdeaLabPage() {
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
 
   useEffect(() => {
+    setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches)
+  }, [])
+
+  useEffect(() => {
     fetch('/api/idea-lab/captures')
       .then((r) => r.json())
       .then((data) => setCaptures(data.captures || []))
       .catch((err) => console.error('Failed to fetch captures:', err))
       .finally(() => setIsLoadingCaptures(false))
   }, [])
+
+  useEffect(() => {
+    fetch('/api/idea-lab/territories')
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data.slots)) setTerritorySlots(data.slots) })
+      .catch((err) => console.error('Failed to load territories:', err))
+      .finally(() => setIsLoadingTerritories(false))
+  }, [])
+
+  const saveTerritoryConfig = (slots: TerritorySlot[]) => {
+    fetch('/api/idea-lab/territories', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slots }),
+    }).catch((err) => console.error('Failed to save territories:', err))
+  }
+
+  // ── Arc handlers ──────────────────────────────────────────────────────────
 
   const toggleArc = (arc: Arc) => {
     setSelectedArcs((prev) =>
@@ -125,22 +167,61 @@ export default function IdeaLabPage() {
     if (next) { setUseRandomArcs(false); setSelectedArcs([]) }
   }
 
-  const toggleTerritory = (t: Territory) => {
-    setSelectedTerritories((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+  // ── Territory handlers ────────────────────────────────────────────────────
+
+  const handleTerritoryPillClick = (slot: PredefinedSlot | CustomSlot) => {
+    if (skipTerritories) return
+    const isSelected = selectedTerritoryKeys.includes(slot.key)
+
+    // Mobile: second tap on a selected pill shows the delete X for 4s
+    if (isTouchDevice && isSelected && mobileDeleteKey !== slot.key) {
+      setMobileDeleteKey(slot.key)
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+      deleteTimerRef.current = setTimeout(() => setMobileDeleteKey(null), 4000)
+      return
+    }
+
+    setSelectedTerritoryKeys((prev) =>
+      prev.includes(slot.key) ? prev.filter((k) => k !== slot.key) : [...prev, slot.key]
     )
   }
 
+  const handleDeleteTerritory = (index: number) => {
+    const slot = territorySlots[index]
+    const next = [...territorySlots] as TerritorySlot[]
+    next[index] = null
+    setTerritorySlots(next)
+    if (slot) setSelectedTerritoryKeys((prev) => prev.filter((k) => k !== slot.key))
+    setHoveringTerritoryKey(null)
+    setMobileDeleteKey(null)
+    saveTerritoryConfig(next)
+  }
+
   const handleRandomTerritories = () => {
-    const next = !useRandomTerritories
-    setUseRandomTerritories(next)
-    if (next) { setSkipTerritories(false); setSelectedTerritories([]) }
+    const available = territorySlots.filter((s): s is PredefinedSlot | CustomSlot => s != null)
+    if (available.length === 0) return
+    const count = Math.floor(Math.random() * available.length) + 1
+    const shuffled = [...available].sort(() => Math.random() - 0.5)
+    setSelectedTerritoryKeys(shuffled.slice(0, count).map((s) => s.key))
+    setSkipTerritories(false)
   }
 
   const handleSkipTerritories = () => {
     const next = !skipTerritories
     setSkipTerritories(next)
-    if (next) { setUseRandomTerritories(false); setSelectedTerritories([]) }
+    if (next) setSelectedTerritoryKeys([])
+  }
+
+  const confirmAddTheme = (index: number) => {
+    const label = newThemeInput.trim()
+    if (!label) return
+    const newSlot: CustomSlot = { type: 'custom', key: `custom_${Date.now()}`, label }
+    const next = [...territorySlots] as TerritorySlot[]
+    next[index] = newSlot
+    setTerritorySlots(next)
+    setAddingInSlot(null)
+    setNewThemeInput('')
+    saveTerritoryConfig(next)
   }
 
   const handleGeneratePrompt = async () => {
@@ -148,7 +229,7 @@ export default function IdeaLabPage() {
       setError('Select at least one arc, use random, or skip arcs')
       return
     }
-    if (skipArcs && selectedTerritories.length === 0 && !useRandomTerritories) {
+    if (skipArcs && selectedTerritoryKeys.length === 0 && !skipTerritories) {
       setError('Skipping arcs needs a territory — select one or use random')
       return
     }
@@ -163,9 +244,18 @@ export default function IdeaLabPage() {
       else if (useRandomArcs) payload.randomArcs = true
       else payload.arcs = selectedArcs
 
-      if (skipTerritories) payload.territories = null
-      else if (useRandomTerritories) payload.randomTerritories = true
-      else if (selectedTerritories.length > 0) payload.territories = selectedTerritories
+      if (skipTerritories) {
+        payload.territories = null
+      } else if (selectedTerritoryKeys.length > 0) {
+        const selectedSlots = selectedTerritoryKeys
+          .map((key) => territorySlots.find((s) => s?.key === key))
+          .filter((s): s is PredefinedSlot | CustomSlot => s != null)
+        payload.territories = selectedSlots.map((s) =>
+          s.type === 'predefined'
+            ? s.key
+            : { key: s.key, label: s.label, custom: true as const }
+        )
+      }
 
       const res = await fetch('/api/idea-lab/prompt', {
         method: 'POST',
@@ -371,14 +461,9 @@ export default function IdeaLabPage() {
                       whileHover={{ opacity: 0.65 }}
                       whileTap={{ scale: 0.95 }}
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '3px 0',
-                        color: useRandomTerritories ? c.textPrimary : c.textMuted,
-                        fontSize: '11px',
-                        fontWeight: useRandomTerritories ? 600 : 400,
-                        cursor: 'pointer',
-                        letterSpacing: '0.01em',
+                        background: 'none', border: 'none', padding: '3px 0',
+                        color: c.textMuted, fontSize: '11px', fontWeight: 400,
+                        cursor: 'pointer', letterSpacing: '0.01em',
                       }}
                     >
                       Random
@@ -389,32 +474,113 @@ export default function IdeaLabPage() {
                       whileHover={{ opacity: 0.65 }}
                       whileTap={{ scale: 0.95 }}
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '3px 0',
+                        background: 'none', border: 'none', padding: '3px 0',
                         color: skipTerritories ? c.textPrimary : c.textMuted,
-                        fontSize: '11px',
-                        fontWeight: skipTerritories ? 600 : 400,
-                        cursor: 'pointer',
-                        letterSpacing: '0.01em',
+                        fontSize: '11px', fontWeight: skipTerritories ? 600 : 400,
+                        cursor: 'pointer', letterSpacing: '0.01em',
                       }}
                     >
                       Skip
                     </motion.button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-                  {TERRITORIES.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => !skipTerritories && !useRandomTerritories && toggleTerritory(t)}
-                      title={TERRITORY_LABELS[t]}
-                      style={contentPill(selectedTerritories.includes(t), skipTerritories || useRandomTerritories, TERRITORY_ACCENT[t])}
-                    >
-                      {TERRITORY_SHORT[t]}
-                    </button>
-                  ))}
-                </div>
+
+                {!isLoadingTerritories && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+                    {Array.from({ length: MAX_SLOTS }).map((_, index) => {
+                      const slot = territorySlots[index] ?? null
+
+                      // ── Filled slot ───────────────────────────────────────
+                      if (slot) {
+                        const isSelected = selectedTerritoryKeys.includes(slot.key)
+                        const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
+                        return (
+                          <div
+                            key={slot.key}
+                            style={{ position: 'relative', display: 'inline-flex' }}
+                            onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)}
+                            onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}
+                          >
+                            <button
+                              onClick={() => handleTerritoryPillClick(slot)}
+                              title={slot.type === 'predefined' ? (TERRITORY_LABELS[slot.key] || slot.key) : slot.label}
+                              style={contentPill(isSelected, skipTerritories, slotAccent(slot))}
+                            >
+                              {slotLabel(slot)}
+                            </button>
+                            <AnimatePresence>
+                              {showX && (
+                                <motion.button
+                                  key="x"
+                                  initial={{ opacity: 0, scale: 0.6 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.6 }}
+                                  transition={{ duration: 0.12 }}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteTerritory(index) }}
+                                  aria-label={`Remove ${slotLabel(slot)}`}
+                                  style={{
+                                    position: 'absolute', top: -6, right: -6,
+                                    width: 16, height: 16, borderRadius: '50%',
+                                    background: c.textPrimary, color: c.containerBg,
+                                    border: 'none', cursor: 'pointer', padding: 0,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '8px', fontWeight: 700, lineHeight: 1, zIndex: 10,
+                                  }}
+                                >
+                                  ✕
+                                </motion.button>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )
+                      }
+
+                      // ── Empty slot — input active ─────────────────────────
+                      if (addingInSlot === index) {
+                        return (
+                          <input
+                            key={`adding-${index}`}
+                            autoFocus
+                            value={newThemeInput}
+                            onChange={(e) => setNewThemeInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && newThemeInput.trim()) confirmAddTheme(index)
+                              if (e.key === 'Escape') { setAddingInSlot(null); setNewThemeInput('') }
+                            }}
+                            onBlur={() => { setAddingInSlot(null); setNewThemeInput('') }}
+                            placeholder="Theme name..."
+                            style={{
+                              padding: '6px 13px', borderRadius: '999px',
+                              border: `1px solid ${accentColor}`,
+                              background: c.inputBg, color: c.textPrimary,
+                              fontSize: '12px', outline: 'none', lineHeight: 1,
+                              width: '130px', flexShrink: 0,
+                            }}
+                          />
+                        )
+                      }
+
+                      // ── Empty slot — placeholder pill ─────────────────────
+                      return (
+                        <button
+                          key={`empty-${index}`}
+                          onClick={() => { setAddingInSlot(index); setNewThemeInput('') }}
+                          className="idea-lab-empty-pill"
+                          style={{
+                            padding: '7px 14px', borderRadius: '999px',
+                            border: `1.5px dashed ${c.textMuted}`,
+                            backgroundColor: 'transparent', color: c.textMuted,
+                            fontSize: '12px', fontWeight: 400, cursor: 'pointer',
+                            opacity: 0.45, lineHeight: 1, flexShrink: 0,
+                            transition: 'opacity 0.15s ease',
+                          }}
+                        >
+                          + Add theme
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div style={hdivider} />
@@ -936,6 +1102,9 @@ export default function IdeaLabPage() {
           cursor: pointer;
           border: 2px solid ${accentColor};
           box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+        }
+        .idea-lab-empty-pill:hover {
+          opacity: 0.7 !important;
         }
         .idea-lab-textarea::placeholder {
           color: ${c.textMuted};

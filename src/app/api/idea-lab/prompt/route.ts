@@ -4,13 +4,36 @@ import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 
+// Custom territory object sent from the frontend for user-defined themes.
+type TerritoryInput = string | { key: string; label: string; custom: true }
+
 interface PromptRequest {
   arcs?: string[] | null;
   randomArcs?: boolean;
-  territories?: string[] | null;
+  territories?: TerritoryInput[] | null;
   randomTerritories?: boolean;
   energy?: string;
   impersonal?: boolean;
+}
+
+function resolveTerritoryKey(t: TerritoryInput): string {
+  return typeof t === 'string' ? t : t.key
+}
+
+function resolveTerritoryLabel(t: TerritoryInput): string {
+  if (typeof t === 'string') return TERRITORY_LABELS[t] || t
+  return t.label
+}
+
+function resolveTerritoryRangeMap(t: TerritoryInput): string {
+  const key = resolveTerritoryKey(t)
+  if (TERRITORY_RANGE_MAPS[key]) return TERRITORY_RANGE_MAPS[key]
+  const label = resolveTerritoryLabel(t)
+  return `${label}: Enter this territory with genuine curiosity — find a specific, unexpected corner within it rather than treating it generically. Follow whatever thread feels most alive and particular here. Avoid the obvious centre; look for the strange edges.`
+}
+
+function resolveAllFacetSeeds(territories: TerritoryInput[]): string[] {
+  return territories.flatMap(t => TERRITORY_FACET_SEEDS[resolveTerritoryKey(t)] ?? [])
 }
 
 interface PromptResponse {
@@ -144,12 +167,10 @@ const TERRITORY_FACET_SEEDS: Record<string, string[]> = {
   ],
 };
 
-function pickFacetSeed(territories: string[]): string | null {
-  const pool: string[] = territories.flatMap(
-    (t) => TERRITORY_FACET_SEEDS[t] ?? []
-  );
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+function pickFacetSeed(territories: TerritoryInput[]): string | null {
+  const pool = resolveAllFacetSeeds(territories)
+  if (pool.length === 0) return null
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 // Each arc as a directional force applied to a territory —
@@ -220,7 +241,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     const finalArcs = arcsSkipped ? [] : body.randomArcs ? getRandomArcs() : body.arcs || [];
 
     // Resolve territories once — reused for range maps, names, and seed pick.
-    const finalTerritories: string[] =
+    // Custom territories arrive as { key, label, custom: true } objects;
+    // predefined territories arrive as plain key strings.
+    const finalTerritories: TerritoryInput[] =
       body.territories === null
         ? []
         : body.randomTerritories
@@ -228,15 +251,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
           : body.territories ?? [];
 
     const territoryNamesText = finalTerritories
-      .map((t) => TERRITORY_LABELS[t] || t)
+      .map((t) => resolveTerritoryLabel(t))
       .join(", ");
 
     const territoryRangeMapsText = finalTerritories
-      .map((t) => `${TERRITORY_LABELS[t] || t}:\n${TERRITORY_RANGE_MAPS[t] ?? ""}`)
+      .map((t) => `${resolveTerritoryLabel(t)}:\n${resolveTerritoryRangeMap(t)}`)
       .join("\n\n");
 
     // One random facet seed from the resolved territories forces a different
     // corner of the range map each generation — prevents convergence.
+    // Custom territories have no predefined seeds so this may return null.
     const facetSeed = pickFacetSeed(finalTerritories);
 
     const isImpersonal = body.impersonal === true;
