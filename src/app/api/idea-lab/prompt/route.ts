@@ -5,7 +5,15 @@ import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 
 // Custom territory object sent from the frontend for user-defined themes.
-type TerritoryInput = string | { key: string; label: string; custom: true }
+// rangeMap and facetSeeds are populated by the generate-map API when the
+// theme is first added; the prompt route uses them exactly like predefined ones.
+type TerritoryInput = string | {
+  key: string
+  label: string
+  custom: true
+  rangeMap?: string
+  facetSeeds?: string[]
+}
 
 interface PromptRequest {
   arcs?: string[] | null;
@@ -26,14 +34,16 @@ function resolveTerritoryLabel(t: TerritoryInput): string {
 }
 
 function resolveTerritoryRangeMap(t: TerritoryInput): string {
-  const key = resolveTerritoryKey(t)
-  if (TERRITORY_RANGE_MAPS[key]) return TERRITORY_RANGE_MAPS[key]
-  const label = resolveTerritoryLabel(t)
-  return `${label}: Enter this territory with genuine curiosity — find a specific, unexpected corner within it rather than treating it generically. Follow whatever thread feels most alive and particular here. Avoid the obvious centre; look for the strange edges.`
+  if (typeof t === 'string') return TERRITORY_RANGE_MAPS[t] ?? ''
+  // Custom territory: use AI-generated range map if available; fall back to label only
+  return t.rangeMap ?? `${t.label}: Enter this territory with genuine curiosity — find a specific, unexpected corner within it rather than treating it generically. Avoid the obvious centre; look for the strange edges.`
 }
 
 function resolveAllFacetSeeds(territories: TerritoryInput[]): string[] {
-  return territories.flatMap(t => TERRITORY_FACET_SEEDS[resolveTerritoryKey(t)] ?? [])
+  return territories.flatMap(t => {
+    if (typeof t === 'string') return TERRITORY_FACET_SEEDS[t] ?? []
+    return t.facetSeeds ?? []
+  })
 }
 
 interface PromptResponse {

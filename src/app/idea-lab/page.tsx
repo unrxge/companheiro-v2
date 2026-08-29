@@ -13,7 +13,7 @@ import { ModalDialog } from '@/components/ui/modal-dialog'
 type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 
 type PredefinedSlot = { type: 'predefined'; key: string }
-type CustomSlot    = { type: 'custom'; key: string; label: string }
+type CustomSlot    = { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[] }
 type TerritorySlot = PredefinedSlot | CustomSlot | null
 
 const MAX_SLOTS = 4
@@ -107,6 +107,7 @@ export default function IdeaLabPage() {
   // Add-theme UX
   const [addingInSlot, setAddingInSlot] = useState<number | null>(null)
   const [newThemeInput, setNewThemeInput] = useState('')
+  const [generatingMapKey, setGeneratingMapKey] = useState<string | null>(null)
 
   const [energyIndex, setEnergyIndex] = useState(2)
   const energyLevel = ENERGY_LEVELS[energyIndex]
@@ -212,16 +213,51 @@ export default function IdeaLabPage() {
     if (next) setSelectedTerritoryKeys([])
   }
 
-  const confirmAddTheme = (index: number) => {
+  const confirmAddTheme = async (index: number) => {
     const label = newThemeInput.trim()
     if (!label) return
-    const newSlot: CustomSlot = { type: 'custom', key: `custom_${Date.now()}`, label }
+
+    const key = `custom_${Date.now()}`
+    const baseSlot: CustomSlot = { type: 'custom', key, label }
     const next = [...territorySlots] as TerritorySlot[]
-    next[index] = newSlot
+    next[index] = baseSlot
+
     setTerritorySlots(next)
     setAddingInSlot(null)
     setNewThemeInput('')
     saveTerritoryConfig(next)
+
+    // Async: generate rich range map + facet seeds and silently upgrade the slot
+    setGeneratingMapKey(key)
+    try {
+      const res = await fetch('/api/idea-lab/territories/generate-map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label }),
+      })
+      const data = await res.json()
+      if (data.rangeMap && data.facetSeeds) {
+        const enriched: CustomSlot = { ...baseSlot, rangeMap: data.rangeMap, facetSeeds: data.facetSeeds }
+        setTerritorySlots((prev) => {
+          const updated = [...prev] as TerritorySlot[]
+          const idx = updated.findIndex((s) => s?.key === key)
+          if (idx !== -1) updated[idx] = enriched
+          return updated
+        })
+        saveTerritoryConfig(
+          ((prev: TerritorySlot[]) => {
+            const updated = [...prev] as TerritorySlot[]
+            const idx = updated.findIndex((s) => s?.key === key)
+            if (idx !== -1) updated[idx] = enriched
+            return updated
+          })(next)
+        )
+      }
+    } catch (err) {
+      console.error('Failed to generate range map:', err)
+    } finally {
+      setGeneratingMapKey(null)
+    }
   }
 
   const handleGeneratePrompt = async () => {
@@ -253,7 +289,13 @@ export default function IdeaLabPage() {
         payload.territories = selectedSlots.map((s) =>
           s.type === 'predefined'
             ? s.key
-            : { key: s.key, label: s.label, custom: true as const }
+            : {
+                key: s.key,
+                label: s.label,
+                custom: true as const,
+                ...(s.rangeMap ? { rangeMap: s.rangeMap } : {}),
+                ...(s.facetSeeds ? { facetSeeds: s.facetSeeds } : {}),
+              }
         )
       }
 
@@ -507,6 +549,9 @@ export default function IdeaLabPage() {
                               style={contentPill(isSelected, skipTerritories, slotAccent(slot))}
                             >
                               {slotLabel(slot)}
+                              {generatingMapKey === slot.key && (
+                                <span style={{ marginLeft: '5px', opacity: 0.5, fontSize: '10px' }}>·</span>
+                              )}
                             </button>
                             <AnimatePresence>
                               {showX && (
