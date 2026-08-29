@@ -694,7 +694,9 @@ export default function IdeaLabPage() {
                     <button
                       onClick={() => {
                         if (responseText.trim()) {
-                          router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(responseText)}`)
+                          const params = new URLSearchParams({ seed: responseText })
+                          if (generatedPrompt) params.set('question', generatedPrompt)
+                          router.push(`/idea-lab/conceptualise?${params.toString()}`)
                         }
                       }}
                       disabled={!responseText.trim()}

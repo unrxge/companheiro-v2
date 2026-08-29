@@ -11,6 +11,7 @@ interface Message {
 
 interface Draft {
   seed: string | null
+  question: string | null
   messages: Message[]
   phase: number
   ready_to_advance: boolean
@@ -28,7 +29,9 @@ function ConceptualiseContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const seed = searchParams.get('seed')
+  const question = searchParams.get('question')
 
+  const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [isRecording, setIsRecording] = useState(false)
@@ -92,6 +95,7 @@ function ConceptualiseContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         seed: seed || null,
+        question: activeQuestion || null,
         messages: finalMessages,
         phase: savedPhase,
         ready_to_advance: savedReadyToAdvance,
@@ -111,6 +115,7 @@ function ConceptualiseContent() {
           messages: conversationHistory,
           phase: currentPhase,
           seed: seed || undefined,
+          question: activeQuestion || undefined,
         }),
       })
 
@@ -155,6 +160,7 @@ function ConceptualiseContent() {
     setMessages(existingDraft.messages)
     setPhase(existingDraft.phase)
     setReadyToAdvance(existingDraft.ready_to_advance)
+    if (existingDraft.question) setActiveQuestion(existingDraft.question)
     setResumeDecided(true)
   }
 

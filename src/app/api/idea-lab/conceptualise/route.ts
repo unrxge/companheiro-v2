@@ -14,6 +14,7 @@ interface ConceptualiseRequest {
   messages: Message[];
   phase: number;
   seed?: string;
+  question?: string;
 }
 
 const PHASE_PROMPTS: Record<number, string> = {
@@ -87,11 +88,15 @@ export async function POST(request: NextRequest) {
 
     const companionContext = await buildCompanionContext(auth);
 
+    const questionContext = body.question
+      ? `\nTHE QUESTION THAT OPENED THIS:\n"${body.question}"\nThis is what the person was responding to when they started. Let it inform the shape of the conversation without quoting it back.`
+      : '';
+
     const systemPrompt = `You are Companheiro, developing an idea with a creative person.
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}`;
+${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}${questionContext}`;
 
     const claudeMessages: Message[] =
       body.messages.length > 0

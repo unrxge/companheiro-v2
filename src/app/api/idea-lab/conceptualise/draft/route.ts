@@ -8,6 +8,7 @@ interface DraftMessage {
 
 interface SaveDraftRequest {
   seed?: string | null
+  question?: string | null
   messages: DraftMessage[]
   phase: number
   ready_to_advance?: boolean
@@ -25,7 +26,7 @@ export async function GET() {
 
     const { data } = await supabase
       .from('conceptualise_drafts')
-      .select('seed, messages, phase, ready_to_advance, updated_at')
+      .select('seed, question, messages, phase, ready_to_advance, updated_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -54,6 +55,7 @@ export async function PUT(request: NextRequest) {
         {
           user_id: user.id,
           seed: body.seed || null,
+          question: body.question || null,
           messages: body.messages,
           phase: body.phase,
           ready_to_advance: body.ready_to_advance ?? false,
