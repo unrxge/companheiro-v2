@@ -29,7 +29,9 @@ export async function POST(request: Request) {
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + '\n\n' : ''}Respond to what they just said. Acknowledge what is shifting, name something specific that is coming into focus, and offer one direction or question that moves a step further than the last exchange. Do not repeat or rephrase what was already said — carry it forward. Keep it brief.`
+${companionContext ? companionContext + '\n\n' : ''}Respond to what they just said. Acknowledge what is shifting, name something specific that is coming into focus, and offer one direction or question that moves a step further than the last exchange. Do not repeat or rephrase what was already said — carry it forward. Keep it brief.
+
+What you know about this person should quietly shape how you respond — which question you reach for, which angle you take, what you hold back. Let that knowledge inform the reflection without ever stating it directly.`
 
     const history: Message[] = Array.isArray(messages)
       ? messages.filter(
