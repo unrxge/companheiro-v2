@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
+import { shellBackground } from '@/lib/card-theme'
 
 interface Task {
   id: string
@@ -457,7 +458,7 @@ function WriteContent() {
 
   if (isLoading || !piece) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p className="text-[#4a4946]">Loading...</p>
       </div>
     )
@@ -486,9 +487,9 @@ function WriteContent() {
       : '460px'
 
   return (
-    <div className="h-screen bg-[#111110] flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
       {/* Header */}
-      <div className="h-12 border-b border-[#1f1f1d] flex items-center justify-between px-6 flex-shrink-0" style={{ background: '#111110' }}>
+      <div className="h-12 border-b border-[#1f1f1d] flex items-center justify-between px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)' }}>
         <button
           onClick={async () => {
             await flushSections()
@@ -523,7 +524,7 @@ function WriteContent() {
       {/* Writing surface */}
       <div
         className="flex-1 overflow-y-auto"
-        style={{ background: '#111110', paddingRight: reservedRight, transition: 'padding 0.3s ease' }}
+        style={{ background: 'transparent', paddingRight: reservedRight, transition: 'padding 0.3s ease' }}
       >
         <div className="max-w-[900px] mx-auto px-6 md:px-10 py-12">
           <textarea
@@ -937,7 +938,7 @@ export default function WritePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#111110] flex items-center justify-center">
+        <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p className="text-[#4a4946]">Loading...</p>
         </div>
       }

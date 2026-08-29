@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea'
+import { shellBackground, cardPalette } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+
+const c = cardPalette['dark']
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
@@ -276,60 +280,58 @@ export default function CoreConceptPage() {
   // Task review screen
   if (showTaskReview && pieceId) {
     return (
-      <div className="min-h-screen bg-[#111110] flex flex-col">
-        <div className="flex-1 px-6 py-12 max-w-2xl mx-auto w-full">
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Your task roadmap</h1>
-              <p className="text-sm text-[#4a4946]">Review and edit the suggested tasks before beginning</p>
-            </div>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+          <IconButton onClick={() => router.push('/idea-lab/conceptualise')} ariaLabel="Back to Conceptualise">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </IconButton>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Task Roadmap</h1>
+        </div>
+        <div style={{ flex: 1, padding: '48px 24px', maxWidth: 680, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <p style={{ fontSize: 13, color: c.textMuted }}>Review and edit the suggested tasks before beginning</p>
 
             {error && (
-              <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
-                <p className="text-xs text-red-200">{error}</p>
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
               </div>
             )}
 
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {tasks.map((task, index) => (
-                <div key={index} className="bg-[#161614] border border-[#1f1f1d] rounded p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-base text-[#d4d2cd]">{task.title}</span>
-                    <span className="text-xs bg-[#111110] text-[#4a4946] px-2 py-1 rounded">
-                      {task.type}
-                    </span>
+                <div key={index} style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <span style={{ fontSize: 14, color: c.textSecondary }}>{task.title}</span>
+                    <span style={{ fontSize: 11, background: c.containerBg, color: c.textMuted, padding: '2px 8px', borderRadius: 4 }}>{task.type}</span>
                   </div>
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="text-xs text-[#6b6966] hover:text-red-300 transition-colors"
-                  >
-                    Delete
-                  </button>
+                  <button onClick={() => handleDeleteTask(task.id)} style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
                 </div>
               ))}
             </div>
 
-            <div className="bg-[#161614] border border-[#1f1f1d] rounded p-4 space-y-3">
-              <p className="text-xs text-[#4a4946] uppercase tracking-widest">Add task</p>
+            <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>Add task</p>
               <input
                 type="text"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="Task title..."
-                className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                placeholder="Task title…"
+                style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
-              <div className="flex gap-2">
+              <div style={{ display: 'flex', gap: 8 }}>
                 <select
                   value={newTaskType}
                   onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
-                  className="flex-1 bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-xs text-[#e8e6e1] focus:outline-none focus:border-[#4a4946]"
+                  style={{ flex: 1, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 13, color: c.textPrimary, outline: 'none' }}
                 >
                   <option value="creation">Creation</option>
                   <option value="execution">Execution</option>
                 </select>
                 <button
                   onClick={handleAddTask}
-                  className="px-4 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+                  style={{ padding: '8px 16px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer' }}
                 >
                   Add
                 </button>
@@ -338,7 +340,7 @@ export default function CoreConceptPage() {
 
             <button
               onClick={handleBegin}
-              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer' }}
             >
               Begin
             </button>
@@ -349,273 +351,161 @@ export default function CoreConceptPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111110] flex flex-col">
-      <div className="flex-1 px-6 py-12 max-w-3xl mx-auto w-full">
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <button
-                onClick={() => router.push('/idea-lab/conceptualise')}
-                className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
-              >
-                ← Conceptualise
-              </button>
-              <h1 className="text-3xl font-light text-[#e8e6e1] mb-2">Core Concept</h1>
-              <p className="text-sm text-[#4a4946]">Building your idea document</p>
-            </div>
-            {conversation.length > 0 && (
-              <button
-                onClick={() => setShowConversation(true)}
-                className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] border border-[#2e2d2a] hover:border-[#4a4946] rounded px-3 py-1.5 transition-colors whitespace-nowrap flex-shrink-0"
-              >
-                View conversation
-              </button>
-            )}
-          </div>
+    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <IconButton onClick={() => router.push('/idea-lab/conceptualise')} ariaLabel="Back to Conceptualise">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </IconButton>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Core Concept</h1>
+        </div>
+        {conversation.length > 0 && (
+          <button
+            onClick={() => setShowConversation(true)}
+            style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: `1px solid ${c.divider}`, borderRadius: 6, padding: '6px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            View conversation
+          </button>
+        )}
+      </div>
 
+      <div style={{ flex: 1, padding: '32px 24px', maxWidth: 780, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {error && (
-            <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
-              <p className="text-xs text-red-200">{error}</p>
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 12 }}>
+              <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
             </div>
           )}
 
-          {/* Phase 1: Idea Essence */}
-          <div
-            className={`border rounded p-6 space-y-4 transition-all ${
-              sections.phase1.status === 'pending'
-                ? 'bg-[#0d0d0c] border-[#1f1f1d] opacity-50'
-                : 'bg-[#161614] border-[#1f1f1d]'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">
-                {sections.phase1.title}
-              </h2>
-              {sections.phase1.status === 'confirmed' && (
-                <span className="text-xs text-[#4a4946]">✓</span>
-              )}
-            </div>
-
-            {sections.phase1.status !== 'pending' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Idea in one sentence</label>
-                  <input
-                    type="text"
-                    value={sections.phase1.content.one_sentence || ''}
-                    onChange={(e) =>
-                      handleEditContent('phase1', 'one_sentence', e.target.value)
-                    }
-                    disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                  />
+          {(['phase1', 'phase2', 'phase3', 'phase4'] as const).map((phaseKey) => {
+            const section = sections[phaseKey]
+            const isPending = section.status === 'pending'
+            const isConfirmed = section.status === 'confirmed'
+            return (
+              <div key={phaseKey} style={{
+                background: isPending ? c.containerBg : c.cardBg,
+                border: `1px solid ${c.divider}`,
+                borderRadius: 10,
+                padding: 24,
+                opacity: isPending ? 0.5 : 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                transition: 'opacity 0.3s',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
+                    {section.title}
+                  </h2>
+                  {isConfirmed && <span style={{ fontSize: 12, color: c.textMuted }}>✓</span>}
                 </div>
 
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Arc</label>
-                  <input
-                    type="text"
-                    value={sections.phase1.content.arc || ''}
-                    onChange={(e) => handleEditContent('phase1', 'arc', e.target.value)}
-                    disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                  />
-                </div>
+                {section.status !== 'pending' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {phaseKey === 'phase1' && (
+                      <>
+                        {(['one_sentence', 'arc', 'thematic_territory'] as const).map((field) => (
+                          <div key={field}>
+                            <label style={{ fontSize: 11, color: c.textMuted, display: 'block', marginBottom: 6, textTransform: 'capitalize' }}>
+                              {field === 'one_sentence' ? 'Idea in one sentence' : field === 'thematic_territory' ? 'Territory' : 'Arc'}
+                            </label>
+                            <input
+                              type="text"
+                              value={section.content[field] || ''}
+                              onChange={(e) => handleEditContent(phaseKey, field, e.target.value)}
+                              disabled={isConfirmed}
+                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', opacity: isConfirmed ? 0.6 : 1, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                            />
+                          </div>
+                        ))}
+                      </>
+                    )}
 
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Territory</label>
-                  <input
-                    type="text"
-                    value={sections.phase1.content.thematic_territory || ''}
-                    onChange={(e) =>
-                      handleEditContent('phase1', 'thematic_territory', e.target.value)
-                    }
-                    disabled={sections.phase1.status === 'confirmed'}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-                  />
-                </div>
+                    {phaseKey === 'phase2' && (
+                      <>
+                        <div>
+                          <label style={{ fontSize: 11, color: c.textMuted, display: 'block', marginBottom: 6 }}>Conviction Statement</label>
+                          <AutoResizeTextarea
+                            value={section.content.conviction_statement || ''}
+                            onChange={(value) => handleEditContent(phaseKey, 'conviction_statement', value)}
+                            disabled={isConfirmed}
+                            minRows={3}
+                            className=""
+                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: c.textMuted, display: 'block', marginBottom: 6 }}>Emotional Journey</label>
+                          <AutoResizeTextarea
+                            value={section.content.emotional_journey || ''}
+                            onChange={(value) => handleEditContent(phaseKey, 'emotional_journey', value)}
+                            disabled={isConfirmed}
+                            minRows={3}
+                            className=""
+                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </>
+                    )}
 
-                {sections.phase1.status !== 'confirmed' && (
-                  <button
-                    onClick={() => handleConfirmSection('phase1')}
-                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd]"
-                  >
-                    Confirm
-                  </button>
+                    {phaseKey === 'phase3' && (
+                      <AutoResizeTextarea
+                        value={section.content.core_truth || ''}
+                        onChange={(value) => handleEditContent(phaseKey, 'core_truth', value)}
+                        disabled={isConfirmed}
+                        minRows={2}
+                        className=""
+                        style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    )}
+
+                    {phaseKey === 'phase4' && (
+                      <>
+                        {(['substack_goals', 'short_form_goals', 'open_threads'] as const).map((field) => (
+                          <div key={field}>
+                            <label style={{ fontSize: 11, color: c.textMuted, display: 'block', marginBottom: 6 }}>
+                              {field === 'substack_goals' ? 'Substack Goals' : field === 'short_form_goals' ? 'Short Form Goals' : 'Open Threads'}
+                            </label>
+                            <AutoResizeTextarea
+                              value={section.content[field] || ''}
+                              onChange={(value) => handleEditContent(phaseKey, field, value)}
+                              disabled={isConfirmed}
+                              minRows={3}
+                              placeholder={field === 'open_threads' ? '- Thread one\n- Thread two' : '- Goal one\n- Goal two'}
+                              className=""
+                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {!isConfirmed && (
+                      <button
+                        onClick={() => handleConfirmSection(phaseKey)}
+                        disabled={phaseKey === 'phase2' && (!section.content.conviction_statement || !section.content.emotional_journey)}
+                        style={{ width: '100%', padding: '10px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer', opacity: (phaseKey === 'phase2' && (!section.content.conviction_statement || !section.content.emotional_journey)) ? 0.3 : 1 }}
+                      >
+                        Confirm
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Phase 2: Conviction & Journey */}
-          <div
-            className={`border rounded p-6 space-y-4 transition-all ${
-              sections.phase2.status === 'pending'
-                ? 'bg-[#0d0d0c] border-[#1f1f1d] opacity-50'
-                : 'bg-[#161614] border-[#1f1f1d]'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">
-                {sections.phase2.title}
-              </h2>
-              {sections.phase2.status === 'confirmed' && (
-                <span className="text-xs text-[#4a4946]">✓</span>
-              )}
-            </div>
-
-            {sections.phase2.status !== 'pending' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Conviction Statement</label>
-                  <AutoResizeTextarea
-                    value={sections.phase2.content.conviction_statement || ''}
-                    onChange={(value) => handleEditContent('phase2', 'conviction_statement', value)}
-                    disabled={sections.phase2.status === 'confirmed'}
-                    minRows={3}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Emotional Journey</label>
-                  <AutoResizeTextarea
-                    value={sections.phase2.content.emotional_journey || ''}
-                    onChange={(value) => handleEditContent('phase2', 'emotional_journey', value)}
-                    disabled={sections.phase2.status === 'confirmed'}
-                    minRows={3}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
-                  />
-                </div>
-
-                {sections.phase2.status !== 'confirmed' && (
-                  <button
-                    onClick={() => handleConfirmSection('phase2')}
-                    disabled={!sections.phase2.content.conviction_statement || !sections.phase2.content.emotional_journey}
-                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    Confirm
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Phase 3: Core Truth */}
-          <div
-            className={`border rounded p-6 space-y-4 transition-all ${
-              sections.phase3.status === 'pending'
-                ? 'bg-[#0d0d0c] border-[#1f1f1d] opacity-50'
-                : 'bg-[#161614] border-[#1f1f1d]'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">
-                {sections.phase3.title}
-              </h2>
-              {sections.phase3.status === 'confirmed' && (
-                <span className="text-xs text-[#4a4946]">✓</span>
-              )}
-            </div>
-
-            {sections.phase3.status !== 'pending' && (
-              <div className="space-y-3">
-                <AutoResizeTextarea
-                  value={sections.phase3.content.core_truth || ''}
-                  onChange={(value) => handleEditContent('phase3', 'core_truth', value)}
-                  disabled={sections.phase3.status === 'confirmed'}
-                  minRows={2}
-                  className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed"
-                />
-
-                {sections.phase3.status !== 'confirmed' && (
-                  <button
-                    onClick={() => handleConfirmSection('phase3')}
-                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd]"
-                  >
-                    Confirm
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Phase 4: Format & Threads */}
-          <div
-            className={`border rounded p-6 space-y-4 transition-all ${
-              sections.phase4.status === 'pending'
-                ? 'bg-[#0d0d0c] border-[#1f1f1d] opacity-50'
-                : 'bg-[#161614] border-[#1f1f1d]'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm text-[#4a4946] uppercase tracking-widest">
-                {sections.phase4.title}
-              </h2>
-              {sections.phase4.status === 'confirmed' && (
-                <span className="text-xs text-[#4a4946]">✓</span>
-              )}
-            </div>
-
-            {sections.phase4.status !== 'pending' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Substack Goals</label>
-                  <AutoResizeTextarea
-                    value={sections.phase4.content.substack_goals || ''}
-                    onChange={(value) => handleEditContent('phase4', 'substack_goals', value)}
-                    disabled={sections.phase4.status === 'confirmed'}
-                    minRows={3}
-                    placeholder={"- Goal one\n- Goal two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Short Form Goals</label>
-                  <AutoResizeTextarea
-                    value={sections.phase4.content.short_form_goals || ''}
-                    onChange={(value) => handleEditContent('phase4', 'short_form_goals', value)}
-                    disabled={sections.phase4.status === 'confirmed'}
-                    minRows={3}
-                    placeholder={"- Goal one\n- Goal two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-[#4a4946] block mb-2">Open Threads</label>
-                  <AutoResizeTextarea
-                    value={sections.phase4.content.open_threads || ''}
-                    onChange={(value) => handleEditContent('phase4', 'open_threads', value)}
-                    disabled={sections.phase4.status === 'confirmed'}
-                    minRows={3}
-                    placeholder={"- Thread one\n- Thread two"}
-                    className="w-full bg-[#111110] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors leading-relaxed whitespace-pre-wrap"
-                  />
-                </div>
-
-                {sections.phase4.status !== 'confirmed' && (
-                  <button
-                    onClick={() => handleConfirmSection('phase4')}
-                    className="w-full py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd]"
-                  >
-                    Confirm
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+            )
+          })}
 
           {/* Lock Document Button */}
           {allConfirmed && (
             <button
               onClick={handleSaveDocument}
               disabled={isLoading || isSaving}
-              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isLoading || isSaving ? 'not-allowed' : 'pointer', opacity: isLoading || isSaving ? 0.3 : 1 }}
             >
-              {isSaving ? 'Saving...' : 'Lock this document'}
+              {isSaving ? 'Saving…' : 'Lock this document'}
             </button>
           )}
         </div>
@@ -623,29 +513,17 @@ export default function CoreConceptPage() {
 
       {/* Conceptualisation Conversation Modal */}
       {showConversation && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-[#161614] border-b border-[#1f1f1d] px-6 py-4 flex justify-between items-center">
-              <h2 className="text-lg font-medium text-[#e8e6e1]">Conceptualisation</h2>
-              <button
-                onClick={() => setShowConversation(false)}
-                className="text-[#4a4946] hover:text-[#e8e6e1] text-lg"
-              >
-                ✕
-              </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 10, maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ position: 'sticky', top: 0, background: c.cardBg, borderBottom: `1px solid ${c.divider}`, padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: c.textPrimary }}>Conceptualisation</h2>
+              <button onClick={() => setShowConversation(false)} style={{ color: c.textMuted, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
             </div>
-
-            <div className="px-6 py-4 space-y-4">
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {conversation.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-md px-4 py-3 rounded ${
-                      msg.role === 'user'
-                        ? 'bg-[#e8e6e1] text-[#111110]'
-                        : 'bg-[#111110] border border-[#1f1f1d] text-[#d4d2cd]'
-                    }`}
-                  >
-                    <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: 480, padding: '10px 14px', borderRadius: 8, background: msg.role === 'user' ? c.textPrimary : c.inputBg, color: msg.role === 'user' ? c.containerBg : c.textSecondary }}>
+                    <p style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</p>
                   </div>
                 </div>
               ))}

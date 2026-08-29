@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { shellBackground, cardPalette } from '@/lib/card-theme'
+
+const c = cardPalette['dark']
 
 export default function LoginPage() {
   const router = useRouter()
@@ -47,18 +50,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111110] flex items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="space-y-1">
-          <h1 className="text-xl font-medium text-[#e8e6e1] tracking-tight">
+    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+      <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 32 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em', marginBottom: 4 }}>
             Companheiro
           </h1>
-          <p className="text-sm text-[#6b6966]">Sign in to continue.</p>
+          <p style={{ fontSize: 14, color: c.textMuted }}>Sign in to continue.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="email" className="block text-xs text-[#8c8a87] tracking-wide">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label htmlFor="email" style={{ fontSize: 11, letterSpacing: '0.06em', color: c.textSecondary }}>
               Email
             </label>
             <input
@@ -68,12 +71,12 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded-lg px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '12px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
             />
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="password" className="block text-xs text-[#8c8a87] tracking-wide">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label htmlFor="password" style={{ fontSize: 11, letterSpacing: '0.06em', color: c.textSecondary }}>
               Password
             </label>
             <input
@@ -83,20 +86,20 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded-lg px-4 py-3 text-sm text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] transition-colors"
+              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '12px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
             />
           </div>
 
           {error && (
-            <p className="text-xs text-red-400">{error}</p>
+            <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ width: '100%', padding: '13px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.3 : 1, marginTop: 8 }}
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>

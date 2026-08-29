@@ -2,7 +2,12 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
+import { shellBackground, cardPalette, accentColor } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+
+const c = cardPalette['dark']
 
 interface Message {
   role: 'user' | 'assistant'
@@ -40,8 +45,6 @@ function ConceptualiseContent() {
   const [error, setError] = useState<string | null>(null)
   const [readyToAdvance, setReadyToAdvance] = useState(false)
 
-  // Draft resume flow — only relevant when starting with no seed. A seeded
-  // start is always a deliberate new exploration and proceeds immediately.
   const [isCheckingDraft, setIsCheckingDraft] = useState(!seed)
   const [existingDraft, setExistingDraft] = useState<Draft | null>(null)
   const [resumeDecided, setResumeDecided] = useState(!!seed)
@@ -51,8 +54,14 @@ function ConceptualiseContent() {
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Initialize with seed, or check for a resumable draft first
+  const userScrolledUpRef = useRef(false)
+  const programmaticScrollRef = useRef(false)
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isStreamingLast = isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant'
+
   useEffect(() => {
     if (seed) {
       const seedMessage: Message = { role: 'user', content: seed }
@@ -79,17 +88,32 @@ function ConceptualiseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed])
 
-  // Scroll to bottom of thread
+  // Interruptible scroll listener
   useEffect(() => {
-    if (threadRef.current) {
-      threadRef.current.scrollTop = threadRef.current.scrollHeight
+    const container = threadRef.current
+    if (!container) return
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return
+      const { scrollTop, scrollHeight, clientHeight } = container
+      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100
     }
-  }, [messages])
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Auto-scroll to new AI content
+  useEffect(() => {
+    if (messages.length === 0 || userScrolledUpRef.current) return
+    programmaticScrollRef.current = true
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current)
+    programmaticScrollTimer.current = setTimeout(() => {
+      programmaticScrollRef.current = false
+    }, 800)
+  }, [messages, isLoading])
 
   const saveDraft = (finalMessages: Message[], savedPhase: number, savedReadyToAdvance: boolean) => {
-    // Nothing worth resuming until the person has actually said something.
     if (!finalMessages.some((m) => m.role === 'user')) return
-
     fetch('/api/idea-lab/conceptualise/draft', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -186,7 +210,6 @@ function ConceptualiseContent() {
 
   const startRecording = async () => {
     setError(null)
-
     const SpeechRecognitionAPI =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -201,11 +224,7 @@ function ConceptualiseContent() {
     recognition.continuous = false
     recognition.interimResults = true
     recognition.lang = 'en-US'
-
-    recognition.onstart = () => {
-      setIsRecording(true)
-    }
-
+    recognition.onstart = () => setIsRecording(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -215,18 +234,13 @@ function ConceptualiseContent() {
         }
       }
     }
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error)
       setError(`Error: ${event.error}`)
       setIsRecording(false)
     }
-
-    recognition.onend = () => {
-      setIsRecording(false)
-    }
-
+    recognition.onend = () => setIsRecording(false)
     recognitionRef.current = recognition
     recognition.start()
   }
@@ -239,26 +253,21 @@ function ConceptualiseContent() {
   }
 
   const handleRecordToggle = () => {
-    if (isRecording) {
-      stopRecording()
-    } else {
-      startRecording()
-    }
+    if (isRecording) stopRecording()
+    else startRecording()
   }
 
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
-
     const userMessage: Message = { role: 'user', content: inputText.trim() }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputText('')
-
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await fetchAIResponse(updatedMessages, phase)
   }
 
   const handleDeclare = () => {
-    // Store conversation in sessionStorage and navigate to core concept
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages))
     fetch('/api/idea-lab/conceptualise/draft', { method: 'DELETE' }).catch((err) =>
       console.error('Failed to clear draft on declare:', err)
@@ -268,8 +277,8 @@ function ConceptualiseContent() {
 
   if (!seed && isCheckingDraft) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-        <p className="text-[#4a4946]">Loading...</p>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: c.textMuted, fontSize: 14 }}>Loading…</p>
       </div>
     )
   }
@@ -277,41 +286,45 @@ function ConceptualiseContent() {
   if (existingDraft && !resumeDecided) {
     const lastMessage = existingDraft.messages[existingDraft.messages.length - 1]
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center px-6">
-        <div className="max-w-md w-full space-y-6">
-          <div className="text-center">
-            <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-2">Unfinished exploration</p>
-            <h1 className="text-2xl font-light text-[#e8e6e1]">Resume where you left off?</h1>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+        <div style={{ maxWidth: 440, width: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 8 }}>
+              Unfinished exploration
+            </p>
+            <h1 style={{ fontSize: 24, fontWeight: 300, color: c.textPrimary }}>Resume where you left off?</h1>
           </div>
 
-          <div className="bg-[#161614] border border-[#1f1f1d] rounded-lg p-4 space-y-2">
-            <p className="text-xs text-[#4a4946] uppercase tracking-widest">
+          <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
               Phase {existingDraft.phase}: {PHASE_LABELS[existingDraft.phase]}
             </p>
             {lastMessage && (
-              <p className="text-base text-[#d4d2cd] leading-relaxed line-clamp-3">{lastMessage.content}</p>
+              <p style={{ fontSize: 15, color: c.textSecondary, lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {lastMessage.content}
+              </p>
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               onClick={handleResumeDraft}
-              className="w-full py-3 bg-[#e8e6e1] text-[#111110] text-sm font-medium rounded-lg hover:bg-[#d4d2cd] transition-colors"
+              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 500, borderRadius: 8, border: 'none', cursor: 'pointer' }}
             >
               Resume this exploration
             </button>
             <button
               onClick={handleStartFresh}
-              className="w-full py-3 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-sm font-medium rounded-lg hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
+              style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${c.divider}`, color: c.textSecondary, fontSize: 14, fontWeight: 500, borderRadius: 8, cursor: 'pointer' }}
             >
               Start a new idea instead
             </button>
             <button
               onClick={handleDeleteDraft}
               disabled={isDeletingDraft}
-              className="text-xs text-[#6b6966] hover:text-red-300 transition-colors underline underline-offset-2 disabled:opacity-50 mt-1"
+              style={{ background: 'none', border: 'none', fontSize: 12, color: c.textMuted, cursor: 'pointer', textDecoration: 'underline', marginTop: 4, opacity: isDeletingDraft ? 0.5 : 1 }}
             >
-              {isDeletingDraft ? 'Deleting...' : 'Delete this draft'}
+              {isDeletingDraft ? 'Deleting…' : 'Delete this draft'}
             </button>
           </div>
         </div>
@@ -320,125 +333,217 @@ function ConceptualiseContent() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#111110]">
-      {/* Phase indicator */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center gap-4">
-        <button
-          onClick={() => router.push('/idea-lab')}
-          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors whitespace-nowrap"
-        >
-          ← Idea Lab
-        </button>
-        <p className="text-xs text-[#4a4946] uppercase tracking-widest flex-1 text-center">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: shellBackground, overflow: 'hidden' }}>
+      <style>{`
+        .conceptualise-thread::-webkit-scrollbar { display: none; }
+        .conceptualise-thread { scrollbar-width: none; }
+      `}</style>
+
+      {/* Phase header */}
+      <div style={{
+        padding: '0 24px',
+        height: 56,
+        borderBottom: `1px solid ${c.divider}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexShrink: 0,
+      }}>
+        <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="Back to Idea Lab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </IconButton>
+
+        <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, flex: 1, textAlign: 'center' }}>
           Phase {phase}: {PHASE_LABELS[phase]}
         </p>
-        {readyToAdvance && phase === 5 && (
+
+        {readyToAdvance && phase === 5 ? (
           <button
             onClick={handleDeclare}
-            className="px-3 py-1.5 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors"
+            style={{
+              padding: '6px 14px',
+              background: accentColor,
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
           >
             Declare this idea
           </button>
+        ) : (
+          <div style={{ width: 36 }} />
         )}
       </div>
 
-      {/* Message thread */}
+      {/* Thread */}
       <div
         ref={threadRef}
-        className="flex-1 overflow-y-auto px-6 py-6 space-y-6"
+        className="conceptualise-thread"
+        style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}
       >
-        <div className="max-w-2xl mx-auto w-full space-y-6">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+        <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {messages.map((msg, i) => {
+            const isLastAI = msg.role === 'assistant' && i === messages.length - 1
+            return (
               <div
-                className={`max-w-xs px-4 py-3 rounded ${
-                  msg.role === 'user'
-                    ? 'bg-[#e8e6e1] text-[#111110]'
-                    : 'bg-[#161614] border border-[#1f1f1d] text-[#d4d2cd]'
-                }`}
+                key={i}
+                style={{
+                  display: 'flex',
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                }}
               >
-                <p className={`text-base leading-relaxed ${msg.role === 'user' ? 'font-medium' : 'font-normal'}`}>
-                  {msg.content}
-                </p>
+                <div style={{
+                  maxWidth: '80%',
+                  position: 'relative',
+                }}>
+                  <p style={{
+                    fontSize: 16,
+                    lineHeight: 1.65,
+                    color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                    textAlign: msg.role === 'user' ? 'right' : 'left',
+                    fontWeight: msg.role === 'user' ? 500 : 400,
+                  }}>
+                    {msg.content}
+                  </p>
+                  <AnimatePresence>
+                    {isStreamingLast && isLastAI && (
+                      <motion.div
+                        key="veil"
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: 52,
+                          background: 'linear-gradient(to top, #0f0e0d, transparent)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-[#161614] border border-[#1f1f1d] text-[#4a4946] px-4 py-3 rounded text-sm">
-                ...
-              </div>
+          {isLoading && messages.length === 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <p style={{ fontSize: 14, color: c.textMuted }}>…</p>
             </div>
           )}
+
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="px-6 py-3 bg-red-900/20 border-t border-red-700/30">
-          <p className="text-xs text-red-200">{error}</p>
+        <div style={{ padding: '8px 24px', background: 'rgba(239,68,68,0.1)', borderTop: '1px solid rgba(239,68,68,0.2)' }}>
+          <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
         </div>
       )}
 
       {/* Input area */}
-      <div className="px-6 py-6 border-t border-[#1f1f1d] bg-[#111110]">
-        <div className="max-w-2xl mx-auto w-full space-y-3">
-          <div className="flex gap-3">
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${c.divider}`, background: c.containerBg, flexShrink: 0 }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <textarea
               ref={textareaRef}
               value={inputText}
               onChange={(e) => {
                 setInputText(e.target.value)
                 e.target.style.height = 'auto'
-                e.target.style.height = e.target.scrollHeight + 'px'
+                e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
+                  e.preventDefault()
                   handleSend()
                 }
               }}
-              placeholder="Share your thought..."
+              placeholder="Share your thought…"
               disabled={isLoading}
               rows={1}
-              className="flex-1 bg-[#1c1c1a] border border-[#2e2d2a] rounded px-4 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] disabled:opacity-50 transition-colors"
-              style={{ resize: 'none', overflowY: 'auto', maxHeight: '50vh' }}
+              style={{
+                flex: 1,
+                background: c.inputBg,
+                border: `1px solid ${c.inputBorder}`,
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 15,
+                color: c.textPrimary,
+                resize: 'none',
+                overflowY: 'auto',
+                maxHeight: 140,
+                outline: 'none',
+                lineHeight: 1.5,
+                opacity: isLoading ? 0.5 : 1,
+                fontFamily: 'inherit',
+              }}
             />
 
+            {/* Monotone mic */}
             <button
               onClick={handleRecordToggle}
               disabled={isLoading}
               aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-              className={`
-                w-10 h-10 rounded transition-all duration-300 flex items-center justify-center flex-shrink-0
-                ${isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
-                ${isRecording
-                  ? 'bg-[#e8e6e1]'
-                  : 'bg-[#1c1c1a] border border-[#2e2d2a] hover:border-[#4a4946]'
-                }
-              `}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: isRecording ? 6 : '50%',
+                border: isRecording ? 'none' : `1px solid ${c.inputBorder}`,
+                background: isRecording ? c.textPrimary : c.inputBg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+                opacity: isLoading ? 0.3 : 1,
+                transition: 'all 0.2s',
+              }}
             >
               {isRecording ? (
-                <span className="block w-2.5 h-2.5 bg-[#111110] rounded-sm" />
+                <span style={{ display: 'block', width: 10, height: 10, background: c.containerBg, borderRadius: 2 }} />
               ) : (
-                <span className="block w-2.5 h-2.5 bg-[#3d3c39] rounded-full" />
+                <span style={{ display: 'block', width: 10, height: 10, background: c.textMuted, borderRadius: '50%' }} />
               )}
             </button>
 
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || isLoading}
-              className="px-4 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded transition-colors hover:bg-[#d4d2cd] disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+              style={{
+                padding: '10px 16px',
+                background: accentColor,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 8,
+                border: 'none',
+                cursor: !inputText.trim() || isLoading ? 'not-allowed' : 'pointer',
+                opacity: !inputText.trim() || isLoading ? 0.3 : 1,
+                transition: 'opacity 0.2s',
+                flexShrink: 0,
+              }}
             >
               Send
             </button>
           </div>
 
           {isRecording && (
-            <p className="text-xs text-[#4a4946] text-center tracking-widest uppercase">Recording</p>
+            <p style={{ fontSize: 11, color: c.textMuted, textAlign: 'center', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Recording
+            </p>
           )}
         </div>
       </div>
@@ -448,7 +553,11 @@ function ConceptualiseContent() {
 
 export default function ConceptualisePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#111110] flex items-center justify-center"><p className="text-[#4a4946]">Loading...</p></div>}>
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: cardPalette['dark'].textMuted, fontSize: 14 }}>Loading…</p>
+      </div>
+    }>
       <ConceptualiseContent />
     </Suspense>
   )

@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { shellBackground, cardPalette } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+
+const c = cardPalette['dark']
 
 interface PieceData {
   id: string
@@ -118,34 +122,28 @@ function TranslateContent() {
 
   if (isLoading || !piece) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-        <p className="text-[#4a4946]">Loading...</p>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: c.textMuted, fontSize: 14 }}>Loading…</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#111110] flex flex-col">
-      <style>{`
-        textarea {
-          resize: none;
-          overflow: hidden;
-        }
-      `}</style>
-
+    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d] flex justify-between items-center gap-4">
-        <button
-          onClick={() => router.push('/write?piece_id=' + pieceId)}
-          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors whitespace-nowrap"
-        >
-          ← Write
-        </button>
-        <h1 className="text-2xl font-light text-[#e8e6e1] flex-1 text-center">Translate</h1>
+      <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <IconButton onClick={() => router.push('/write?piece_id=' + pieceId)} ariaLabel="Back to Write">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </IconButton>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Translate</h1>
+        </div>
         {script && (
           <button
             onClick={handleMarkReady}
-            className="px-4 py-2 bg-green-600/20 text-green-400 text-xs font-medium rounded hover:bg-green-600/30 transition-colors"
+            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.15)', color: '#6ee7b7', fontSize: 12, fontWeight: 500, borderRadius: 6, border: '1px solid rgba(16,185,129,0.25)', cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             This piece is ready to post
           </button>
@@ -153,49 +151,53 @@ function TranslateContent() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden gap-6 px-6 py-6">
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', gap: 24, padding: 24 }}>
         {/* Left panel - Substack draft (read-only) */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <h2 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest mb-4">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 12 }}>
             Substack Draft
           </h2>
-          <div className="flex-1 overflow-y-auto bg-[#161614] border border-[#1f1f1d] rounded p-4">
-            <p className="text-[#d4d2cd] text-base leading-relaxed whitespace-pre-wrap">
+          <div style={{ flex: 1, overflowY: 'auto', background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16 }}>
+            <p style={{ fontSize: 15, color: c.textSecondary, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
               {piece.substack_draft}
             </p>
           </div>
         </div>
 
         {/* Right panel - Short form script */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <h2 className="text-sm font-medium text-[#e8e6e1] uppercase tracking-widest mb-4">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 12 }}>
             Short Form Script
           </h2>
 
           {!script ? (
-            <div className="flex-1 flex flex-col items-center justify-center bg-[#161614] border border-[#1f1f1d] rounded p-4">
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16 }}>
               <button
                 onClick={handleGenerateScript}
                 disabled={isGenerating}
-                className="px-6 py-3 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ padding: '10px 20px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isGenerating ? 'not-allowed' : 'pointer', opacity: isGenerating ? 0.5 : 1 }}
               >
-                {isGenerating ? 'Generating...' : 'Generate Short Form Script'}
+                {isGenerating ? 'Generating…' : 'Generate Short Form Script'}
               </button>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col min-h-0">
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: 12 }}>
               <textarea
                 ref={textareaRef}
                 value={script}
-                onChange={(e) => setScript(e.target.value)}
-                className="flex-1 bg-[#161614] border border-[#1f1f1d] rounded p-4 text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] text-base leading-relaxed"
+                onChange={(e) => {
+                  setScript(e.target.value)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = e.target.scrollHeight + 'px'
+                }}
+                style={{ flex: 1, background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, fontSize: 15, color: c.textPrimary, lineHeight: 1.7, resize: 'none', outline: 'none', overflowY: 'auto', fontFamily: 'inherit' }}
               />
               <button
                 onClick={handleSaveScript}
                 disabled={isSaving}
-                className="mt-4 px-4 py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ padding: '10px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.5 : 1 }}
               >
-                {isSaving ? 'Saving...' : 'Save Script'}
+                {isSaving ? 'Saving…' : 'Save Script'}
               </button>
             </div>
           )}
@@ -209,8 +211,8 @@ export default function TranslatePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-          <p className="text-[#4a4946]">Loading...</p>
+        <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: cardPalette['dark'].textMuted, fontSize: 14 }}>Loading…</p>
         </div>
       }
     >

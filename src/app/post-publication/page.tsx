@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { shellBackground, cardPalette } from '@/lib/card-theme'
+import { IconButton } from '@/components/ui/icon-button'
+
+const c = cardPalette['dark']
 
 interface PieceData {
   title: string
@@ -179,64 +183,70 @@ function PostPublicationContent() {
 
   if (isLoading || !piece) {
     return (
-      <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-        <p className="text-[#4a4946]">Loading...</p>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: c.textMuted, fontSize: 14 }}>Loading…</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#111110] flex flex-col">
+    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#1f1f1d]">
-        <button
-          onClick={() => router.push('/project-board')}
-          className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors mb-3"
-        >
-          ← Project Board
-        </button>
-        <h1 className="text-2xl font-light text-[#e8e6e1]">Reflect on this piece</h1>
-        <p className="text-sm text-[#8c8a87] mt-2">{piece.title}</p>
+      <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+        <IconButton onClick={() => router.push('/project-board')} ariaLabel="Back to Project Board">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </IconButton>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            Post-publication
+          </h1>
+          <p style={{ fontSize: 12, color: c.textMuted, marginTop: 2 }}>{piece.title}</p>
+        </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-6 py-8 max-w-2xl">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', maxWidth: 680 }}>
         {showConfirmation ? (
-          <div className="text-center py-12">
-            <p className="text-[#e8e6e1] mb-2">Reflection logged.</p>
-            <p className="text-xs text-[#8c8a87]">Returning to project board...</p>
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <p style={{ color: c.textPrimary, marginBottom: 8 }}>Reflection logged.</p>
+            <p style={{ fontSize: 12, color: c.textMuted }}>Returning to project board…</p>
           </div>
         ) : (
-          <form className="space-y-6">
+          <form style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Dictation button */}
-            <div className="flex gap-2 mb-6">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button
                 type="button"
                 onClick={startDictation}
                 disabled={isListening}
-                className={`px-3 py-2 text-xs font-medium rounded transition-colors ${
-                  isListening
-                    ? 'bg-red-600/20 text-red-400'
-                    : 'bg-[#2e2d2a] text-[#e8e6e1] hover:bg-[#3d3c39]'
-                }`}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  borderRadius: 6,
+                  border: `1px solid ${c.inputBorder}`,
+                  background: isListening ? c.cardBgInner : c.inputBg,
+                  color: c.textSecondary,
+                  cursor: isListening ? 'default' : 'pointer',
+                }}
               >
-                {isListening ? 'Listening...' : 'Start dictation'}
+                {isListening ? 'Listening…' : 'Start dictation'}
               </button>
               {focusedField && (
-                <span className="text-xs text-[#8c8a87] self-center">
+                <span style={{ fontSize: 12, color: c.textMuted }}>
                   Speaking into: {focusedField.replace(/_/g, ' ')}
                 </span>
               )}
               {isPunctuating && (
-                <span className="text-xs text-[#6b6966] self-center">
-                  Punctuating...
-                </span>
+                <span style={{ fontSize: 12, color: c.textMuted }}>Punctuating…</span>
               )}
             </div>
 
             {/* Thread field */}
             <div>
-              <label className="text-xs text-[#a8a6a0] uppercase tracking-widest">
+              <label style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
                 What thread does this piece belong to?
               </label>
               <input
@@ -247,67 +257,58 @@ function PostPublicationContent() {
                 onFocus={() => setFocusedField('thread')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="e.g., 'Authenticity in creative work'"
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946]"
+                style={{ display: 'block', width: '100%', marginTop: 8, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
             </div>
 
             {/* What it opened */}
             <div>
-              <label className="text-xs text-[#a8a6a0] uppercase tracking-widest">
+              <label style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
                 What did this piece open up?
               </label>
               <textarea
                 ref={openedRef}
                 value={form.what_it_opened}
-                onChange={(e) => {
-                  handleFieldChange('what_it_opened', e.target.value, openedRef.current || undefined)
-                }}
+                onChange={(e) => { handleFieldChange('what_it_opened', e.target.value, openedRef.current || undefined) }}
                 onFocus={() => setFocusedField('what_it_opened')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="What questions, ideas, or conversations did this spark?"
                 rows={1}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
-                style={{ maxHeight: '140px' }}
+                style={{ display: 'block', width: '100%', marginTop: 8, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, color: c.textPrimary, resize: 'none', overflowY: 'auto', maxHeight: 140, outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
             </div>
 
             {/* Unresolved */}
             <div>
-              <label className="text-xs text-[#a8a6a0] uppercase tracking-widest">
+              <label style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
                 What did it leave unresolved?
               </label>
               <textarea
                 ref={unresolvedRef}
                 value={form.unresolved}
-                onChange={(e) => {
-                  handleFieldChange('unresolved', e.target.value, unresolvedRef.current || undefined)
-                }}
+                onChange={(e) => { handleFieldChange('unresolved', e.target.value, unresolvedRef.current || undefined) }}
                 onFocus={() => setFocusedField('unresolved')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="What threads remain loose? What didn't you get to explore?"
                 rows={1}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
-                style={{ maxHeight: '140px' }}
+                style={{ display: 'block', width: '100%', marginTop: 8, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, color: c.textPrimary, resize: 'none', overflowY: 'auto', maxHeight: 140, outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
             </div>
 
             {/* Natural continuations */}
             <div>
-              <label className="text-xs text-[#a8a6a0] uppercase tracking-widest">
+              <label style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
                 Where could this naturally go next?
               </label>
               <textarea
                 ref={continuationsRef}
                 value={form.natural_continuations}
-                onChange={(e) => {
-                  handleFieldChange('natural_continuations', e.target.value, continuationsRef.current || undefined)
-                }}
+                onChange={(e) => { handleFieldChange('natural_continuations', e.target.value, continuationsRef.current || undefined) }}
                 onFocus={() => setFocusedField('natural_continuations')}
                 onBlur={() => setFocusedField(null)}
                 placeholder="List potential next pieces or directions (one per line)"
                 rows={1}
-                className="w-full mt-2 bg-[#161614] border border-[#1f1f1d] rounded px-4 py-3 text-base text-[#e8e6e1] placeholder:text-[#a8a6a0] focus:outline-none focus:border-[#4a4946] resize-none overflow-y-auto"
-                style={{ maxHeight: '140px' }}
+                style={{ display: 'block', width: '100%', marginTop: 8, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, color: c.textPrimary, resize: 'none', overflowY: 'auto', maxHeight: 140, outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
             </div>
 
@@ -316,9 +317,9 @@ function PostPublicationContent() {
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="w-full mt-8 py-3 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ width: '100%', marginTop: 8, padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
             >
-              {isSubmitting ? 'Logging...' : 'Log this piece'}
+              {isSubmitting ? 'Logging…' : 'Log this piece'}
             </button>
           </form>
         )}
@@ -336,8 +337,8 @@ export default function PostPublicationPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-          <p className="text-[#4a4946]">Loading...</p>
+        <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: cardPalette['dark'].textMuted, fontSize: 14 }}>Loading…</p>
         </div>
       }
     >
