@@ -42,9 +42,30 @@ function PostPublicationContent() {
       router.push('/project-board')
       return
     }
-
     fetchPiece()
   }, [pieceId, router])
+
+  // Resize textareas when dictation/punctuation injects text (no onChange fires for state updates)
+  useEffect(() => {
+    const el = openedRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+  }, [form.what_it_opened])
+
+  useEffect(() => {
+    const el = unresolvedRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+  }, [form.unresolved])
+
+  useEffect(() => {
+    const el = continuationsRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+  }, [form.natural_continuations])
 
   const fetchPiece = async () => {
     try {

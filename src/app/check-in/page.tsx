@@ -97,6 +97,7 @@ export default function CheckInPage() {
   const chunksRef = useRef<Blob[]>([])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+  const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pastCheckInsRef = useRef<HTMLDivElement>(null)
@@ -150,6 +151,14 @@ export default function CheckInPage() {
     container.addEventListener('scroll', onScroll, { passive: true })
     return () => container.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Resize transcript textarea when dictation injects text (no onChange fires for state updates)
+  useEffect(() => {
+    const el = transcriptTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+  }, [transcript])
 
   // Scroll to latest content, but only if user hasn't manually scrolled up
   useEffect(() => {
@@ -494,11 +503,12 @@ export default function CheckInPage() {
 
       {(transcript || isRecording) && (
         <textarea
+          ref={transcriptTextareaRef}
           value={transcript}
           onChange={(e) => {
             setTranscript(e.target.value)
             e.target.style.height = 'auto'
-            e.target.style.height = e.target.scrollHeight + 'px'
+            e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'
           }}
           placeholder="Your words will appear here..."
           rows={1}
@@ -950,23 +960,25 @@ export default function CheckInPage() {
         )}
       </motion.div>
 
-      {/* Snap-scroll container — fills remaining height */}
+      {/* Snap-scroll container — fills remaining height.
+          Snap is only active in idle mode (no messages) to let the user snap-reveal past check-ins.
+          During an active check-in it's off so over-scrolling at the bottom doesn't jump to the top. */}
       <div
         ref={scrollContainerRef}
         className="check-in-scroll"
         style={{
           flex: 1,
           overflowY: 'auto',
-          scrollSnapType: 'y mandatory',
+          scrollSnapType: messages.length === 0 ? 'y mandatory' : 'none',
         }}
       >
-        {/* Section 1: main area — snaps at both ends so the full section is reachable */}
+        {/* Section 1: main area */}
         <div
           style={{
             minHeight: '100%',
             display: 'flex',
             flexDirection: 'column',
-            scrollSnapAlign: 'start end',
+            scrollSnapAlign: messages.length === 0 ? 'start end' : undefined,
           }}
         >
           {messages.length === 0 ? (
