@@ -17,9 +17,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { response, messages, wrapUp } = await request.json()
+    const { response, messages } = await request.json()
 
-    if (!wrapUp && !response?.trim()) {
+    if (!response?.trim()) {
       return NextResponse.json({ error: 'response is required' }, { status: 400 })
     }
 
@@ -34,16 +34,12 @@ export async function POST(request: Request) {
 
     const depth = history.filter((m) => m.role === 'assistant').length
 
-    let responseInstruction: string
-    if (wrapUp) {
-      responseInstruction = `Offer a brief landing reflection — what seems to have genuinely come into focus through this conversation. Not a summary of what was said, but what it points toward. No question at the end. This is a resting point.`
-    } else if (depth >= 4) {
-      responseInstruction = `Respond to what they just said. Acknowledge what is shifting and name what is coming into focus. If the conversation has arrived somewhere real, a synthesis or landing is as welcome as another question — not every exchange needs to push further. If something important is still unresolved, one more direction is fine. Keep it brief.`
-    } else {
-      responseInstruction = `Respond to what they just said. Acknowledge what is shifting, name something specific that is coming into focus, and offer one direction or question that moves a step further than the last exchange. Do not repeat or rephrase what was already said — carry it forward. Keep it brief.`
-    }
+    const responseInstruction =
+      depth < 3
+        ? `Respond to what they just said. Acknowledge what is shifting, name something specific that is coming into focus, and offer one direction or question that moves a step further. Do not repeat or rephrase what was already said — carry it forward. Keep it brief.`
+        : `Respond to what they just said. Before going deeper, look at the full arc: what was originally brought in, and where the conversation has actually gone. If the core has been touched and something real has come into focus, offer that as a landing — a synthesis, no question. If the conversation has drifted into a tangent, don't follow it further; draw back to what matters and close there. Only keep excavating if something at the center is genuinely still unresolved. Keep it brief.`
 
-    const systemPrompt = `You are Companheiro, a companion in an ongoing check-in conversation. Each exchange naturally goes a little deeper than the one before it.
+    const systemPrompt = `You are Companheiro, a companion in an ongoing check-in conversation.
 
 ${COMPANION_TONE}
 
@@ -51,15 +47,11 @@ ${companionContext ? companionContext + '\n\n' : ''}${responseInstruction}
 
 What you know about this person should quietly shape how you respond — which question you reach for, which angle you take, what you hold back. Let that knowledge inform the reflection without ever stating it directly.`
 
-    const apiMessages = wrapUp
-      ? [...history, { role: 'user' as const, content: 'Let\'s land here.' }]
-      : [...history, { role: 'user' as const, content: response }]
-
     return streamClaudeText({
       model: MODELS.fast,
       max_tokens: 512,
       system: systemPrompt,
-      messages: apiMessages,
+      messages: [...history, { role: 'user', content: response }],
     })
   } catch (err) {
     console.error('check-in respond error:', err)
