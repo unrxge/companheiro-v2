@@ -551,29 +551,32 @@ function HomeContent() {
         </motion.div>
       </div>
 
-      {/* Floating check-in mic button */}
+      {/* Floating check-in pill button */}
       <motion.a
         href="/check-in"
         aria-label="Start check-in"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
         style={{
           position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          width: '60px',
-          height: '60px',
-          borderRadius: '50%',
+          bottom: '28px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          height: '56px',
+          paddingLeft: '22px',
+          paddingRight: '28px',
+          borderRadius: '999px',
           backgroundColor: '#e8e6e0',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: '10px',
           textDecoration: 'none',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(232, 230, 224, 0.08)',
+          boxShadow: '0 6px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(232, 230, 224, 0.08)',
           zIndex: 50,
+          whiteSpace: 'nowrap',
         }}
         onMouseEnter={(e) => {
           const el = e.currentTarget as HTMLAnchorElement
@@ -584,12 +587,15 @@ function HomeContent() {
           el.style.backgroundColor = '#e8e6e0'
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111110" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111110" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
           <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
           <line x1="12" y1="19" x2="12" y2="23" />
           <line x1="8" y1="23" x2="16" y2="23" />
         </svg>
+        <span style={{ fontSize: '15px', fontWeight: 600, color: '#111110', letterSpacing: '-0.01em' }}>
+          Check in
+        </span>
       </motion.a>
     </div>
   )
