@@ -828,7 +828,8 @@ export default function IdeaLabPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    style={{ padding: '36px', display: 'flex', flexDirection: 'column', gap: '28px' }}
+                    className="idea-lab-response-active"
+                  style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                       <span style={{ ...eyebrow, paddingTop: '2px' }}>Your question</span>
@@ -890,7 +891,7 @@ export default function IdeaLabPage() {
                           borderRadius: '12px',
                           padding: '14px 16px',
                           fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '15px',
+                          fontSize: '16px',
                           color: c.textPrimary,
                           outline: 'none',
                           resize: 'none',
@@ -1113,6 +1114,16 @@ export default function IdeaLabPage() {
         @media (max-width: 800px) {
           .idea-lab-carousel-card {
             flex: 0 0 calc(66.66% - 6px);
+          }
+        }
+
+        /* Response container — desktop gets generous padding; mobile tightens */
+        .idea-lab-response-active {
+          padding: 36px;
+        }
+        @media (max-width: 800px) {
+          .idea-lab-response-active {
+            padding: 20px 16px;
           }
         }
 

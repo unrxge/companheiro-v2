@@ -9,6 +9,22 @@ import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 
+interface ConceptualiseDraft {
+  seed: string | null
+  question: string | null
+  messages: { role: 'user' | 'assistant'; content: string }[]
+  phase: number
+  ready_to_advance: boolean
+}
+
+const PHASE_LABELS: Record<number, string> = {
+  1: 'First Contact',
+  2: 'Expansion',
+  3: 'The Reader',
+  4: 'The Principle',
+  5: 'Declaration',
+}
+
 interface Task {
   id: string
   title: string
@@ -161,10 +177,13 @@ function ProjectBoardContent() {
   const [newJourneyStepInput, setNewJourneyStepInput] = useState('')
   const [bannerExpanded, setBannerExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [conceptualiseDraft, setConceptualiseDraft] = useState<ConceptualiseDraft | null>(null)
+  const [showNewIdeaModal, setShowNewIdeaModal] = useState(false)
 
   useEffect(() => {
     fetchBoard()
     fetchTrajectory()
+    fetchConceptualiseDraft()
   }, [])
 
   useEffect(() => {
@@ -195,6 +214,24 @@ function ProjectBoardContent() {
       console.error('Failed to fetch board:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchConceptualiseDraft = async () => {
+    try {
+      const res = await fetch('/api/idea-lab/conceptualise/draft')
+      const data = await res.json()
+      setConceptualiseDraft(data.draft || null)
+    } catch (err) {
+      console.error('Failed to fetch conceptualise draft:', err)
+    }
+  }
+
+  const handleNewIdeaClick = () => {
+    if (conceptualiseDraft) {
+      setShowNewIdeaModal(true)
+    } else {
+      router.push('/idea-lab')
     }
   }
 
@@ -766,6 +803,56 @@ function ProjectBoardContent() {
     </div>
   )
 
+  const renderDraftCard = () => {
+    if (!conceptualiseDraft) return null
+    const lastMsg = conceptualiseDraft.messages[conceptualiseDraft.messages.length - 1]
+    const phaseLabel = PHASE_LABELS[conceptualiseDraft.phase] ?? `Phase ${conceptualiseDraft.phase}`
+    return (
+      <div key="draft-card" style={{ marginBottom: 4 }}>
+        <button
+          onClick={() => router.push('/idea-lab/conceptualise')}
+          style={{
+            width: '100%',
+            textAlign: 'left',
+            backgroundColor: c.cardBg,
+            boxShadow: c.shadow,
+            border: `1px solid rgba(165,63,43,0.28)`,
+            borderRadius: '12px',
+            padding: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.55)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.28)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
+            <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
+              Unfinished · {phaseLabel}
+            </span>
+          </div>
+          {lastMsg && (
+            <p style={{
+              fontSize: '13px',
+              color: c.textSecondary,
+              margin: 0,
+              lineHeight: 1.45,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+            }}>
+              {lastMsg.content}
+            </p>
+          )}
+          <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
+        </button>
+      </div>
+    )
+  }
+
   const columnEyebrow: React.CSSProperties = {
     color: c.textSecondary,
     fontSize: '11px',
@@ -838,7 +925,7 @@ function ProjectBoardContent() {
             Project Board
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <IconButton onClick={() => router.push('/idea-lab')} ariaLabel="New idea">
+            <IconButton onClick={handleNewIdeaClick} ariaLabel="New idea">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
@@ -935,6 +1022,7 @@ function ProjectBoardContent() {
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
             </div>
             <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
+              {conceptualiseDraft && renderDraftCard()}
               {queue.map((idea) =>
                 renderCard(
                   idea.id,
@@ -1034,6 +1122,7 @@ function ProjectBoardContent() {
         {/* Mobile Layout - Single Column with Tabs */}
         <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
           <div className="space-y-3">
+          {activeTab === 'Queue' && conceptualiseDraft && renderDraftCard()}
           {activeTab === 'Queue' &&
             queue.map((idea) =>
               renderCard(
@@ -1935,6 +2024,52 @@ function ProjectBoardContent() {
             )}
           </div>
         </ModalDialog>
+      )}
+
+      {/* Resume exploration modal — shown when New Idea is tapped while a draft exists */}
+      {showNewIdeaModal && conceptualiseDraft && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '0 24px' }}
+          onClick={() => setShowNewIdeaModal(false)}
+        >
+          <div
+            style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 20, padding: '28px 24px', maxWidth: 400, width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)', margin: '0 0 8px' }}>
+                Unfinished exploration
+              </p>
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: c.textPrimary, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+                Resume where you left off?
+              </h2>
+              <p style={{ fontSize: 13, color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
+                Phase {conceptualiseDraft.phase}: {PHASE_LABELS[conceptualiseDraft.phase] ?? 'In Progress'}
+              </p>
+            </div>
+            {conceptualiseDraft.messages.length > 0 && (
+              <div style={{ background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '12px 14px' }}>
+                <p style={{ fontSize: 13, color: c.textSecondary, margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                  {conceptualiseDraft.messages[conceptualiseDraft.messages.length - 1].content}
+                </p>
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => { setShowNewIdeaModal(false); router.push('/idea-lab/conceptualise') }}
+                style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 10, border: 'none', cursor: 'pointer' }}
+              >
+                Resume this exploration
+              </button>
+              <button
+                onClick={() => { setShowNewIdeaModal(false); router.push('/idea-lab') }}
+                style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${c.divider}`, color: c.textSecondary, fontSize: 14, fontWeight: 500, borderRadius: 10, cursor: 'pointer' }}
+              >
+                Start a new idea instead
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -398,6 +398,25 @@ function ConceptualiseContent() {
         style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}
       >
         <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Journal prompt card — shown when the idea lab sent a question */}
+          {activeQuestion && (
+            <div style={{
+              background: `linear-gradient(135deg, ${c.cardBg} 0%, rgba(165,63,43,0.08) 100%)`,
+              border: `1px solid rgba(165,63,43,0.25)`,
+              borderRadius: 16,
+              padding: '20px 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)', margin: 0 }}>
+                Your prompt
+              </p>
+              <p style={{ fontSize: 18, fontWeight: 400, color: c.textPrimary, margin: 0, lineHeight: 1.55, letterSpacing: '-0.02em' }}>
+                {activeQuestion}
+              </p>
+            </div>
+          )}
           {messages.map((msg, i) => {
             const isLastAI = msg.role === 'assistant' && i === messages.length - 1
             return (
