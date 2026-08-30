@@ -1116,13 +1116,13 @@ export default function IdeaLabPage() {
           }
         }
 
-        /* Energy slider — warm palette: muted dark → coral → soft rose */
+        /* Energy slider — purple (heavy) → amber (mid) → green (bright) */
         .idea-lab-range {
           -webkit-appearance: none;
           appearance: none;
           height: 4px;
           border-radius: 999px;
-          background: linear-gradient(to right, #3a2520, ${accentColor} 50%, #d4907a);
+          background: linear-gradient(to right, #8B5CF6, #F59E0B 50%, #10B981);
           outline: none;
           cursor: pointer;
           width: 100%;
@@ -1137,7 +1137,7 @@ export default function IdeaLabPage() {
           background: #ffffff;
           cursor: pointer;
           box-shadow: 0 1px 4px rgba(0,0,0,0.28);
-          border: 2px solid ${accentColor};
+          border: 2px solid #F59E0B;
         }
         .idea-lab-range::-moz-range-thumb {
           width: 16px;
@@ -1145,7 +1145,7 @@ export default function IdeaLabPage() {
           border-radius: 50%;
           background: #ffffff;
           cursor: pointer;
-          border: 2px solid ${accentColor};
+          border: 2px solid #F59E0B;
           box-shadow: 0 1px 4px rgba(0,0,0,0.28);
         }
         .idea-lab-empty-pill:hover {
