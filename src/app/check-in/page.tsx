@@ -155,11 +155,13 @@ export default function CheckInPage() {
   }, [])
 
   // Resize transcript textarea when dictation injects text (no onChange fires for state updates)
+  // Also scroll to bottom so the latest dictated word stays in view
   useEffect(() => {
     const el = transcriptTextareaRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.scrollTop = el.scrollHeight
   }, [transcript])
 
   // Scroll to latest content, but only if user hasn't manually scrolled up

@@ -88,12 +88,13 @@ function ConceptualiseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed])
 
-  // Resize textarea when dictation injects text (no onChange fires for state updates)
+  // Resize textarea when dictation injects text; scroll to bottom so latest word stays in view
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.scrollTop = el.scrollHeight
   }, [inputText])
 
   // Interruptible scroll listener

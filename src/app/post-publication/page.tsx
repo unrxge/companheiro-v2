@@ -45,12 +45,13 @@ function PostPublicationContent() {
     fetchPiece()
   }, [pieceId, router])
 
-  // Resize textareas when dictation/punctuation injects text (no onChange fires for state updates)
+  // Resize textareas when dictation/punctuation injects text; scroll to bottom so latest word stays in view
   useEffect(() => {
     const el = openedRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.scrollTop = el.scrollHeight
   }, [form.what_it_opened])
 
   useEffect(() => {
@@ -58,6 +59,7 @@ function PostPublicationContent() {
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.scrollTop = el.scrollHeight
   }, [form.unresolved])
 
   useEffect(() => {
@@ -65,6 +67,7 @@ function PostPublicationContent() {
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.scrollTop = el.scrollHeight
   }, [form.natural_continuations])
 
   const fetchPiece = async () => {
