@@ -87,6 +87,8 @@ export default function CheckInPage() {
   const [journalPrompt, setJournalPrompt] = useState('')
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
   const [isPunctuating, setIsPunctuating] = useState(false)
+  const [isWrappingUp, setIsWrappingUp] = useState(false)
+  const [hasWrappedUp, setHasWrappedUp] = useState(false)
   const [pastCheckIns, setPastCheckIns] = useState<PastCheckIn[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [historyExpanded, setHistoryExpanded] = useState(false)
@@ -421,6 +423,34 @@ export default function CheckInPage() {
   }
 
   const hasAiResponded = messages.some((m) => m.role === 'ai')
+  const aiMessageCount = messages.filter((m) => m.role === 'ai').length
+
+  const handleWrapUp = async () => {
+    if (isProcessing || isWrappingUp) return
+    setIsWrappingUp(true)
+    setError(null)
+    const priorHistory = messages.map((m) => ({
+      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+      content: m.text,
+    }))
+    try {
+      const res = await fetch('/api/check-in/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wrapUp: true, messages: priorHistory }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error ?? 'Processing failed')
+      }
+      await streamAiMessage(res)
+      setHasWrappedUp(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsWrappingUp(false)
+    }
+  }
 
   // ── Input area ─────────────────────────────────────────────────────────────
   const mainInputArea = (
@@ -615,26 +645,59 @@ export default function CheckInPage() {
         </motion.div>
       )}
 
-      {/* Log action */}
+      {/* Wrap-up + Log actions */}
       {hasAiResponded && confirmedType && !logSuccess && (
-        <motion.button
-          onClick={handleLog}
-          disabled={isLogging}
-          whileHover={isLogging ? {} : { opacity: 0.65 }}
-          whileTap={isLogging ? {} : { scale: 0.96 }}
+        <div
           style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontSize: '12px',
-            color: c.textMuted,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: isLogging ? 'not-allowed' : 'pointer',
-            opacity: isLogging ? 0.3 : 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '14px',
+            width: '100%',
           }}
         >
-          {isLogging ? 'Saving...' : 'Log this check-in'}
-        </motion.button>
+          {aiMessageCount >= 3 && !hasWrappedUp && (
+            <motion.button
+              onClick={handleWrapUp}
+              disabled={isProcessing || isWrappingUp}
+              whileHover={isProcessing || isWrappingUp ? {} : { opacity: 0.8 }}
+              whileTap={isProcessing || isWrappingUp ? {} : { scale: 0.98 }}
+              style={{
+                width: '100%',
+                padding: '13px',
+                borderRadius: '12px',
+                border: `1px solid ${c.inputBorder}`,
+                backgroundColor: 'transparent',
+                color: c.textSecondary,
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 500,
+                fontSize: '14px',
+                cursor: isProcessing || isWrappingUp ? 'not-allowed' : 'pointer',
+                opacity: isProcessing || isWrappingUp ? 0.4 : 1,
+              }}
+            >
+              {isWrappingUp ? 'Landing...' : 'Wrap up'}
+            </motion.button>
+          )}
+          <motion.button
+            onClick={handleLog}
+            disabled={isLogging}
+            whileHover={isLogging ? {} : { opacity: 0.65 }}
+            whileTap={isLogging ? {} : { scale: 0.96 }}
+            style={{
+              fontFamily: 'var(--font-geist-sans)',
+              fontSize: '12px',
+              color: c.textMuted,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: isLogging ? 'not-allowed' : 'pointer',
+              opacity: isLogging ? 0.3 : 1,
+            }}
+          >
+            {isLogging ? 'Saving...' : 'Log this check-in'}
+          </motion.button>
+        </div>
       )}
     </div>
   )
