@@ -666,11 +666,13 @@ function ProjectBoardContent() {
   const totalTaskCount = selectedPiece?.tasks.length ?? 0
 
   // Emotional journey as an editable list of steps, one per line of the stored
-  // string. `journeySteps` keeps every line (including a momentarily-blank one
-  // being typed into) so row identity/order stays stable while editing;
-  // `journeyBeats` is the trimmed, blank-free version used for the bar/label
-  // visuals, which don't need to track an in-progress edit.
-  const journeySteps = coreConceptDraft?.emotional_journey ? coreConceptDraft.emotional_journey.split('\n') : []
+  // string. Older pieces store prose (no newlines); fall back to sentence
+  // splitting so the chevron bar renders multiple steps instead of one block.
+  const rawJourney = coreConceptDraft?.emotional_journey ?? ''
+  const byNewline = rawJourney.split('\n')
+  const journeySteps = byNewline.length > 1
+    ? byNewline
+    : rawJourney.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 6)
   const journeyBeats = journeySteps.map((line) => line.trim()).filter(Boolean)
   const JOURNEY_COLORS = Object.values(TONE_DOT_COLORS)
 
