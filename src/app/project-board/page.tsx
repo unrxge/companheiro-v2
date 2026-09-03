@@ -1054,12 +1054,11 @@ function ProjectBoardContent() {
             </div>
           </div>
 
-          {/* Active Column - the main focus; absorbs the width the board gives up, capped so it doesn't stretch too wide */}
+          {/* Active Column - fills all space between the two fixed-width side columns */}
           <div
             className="flex flex-col transition-colors"
             style={{
               flex: '1 1 0%',
-              maxWidth: '560px',
               minWidth: 0,
               backgroundColor: dragOverColumn === 'Active' ? c.cardBgInner : 'transparent',
               borderRight: `1px solid ${c.divider}`,
