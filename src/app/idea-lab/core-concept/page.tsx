@@ -289,49 +289,54 @@ export default function CoreConceptPage() {
           </IconButton>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Task Roadmap</h1>
         </div>
-        <div style={{ flex: 1, padding: '48px 24px', maxWidth: 680, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <p style={{ fontSize: 13, color: c.textMuted }}>Review and edit the suggested tasks before beginning</p>
+        <div style={{ flex: 1, padding: '40px 24px 64px', maxWidth: 680, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <p style={{ fontSize: 13, color: c.textMuted, margin: 0 }}>Review and edit the suggested tasks before beginning.</p>
 
             {error && (
-              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 12 }}>
-                <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 10, padding: '10px 14px' }}>
+                <p style={{ fontSize: 12, color: '#fca5a5', margin: 0 }}>{error}</p>
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {tasks.map((task, index) => (
-                <div key={index} style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <span style={{ fontSize: 14, color: c.textSecondary }}>{task.title}</span>
-                    <span style={{ fontSize: 11, background: c.containerBg, color: c.textMuted, padding: '2px 8px', borderRadius: 4 }}>{task.type}</span>
+                <div key={index} style={{ background: c.cardBg, boxShadow: c.shadow, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, color: c.textPrimary, lineHeight: 1.4 }}>{task.title}</span>
+                    <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, background: c.containerBg, padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{task.type}</span>
                   </div>
-                  <button onClick={() => handleDeleteTask(task.id)} style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                  >Remove</button>
                 </div>
               ))}
             </div>
 
-            <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>Add task</p>
+            <div style={{ background: c.cardBg, boxShadow: c.shadow, borderRadius: 16, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, margin: 0 }}>Add task</p>
               <input
                 type="text"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder="Task title…"
-                style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
               />
               <div style={{ display: 'flex', gap: 8 }}>
                 <select
                   value={newTaskType}
                   onChange={(e) => setNewTaskType(e.target.value as 'creation' | 'execution')}
-                  style={{ flex: 1, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 13, color: c.textPrimary, outline: 'none' }}
+                  style={{ flex: 1, background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: c.textPrimary, outline: 'none' }}
                 >
                   <option value="creation">Creation</option>
                   <option value="execution">Execution</option>
                 </select>
                 <button
                   onClick={handleAddTask}
-                  style={{ padding: '8px 16px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer' }}
+                  style={{ padding: '10px 18px', background: c.textPrimary, color: c.containerBg, fontSize: 13, fontWeight: 600, borderRadius: 10, border: 'none', cursor: 'pointer' }}
                 >
                   Add
                 </button>
@@ -340,7 +345,7 @@ export default function CoreConceptPage() {
 
             <button
               onClick={handleBegin}
-              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '13px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 12, border: 'none', cursor: 'pointer' }}
             >
               Begin
             </button>
@@ -365,7 +370,7 @@ export default function CoreConceptPage() {
         {conversation.length > 0 && (
           <button
             onClick={() => setShowConversation(true)}
-            style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: `1px solid ${c.divider}`, borderRadius: 6, padding: '6px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: `1px solid ${c.divider}`, borderRadius: 10, padding: '7px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             View conversation
           </button>
@@ -375,8 +380,8 @@ export default function CoreConceptPage() {
       <div style={{ flex: 1, padding: '32px 24px', maxWidth: 780, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {error && (
-            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: 12 }}>
-              <p style={{ fontSize: 12, color: '#fca5a5' }}>{error}</p>
+            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 12, padding: '10px 14px' }}>
+              <p style={{ fontSize: 12, color: '#fca5a5', margin: 0 }}>{error}</p>
             </div>
           )}
 
@@ -387,20 +392,23 @@ export default function CoreConceptPage() {
             return (
               <div key={phaseKey} style={{
                 background: isPending ? c.containerBg : c.cardBg,
-                border: `1px solid ${c.divider}`,
-                borderRadius: 10,
-                padding: 24,
-                opacity: isPending ? 0.5 : 1,
+                border: isConfirmed ? '1px solid rgba(165,63,43,0.22)' : `1px solid ${c.divider}`,
+                borderRadius: 16,
+                padding: '24px 28px',
+                opacity: isPending ? 0.45 : 1,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16,
-                transition: 'opacity 0.3s',
+                gap: 18,
+                boxShadow: isPending ? 'none' : c.shadow,
+                transition: 'opacity 0.3s, box-shadow 0.3s',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
+                  <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: isConfirmed ? 'rgba(165,63,43,0.7)' : c.textMuted, margin: 0 }}>
                     {section.title}
                   </h2>
-                  {isConfirmed && <span style={{ fontSize: 12, color: c.textMuted }}>✓</span>}
+                  {isConfirmed && (
+                    <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)', background: 'rgba(165,63,43,0.08)', padding: '2px 8px', borderRadius: 4 }}>Locked</span>
+                  )}
                 </div>
 
                 {section.status !== 'pending' && (
@@ -417,7 +425,7 @@ export default function CoreConceptPage() {
                               value={section.content[field] || ''}
                               onChange={(e) => handleEditContent(phaseKey, field, e.target.value)}
                               disabled={isConfirmed}
-                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', opacity: isConfirmed ? 0.6 : 1, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', opacity: isConfirmed ? 0.6 : 1, boxSizing: 'border-box', fontFamily: 'inherit' }}
                             />
                           </div>
                         ))}
@@ -434,7 +442,7 @@ export default function CoreConceptPage() {
                             disabled={isConfirmed}
                             minRows={3}
                             className=""
-                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
                           />
                         </div>
                         <div>
@@ -445,7 +453,7 @@ export default function CoreConceptPage() {
                             disabled={isConfirmed}
                             minRows={3}
                             className=""
-                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
                           />
                         </div>
                       </>
@@ -458,7 +466,7 @@ export default function CoreConceptPage() {
                         disabled={isConfirmed}
                         minRows={2}
                         className=""
-                        style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                        style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
                       />
                     )}
 
@@ -476,7 +484,7 @@ export default function CoreConceptPage() {
                               minRows={3}
                               placeholder={field === 'open_threads' ? '- Thread one\n- Thread two' : '- Goal one\n- Goal two'}
                               className=""
-                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 6, padding: '8px 12px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, color: c.textPrimary, outline: 'none', lineHeight: 1.6, opacity: isConfirmed ? 0.6 : 1, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                           </div>
                         ))}
@@ -487,7 +495,7 @@ export default function CoreConceptPage() {
                       <button
                         onClick={() => handleConfirmSection(phaseKey)}
                         disabled={phaseKey === 'phase2' && (!section.content.conviction_statement || !section.content.emotional_journey)}
-                        style={{ width: '100%', padding: '10px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer', opacity: (phaseKey === 'phase2' && (!section.content.conviction_statement || !section.content.emotional_journey)) ? 0.3 : 1 }}
+                        style={{ width: '100%', padding: '11px', background: c.textPrimary, color: c.containerBg, fontSize: 13, fontWeight: 600, borderRadius: 10, border: 'none', cursor: 'pointer', opacity: (phaseKey === 'phase2' && (!section.content.conviction_statement || !section.content.emotional_journey)) ? 0.3 : 1 }}
                       >
                         Confirm
                       </button>
@@ -503,7 +511,7 @@ export default function CoreConceptPage() {
             <button
               onClick={handleSaveDocument}
               disabled={isLoading || isSaving}
-              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isLoading || isSaving ? 'not-allowed' : 'pointer', opacity: isLoading || isSaving ? 0.3 : 1 }}
+              style={{ width: '100%', padding: '14px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 12, border: 'none', cursor: isLoading || isSaving ? 'not-allowed' : 'pointer', opacity: isLoading || isSaving ? 0.3 : 1, letterSpacing: '-0.01em' }}
             >
               {isSaving ? 'Saving…' : 'Lock this document'}
             </button>
@@ -513,18 +521,23 @@ export default function CoreConceptPage() {
 
       {/* Conceptualisation Conversation Modal */}
       {showConversation && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 10, maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ position: 'sticky', top: 0, background: c.cardBg, borderBottom: `1px solid ${c.divider}`, padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: c.textPrimary }}>Conceptualisation</h2>
-              <button onClick={() => setShowConversation(false)} style={{ color: c.textMuted, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 20, maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+            <div style={{ position: 'sticky', top: 0, background: c.cardBg, borderBottom: `1px solid ${c.divider}`, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '20px 20px 0 0' }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em', margin: 0 }}>Conceptualisation</h2>
+              <IconButton onClick={() => setShowConversation(false)} ariaLabel="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2.5} strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </IconButton>
             </div>
-            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
               {conversation.map((msg, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: 480, padding: '10px 14px', borderRadius: 8, background: msg.role === 'user' ? c.textPrimary : c.inputBg, color: msg.role === 'user' ? c.containerBg : c.textSecondary }}>
-                    <p style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{msg.content}</p>
-                  </div>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, borderBottom: i < conversation.length - 1 ? `1px solid ${c.divider}` : 'none', paddingBottom: i < conversation.length - 1 ? 20 : 0 }}>
+                  <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: msg.role === 'user' ? 'rgba(165,63,43,0.7)' : c.textMuted, margin: 0 }}>
+                    {msg.role === 'user' ? 'You' : 'Claude'}
+                  </p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textPrimary, whiteSpace: 'pre-wrap', margin: 0 }}>{msg.content}</p>
                 </div>
               ))}
             </div>
