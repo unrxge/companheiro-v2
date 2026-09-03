@@ -17,6 +17,12 @@ interface IdeaDetail {
   status: "ready" | "developing" | "active";
   piece_id?: string;
   tasks?: Task[];
+  conviction_statement?: string;
+  emotional_journey?: string;
+  core_truth?: string;
+  substack_goals?: string;
+  short_form_goals?: string;
+  open_threads?: string;
 }
 
 interface IdeaDetailResponse {
@@ -67,7 +73,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
     // Check if idea has a linked piece
     const { data: pieceData } = await supabase
       .from("pieces")
-      .select("id")
+      .select("id, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads")
       .eq("idea_id", ideaId)
       .eq("user_id", userId)
       .single();
@@ -89,6 +95,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
         ...ideaData,
         piece_id: pieceData?.id,
         tasks,
+        conviction_statement: pieceData?.conviction_statement,
+        emotional_journey: pieceData?.emotional_journey,
+        core_truth: pieceData?.core_truth,
+        substack_goals: pieceData?.substack_goals,
+        short_form_goals: pieceData?.short_form_goals,
+        open_threads: pieceData?.open_threads,
       },
     });
   } catch (error) {

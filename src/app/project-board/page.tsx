@@ -94,6 +94,12 @@ interface IdeaDetail {
   status: 'ready' | 'developing' | 'active'
   piece_id?: string
   tasks?: Task[]
+  conviction_statement?: string
+  emotional_journey?: string
+  core_truth?: string
+  substack_goals?: string
+  short_form_goals?: string
+  open_threads?: string
 }
 
 type ModalType = 'piece' | 'idea'
@@ -1989,47 +1995,108 @@ function ProjectBoardContent() {
             </button>
           }
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {selectedIdea.one_sentence && (
-              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
-                <p style={columnEyebrow}>One sentence</p>
-                <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: 1.6, margin: '6px 0 0' }}>
-                  {selectedIdea.one_sentence}
-                </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+            {/* Phase 1 — Idea Essence */}
+            <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 10px' }}>Idea in one sentence</p>
+                  <p style={{ color: c.textPrimary, fontSize: '22px', fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.25, margin: 0 }}>
+                    {selectedIdea.one_sentence || '—'}
+                  </p>
+                </div>
+                <div style={{ width: '176px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '4px' }}>
+                  <div>
+                    <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 6px' }}>Arc</p>
+                    <p style={{ color: c.textSecondary, fontSize: '15px', lineHeight: 1.5, margin: 0 }}>{selectedIdea.arc || '—'}</p>
+                  </div>
+                  <div style={{ borderTop: `1px solid ${c.divider}`, paddingTop: '12px' }}>
+                    <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 6px' }}>Territory</p>
+                    <p style={{ color: c.textMuted, fontSize: '12px', lineHeight: 1.5, margin: 0 }}>{TERRITORY_LABELS[selectedIdea.thematic_territory] || selectedIdea.thematic_territory || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Phase 2 — Conviction & Journey */}
+            {(selectedIdea.conviction_statement || selectedIdea.emotional_journey) && (
+              <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {selectedIdea.conviction_statement && (
+                  <div>
+                    <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 10px' }}>Conviction Statement</p>
+                    <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
+                      <div style={{ width: '3px', borderRadius: '2px', background: 'rgba(165,63,43,0.4)', flexShrink: 0, minHeight: '2em' }} />
+                      <p style={{ color: c.textPrimary, fontSize: '15px', lineHeight: 1.65, letterSpacing: '-0.01em', margin: 0 }}>{selectedIdea.conviction_statement}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedIdea.emotional_journey && (
+                  <div>
+                    <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 10px' }}>Emotional Journey</p>
+                    <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>{selectedIdea.emotional_journey}</p>
+                  </div>
+                )}
               </div>
             )}
 
-            {selectedIdea.piece_id && selectedIdea.tasks && selectedIdea.tasks.length > 0 && (
-              <div style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '14px', padding: '16px' }}>
-                <p style={columnEyebrow}>Linked piece tasks</p>
-                <div style={{ display: 'flex', flexDirection: 'column', marginTop: '10px' }}>
-                  {selectedIdea.tasks.map((task, index) => (
-                    <div
-                      key={task.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                        padding: '10px 0',
-                        borderBottom: index < selectedIdea.tasks!.length - 1 ? `1px solid ${c.divider}` : 'none',
-                      }}
-                    >
-                      <span style={{ color: c.textPrimary, fontSize: '13px' }}>{task.title}</span>
-                      <span
-                        style={{
-                          color: c.textMuted,
-                          fontSize: '11px',
-                          padding: '2px 8px',
-                          borderRadius: '999px',
-                          backgroundColor: c.inputBg,
-                        }}
-                      >
-                        {task.type}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {/* Phase 3 — Core Truth */}
+            {selectedIdea.core_truth && (
+              <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '16px', padding: '36px 28px', textAlign: 'center' }}>
+                <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 14px' }}>Core Truth</p>
+                <p style={{ color: c.textPrimary, fontSize: '18px', fontWeight: 500, lineHeight: 1.55, letterSpacing: '-0.02em', margin: 0 }}>{selectedIdea.core_truth}</p>
+              </div>
+            )}
+
+            {/* Phase 4 — Format & Threads */}
+            {(selectedIdea.substack_goals || selectedIdea.short_form_goals || selectedIdea.open_threads) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(selectedIdea.substack_goals || selectedIdea.short_form_goals) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {selectedIdea.substack_goals && (
+                      <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '14px', padding: '20px' }}>
+                        <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 12px' }}>Writing Suggestions</p>
+                        {selectedIdea.substack_goals.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean).map((line, i, arr) => (
+                          <div key={i}>
+                            <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: c.textPrimary, lineHeight: 1.55, padding: '8px 0' }}>
+                              <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+                              <span>{line}</span>
+                            </div>
+                            {i < arr.length - 1 && <div style={{ height: '1px', background: c.divider }} />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedIdea.short_form_goals && (
+                      <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '14px', padding: '20px' }}>
+                        <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 12px' }}>Visuals Suggestions</p>
+                        {selectedIdea.short_form_goals.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean).map((line, i, arr) => (
+                          <div key={i}>
+                            <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: c.textPrimary, lineHeight: 1.55, padding: '8px 0' }}>
+                              <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+                              <span>{line}</span>
+                            </div>
+                            {i < arr.length - 1 && <div style={{ height: '1px', background: c.divider }} />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selectedIdea.open_threads && (
+                  <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '14px', padding: '20px' }}>
+                    <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 12px' }}>Open Threads</p>
+                    {selectedIdea.open_threads.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean).map((line, i, arr) => (
+                      <div key={i}>
+                        <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: c.textPrimary, lineHeight: 1.55, padding: '8px 0' }}>
+                          <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+                          <span>{line}</span>
+                        </div>
+                        {i < arr.length - 1 && <div style={{ height: '1px', background: c.divider }} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
