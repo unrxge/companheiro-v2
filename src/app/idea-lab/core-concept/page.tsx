@@ -488,15 +488,20 @@ export default function CoreConceptPage() {
                   {/* One sentence — big title */}
                   <div style={{ flex: 1 }}>
                     <span className="cc-label">Idea in one sentence</span>
-                    <textarea
-                      className="cc-plain"
-                      value={p1.content.one_sentence || ''}
-                      onChange={e => handleEditContent('phase1', 'one_sentence', e.target.value)}
-                      disabled={p1.status === 'confirmed'}
-                      onInput={autoResize}
-                      placeholder="Your idea in one sentence…"
-                      style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.2, minHeight: '1.4em' }}
-                    />
+                    {p1.status === 'confirmed' ? (
+                      <p style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.15, color: c.textPrimary, margin: 0 }}>
+                        {p1.content.one_sentence}
+                      </p>
+                    ) : (
+                      <textarea
+                        className="cc-plain"
+                        value={p1.content.one_sentence || ''}
+                        onChange={e => handleEditContent('phase1', 'one_sentence', e.target.value)}
+                        onInput={autoResize}
+                        placeholder="Your idea in one sentence…"
+                        style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.15, minHeight: '1.4em' }}
+                      />
+                    )}
                   </div>
                   {/* Arc + Territory — right side */}
                   <div style={{ width: 196, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
