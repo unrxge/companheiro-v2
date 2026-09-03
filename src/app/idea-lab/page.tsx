@@ -16,7 +16,7 @@ type PredefinedSlot = { type: 'predefined'; key: string }
 type CustomSlot    = { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[] }
 type TerritorySlot = PredefinedSlot | CustomSlot | null
 
-const MAX_SLOTS = 4
+const MAX_SLOTS = 8
 
 interface Capture {
   id: string
@@ -529,102 +529,99 @@ export default function IdeaLabPage() {
                 </div>
 
                 {!isLoadingTerritories && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-                    {Array.from({ length: MAX_SLOTS }).map((_, index) => {
-                      const slot = territorySlots[index] ?? null
-
-                      // ── Filled slot ───────────────────────────────────────
-                      if (slot) {
-                        const isSelected = selectedTerritoryKeys.includes(slot.key)
-                        const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
-                        return (
-                          <div
-                            key={slot.key}
-                            style={{ position: 'relative', display: 'inline-flex' }}
-                            onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)}
-                            onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}
-                          >
-                            <button
-                              onClick={() => handleTerritoryPillClick(slot)}
-                              title={slot.type === 'predefined' ? (TERRITORY_LABELS[slot.key] || slot.key) : slot.label}
-                              style={contentPill(isSelected, skipTerritories, slotAccent(slot))}
-                            >
-                              {slotLabel(slot)}
-                              {generatingMapKey === slot.key && (
-                                <span style={{ marginLeft: '5px', opacity: 0.5, fontSize: '10px' }}>·</span>
-                              )}
-                            </button>
-                            <AnimatePresence>
-                              {showX && (
-                                <motion.button
-                                  key="x"
-                                  initial={{ opacity: 0, scale: 0.6 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.6 }}
-                                  transition={{ duration: 0.12 }}
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteTerritory(index) }}
-                                  aria-label={`Remove ${slotLabel(slot)}`}
-                                  style={{
-                                    position: 'absolute', top: -6, right: -6,
-                                    width: 16, height: 16, borderRadius: '50%',
-                                    background: c.textPrimary, color: c.containerBg,
-                                    border: 'none', cursor: 'pointer', padding: 0,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '8px', fontWeight: 700, lineHeight: 1, zIndex: 10,
-                                  }}
-                                >
-                                  ✕
-                                </motion.button>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        )
-                      }
-
-                      // ── Empty slot — input active ─────────────────────────
-                      if (addingInSlot === index) {
-                        return (
-                          <input
-                            key={`adding-${index}`}
-                            autoFocus
-                            value={newThemeInput}
-                            onChange={(e) => setNewThemeInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && newThemeInput.trim()) confirmAddTheme(index)
-                              if (e.key === 'Escape') { setAddingInSlot(null); setNewThemeInput('') }
-                            }}
-                            onBlur={() => { setAddingInSlot(null); setNewThemeInput('') }}
-                            placeholder="Theme name..."
-                            style={{
-                              padding: '6px 13px', borderRadius: '999px',
-                              border: `1px solid ${accentColor}`,
-                              background: c.inputBg, color: c.textPrimary,
-                              fontSize: '12px', outline: 'none', lineHeight: 1,
-                              width: '130px', flexShrink: 0,
-                            }}
-                          />
-                        )
-                      }
-
-                      // ── Empty slot — placeholder pill ─────────────────────
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', alignItems: 'center' }}>
+                    {territorySlots.map((slot, index) => {
+                      if (!slot) return null
+                      const isSelected = selectedTerritoryKeys.includes(slot.key)
+                      const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
                       return (
-                        <button
-                          key={`empty-${index}`}
-                          onClick={() => { setAddingInSlot(index); setNewThemeInput('') }}
-                          className="idea-lab-empty-pill"
-                          style={{
-                            padding: '7px 14px', borderRadius: '999px',
-                            border: `1.5px dashed ${c.textMuted}`,
-                            backgroundColor: 'transparent', color: c.textMuted,
-                            fontSize: '12px', fontWeight: 400, cursor: 'pointer',
-                            opacity: 0.45, lineHeight: 1, flexShrink: 0,
-                            transition: 'opacity 0.15s ease',
-                          }}
+                        <div
+                          key={slot.key}
+                          style={{ position: 'relative', display: 'inline-flex' }}
+                          onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)}
+                          onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}
                         >
-                          + Add theme
-                        </button>
+                          <button
+                            onClick={() => handleTerritoryPillClick(slot)}
+                            title={slot.type === 'predefined' ? (TERRITORY_LABELS[slot.key] || slot.key) : slot.label}
+                            style={contentPill(isSelected, skipTerritories, slotAccent(slot))}
+                          >
+                            {slotLabel(slot)}
+                            {generatingMapKey === slot.key && (
+                              <span style={{ marginLeft: '5px', opacity: 0.5, fontSize: '10px' }}>·</span>
+                            )}
+                          </button>
+                          <AnimatePresence>
+                            {showX && (
+                              <motion.button
+                                key="x"
+                                initial={{ opacity: 0, scale: 0.6 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.6 }}
+                                transition={{ duration: 0.12 }}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTerritory(index) }}
+                                aria-label={`Remove ${slotLabel(slot)}`}
+                                style={{
+                                  position: 'absolute', top: -6, right: -6,
+                                  width: 16, height: 16, borderRadius: '50%',
+                                  background: c.textPrimary, color: c.containerBg,
+                                  border: 'none', cursor: 'pointer', padding: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '8px', fontWeight: 700, lineHeight: 1, zIndex: 10,
+                                }}
+                              >
+                                ✕
+                              </motion.button>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )
                     })}
+
+                    {/* Inline input when adding a new theme */}
+                    {addingInSlot !== null && (
+                      <input
+                        key="adding"
+                        autoFocus
+                        value={newThemeInput}
+                        onChange={(e) => setNewThemeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newThemeInput.trim()) confirmAddTheme(addingInSlot)
+                          if (e.key === 'Escape') { setAddingInSlot(null); setNewThemeInput('') }
+                        }}
+                        onBlur={() => { setAddingInSlot(null); setNewThemeInput('') }}
+                        placeholder="Theme name..."
+                        style={{
+                          padding: '6px 13px', borderRadius: '999px',
+                          border: `1px solid ${accentColor}`,
+                          background: c.inputBg, color: c.textPrimary,
+                          fontSize: '12px', outline: 'none', lineHeight: 1,
+                          width: '130px', flexShrink: 0,
+                        }}
+                      />
+                    )}
+
+                    {/* Add theme button — only when under max and not currently adding */}
+                    {addingInSlot === null && territorySlots.filter(Boolean).length < MAX_SLOTS && (
+                      <button
+                        onClick={() => {
+                          const nextIndex = territorySlots.findIndex(s => s === null)
+                          setAddingInSlot(nextIndex !== -1 ? nextIndex : territorySlots.length)
+                          setNewThemeInput('')
+                        }}
+                        className="idea-lab-empty-pill"
+                        style={{
+                          padding: '7px 14px', borderRadius: '999px',
+                          border: `1.5px dashed ${c.textMuted}`,
+                          backgroundColor: 'transparent', color: c.textMuted,
+                          fontSize: '12px', fontWeight: 400, cursor: 'pointer',
+                          opacity: 0.45, lineHeight: 1, flexShrink: 0,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                      >
+                        + Add theme
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

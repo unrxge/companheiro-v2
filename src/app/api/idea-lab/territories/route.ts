@@ -39,7 +39,7 @@ export async function PUT(request: NextRequest) {
     if (!auth) return NextResponse.json({ success: false }, { status: 401 })
 
     const body: { slots: TerritorySlot[] } = await request.json()
-    if (!Array.isArray(body.slots) || body.slots.length !== 4) {
+    if (!Array.isArray(body.slots) || body.slots.length > 8) {
       return NextResponse.json({ success: false }, { status: 400 })
     }
 
