@@ -71,6 +71,7 @@ export default function CheckInPage() {
   // Dark mode throughout
   const c = cardPalette['dark']
 
+  const [inputMode, setInputMode] = useState<'mic' | 'keyboard' | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -436,207 +437,197 @@ export default function CheckInPage() {
         gap: '16px',
       }}
     >
-      {/* Mic button — strictly monotone */}
-      <motion.button
-        onClick={handleRecordToggle}
-        disabled={isProcessing}
-        whileHover={isProcessing ? {} : { scale: 1.04 }}
-        whileTap={isProcessing ? {} : { scale: 0.96 }}
-        style={{
-          width: '80px',
-          height: '80px',
-          borderRadius: '50%',
-          backgroundColor: isRecording ? '#e8e6e0' : c.inputBg,
-          border: `1.5px solid ${isRecording ? 'transparent' : c.inputBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: isProcessing ? 'not-allowed' : 'pointer',
-          opacity: isProcessing ? 0.3 : 1,
-          boxShadow: c.shadow,
-          transition: 'background-color 0.25s ease, border-color 0.25s ease',
-        }}
-      >
-        {isRecording ? (
-          <span
-            style={{
-              display: 'block',
-              width: '18px',
-              height: '18px',
-              backgroundColor: '#111110',
-              borderRadius: '3px',
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              display: 'block',
-              width: '18px',
-              height: '18px',
-              backgroundColor: c.textSecondary,
-              borderRadius: '50%',
-            }}
-          />
-        )}
-      </motion.button>
-
-      <AnimatePresence>
-        {isRecording && (
-          <motion.p
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            style={eyebrow}
-          >
-            Recording
-          </motion.p>
-        )}
-        {isPunctuating && !isRecording && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={eyebrow}
-          >
-            Punctuating...
-          </motion.p>
-        )}
-      </AnimatePresence>
-
-      {(transcript || isRecording) && (
-        <textarea
-          ref={transcriptTextareaRef}
-          value={transcript}
-          onChange={(e) => {
-            setTranscript(e.target.value)
-            e.target.style.height = 'auto'
-            e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'
-          }}
-          placeholder="Your words will appear here..."
-          rows={1}
-          style={{
-            width: '100%',
-            backgroundColor: c.inputBg,
-            border: `1px solid ${c.inputBorder}`,
-            borderRadius: '12px',
-            padding: '12px 14px',
-            fontFamily: 'var(--font-geist-sans)',
-            fontSize: '15px',
-            color: c.textPrimary,
-            outline: 'none',
-            resize: 'none',
-            lineHeight: 1.6,
-            overflowY: 'auto',
-            maxHeight: '140px',
-          }}
-        />
-      )}
-
-      {error && (
-        <p
-          style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontSize: '12px',
-            color: '#f87171',
-            margin: 0,
-            alignSelf: 'flex-start',
-          }}
-        >
-          {error}
-        </p>
-      )}
-
-      {transcript.trim() && (
-        <motion.button
-          onClick={handleSend}
-          disabled={isProcessing}
-          whileHover={isProcessing ? {} : { opacity: 0.85 }}
-          whileTap={isProcessing ? {} : { scale: 0.98 }}
-          style={{
-            width: '100%',
-            padding: '13px',
-            borderRadius: '12px',
-            border: 'none',
-            backgroundColor: accentColor,
-            color: '#ffffff',
-            fontFamily: 'var(--font-geist-sans)',
-            fontWeight: 600,
-            fontSize: '14px',
-            cursor: isProcessing ? 'not-allowed' : 'pointer',
-            opacity: isProcessing ? 0.4 : 1,
-          }}
-        >
-          {isProcessing ? 'Processing...' : 'Send'}
-        </motion.button>
-      )}
-
-      {showJournalPrompt && journalPrompt && (
+      {inputMode === null ? (
+        /* Mode picker — fade in on first render */
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          style={{
-            width: '100%',
-            backgroundColor: c.cardBg,
-            boxShadow: c.shadow,
-            borderRadius: '14px',
-            padding: '16px 18px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-          }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="check-in-mode-picker"
         >
-          <p style={eyebrow}>Journal prompt</p>
-          <p
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '15px',
-              color: c.textPrimary,
-              lineHeight: 1.6,
-              margin: 0,
-            }}
+          {/* Voice */}
+          <motion.button
+            onClick={() => { setInputMode('mic'); startRecording() }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }}
           >
-            {journalPrompt}
-          </p>
-          <button
-            onClick={() => navigator.clipboard.writeText(journalPrompt)}
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '12px',
-              color: c.textMuted,
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textAlign: 'left',
-              textDecoration: 'underline',
-              textUnderlineOffset: '2px',
-            }}
-          >
-            Copy prompt
-          </button>
-        </motion.div>
-      )}
+            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: c.inputBg, border: `1.5px solid ${c.inputBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: c.shadow }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </div>
+            <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, letterSpacing: '0.04em' }}>Voice</span>
+          </motion.button>
 
-      {/* Log action */}
-      {hasAiResponded && confirmedType && !logSuccess && (
-        <motion.button
-          onClick={handleLog}
-          disabled={isLogging}
-          whileHover={isLogging ? {} : { opacity: 0.65 }}
-          whileTap={isLogging ? {} : { scale: 0.96 }}
-          style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontSize: '12px',
-            color: c.textMuted,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: isLogging ? 'not-allowed' : 'pointer',
-            opacity: isLogging ? 0.3 : 1,
-          }}
-        >
-          {isLogging ? 'Saving...' : 'Log this check-in'}
-        </motion.button>
+          {/* Type */}
+          <motion.button
+            onClick={() => setInputMode('keyboard')}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: c.inputBg, border: `1.5px solid ${c.inputBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: c.shadow }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+              </svg>
+            </div>
+            <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, letterSpacing: '0.04em' }}>Type</span>
+          </motion.button>
+        </motion.div>
+      ) : (
+        <>
+          {/* Mic button — only in voice mode */}
+          {inputMode === 'mic' && (
+            <motion.button
+              onClick={handleRecordToggle}
+              disabled={isProcessing}
+              whileHover={isProcessing ? {} : { scale: 1.04 }}
+              whileTap={isProcessing ? {} : { scale: 0.96 }}
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                backgroundColor: isRecording ? '#e8e6e0' : c.inputBg,
+                border: `1.5px solid ${isRecording ? 'transparent' : c.inputBorder}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                opacity: isProcessing ? 0.3 : 1,
+                boxShadow: c.shadow,
+                transition: 'background-color 0.25s ease, border-color 0.25s ease',
+              }}
+            >
+              {isRecording ? (
+                <span style={{ display: 'block', width: '18px', height: '18px', backgroundColor: '#111110', borderRadius: '3px' }} />
+              ) : (
+                <span style={{ display: 'block', width: '18px', height: '18px', backgroundColor: c.textSecondary, borderRadius: '50%' }} />
+              )}
+            </motion.button>
+          )}
+
+          <AnimatePresence>
+            {isRecording && (
+              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={eyebrow}>
+                Recording
+              </motion.p>
+            )}
+            {isPunctuating && !isRecording && (
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={eyebrow}>
+                Punctuating...
+              </motion.p>
+            )}
+          </AnimatePresence>
+
+          {/* Textarea — always visible in keyboard mode; shown in mic mode when recording or text exists */}
+          {(transcript || isRecording || inputMode === 'keyboard') && (
+            <textarea
+              ref={transcriptTextareaRef}
+              value={transcript}
+              onChange={(e) => {
+                setTranscript(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+              }}
+              placeholder={inputMode === 'keyboard' ? 'Begin typing...' : 'Your words will appear here...'}
+              rows={inputMode === 'keyboard' ? 2 : 1}
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus={inputMode === 'keyboard'}
+              style={{
+                width: '100%',
+                backgroundColor: inputMode === 'keyboard' ? 'transparent' : c.inputBg,
+                border: inputMode === 'keyboard' ? 'none' : `1px solid ${c.inputBorder}`,
+                borderRadius: inputMode === 'keyboard' ? 0 : '12px',
+                padding: inputMode === 'keyboard' ? '4px 0' : '12px 14px',
+                fontFamily: 'var(--font-geist-sans)',
+                fontSize: '16px',
+                fontWeight: inputMode === 'keyboard' ? 500 : 400,
+                color: c.textPrimary,
+                outline: 'none',
+                resize: 'none',
+                lineHeight: 1.65,
+                overflowY: 'auto',
+                maxHeight: '200px',
+              }}
+            />
+          )}
+
+          {error && (
+            <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: '#f87171', margin: 0, alignSelf: 'flex-start' }}>
+              {error}
+            </p>
+          )}
+
+          {transcript.trim() && (
+            <motion.button
+              onClick={handleSend}
+              disabled={isProcessing}
+              whileHover={isProcessing ? {} : { opacity: 0.85 }}
+              whileTap={isProcessing ? {} : { scale: 0.98 }}
+              style={{
+                width: '100%',
+                padding: '13px',
+                borderRadius: '12px',
+                border: 'none',
+                backgroundColor: accentColor,
+                color: '#ffffff',
+                fontFamily: 'var(--font-geist-sans)',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                opacity: isProcessing ? 0.4 : 1,
+              }}
+            >
+              {isProcessing ? 'Processing...' : 'Send'}
+            </motion.button>
+          )}
+
+          {showJournalPrompt && journalPrompt && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                width: '100%',
+                backgroundColor: c.cardBg,
+                boxShadow: c.shadow,
+                borderRadius: '14px',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <p style={eyebrow}>Journal prompt</p>
+              <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '15px', color: c.textPrimary, lineHeight: 1.6, margin: 0 }}>
+                {journalPrompt}
+              </p>
+              <button
+                onClick={() => navigator.clipboard.writeText(journalPrompt)}
+                style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+              >
+                Copy prompt
+              </button>
+            </motion.div>
+          )}
+
+          {/* Log action */}
+          {hasAiResponded && confirmedType && !logSuccess && (
+            <motion.button
+              onClick={handleLog}
+              disabled={isLogging}
+              whileHover={isLogging ? {} : { opacity: 0.65 }}
+              whileTap={isLogging ? {} : { scale: 0.96 }}
+              style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: isLogging ? 'not-allowed' : 'pointer', opacity: isLogging ? 0.3 : 1 }}
+            >
+              {isLogging ? 'Saving...' : 'Log this check-in'}
+            </motion.button>
+          )}
+        </>
       )}
     </div>
   )
@@ -855,6 +846,7 @@ export default function CheckInPage() {
             <motion.button
               onClick={() => {
                 setLogSuccess(false)
+                setInputMode(null)
                 setMessages([])
                 setTranscript('')
                 setSignals(null)
@@ -880,6 +872,7 @@ export default function CheckInPage() {
             >
               New check-in
             </motion.button>
+
           </div>
         </motion.div>
       </div>
@@ -900,6 +893,8 @@ export default function CheckInPage() {
       <style>{`
         .check-in-scroll::-webkit-scrollbar { display: none; }
         .check-in-scroll { scrollbar-width: none; }
+        .check-in-mode-picker { display: flex; flex-direction: row; gap: 40px; align-items: center; }
+        @media (max-width: 640px) { .check-in-mode-picker { flex-direction: column; gap: 20px; } }
       `}</style>
 
       {/* Header — icon and title side by side */}
