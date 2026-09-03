@@ -698,12 +698,12 @@ function ProjectBoardContent() {
               backgroundColor: 'transparent',
               border: 'none',
               padding: 0,
-              fontSize: '32px',
+              fontSize: '22px',
               fontWeight: 700,
-              letterSpacing: '-0.035em',
+              letterSpacing: '-0.025em',
               color: c.textPrimary,
               outline: 'none',
-              lineHeight: 1.15,
+              lineHeight: 1.25,
               whiteSpace: 'pre-wrap',
             }}
           />
@@ -2056,7 +2056,7 @@ function ProjectBoardContent() {
                       {selectedIdea.one_sentence && (
                         <div>
                           <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Idea in one sentence</p>
-                          <p style={{ fontSize: '32px', fontWeight: 700, color: c.textPrimary, lineHeight: 1.15, letterSpacing: '-0.035em', margin: 0 }}>{selectedIdea.one_sentence}</p>
+                          <p style={{ fontSize: '22px', fontWeight: 700, color: c.textPrimary, lineHeight: 1.25, letterSpacing: '-0.025em', margin: 0 }}>{selectedIdea.one_sentence}</p>
                         </div>
                       )}
                       {selectedIdea.conviction_statement && (

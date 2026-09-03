@@ -489,7 +489,7 @@ export default function CoreConceptPage() {
                   <div style={{ flex: 1 }}>
                     <span className="cc-label">Idea in one sentence</span>
                     {p1.status === 'confirmed' ? (
-                      <p style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.15, color: c.textPrimary, margin: 0 }}>
+                      <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: c.textPrimary, margin: 0 }}>
                         {p1.content.one_sentence}
                       </p>
                     ) : (
@@ -499,7 +499,7 @@ export default function CoreConceptPage() {
                         onChange={e => handleEditContent('phase1', 'one_sentence', e.target.value)}
                         onInput={autoResize}
                         placeholder="Your idea in one sentence…"
-                        style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.15, minHeight: '1.4em' }}
+                        style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, minHeight: '1.4em' }}
                       />
                     )}
                   </div>
