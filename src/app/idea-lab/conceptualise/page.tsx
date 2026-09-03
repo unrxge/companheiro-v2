@@ -112,7 +112,9 @@ function ConceptualiseContent() {
     return () => container.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Auto-scroll to new AI content
+  // Auto-scroll to keep the bottom of the thread visible — fires on new messages,
+  // streaming updates, and textarea growth (inputText), so the input box never
+  // obscures the last lines of conversation.
   useEffect(() => {
     if (messages.length === 0 || userScrolledUpRef.current) return
     programmaticScrollRef.current = true
@@ -121,7 +123,7 @@ function ConceptualiseContent() {
     programmaticScrollTimer.current = setTimeout(() => {
       programmaticScrollRef.current = false
     }, 800)
-  }, [messages, isLoading])
+  }, [messages, isLoading, inputText])
 
   const saveDraft = (finalMessages: Message[], savedPhase: number, savedReadyToAdvance: boolean) => {
     if (!finalMessages.some((m) => m.role === 'user')) return
