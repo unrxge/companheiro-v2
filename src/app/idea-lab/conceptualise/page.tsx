@@ -50,7 +50,10 @@ function ConceptualiseContent() {
   const [isCheckingDraft, setIsCheckingDraft] = useState(!seed)
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
   const [resumeDecided, setResumeDecided] = useState(!!seed)
-  const draftIdRef = useRef<string | null>(null)
+  // Pre-assign a UUID so every save targets the same row from the first call.
+  // handleResumeDraft overwrites this with the existing draft's id.
+  // handleStartFresh generates a fresh one.
+  const draftIdRef = useRef<string>(crypto.randomUUID())
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
@@ -131,17 +134,14 @@ function ConceptualiseContent() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: draftIdRef.current || undefined,
+        id: draftIdRef.current,
         seed: seed || null,
         question: activeQuestion || null,
         messages: finalMessages,
         phase: savedPhase,
         ready_to_advance: savedReadyToAdvance,
       }),
-    })
-      .then((r) => r.json())
-      .then((data) => { if (data.id) draftIdRef.current = data.id })
-      .catch((err) => console.error('Failed to autosave draft:', err))
+    }).catch((err) => console.error('Failed to autosave draft:', err))
   }
 
   const fetchAIResponse = async (conversationHistory: Message[], currentPhase: number) => {
@@ -206,7 +206,7 @@ function ConceptualiseContent() {
   }
 
   const handleStartFresh = () => {
-    draftIdRef.current = null
+    draftIdRef.current = crypto.randomUUID()
     setExistingDrafts([])
     setResumeDecided(true)
     fetchAIResponse([], 1)
@@ -282,11 +282,9 @@ function ConceptualiseContent() {
 
   const handleDeclare = () => {
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages))
-    if (draftIdRef.current) {
-      fetch(`/api/idea-lab/conceptualise/draft?id=${draftIdRef.current}`, { method: 'DELETE' }).catch((err) =>
-        console.error('Failed to clear draft on declare:', err)
-      )
-    }
+    fetch(`/api/idea-lab/conceptualise/draft?id=${draftIdRef.current}`, { method: 'DELETE' }).catch((err) =>
+      console.error('Failed to clear draft on declare:', err)
+    )
     router.push('/idea-lab/core-concept')
   }
 
