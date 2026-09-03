@@ -22,7 +22,7 @@ interface IdeaDetail {
   core_truth?: string;
   substack_goals?: string;
   short_form_goals?: string;
-  open_threads?: string;
+  open_threads?: string | string[];
 }
 
 interface IdeaDetailResponse {

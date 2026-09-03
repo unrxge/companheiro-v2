@@ -99,7 +99,7 @@ interface IdeaDetail {
   core_truth?: string
   substack_goals?: string
   short_form_goals?: string
-  open_threads?: string
+  open_threads?: string | string[]
 }
 
 type ModalType = 'piece' | 'idea'
@@ -2082,10 +2082,10 @@ function ProjectBoardContent() {
                     )}
                   </div>
                 )}
-                {selectedIdea.open_threads && (
+                {selectedIdea.open_threads && (Array.isArray(selectedIdea.open_threads) ? selectedIdea.open_threads : selectedIdea.open_threads.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim())).filter(Boolean).length > 0 && (
                   <div style={{ backgroundColor: c.cardBg, border: `1px solid rgba(16,185,129,0.18)`, boxShadow: c.shadow, borderRadius: '14px', padding: '20px' }}>
                     <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 12px' }}>Open Threads</p>
-                    {selectedIdea.open_threads.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean).map((line, i, arr) => (
+                    {(Array.isArray(selectedIdea.open_threads) ? selectedIdea.open_threads : selectedIdea.open_threads.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim())).filter(Boolean).map((line, i, arr) => (
                       <div key={i}>
                         <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: c.textPrimary, lineHeight: 1.55, padding: '8px 0' }}>
                           <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
