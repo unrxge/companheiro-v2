@@ -45,10 +45,10 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
 
     const userId = userData.user.id;
 
-    const [{ data: activePieces }, { data: queueIdeas }, { data: archivedPieces }, { count: draftCount }] = await Promise.all([
+    const [{ data: activePieces }, { data: allQueueIdeas }, { data: archivedPieces }, { count: draftCount }] = await Promise.all([
       supabase
         .from("pieces")
-        .select("id, title, arc, thematic_territory, stage, next_action")
+        .select("id, title, arc, thematic_territory, stage, next_action, idea_id")
         .eq("user_id", userId)
         .neq("stage", "posted")
         .neq("stage", "queued")
@@ -71,6 +71,10 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
         .eq("user_id", userId),
     ]);
 
+    // Ideas that already have a linked piece belong in Active, not Queue.
+    const linkedIdeaIds = new Set((activePieces || []).map((p) => p.idea_id).filter(Boolean));
+    const queueIdeas = (allQueueIdeas || []).filter((idea) => !linkedIdeaIds.has(idea.id));
+
     const activePiecesWithTasks = await Promise.all(
       (activePieces || []).map(async (piece) => {
         const { data: tasks } = await supabase
@@ -80,8 +84,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
           .eq("status", "pending")
           .order("order", { ascending: true });
 
+        const { id, title, arc, thematic_territory, stage, next_action } = piece;
         return {
-          ...piece,
+          id, title, arc, thematic_territory, stage, next_action,
           tasks: (tasks || []).map((t) => ({ id: t.id, title: t.title, type: t.type })),
         };
       })
@@ -89,7 +94,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
 
     return NextResponse.json({
       active: activePiecesWithTasks,
-      queue: queueIdeas || [],
+      queue: queueIdeas,
       archived: archivedPieces || [],
       draftCount: draftCount ?? 0,
     });

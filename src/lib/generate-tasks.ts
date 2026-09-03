@@ -33,7 +33,7 @@ Short-form Goals: ${concept.short_form_goals}
   try {
     const response = await anthropic.messages.create({
       model: MODELS.fast,
-      max_tokens: 1000,
+      max_tokens: 2048,
       system: `You are a creative project manager. Generate a task list for bringing an idea to publication.
 The list should flow from initial writing through to posting, balancing creation work (writing, conceptualizing, experimenting) with execution work (editing, formatting, scheduling).
 Each task should be concrete and specific.
@@ -60,13 +60,28 @@ Return as JSON:
     if (!textContent || textContent.type !== 'text') return []
 
     const cleanedText = textContent.text.replace(/```json\n?|\n?```/g, '').trim()
-    const result = JSON.parse(cleanedText)
+
+    let result: { tasks?: unknown[] }
+    try {
+      result = JSON.parse(cleanedText)
+    } catch {
+      // Attempt to recover from a truncated response by closing the JSON object.
+      const fixed = cleanedText
+        .replace(/,\s*\{[^}]*$/, '')  // drop last incomplete task object
+        .replace(/,\s*$/, '')          // drop trailing comma
+        + ']}'                          // close tasks array and root object
+      result = JSON.parse(fixed)
+    }
+
     const tasks = Array.isArray(result.tasks) ? result.tasks : []
-    return tasks.map((t: Partial<GeneratedTask>) => ({
-      title: t.title || '',
-      type: t.type === 'execution' ? 'execution' : 'creation',
-      is_writing_related: t.is_writing_related === true,
-    }))
+    return tasks.map((t) => {
+      const task = t as Partial<GeneratedTask>
+      return {
+        title: task.title || '',
+        type: task.type === 'execution' ? 'execution' : 'creation',
+        is_writing_related: task.is_writing_related === true,
+      }
+    })
   } catch (error) {
     // Task generation failing should never block saving the document.
     console.error('generateTasks error:', error)
