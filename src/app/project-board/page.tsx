@@ -807,88 +807,57 @@ function ProjectBoardContent() {
   const renderDraftCard = () => {
     if (conceptualiseDrafts.length === 0) return null
 
-    if (conceptualiseDrafts.length === 1) {
-      const draft = conceptualiseDrafts[0]
-      const lastMsg = draft.messages[draft.messages.length - 1]
-      const phaseLabel = PHASE_LABELS[draft.phase] ?? `Phase ${draft.phase}`
-      return (
-        <div key="draft-card" style={{ marginBottom: 4 }}>
-          <button
-            onClick={() => router.push('/idea-lab/conceptualise')}
-            style={{
-              width: '100%',
-              textAlign: 'left',
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              border: `1px solid rgba(165,63,43,0.28)`,
-              borderRadius: '12px',
-              padding: '12px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.55)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.28)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
-              <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
-                Unfinished · {phaseLabel}
-              </span>
-            </div>
-            {lastMsg && (
-              <p style={{
-                fontSize: '13px',
-                color: c.textSecondary,
-                margin: 0,
-                lineHeight: 1.45,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              }}>
-                {lastMsg.content}
-              </p>
-            )}
-            <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
-          </button>
-        </div>
-      )
-    }
-
     return (
-      <div key="draft-card" style={{ marginBottom: 4 }}>
-        <button
-          onClick={() => router.push('/idea-lab/conceptualise')}
-          style={{
-            width: '100%',
-            textAlign: 'left',
-            backgroundColor: c.cardBg,
-            boxShadow: c.shadow,
-            border: `1px solid rgba(165,63,43,0.28)`,
-            borderRadius: '12px',
-            padding: '12px',
-            cursor: 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.55)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.28)' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
-            <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
-              Unfinished explorations
-            </span>
-          </div>
-          <p style={{ fontSize: '13px', color: c.textSecondary, margin: 0, lineHeight: 1.45 }}>
-            {conceptualiseDrafts.length} ideas in progress
-          </p>
-          <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>View all →</span>
-        </button>
-      </div>
+      <>
+        {conceptualiseDrafts.map((draft) => {
+          const lastMsg = draft.messages[draft.messages.length - 1]
+          const phaseLabel = PHASE_LABELS[draft.phase] ?? `Phase ${draft.phase}`
+          return (
+            <div key={draft.id} style={{ marginBottom: 4 }}>
+              <button
+                onClick={() => router.push('/idea-lab/conceptualise')}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  backgroundColor: c.cardBg,
+                  boxShadow: c.shadow,
+                  border: `1px solid rgba(165,63,43,0.28)`,
+                  borderRadius: '12px',
+                  padding: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.55)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.28)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
+                    Unfinished · {phaseLabel}
+                  </span>
+                </div>
+                {lastMsg && (
+                  <p style={{
+                    fontSize: '13px',
+                    color: c.textSecondary,
+                    margin: 0,
+                    lineHeight: 1.45,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}>
+                    {lastMsg.content}
+                  </p>
+                )}
+                <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
+              </button>
+            </div>
+          )
+        })}
+      </>
     )
   }
 

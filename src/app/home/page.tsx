@@ -47,13 +47,18 @@ function HomeContent() {
   useEffect(() => {
     const fetchActivePieces = async () => {
       try {
-        const res = await fetch('/api/project-board/pieces')
-        const data = await res.json()
-        setActivePieces((data.active || []).slice(0, 5))
+        const [piecesRes, draftsRes] = await Promise.all([
+          fetch('/api/project-board/pieces'),
+          fetch('/api/idea-lab/conceptualise/draft'),
+        ])
+        const piecesData = await piecesRes.json()
+        const draftsData = await draftsRes.json()
+        const draftCount = (draftsData.drafts || []).length
+        setActivePieces((piecesData.active || []).slice(0, 5))
         setPieceCounts({
-          active: (data.active || []).length,
-          queue: (data.queue || []).length,
-          completed: (data.archived || []).length,
+          active: (piecesData.active || []).length,
+          queue: (piecesData.queue || []).length + draftCount,
+          completed: (piecesData.archived || []).length,
         })
       } catch (err) {
         console.error('Failed to fetch active pieces:', err)
