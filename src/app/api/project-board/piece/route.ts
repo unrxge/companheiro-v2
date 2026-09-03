@@ -257,3 +257,22 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateRe
     );
   }
 }
+
+export async function DELETE(request: NextRequest): Promise<NextResponse<{ success: boolean; error?: string }>> {
+  try {
+    const { piece_id } = await request.json()
+    if (!piece_id) return NextResponse.json({ success: false, error: 'Missing piece_id' }, { status: 400 })
+
+    const supabase = await createRouteClient()
+    const { data: userData, error: authError } = await supabase.auth.getUser()
+    if (authError || !userData.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+
+    const { error } = await supabase.from('pieces').delete().eq('id', piece_id).eq('user_id', userData.user.id)
+    if (error) return NextResponse.json({ success: false, error: 'Failed to delete piece' }, { status: 500 })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Piece delete error:', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}

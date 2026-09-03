@@ -447,6 +447,22 @@ function ProjectBoardContent() {
     }
   }
 
+  const handleDeletePiece = async (pieceId: string) => {
+    if (!window.confirm('Delete this piece? This can\'t be undone.')) return
+    try {
+      await fetch('/api/project-board/piece', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ piece_id: pieceId }),
+      })
+      setActive((prev) => prev.filter((p) => p.id !== pieceId))
+      setCompleted((prev) => prev.filter((p) => p.id !== pieceId))
+      if (selectedPiece?.id === pieceId) closeModal()
+    } catch (err) {
+      console.error('Failed to delete piece:', err)
+    }
+  }
+
   const handleCompletePieceById = async (pieceId: string) => {
     try {
       const res = await fetch('/api/project-board/complete', {
@@ -665,8 +681,36 @@ function ProjectBoardContent() {
   ) => {
     if (!coreConceptDraft) return null
     const isBoxed = !('boxed' in field) || field.boxed
-    const isBold = 'bold' in field && field.bold
     const isAccentLine = 'accentLine' in field && field.accentLine
+
+    if (field.key === 'one_sentence') {
+      return (
+        <div key={field.key}>
+          <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+            {field.label}
+          </p>
+          <AutoResizeTextarea
+            value={coreConceptDraft[field.key]}
+            onChange={(value) => handleCoreConceptChange(field.key, value)}
+            minRows={1}
+            style={{
+              width: '100%',
+              backgroundColor: 'transparent',
+              border: 'none',
+              padding: 0,
+              fontSize: '32px',
+              fontWeight: 700,
+              letterSpacing: '-0.035em',
+              color: c.textPrimary,
+              outline: 'none',
+              lineHeight: 1.15,
+              whiteSpace: 'pre-wrap',
+            }}
+          />
+        </div>
+      )
+    }
+
     return (
       <div key={field.key}>
         <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
@@ -685,7 +729,7 @@ function ProjectBoardContent() {
             padding: isBoxed ? '10px 12px' : isAccentLine ? '2px 0 2px 14px' : 0,
             ...(isAccentLine ? { borderLeft: `2px solid ${accentColor}` } : {}),
             fontSize: '14px',
-            fontWeight: isBold ? 700 : 400,
+            fontWeight: 400,
             color: c.textPrimary,
             outline: 'none',
             lineHeight: 1.6,
@@ -1089,7 +1133,7 @@ function ProjectBoardContent() {
                   '#10B981',
                   () => openPieceModal(piece.id),
                   { type: 'piece', id: piece.id },
-                  undefined,
+                  () => handleDeletePiece(piece.id),
                   piece.thematic_territory
                 )
               )}
@@ -1128,7 +1172,7 @@ function ProjectBoardContent() {
                   '#8B5CF6',
                   () => openPieceModal(piece.id),
                   undefined,
-                  undefined,
+                  () => handleDeletePiece(piece.id),
                   piece.thematic_territory
                 )
               )}
@@ -1162,7 +1206,7 @@ function ProjectBoardContent() {
                 '#10B981',
                 () => openPieceModal(piece.id),
                 undefined,
-                undefined,
+                () => handleDeletePiece(piece.id),
                 piece.thematic_territory
               )
             )}
@@ -1175,7 +1219,7 @@ function ProjectBoardContent() {
                 '#8B5CF6',
                 () => openPieceModal(piece.id),
                 undefined,
-                undefined,
+                () => handleDeletePiece(piece.id),
                 piece.thematic_territory
               )
             )}
@@ -1361,6 +1405,17 @@ function ProjectBoardContent() {
                 >
                   {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
                 </button>
+                  <button
+                    onClick={() => handleDeletePiece(selectedPiece.id)}
+                    aria-label="Delete piece"
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8a87' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#8c8a87' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
+                    </svg>
+                  </button>
                 <IconButton onClick={closeModal} ariaLabel="Close">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 6 6 18M6 6l12 12" />
@@ -2000,8 +2055,8 @@ function ProjectBoardContent() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                       {selectedIdea.one_sentence && (
                         <div>
-                          <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>One Sentence</p>
-                          <p style={{ fontSize: '14px', fontWeight: 700, color: c.textPrimary, lineHeight: 1.6, margin: 0 }}>{selectedIdea.one_sentence}</p>
+                          <p style={{ fontSize: '11px', color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Idea in one sentence</p>
+                          <p style={{ fontSize: '32px', fontWeight: 700, color: c.textPrimary, lineHeight: 1.15, letterSpacing: '-0.035em', margin: 0 }}>{selectedIdea.one_sentence}</p>
                         </div>
                       )}
                       {selectedIdea.conviction_statement && (
