@@ -31,9 +31,11 @@ function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Pale
       { label: 'Rising', full: '' },
       { label: 'Resolution', full: '' },
     ]
+    const FILLERS = new Set(['the', 'a', 'an', 'in', 'at', 'on', 'with', 'from', 'of', 'and', 'but', 'they', 'we', 'it', 'this', 'there', 'then', 'as', 'by', 'to'])
     return sentences.slice(0, 6).map(s => {
-      const words = s.split(/\s+/)
-      return { label: words.slice(0, Math.min(3, words.length)).join(' '), full: s }
+      const words = s.split(/\s+/).filter(w => !FILLERS.has(w.toLowerCase().replace(/[^a-z]/g, '')))
+      const label = words.slice(0, 2).join(' ') || s.split(/\s+/).slice(0, 2).join(' ')
+      return { label: label.charAt(0).toUpperCase() + label.slice(1), full: s }
     })
   }, [text])
 
@@ -567,23 +569,22 @@ export default function CoreConceptPage() {
                   </div>
                 </div>
 
-                {/* Emotional Journey — widget + text */}
+                {/* Emotional Journey — widget only; prose stored but not shown */}
                 <div>
                   <span className="cc-label">Emotional Journey</span>
                   {p2.content.emotional_journey ? (
-                    <div style={{ marginBottom: 16 }}>
-                      <EmotionalJourneyWidget text={p2.content.emotional_journey} palette={c} />
-                    </div>
-                  ) : null}
-                  <textarea
-                    className="cc-plain"
-                    value={p2.content.emotional_journey || ''}
-                    onChange={e => handleEditContent('phase2', 'emotional_journey', e.target.value)}
-                    disabled={p2.status === 'confirmed'}
-                    onInput={autoResize}
-                    placeholder="Describe the emotional arc of this piece…"
-                    style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary }}
-                  />
+                    <EmotionalJourneyWidget text={p2.content.emotional_journey} palette={c} />
+                  ) : (
+                    <textarea
+                      className="cc-plain"
+                      value={p2.content.emotional_journey || ''}
+                      onChange={e => handleEditContent('phase2', 'emotional_journey', e.target.value)}
+                      disabled={p2.status === 'confirmed'}
+                      onInput={autoResize}
+                      placeholder="Describe the emotional arc of this piece…"
+                      style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary }}
+                    />
+                  )}
                 </div>
 
                 {p2.status !== 'confirmed' && (

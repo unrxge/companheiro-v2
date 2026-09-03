@@ -1759,7 +1759,6 @@ function ProjectBoardContent() {
                         gap: '14px',
                       }}
                     >
-                      <p style={{ ...columnEyebrow, marginBottom: '2px' }}>Goals & threads</p>
                       {DIRECTION_FIELDS.map((field) => renderConceptField(field))}
                     </div>
                   </div>
