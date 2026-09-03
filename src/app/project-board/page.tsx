@@ -10,6 +10,7 @@ import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 
 interface ConceptualiseDraft {
+  id: string
   seed: string | null
   question: string | null
   messages: { role: 'user' | 'assistant'; content: string }[]
@@ -177,7 +178,7 @@ function ProjectBoardContent() {
   const [newJourneyStepInput, setNewJourneyStepInput] = useState('')
   const [bannerExpanded, setBannerExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [conceptualiseDraft, setConceptualiseDraft] = useState<ConceptualiseDraft | null>(null)
+  const [conceptualiseDrafts, setConceptualiseDrafts] = useState<ConceptualiseDraft[]>([])
   const [showNewIdeaModal, setShowNewIdeaModal] = useState(false)
 
   useEffect(() => {
@@ -221,14 +222,14 @@ function ProjectBoardContent() {
     try {
       const res = await fetch('/api/idea-lab/conceptualise/draft')
       const data = await res.json()
-      setConceptualiseDraft(data.draft || null)
+      setConceptualiseDrafts(data.drafts || [])
     } catch (err) {
       console.error('Failed to fetch conceptualise draft:', err)
     }
   }
 
   const handleNewIdeaClick = () => {
-    if (conceptualiseDraft) {
+    if (conceptualiseDrafts.length > 0) {
       setShowNewIdeaModal(true)
     } else {
       router.push('/idea-lab')
@@ -804,9 +805,58 @@ function ProjectBoardContent() {
   )
 
   const renderDraftCard = () => {
-    if (!conceptualiseDraft) return null
-    const lastMsg = conceptualiseDraft.messages[conceptualiseDraft.messages.length - 1]
-    const phaseLabel = PHASE_LABELS[conceptualiseDraft.phase] ?? `Phase ${conceptualiseDraft.phase}`
+    if (conceptualiseDrafts.length === 0) return null
+
+    if (conceptualiseDrafts.length === 1) {
+      const draft = conceptualiseDrafts[0]
+      const lastMsg = draft.messages[draft.messages.length - 1]
+      const phaseLabel = PHASE_LABELS[draft.phase] ?? `Phase ${draft.phase}`
+      return (
+        <div key="draft-card" style={{ marginBottom: 4 }}>
+          <button
+            onClick={() => router.push('/idea-lab/conceptualise')}
+            style={{
+              width: '100%',
+              textAlign: 'left',
+              backgroundColor: c.cardBg,
+              boxShadow: c.shadow,
+              border: `1px solid rgba(165,63,43,0.28)`,
+              borderRadius: '12px',
+              padding: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.55)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(165,63,43,0.28)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
+              <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
+                Unfinished · {phaseLabel}
+              </span>
+            </div>
+            {lastMsg && (
+              <p style={{
+                fontSize: '13px',
+                color: c.textSecondary,
+                margin: 0,
+                lineHeight: 1.45,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}>
+                {lastMsg.content}
+              </p>
+            )}
+            <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
+          </button>
+        </div>
+      )
+    }
+
     return (
       <div key="draft-card" style={{ marginBottom: 4 }}>
         <button
@@ -830,24 +880,13 @@ function ProjectBoardContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'rgba(165,63,43,0.8)', flexShrink: 0 }} />
             <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(165,63,43,0.7)' }}>
-              Unfinished · {phaseLabel}
+              Unfinished explorations
             </span>
           </div>
-          {lastMsg && (
-            <p style={{
-              fontSize: '13px',
-              color: c.textSecondary,
-              margin: 0,
-              lineHeight: 1.45,
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-            }}>
-              {lastMsg.content}
-            </p>
-          )}
-          <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
+          <p style={{ fontSize: '13px', color: c.textSecondary, margin: 0, lineHeight: 1.45 }}>
+            {conceptualiseDrafts.length} ideas in progress
+          </p>
+          <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>View all →</span>
         </button>
       </div>
     )
@@ -1022,7 +1061,7 @@ function ProjectBoardContent() {
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
             </div>
             <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
-              {conceptualiseDraft && renderDraftCard()}
+              {conceptualiseDrafts.length > 0 && renderDraftCard()}
               {queue.map((idea) =>
                 renderCard(
                   idea.id,
@@ -1122,7 +1161,7 @@ function ProjectBoardContent() {
         {/* Mobile Layout - Single Column with Tabs */}
         <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
           <div className="space-y-3">
-          {activeTab === 'Queue' && conceptualiseDraft && renderDraftCard()}
+          {activeTab === 'Queue' && conceptualiseDrafts.length > 0 && renderDraftCard()}
           {activeTab === 'Queue' &&
             queue.map((idea) =>
               renderCard(
@@ -2027,7 +2066,7 @@ function ProjectBoardContent() {
       )}
 
       {/* Resume exploration modal — shown when New Idea is tapped while a draft exists */}
-      {showNewIdeaModal && conceptualiseDraft && (
+      {showNewIdeaModal && conceptualiseDrafts.length > 0 && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '0 24px' }}
           onClick={() => setShowNewIdeaModal(false)}
@@ -2044,13 +2083,15 @@ function ProjectBoardContent() {
                 Resume where you left off?
               </h2>
               <p style={{ fontSize: 13, color: c.textMuted, margin: 0, lineHeight: 1.5 }}>
-                Phase {conceptualiseDraft.phase}: {PHASE_LABELS[conceptualiseDraft.phase] ?? 'In Progress'}
+                {conceptualiseDrafts.length === 1
+                  ? `Phase ${conceptualiseDrafts[0].phase}: ${PHASE_LABELS[conceptualiseDrafts[0].phase] ?? 'In Progress'}`
+                  : `${conceptualiseDrafts.length} unfinished explorations`}
               </p>
             </div>
-            {conceptualiseDraft.messages.length > 0 && (
+            {conceptualiseDrafts.length === 1 && conceptualiseDrafts[0].messages.length > 0 && (
               <div style={{ background: c.inputBg, border: `1px solid ${c.inputBorder}`, borderRadius: 10, padding: '12px 14px' }}>
                 <p style={{ fontSize: 13, color: c.textSecondary, margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                  {conceptualiseDraft.messages[conceptualiseDraft.messages.length - 1].content}
+                  {conceptualiseDrafts[0].messages[conceptualiseDrafts[0].messages.length - 1].content}
                 </p>
               </div>
             )}
