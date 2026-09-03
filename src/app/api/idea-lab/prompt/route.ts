@@ -208,7 +208,7 @@ const ENERGY_FACET_STEER: Record<string, string> = {
   light:
     "Enter from the expansive, forward-facing corners of the territory — where possibility is visible and the path feels genuinely open. Where this way of being starts to show what it can actually become.",
   bright:
-    "Enter from the territory's most expansive, fully-inhabited corner — where this way of being is completely alive, not still being worked toward; where the grandest version of what's possible here becomes suddenly real and the ceiling disappears. If the facet seed touches something heavy, use it only as a launchpad: move through it in a single beat and take the prompt decisively toward what becomes possible on the other side. Never dwell in the weight when the energy is this high.",
+    "Enter ONLY from the territory's most luminous, fully-inhabited corner — where this way of being is completely alive and the ceiling has already disappeared. STRICT RULE: Do not use heavy, deficit-based, or loss-adjacent facet seeds at all. If the chosen entry point touches struggle, suppression, apology, grief, shame, or what's been missing — ignore it entirely and find a facet that is already in the light: abundance, wonder, aliveness, full presence, the joy of making, the pull of something real. The question must BEGIN from radiance, not travel toward it through shadow. No 'what becomes possible once you stop X'. No negative framing as a launchpad. Start from what IS alive, not from what was taken away.",
 };
 
 const ENERGY_TONE_STEER: Record<string, string> = {
@@ -220,7 +220,7 @@ const ENERGY_TONE_STEER: Record<string, string> = {
   light:
     "Render with warm, forward-facing energy — the feeling of a conversation that's just getting interesting and opening up. The question should create genuine want-to: not urgency, but the pull of something worth exploring. The reader should feel momentum building — like this could go somewhere real if they let it.",
   bright:
-    "Render with charged, forward-surging wonder — not quiet awe but the specific electricity of a door thrown open into a much larger room. The prompt should feel like the one question that makes a person stop everything, put the phone down, and reach for their notebook right now. Urgent without anxiety. Alive with possibility at a scale that makes ordinary limitations feel suddenly irrelevant. Rubin's spirit in its most electrifying register: the universe as active co-conspirator, the work as something already alive and pulling toward the writer, not waiting to be invented. The reader should feel genuinely catapulted — out of stillness, into creation. Not inspirational-poster bright: specific, alive, and carrying real charge.",
+    "Render with charged, forward-surging wonder — the specific electricity of a door thrown open into a much larger room. The question must begin and end entirely in the positive: no deficit framing, no implied wound, no 'despite', no 'instead of', no shadow even at the edges. The reader should feel catapulted into creation not because they've been invited to heal something, but because the territory itself is ALIVE and already calling. Urgent without anxiety. Specific without being heavy. The question should feel like the one that makes a person stop everything and reach for a blank page right now — not because something is wrong, but because something is genuinely possible. The universe as active co-conspirator, the work as something already alive, the territory as abundance not absence. Not inspirational-poster bright: genuinely charged, alive, carrying real forward momentum.",
 };
 
 function getRandomArcs(): string[] {
@@ -327,7 +327,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     const arcSection =
       finalArcs.length > 0
         ? `THE ARC — its direction applied to the territory:\n${finalArcs.map((a) => `${a}: ${ARC_VECTORS[a] ?? ""}`).join("\n")}`
-        : "NO ARC: Let the territory carry the whole prompt on its own terms. Do not impose any Breakaway / Beginning / Expansion / Integration framing.";
+        : "NO ARC: Let the territory carry the whole prompt on its own terms. Do not impose any Breakaway / Beginning / Expansion / Integration framing. The question must be timeless — not situated in any particular life stage, transition, or moment of change. It should feel equally true and equally alive at any point in a human life.";
 
     // Territory range maps — the full field to roam inside
     const territorySection = territoryRangeMapsText
