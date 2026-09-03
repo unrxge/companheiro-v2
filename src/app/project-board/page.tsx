@@ -858,6 +858,16 @@ function ProjectBoardContent() {
     </div>
   )
 
+  const handleDeleteDraft = async (draftId: string) => {
+    if (!window.confirm('Discard this draft? This can\'t be undone.')) return
+    try {
+      await fetch(`/api/idea-lab/conceptualise/draft?id=${draftId}`, { method: 'DELETE' })
+      setConceptualiseDrafts((prev) => prev.filter((d) => d.id !== draftId))
+    } catch (err) {
+      console.error('Failed to delete draft:', err)
+    }
+  }
+
   const renderDraftCard = () => {
     if (conceptualiseDrafts.length === 0) return null
 
@@ -867,7 +877,7 @@ function ProjectBoardContent() {
           const lastMsg = draft.messages[draft.messages.length - 1]
           const phaseLabel = PHASE_LABELS[draft.phase] ?? `Phase ${draft.phase}`
           return (
-            <div key={draft.id} style={{ marginBottom: 4 }}>
+            <div key={draft.id} className="group" style={{ marginBottom: 4, position: 'relative' }}>
               <button
                 onClick={() => router.push('/idea-lab/conceptualise')}
                 style={{
@@ -907,6 +917,34 @@ function ProjectBoardContent() {
                   </p>
                 )}
                 <span style={{ fontSize: 11, color: 'rgba(165,63,43,0.7)', fontWeight: 500 }}>Resume exploration →</span>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteDraft(draft.id) }}
+                aria-label="Discard draft"
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{
+                  position: 'absolute',
+                  top: '-7px',
+                  right: '-7px',
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  border: `1px solid ${c.divider}`,
+                  backgroundColor: c.cardBg,
+                  boxShadow: c.shadow,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: c.textMuted,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
           )
