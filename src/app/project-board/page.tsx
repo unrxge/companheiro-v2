@@ -1378,7 +1378,7 @@ function ProjectBoardContent() {
       {/* Piece Modal: mirrors the page-level shell -> header-on-shell -> container structure exactly */}
       {modalType === 'piece' && selectedPiece && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
-          <div style={{ height: '100%', maxWidth: '960px', margin: '0 auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: '100%', maxWidth: '1080px', margin: '0 auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
             {/* Header: plain text + actions floating directly on the dark shell, no card chrome of its own */}
             <div
               style={{
@@ -1477,7 +1477,7 @@ function ProjectBoardContent() {
               }}
             >
           <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-            <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px 48px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+            <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 28px 48px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
               {/* Core Concept: one sentence / conviction / emotional journey sit uncarded, above the sectional grid */}
               {coreConceptDraft && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -2036,7 +2036,7 @@ function ProjectBoardContent() {
         const parseGoals = (s?: string) => s ? s.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean) : []
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
-            <div style={{ height: '100%', maxWidth: '960px', margin: '0 auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: '100%', maxWidth: '1080px', margin: '0 auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
               {/* Header */}
               <div style={{ marginBottom: '24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0, gap: '16px' }}>
                 <div style={{ minWidth: 0 }}>
@@ -2087,7 +2087,7 @@ function ProjectBoardContent() {
               {/* Container */}
               <div style={{ backgroundColor: c.containerBg, boxShadow: c.containerShadow, borderRadius: '28px 28px 0 0', overflow: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'background-color 0.3s ease' }}>
                 <div className="board-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-                  <div style={{ maxWidth: '880px', margin: '0 auto', padding: '32px 28px 48px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 28px 48px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
                     {/* One Sentence + Conviction — uncarded, bare text on container */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
