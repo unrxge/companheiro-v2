@@ -334,24 +334,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       ? `THE TERRITORY — its full range:\n${territoryRangeMapsText}`
       : "NO TERRITORY: Work from the arc alone, letting it find its own ground.";
 
-    // Rendering mode — impersonal = Open Invitation or Universal Invitation (energy-dependent),
-    // personal = Charged Question.
-    // When impersonal + light/bright energy, the system shifts into the grand, expansive, universal
-    // register: principle over autobiography, dreamy and wide, not grounded in personal circumstance.
-    const isUniversalMode = isImpersonal && (energy === 'light' || energy === 'bright');
+    // Rendering mode — impersonal = Universal Question (writer as witness/philosopher/guide),
+    // personal = Charged Question (writer as subject of their own lived experience).
+    // Universal mode holds at every energy level — energy steers tone and which end of the
+    // range to enter from, but the output is always outward-facing and principled.
 
     const renderingSection = isImpersonal
-      ? isUniversalMode
-        ? `OUTPUT MODE — Universal Invitation:
-Write one question that opens into the grand and the possible. This is the expansive register — the kind of prompt that makes a person put everything down and reach for a blank page with genuine excitement.
+      ? `OUTPUT MODE — Universal Question:
+Write one question that positions the writer as a witness to universal human experience — someone who has something to say to and about the world, not someone being asked to excavate their own biography.
 
-UNIVERSAL: Nothing personal. No autobiography. Operate at the level of principle, of what could be true for anyone, of the great dreamy territory that doesn't require knowing the writer to enter. Think: what if anything were possible? What would a person ask themselves at the beginning of something they couldn't yet imagine? The territory and arc give you a compass — let the question roam far beyond the personal interpretation of them.
+OUTWARD-FACING: The question should address what is true for anyone who has ever lived inside this territory — what it teaches, what it asks of us, what it reveals about being human. Position the writer as guide, philosopher, or steward of a particular way of seeing: "What would you tell all the [people who have experienced X]...", "What does [territory] want from us collectively?", "What becomes possible when [principle]...", "What truth lives inside [experience] that almost no one names?". The writer is not the subject — their vision and understanding are the subject.
 
-One sentence. Always ends with a question mark. The question should feel like an invitation to dream at a scale that makes ordinary limitations feel suddenly irrelevant.`
-        : `OUTPUT MODE — Open Question:
-Write one question. Spacious and open-ended — no single right answer, many possible directions the writer could take it. It should feel like an invitation rather than an interrogation: wide enough that the writer doesn't feel funneled toward one answer, but specific enough to land somewhere real inside the territory. One sentence. Always ends with a question mark.
+NOT personal memory. NOT "your" experience. The territory and arc are a compass into universal ground. The question should feel like the beginning of something the writer could say to strangers and have them recognize themselves in it.
 
-IMPERSONAL: Nothing is known about who is asking and it must stay that way. Do not invent or assume anything personal. Explore the territory and arc purely on their own terms.`
+One sentence. Always ends with a question mark. The writer should feel: "I have something to say about this that matters beyond my own story."`
       : `OUTPUT MODE — Charged Question:
 Write one sentence. Always exactly one. A direct question that positions the writer as the only authority on the answer — the answer already lives inside them, the prompt just surfaces it. Usually begins with What, When, or Where (rarely Why — why invites justification, not felt truth). Can also be a directive: "Describe the last time..." or "Name the thing...". One question only. Land and stop. The reader should feel productive friction: "yes, that's it" followed by "I've never actually sat with that."
 
@@ -359,7 +355,7 @@ PERSONAL GROUNDING — use the context below to ground which specific facet the 
 
 ${groundingBlock}`;
 
-    const system = `You are Companheiro, generating a prompt that opens a door into someone's lived experience.
+    const system = `You are Companheiro, generating a prompt that opens a door into the writer's relationship with the world.
 
 ${renderingSection}
 
@@ -370,13 +366,13 @@ ${territorySection}
 ENERGY:
 Facet — ${facetSteer}
 Tone — ${toneSteer}
-${facetSeed ? `\nFACET SEED — your required entry point into the territory today:\n${facetSeed}\nEnter from this specific corner. Do not restate the seed verbatim in the output — use it as the starting point, then let the arc's direction take it somewhere the seed alone doesn't name.\n` : ""}
-Find ONE specific, unexpected corner of this territory — shaped by the arc's direction and the energy's pull on the territory's range. Never restate the territory's own name or the arc's name inside the prompt. If you can imagine the same prompt working unchanged for someone whose life looks entirely unlike who this was written for, go narrower and stranger. A great prompt opens exactly one door, not a hallway.
+${facetSeed ? `\nFACET SEED — the corner of the territory to enter today:\n${facetSeed}\n${isImpersonal ? "Use this seed as a lens on universal human experience — let it show you WHICH corner of the territory to inhabit, then ask what is true for everyone who has ever lived there, not what the writer personally remembers. Do not restate the seed verbatim in the output." : "Enter from this specific corner. Do not restate the seed verbatim in the output — use it as the starting point, then let the arc's direction take it somewhere the seed alone doesn't name."}\n` : ""}
+Find ONE specific, unexpected corner of this territory — shaped by the arc's direction and the energy's pull on the territory's range. Never restate the territory's own name or the arc's name inside the prompt. ${isImpersonal ? "If the question could be about one specific person's private story rather than a universal human truth, it is too narrow — go wider and more principled." : "If you can imagine the same prompt working unchanged for someone whose life looks entirely unlike who this was written for, go narrower and stranger."} A great prompt opens exactly one door, not a hallway.
 
 Return only the prompt text. No quotation marks, no preamble, no explanation.`;
 
     const userMessage = [
-      isImpersonal ? "Generate an open invitation" : "Generate a charged question",
+      isImpersonal ? "Generate a universal question" : "Generate a charged question",
       finalArcs.length > 0 ? `rooted in: ${finalArcs.join(", ")}` : null,
       territoryNamesText ? `within the territory of: ${territoryNamesText}` : null,
     ]
