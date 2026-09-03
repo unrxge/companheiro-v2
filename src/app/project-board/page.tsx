@@ -1006,7 +1006,7 @@ function ProjectBoardContent() {
         {/* Desktop Layout - 3 Columns. Widths sum to 1080px (was 240+600+240) and the
             row is centered via maxWidth+margin:auto so any leftover container width
             splits evenly on both sides instead of showing as a gap on the right. */}
-        <div className="hidden md:flex flex-1" style={{ minHeight: 0, maxWidth: '1080px', margin: '0 auto', width: '100%' }}>
+        <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
           {/* Queue Column - fixed width, doesn't shrink when the board narrows */}
           <div
             className="flex flex-col transition-colors"
