@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion } from 'motion/react'
 import { shellBackground, cardPalette } from '@/lib/card-theme'
 import { IconButton } from '@/components/ui/icon-button'
 
-const c = cardPalette['dark']
-const GREEN = '#10B981'
+const STAGE_COLORS = ['#F59E0B', '#10B981', '#8B5CF6', '#a53f2b', '#3B82F6', '#EC4899']
+
+type Palette = (typeof cardPalette)[keyof typeof cardPalette]
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
@@ -19,29 +21,36 @@ interface DocumentSection {
   content: Record<string, string>
 }
 
-function EmotionalJourneyWidget({ text }: { text: string }) {
-  const stages = useMemo(() => {
+function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Palette }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
+  const stageData = useMemo(() => {
     const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length > 8)
-    if (sentences.length === 0) return ['Beginning', 'Rising', 'Resolution']
-    return sentences.slice(0, 5).map(s => {
-      const words = s.split(' ')
-      return words.slice(0, Math.min(3, words.length)).join(' ')
+    if (sentences.length === 0) return [
+      { label: 'Beginning', full: '' },
+      { label: 'Rising', full: '' },
+      { label: 'Resolution', full: '' },
+    ]
+    return sentences.slice(0, 6).map(s => {
+      const words = s.split(/\s+/)
+      return { label: words.slice(0, Math.min(3, words.length)).join(' '), full: s }
     })
   }, [text])
 
-  const n = stages.length
+  const n = stageData.length
   const W = 500, H = 64, PAD = 40
 
-  const heights = useMemo(() => stages.map((stage, i) => {
+  const heights = useMemo(() => stageData.map((stage, i) => {
     const t = i / (n - 1 || 1)
     const base = Math.sin(t * Math.PI) * 0.8
-    const hash = stage.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0)
+    const hash = stage.label.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0)
     return Math.max(0.08, Math.min(0.92, base + (hash % 15 - 7) / 100))
-  }), [stages, n])
+  }), [stageData, n])
 
   const pts = heights.map((h, i) => ({
     x: n <= 1 ? W / 2 : PAD + (i / (n - 1)) * (W - PAD * 2),
     y: H - h * (H - 8),
+    color: STAGE_COLORS[i % STAGE_COLORS.length],
   }))
 
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
@@ -51,36 +60,80 @@ function EmotionalJourneyWidget({ text }: { text: string }) {
   }
 
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + 28}`} style={{ overflow: 'visible', display: 'block' }}>
-      <defs>
-        <linearGradient id="ejGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={GREEN} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={GREEN} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${d} L ${pts[pts.length - 1].x} ${H + 2} L ${pts[0].x} ${H + 2} Z`} fill="url(#ejGrad)" />
-      <path d={d} fill="none" stroke={GREEN} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r={3} fill={GREEN} />
-          <text x={p.x} y={H + 20} textAnchor="middle" fontSize={8.5} fontFamily="inherit" fill={c.textMuted}>
-            {stages[i].length > 15 ? stages[i].slice(0, 14) + '…' : stages[i]}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div style={{ position: 'relative' }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H + 30}`} style={{ overflow: 'visible', display: 'block' }}>
+        <defs>
+          <linearGradient id="ejFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={palette.textMuted} stopOpacity="0.07" />
+            <stop offset="100%" stopColor={palette.textMuted} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${d} L ${pts[pts.length - 1].x} ${H + 2} L ${pts[0].x} ${H + 2} Z`} fill="url(#ejFill)" />
+        <path d={d} fill="none" stroke={palette.divider} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+
+        {pts.map((p, i) => (
+          <g
+            key={i}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+            style={{ cursor: 'default' }}
+          >
+            <circle cx={p.x} cy={p.y} r={18} fill="transparent" />
+            <circle cx={p.x} cy={p.y} r={hoveredIdx === i ? 5.5 : 3.5} fill={p.color} style={{ transition: 'r 0.15s' }} />
+            <text
+              x={p.x} y={H + 22}
+              textAnchor="middle"
+              fontSize={8.5}
+              fontFamily="inherit"
+              fill={p.color}
+              fontWeight={hoveredIdx === i ? 700 : 500}
+            >
+              {stageData[i].label.length > 14 ? stageData[i].label.slice(0, 13) + '…' : stageData[i].label}
+            </text>
+          </g>
+        ))}
+      </svg>
+
+      {hoveredIdx !== null && stageData[hoveredIdx].full && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: `${(pts[hoveredIdx].x / W) * 100}%`,
+          transform: 'translateX(-50%)',
+          marginBottom: 8,
+          background: palette.cardBg,
+          border: `1px solid ${pts[hoveredIdx].color}55`,
+          borderRadius: 10,
+          padding: '10px 14px',
+          maxWidth: 220,
+          boxShadow: palette.shadow,
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: pts[hoveredIdx].color, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 5px' }}>
+            {stageData[hoveredIdx].label}
+          </p>
+          <p style={{ fontSize: 12, color: palette.textSecondary, lineHeight: 1.55, margin: 0 }}>
+            {stageData[hoveredIdx].full}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
-function DashedList({ text }: { text: string }) {
+function DashedList({ text, palette }: { text: string; palette: Palette }) {
   const lines = text.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean)
   if (lines.length === 0) return null
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div>
       {lines.map((line, i) => (
-        <div key={i} style={{ display: 'flex', gap: 10, fontSize: 14, color: c.textPrimary, lineHeight: 1.55 }}>
-          <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
-          <span>{line}</span>
+        <div key={i}>
+          <div style={{ display: 'flex', gap: 10, fontSize: 14, color: palette.textPrimary, lineHeight: 1.55, padding: '10px 0' }}>
+            <span style={{ color: palette.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+            <span>{line}</span>
+          </div>
+          {i < lines.length - 1 && <div style={{ height: 1, background: palette.divider }} />}
         </div>
       ))}
     </div>
@@ -89,6 +142,24 @@ function DashedList({ text }: { text: string }) {
 
 export default function CoreConceptPage() {
   const router = useRouter()
+
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('cc_theme') as 'light' | 'dark' | null
+    if (saved) setTheme(saved)
+  }, [])
+
+  const c = cardPalette[theme]
+
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark'
+      localStorage.setItem('cc_theme', next)
+      return next
+    })
+  }
+
   const [conversation, setConversation] = useState<ConversationMessage[]>([])
   const [sections, setSections] = useState<Record<string, DocumentSection>>({
     phase1: { title: 'Idea Essence', status: 'pending', content: {} },
@@ -96,12 +167,10 @@ export default function CoreConceptPage() {
     phase3: { title: 'Core Truth', status: 'pending', content: {} },
     phase4: { title: 'Format & Threads', status: 'pending', content: {} },
   })
-
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showConversation, setShowConversation] = useState(false)
-
   const [showTaskReview, setShowTaskReview] = useState(false)
   const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
   const [pieceId, setPieceId] = useState<string | null>(null)
@@ -122,7 +191,6 @@ export default function CoreConceptPage() {
     }
   }, [])
 
-  // Auto-resize all plain textareas when section data loads
   useEffect(() => {
     document.querySelectorAll('textarea.cc-plain').forEach(el => {
       const ta = el as HTMLTextAreaElement
@@ -243,11 +311,12 @@ export default function CoreConceptPage() {
   }
 
   const greenBadge = (
-    <span style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(16,185,129,0.75)', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4 }}>Locked</span>
+    <span style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'rgba(16,185,129,0.8)', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4 }}>Locked</span>
   )
 
   function phaseCardStyle(s: DocumentSection): React.CSSProperties {
     return {
+      position: 'relative',
       background: s.status === 'pending' ? c.containerBg : c.cardBg,
       border: s.status === 'confirmed' ? '1px solid rgba(16,185,129,0.22)' : `1px solid ${c.divider}`,
       borderRadius: 16,
@@ -256,6 +325,59 @@ export default function CoreConceptPage() {
       transition: 'opacity 0.3s',
     }
   }
+
+  const backBtn = (dest: string) => (
+    <motion.button
+      onClick={() => router.push(dest)}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.93 }}
+      style={{
+        width: 28, height: 28, borderRadius: '50%',
+        border: `1px solid ${c.divider}`,
+        background: 'rgba(232,230,224,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', flexShrink: 0,
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </motion.button>
+  )
+
+  const themeToggle = (
+    <motion.button
+      onClick={toggleTheme}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.93 }}
+      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      style={{
+        width: 32, height: 32, borderRadius: '50%',
+        border: `1px solid ${c.divider}`,
+        background: c.inputBg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', flexShrink: 0,
+      }}
+    >
+      {theme === 'dark' ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12" y1="2" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+          <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
+          <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
+          <line x1="2" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="22" y2="12" />
+          <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
+          <line x1="17.66" y1="6.34" x2="19.78" y2="4.22" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      )}
+    </motion.button>
+  )
 
   const p1 = sections.phase1
   const p2 = sections.phase2
@@ -266,14 +388,15 @@ export default function CoreConceptPage() {
   if (showTaskReview && pieceId) {
     return (
       <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          <IconButton onClick={() => router.push('/idea-lab/conceptualise')} ariaLabel="Back to Conceptualise">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-          </IconButton>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Task Roadmap</h1>
+        <div style={{ padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {backBtn('/idea-lab/conceptualise')}
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Task Roadmap</h1>
+          </div>
+          {themeToggle}
         </div>
         <div style={{ flex: 1, padding: '40px 24px 64px', maxWidth: 680, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-          <div style={{ background: c.containerBg, borderRadius: 20, boxShadow: c.shadow, padding: '28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: c.containerBg, borderRadius: 20, boxShadow: c.containerShadow, padding: '28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
             <p style={{ fontSize: 13, color: c.textMuted, margin: 0 }}>Review and edit the suggested tasks before beginning.</p>
             {error && (
               <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 10, padding: '10px 14px' }}>
@@ -327,30 +450,23 @@ export default function CoreConceptPage() {
           display: block;
           color: ${c.textPrimary};
         }
-        .cc-plain:not(:disabled):hover { background: rgba(232,230,224,0.025); border-radius: 4px; }
-        .cc-plain:not(:disabled):focus { box-shadow: 0 1px 0 rgba(232,230,224,0.1); border-radius: 4px 4px 0 0; }
+        .cc-plain:not(:disabled):hover { background: ${theme === 'dark' ? 'rgba(232,230,224,0.025)' : 'rgba(23,22,19,0.025)'}; border-radius: 4px; }
+        .cc-plain:not(:disabled):focus { box-shadow: 0 1px 0 ${theme === 'dark' ? 'rgba(232,230,224,0.1)' : 'rgba(23,22,19,0.12)'}; border-radius: 4px 4px 0 0; }
         .cc-plain:disabled { cursor: default; opacity: 0.72; }
         .cc-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: ${c.textMuted}; margin: 0 0 10px; display: block; }
       `}</style>
 
-      {/* Header */}
-      <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <IconButton onClick={() => router.push('/idea-lab/conceptualise')} ariaLabel="Back to Conceptualise">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-          </IconButton>
+      {/* Header — no divider */}
+      <div style={{ padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {backBtn('/idea-lab/conceptualise')}
           <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Core Concept</h1>
         </div>
-        {conversation.length > 0 && (
-          <button onClick={() => setShowConversation(true)} style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: `1px solid ${c.divider}`, borderRadius: 10, padding: '7px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            View conversation
-          </button>
-        )}
+        {themeToggle}
       </div>
 
       <div style={{ flex: 1, padding: '32px 24px 64px', maxWidth: 880, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-        {/* Shell container */}
-        <div style={{ background: c.containerBg, borderRadius: 20, boxShadow: c.shadow, padding: '28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: c.containerBg, borderRadius: 20, boxShadow: c.containerShadow, padding: '28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {error && (
             <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 12, padding: '10px 14px' }}>
@@ -360,15 +476,16 @@ export default function CoreConceptPage() {
 
           {/* ── PHASE 1 — Idea Essence ── */}
           <div style={{ ...phaseCardStyle(p1), padding: '28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-              <span className="cc-label" style={{ margin: 0 }}>{p1.title}</span>
-              {p1.status === 'confirmed' && greenBadge}
-              {isLoading && p1.status === 'pending' && <span style={{ fontSize: 11, color: c.textMuted }}>Generating…</span>}
-            </div>
+            {p1.status === 'confirmed' && (
+              <div style={{ position: 'absolute', top: 16, right: 16 }}>{greenBadge}</div>
+            )}
+            {isLoading && p1.status === 'pending' && (
+              <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>Generating…</p>
+            )}
             {p1.status !== 'pending' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* One sentence (title) + Arc/Territory (right) */}
                 <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
+                  {/* One sentence — big title */}
                   <div style={{ flex: 1 }}>
                     <span className="cc-label">Idea in one sentence</span>
                     <textarea
@@ -381,6 +498,7 @@ export default function CoreConceptPage() {
                       style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.2, minHeight: '1.4em' }}
                     />
                   </div>
+                  {/* Arc + Territory — right side */}
                   <div style={{ width: 196, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
                     <div>
                       <span className="cc-label">Arc</span>
@@ -391,7 +509,7 @@ export default function CoreConceptPage() {
                         disabled={p1.status === 'confirmed'}
                         onInput={autoResize}
                         placeholder="Arc…"
-                        style={{ fontSize: 15, fontWeight: 400, lineHeight: 1.5, color: c.textSecondary }}
+                        style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.5, color: c.textSecondary }}
                       />
                     </div>
                     <div style={{ borderTop: `1px solid ${c.divider}`, paddingTop: 14 }}>
@@ -403,7 +521,7 @@ export default function CoreConceptPage() {
                         disabled={p1.status === 'confirmed'}
                         onInput={autoResize}
                         placeholder="Territory…"
-                        style={{ fontSize: 15, fontWeight: 400, lineHeight: 1.5, color: c.textSecondary }}
+                        style={{ fontSize: 13, fontWeight: 400, lineHeight: 1.5, color: c.textMuted }}
                       />
                     </div>
                   </div>
@@ -419,13 +537,14 @@ export default function CoreConceptPage() {
 
           {/* ── PHASE 2 — Conviction & Journey ── */}
           <div style={{ ...phaseCardStyle(p2), padding: '28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-              <span className="cc-label" style={{ margin: 0 }}>{p2.title}</span>
-              {p2.status === 'confirmed' && greenBadge}
-              {isLoading && p2.status === 'pending' && <span style={{ fontSize: 11, color: c.textMuted }}>Generating…</span>}
-            </div>
+            {p2.status === 'confirmed' && (
+              <div style={{ position: 'absolute', top: 16, right: 16 }}>{greenBadge}</div>
+            )}
+            {isLoading && p2.status === 'pending' && (
+              <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>Generating…</p>
+            )}
             {p2.status !== 'pending' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
                 {/* Conviction — blockquote */}
                 <div>
                   <span className="cc-label">Conviction Statement</span>
@@ -438,7 +557,7 @@ export default function CoreConceptPage() {
                       disabled={p2.status === 'confirmed'}
                       onInput={autoResize}
                       placeholder="Your conviction about this work…"
-                      style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.65, letterSpacing: '-0.01em', fontStyle: 'italic' }}
+                      style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.65, letterSpacing: '-0.01em' }}
                     />
                   </div>
                 </div>
@@ -447,8 +566,8 @@ export default function CoreConceptPage() {
                 <div>
                   <span className="cc-label">Emotional Journey</span>
                   {p2.content.emotional_journey ? (
-                    <div style={{ marginBottom: 12 }}>
-                      <EmotionalJourneyWidget text={p2.content.emotional_journey} />
+                    <div style={{ marginBottom: 16 }}>
+                      <EmotionalJourneyWidget text={p2.content.emotional_journey} palette={c} />
                     </div>
                   ) : null}
                   <textarea
@@ -475,13 +594,15 @@ export default function CoreConceptPage() {
 
           {/* ── PHASE 3 — Core Truth (centered) ── */}
           <div style={{ ...phaseCardStyle(p3), padding: '44px 40px', textAlign: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
-              <span className="cc-label" style={{ margin: 0 }}>{p3.title}</span>
-              {p3.status === 'confirmed' && greenBadge}
-              {isLoading && p3.status === 'pending' && <span style={{ fontSize: 11, color: c.textMuted }}>Generating…</span>}
-            </div>
+            {p3.status === 'confirmed' && (
+              <div style={{ position: 'absolute', top: 16, right: 16 }}>{greenBadge}</div>
+            )}
+            {isLoading && p3.status === 'pending' && (
+              <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>Generating…</p>
+            )}
             {p3.status !== 'pending' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <span className="cc-label" style={{ margin: 0 }}>Core Truth</span>
                 <textarea
                   className="cc-plain"
                   value={p3.content.core_truth || ''}
@@ -503,64 +624,40 @@ export default function CoreConceptPage() {
           {/* ── PHASE 4 — Format & Threads ── */}
           {p4.status === 'pending' ? (
             <div style={{ ...phaseCardStyle(p4), padding: '24px 28px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="cc-label" style={{ margin: 0 }}>{p4.title}</span>
-                {isLoading && <span style={{ fontSize: 11, color: c.textMuted }}>Generating…</span>}
-              </div>
+              {isLoading && <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>Generating…</p>}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Writing + Visuals — side by side */}
+              {/* Writing + Visuals side by side */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ background: c.cardBg, border: p4.status === 'confirmed' ? '1px solid rgba(16,185,129,0.22)' : `1px solid ${c.divider}`, borderRadius: 16, padding: '24px', boxShadow: c.shadow }}>
                   <span className="cc-label">Writing Suggestions</span>
                   {p4.status === 'confirmed' ? (
-                    <DashedList text={p4.content.substack_goals || ''} />
+                    <DashedList text={p4.content.substack_goals || ''} palette={c} />
                   ) : (
-                    <textarea
-                      className="cc-plain"
-                      value={p4.content.substack_goals || ''}
-                      onChange={e => handleEditContent('phase4', 'substack_goals', e.target.value)}
-                      onInput={autoResize}
-                      placeholder={'- First suggestion\n- Second suggestion'}
-                      style={{ fontSize: 14, lineHeight: 1.65 }}
-                    />
+                    <textarea className="cc-plain" value={p4.content.substack_goals || ''} onChange={e => handleEditContent('phase4', 'substack_goals', e.target.value)} onInput={autoResize} placeholder={'- First suggestion\n- Second suggestion'} style={{ fontSize: 14, lineHeight: 1.65 }} />
                   )}
                 </div>
                 <div style={{ background: c.cardBg, border: p4.status === 'confirmed' ? '1px solid rgba(16,185,129,0.22)' : `1px solid ${c.divider}`, borderRadius: 16, padding: '24px', boxShadow: c.shadow }}>
                   <span className="cc-label">Visuals Suggestions</span>
                   {p4.status === 'confirmed' ? (
-                    <DashedList text={p4.content.short_form_goals || ''} />
+                    <DashedList text={p4.content.short_form_goals || ''} palette={c} />
                   ) : (
-                    <textarea
-                      className="cc-plain"
-                      value={p4.content.short_form_goals || ''}
-                      onChange={e => handleEditContent('phase4', 'short_form_goals', e.target.value)}
-                      onInput={autoResize}
-                      placeholder={'- First suggestion\n- Second suggestion'}
-                      style={{ fontSize: 14, lineHeight: 1.65 }}
-                    />
+                    <textarea className="cc-plain" value={p4.content.short_form_goals || ''} onChange={e => handleEditContent('phase4', 'short_form_goals', e.target.value)} onInput={autoResize} placeholder={'- First suggestion\n- Second suggestion'} style={{ fontSize: 14, lineHeight: 1.65 }} />
                   )}
                 </div>
               </div>
 
-              {/* Open Threads — standalone */}
+              {/* Open Threads standalone */}
               <div style={{ background: c.cardBg, border: p4.status === 'confirmed' ? '1px solid rgba(16,185,129,0.22)' : `1px solid ${c.divider}`, borderRadius: 16, padding: '24px', boxShadow: c.shadow }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                   <span className="cc-label" style={{ margin: 0 }}>Open Threads</span>
                   {p4.status === 'confirmed' && greenBadge}
                 </div>
                 {p4.status === 'confirmed' ? (
-                  <DashedList text={p4.content.open_threads || ''} />
+                  <DashedList text={p4.content.open_threads || ''} palette={c} />
                 ) : (
-                  <textarea
-                    className="cc-plain"
-                    value={p4.content.open_threads || ''}
-                    onChange={e => handleEditContent('phase4', 'open_threads', e.target.value)}
-                    onInput={autoResize}
-                    placeholder={'- Thread one\n- Thread two'}
-                    style={{ fontSize: 14, lineHeight: 1.65 }}
-                  />
+                  <textarea className="cc-plain" value={p4.content.open_threads || ''} onChange={e => handleEditContent('phase4', 'open_threads', e.target.value)} onInput={autoResize} placeholder={'- Thread one\n- Thread two'} style={{ fontSize: 14, lineHeight: 1.65 }} />
                 )}
               </div>
 
@@ -574,11 +671,8 @@ export default function CoreConceptPage() {
 
           {/* Lock document */}
           {allConfirmed && (
-            <button
-              onClick={handleSaveDocument}
-              disabled={isLoading || isSaving}
-              style={{ width: '100%', padding: '14px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 12, border: 'none', cursor: isLoading || isSaving ? 'not-allowed' : 'pointer', opacity: isLoading || isSaving ? 0.3 : 1, letterSpacing: '-0.01em' }}
-            >
+            <button onClick={handleSaveDocument} disabled={isLoading || isSaving}
+              style={{ width: '100%', padding: '14px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 600, borderRadius: 12, border: 'none', cursor: isLoading || isSaving ? 'not-allowed' : 'pointer', opacity: isLoading || isSaving ? 0.3 : 1, letterSpacing: '-0.01em' }}>
               {isSaving ? 'Saving…' : 'Lock this document'}
             </button>
           )}
