@@ -73,7 +73,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     const { data: pieceData, error: pieceError } = await supabase
       .from("pieces")
       .select(
-        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, idea_id, substack_draft"
+        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, idea_id, substack_draft, created_at"
       )
       .eq("id", pieceId)
       .eq("user_id", userId)

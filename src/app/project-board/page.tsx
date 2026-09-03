@@ -83,6 +83,7 @@ interface PieceDetail {
   substack_draft?: string
   tasks: Task[]
   session_logs: SessionLog[]
+  created_at?: string
 }
 
 interface IdeaDetail {
@@ -96,6 +97,7 @@ interface IdeaDetail {
   tasks?: Task[]
   conviction_statement?: string
   emotional_journey?: string
+  created_at?: string
   core_truth?: string
   substack_goals?: string
   short_form_goals?: string
@@ -1321,6 +1323,12 @@ function ProjectBoardContent() {
                   {selectedPiece.title}
                 </h2>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
+                  {selectedPiece.created_at && (
+                    <>
+                      <span>{new Date(selectedPiece.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span>•</span>
+                    </>
+                  )}
                   <span>{selectedPiece.arc}</span>
                   <span>•</span>
                   <span>{TERRITORY_LABELS[selectedPiece.thematic_territory] || selectedPiece.thematic_territory}</span>
@@ -1943,6 +1951,12 @@ function ProjectBoardContent() {
                     {selectedIdea.title}
                   </h2>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
+                    {selectedIdea.created_at && (
+                      <>
+                        <span>{new Date(selectedIdea.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span>•</span>
+                      </>
+                    )}
                     <span>{selectedIdea.arc}</span>
                     <span>•</span>
                     <span>{TERRITORY_LABELS[selectedIdea.thematic_territory] || selectedIdea.thematic_territory}</span>

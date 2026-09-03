@@ -23,6 +23,7 @@ interface IdeaDetail {
   substack_goals?: string;
   short_form_goals?: string;
   open_threads?: string | string[];
+  created_at?: string;
 }
 
 interface IdeaDetailResponse {
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
     // Fetch idea
     const { data: ideaData, error: ideaError } = await supabase
       .from("ideas")
-      .select("id, title, one_sentence, arc, thematic_territory, status")
+      .select("id, title, one_sentence, arc, thematic_territory, status, created_at")
       .eq("id", ideaId)
       .eq("user_id", userId)
       .single();
