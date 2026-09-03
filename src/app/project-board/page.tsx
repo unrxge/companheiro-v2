@@ -151,6 +151,7 @@ function ProjectBoardContent() {
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
+  const [queueDraftCount, setQueueDraftCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<MobileTab>('Active')
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
@@ -211,6 +212,7 @@ function ProjectBoardContent() {
       setActive(data.active || [])
       setQueue(data.queue || [])
       setCompleted(data.archived || [])
+      setQueueDraftCount(data.draftCount ?? 0)
     } catch (err) {
       console.error('Failed to fetch board:', err)
     } finally {
@@ -964,7 +966,7 @@ function ProjectBoardContent() {
         {/* Mobile Tab Bar - Hidden on md+ */}
         <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
           {[
-          { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length },
+          { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length + queueDraftCount },
           { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
           { name: 'Completed' as MobileTab, color: '#8B5CF6', count: completed.length },
         ].map((tab) => (
@@ -1027,7 +1029,7 @@ function ProjectBoardContent() {
             <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
               <h2 style={columnEyebrow}>Queue</h2>
-              <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length})</span>
+              <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length + queueDraftCount})</span>
             </div>
             <div className="board-scroll flex-1 overflow-y-auto px-4 py-3 pb-3 space-y-3">
               {conceptualiseDrafts.length > 0 && renderDraftCard()}

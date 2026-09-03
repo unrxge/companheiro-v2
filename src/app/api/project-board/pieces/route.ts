@@ -26,6 +26,9 @@ interface PiecesResponse {
     thematic_territory: string;
     created_at: string;
   }>;
+  // In-progress conceptualise sessions that haven't reached core concept yet.
+  // Included in queue count displays across the app.
+  draftCount: number;
 }
 
 export async function GET(_request: NextRequest): Promise<NextResponse<PiecesResponse>> {
@@ -35,16 +38,14 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
     const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData.user) {
       return NextResponse.json(
-        { active: [], queue: [], archived: [] },
+        { active: [], queue: [], archived: [], draftCount: 0 },
         { status: 401 }
       );
     }
 
     const userId = userData.user.id;
 
-    // Fetch active pieces, queue ideas, and archived pieces concurrently —
-    // these three queries are independent of each other.
-    const [{ data: activePieces }, { data: queueIdeas }, { data: archivedPieces }] = await Promise.all([
+    const [{ data: activePieces }, { data: queueIdeas }, { data: archivedPieces }, { count: draftCount }] = await Promise.all([
       supabase
         .from("pieces")
         .select("id, title, arc, thematic_territory, stage, next_action")
@@ -64,9 +65,12 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
         .eq("user_id", userId)
         .eq("stage", "posted")
         .order("created_at", { ascending: false }),
+      supabase
+        .from("conceptualise_drafts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId),
     ]);
 
-    // Get tasks for each active piece (also concurrent)
     const activePiecesWithTasks = await Promise.all(
       (activePieces || []).map(async (piece) => {
         const { data: tasks } = await supabase
@@ -87,11 +91,12 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
       active: activePiecesWithTasks,
       queue: queueIdeas || [],
       archived: archivedPieces || [],
+      draftCount: draftCount ?? 0,
     });
   } catch (error) {
     console.error("Pieces route error:", error);
     return NextResponse.json(
-      { active: [], queue: [], archived: [] },
+      { active: [], queue: [], archived: [], draftCount: 0 },
       { status: 500 }
     );
   }
