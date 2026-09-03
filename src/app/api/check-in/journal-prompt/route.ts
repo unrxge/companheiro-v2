@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
+import { withLanguage } from '@/lib/language'
 
 export async function POST(request: Request) {
   try {
@@ -36,7 +37,7 @@ Return ONLY the prompt itself. No preamble, no explanation. Brief — one to thr
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 300,
-      system: systemPrompt,
+      system: withLanguage(systemPrompt),
       messages: [
         {
           role: 'user',

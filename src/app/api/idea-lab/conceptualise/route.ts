@@ -4,6 +4,7 @@ import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { MODELS } from "@/lib/models";
 import { streamClaudeText } from "@/lib/streaming";
+import { withLanguage } from "@/lib/language";
 
 interface Message {
   role: "user" | "assistant";
@@ -107,7 +108,7 @@ ${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}$
       {
         model: MODELS.deep,
         max_tokens: 400,
-        system: systemPrompt,
+        system: withLanguage(systemPrompt),
         messages: claudeMessages,
       },
       () => ({

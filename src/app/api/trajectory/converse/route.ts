@@ -5,6 +5,7 @@ import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { streamClaudeText } from "@/lib/streaming";
+import { withLanguage } from "@/lib/language";
 
 interface Message {
   role: "user" | "assistant";
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
       {
         model: MODELS.deep,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: withLanguage(SYSTEM_PROMPT),
         messages: claudeMessages,
       },
       (fullText) => {

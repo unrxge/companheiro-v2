@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
+import { withLanguage } from "@/lib/language";
 
 interface ConversationMessage {
   role: "user" | "assistant";
@@ -134,7 +135,7 @@ Return as JSON:
       response = await anthropic.messages.create({
         model: MODELS.deep,
         max_tokens: 4000,
-        system: systemPrompt,
+        system: withLanguage(systemPrompt),
         messages: [
           {
             role: "user",

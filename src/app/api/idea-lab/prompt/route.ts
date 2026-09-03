@@ -3,6 +3,7 @@ import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
+import { withLanguage } from "@/lib/language";
 
 // Custom territory object sent from the frontend for user-defined themes.
 // rangeMap and facetSeeds are populated by the generate-map API when the
@@ -385,7 +386,7 @@ Return only the prompt text. No quotation marks, no preamble, no explanation.`;
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 250,
-      system,
+      system: withLanguage(system),
       messages: [{ role: "user", content: userMessage }],
     });
 

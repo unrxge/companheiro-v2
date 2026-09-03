@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
+import { withLanguage } from '@/lib/language'
 
 // Reimagine: runs the finished draft (flattened, section-unaware) through a
 // lens the writer defined themselves in conversation — there's no pre-set
@@ -45,7 +46,7 @@ Output only the reimagined piece.`
     return streamClaudeText({
       model: MODELS.deep,
       max_tokens: 2000,
-      system: systemPrompt,
+      system: withLanguage(systemPrompt),
       messages: [
         {
           role: 'user',

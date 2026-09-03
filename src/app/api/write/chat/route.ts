@@ -6,6 +6,7 @@ import { PROSE_STANDARD, STORY_STRUCTURE } from "@/lib/writing-craft";
 import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
 import { streamClaudeText } from "@/lib/streaming";
+import { withLanguage } from "@/lib/language";
 
 interface ActiveSection {
   id: string;
@@ -146,7 +147,7 @@ Keep responses concise and focused on moving the piece forward.`;
       {
         model: MODELS.deep,
         max_tokens: 1200,
-        system: systemPrompt,
+        system: withLanguage(systemPrompt),
         messages,
       },
       (fullText) => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import LangSync from "@/components/LangSync";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -51,7 +52,10 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <LangSync />
+        {children}
+      </body>
     </html>
   );
 }

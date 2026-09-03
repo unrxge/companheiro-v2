@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/supabase/route'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
+import { withLanguage } from '@/lib/language'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -70,7 +71,7 @@ Only include these when genuinely earned — never on the first turn, never spec
       {
         model: MODELS.deep,
         max_tokens: 600,
-        system: systemPrompt,
+        system: withLanguage(systemPrompt),
         messages: claudeMessages,
       },
       (fullText) => {

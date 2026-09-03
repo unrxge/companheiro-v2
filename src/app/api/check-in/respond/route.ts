@@ -4,6 +4,7 @@ import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
+import { withLanguage } from '@/lib/language'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -50,7 +51,7 @@ What you know about this person should quietly shape how you respond — which q
     return streamClaudeText({
       model: MODELS.fast,
       max_tokens: 512,
-      system: systemPrompt,
+      system: withLanguage(systemPrompt),
       messages: [...history, { role: 'user', content: response }],
     })
   } catch (err) {

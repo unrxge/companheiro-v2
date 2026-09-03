@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
+import { withLanguage } from '@/lib/language'
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 1024,
-      system: `You are a punctuation assistant. Your task is to add proper punctuation and sentence structure to raw voice transcription.
+      system: withLanguage(`You are a punctuation assistant. Your task is to add proper punctuation and sentence structure to raw voice transcription.
 
 Rules:
 - Add punctuation only (periods, commas, question marks, exclamation marks, apostrophes)
@@ -28,7 +29,7 @@ Rules:
 - Do NOT rewrite, rephrase, or change word order
 - Preserve the speaker's voice, tone, and phrasing exactly
 - Do NOT add or remove any words
-- Return ONLY the punctuated text, nothing else`,
+- Return ONLY the punctuated text, nothing else`),
       messages: [
         {
           role: 'user',

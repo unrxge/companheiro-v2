@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
+import { withLanguage } from '@/lib/language'
 
 // Derives an editable section skeleton for a piece from its Core Concept's
 // emotional_journey (each beat -> one section, with a loose suggestion +
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     const response = await anthropic.messages.create({
       model: MODELS.deep,
       max_tokens: 900,
-      system: `You are Companheiro, turning a piece's intended emotional journey into a section skeleton the writer will draft into.
+      system: withLanguage(`You are Companheiro, turning a piece's intended emotional journey into a section skeleton the writer will draft into.
 
 Break the emotional journey into an ordered set of 3-6 sections. Each section is a beat of the piece with:
 - "label": a short, evocative name for the beat (2-4 words)
@@ -49,7 +50,7 @@ Break the emotional journey into an ordered set of 3-6 sections. Each section is
 Follow the emotional journey's actual shape. Do not invent an arc it doesn't have. If the journey is thin, infer a natural, honest progression from the conviction and core truth.
 
 Return ONLY JSON:
-{ "sections": [ { "label": "...", "intended_emotion": "...", "suggestion": "..." }, ... ] }`,
+{ "sections": [ { "label": "...", "intended_emotion": "...", "suggestion": "..." }, ... ] }`),
       messages: [
         {
           role: 'user',

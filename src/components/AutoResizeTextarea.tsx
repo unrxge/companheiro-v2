@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface AutoResizeTextareaProps {
   value: string
@@ -22,6 +22,13 @@ export default function AutoResizeTextarea({
   style,
 }: AutoResizeTextareaProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  const [lang, setLang] = useState<string>('en')
+
+  useEffect(() => {
+    // Use the browser's preferred language for spell checking.
+    // navigator.language returns e.g. "en-GB", "pt-PT", "fr-FR".
+    setLang(navigator.language || 'en')
+  }, [])
 
   useEffect(() => {
     const el = ref.current
@@ -38,6 +45,8 @@ export default function AutoResizeTextarea({
       placeholder={placeholder}
       disabled={disabled}
       rows={minRows}
+      lang={lang}
+      spellCheck
       className={className}
       style={{ resize: 'none', overflowY: 'auto', maxHeight: '420px', ...style }}
     />

@@ -4,6 +4,7 @@ import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { analyzeLink, type LinkContent } from "@/lib/link-analysis";
+import { withLanguage } from "@/lib/language";
 
 interface CaptureRequest {
   raw_input: string;
@@ -115,7 +116,7 @@ Format your response as JSON:
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 500,
-      system: systemPrompt,
+      system: withLanguage(systemPrompt),
       messages: [{ role: "user", content: userContent }],
     });
 

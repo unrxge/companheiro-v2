@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { MODELS } from "@/lib/models";
 import { createRouteClient } from "@/lib/supabase/route";
+import { withLanguage } from "@/lib/language";
 
 interface TranslateRequest {
   piece_id: string;
@@ -52,14 +53,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
     const response = await anthropic.messages.create({
       model: MODELS.deep,
       max_tokens: 1000,
-      system: `You are a translator of long-form written pieces into short-form video scripts. Your job is not to summarize, but to reinterpret — to find the emotional core and the most compelling angle for a 15-60 second video.
+      system: withLanguage(`You are a translator of long-form written pieces into short-form video scripts. Your job is not to summarize, but to reinterpret — to find the emotional core and the most compelling angle for a 15-60 second video.
 
 Structure the script as:
 - Hook (first 3 seconds): grab attention with a question, statement, or emotional beat
 - Body (emotional core): the one insight or feeling the piece is really about
 - Landing (final image or line): what stays with the viewer
 
-Keep it visual, conversational, and distinct from the written piece. The viewer should feel the same conviction, but through a different lens.`,
+Keep it visual, conversational, and distinct from the written piece. The viewer should feel the same conviction, but through a different lens.`),
       messages: [
         {
           role: "user",
