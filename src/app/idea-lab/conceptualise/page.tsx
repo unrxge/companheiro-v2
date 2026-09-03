@@ -15,11 +15,13 @@ interface Message {
 }
 
 interface Draft {
+  id: string
   seed: string | null
   question: string | null
   messages: Message[]
   phase: number
   ready_to_advance: boolean
+  updated_at: string
 }
 
 const PHASE_LABELS: Record<number, string> = {
@@ -46,9 +48,9 @@ function ConceptualiseContent() {
   const [readyToAdvance, setReadyToAdvance] = useState(false)
 
   const [isCheckingDraft, setIsCheckingDraft] = useState(!seed)
-  const [existingDraft, setExistingDraft] = useState<Draft | null>(null)
+  const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
   const [resumeDecided, setResumeDecided] = useState(!!seed)
-  const [isDeletingDraft, setIsDeletingDraft] = useState(false)
+  const draftIdRef = useRef<string | null>(null)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
@@ -74,8 +76,8 @@ function ConceptualiseContent() {
       try {
         const res = await fetch('/api/idea-lab/conceptualise/draft')
         const data = await res.json()
-        if (data.draft) {
-          setExistingDraft(data.draft)
+        if (data.drafts && data.drafts.length > 0) {
+          setExistingDrafts(data.drafts)
         }
       } catch (err) {
         console.error('Failed to check for existing draft:', err)
@@ -127,13 +129,17 @@ function ConceptualiseContent() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: draftIdRef.current || undefined,
         seed: seed || null,
         question: activeQuestion || null,
         messages: finalMessages,
         phase: savedPhase,
         ready_to_advance: savedReadyToAdvance,
       }),
-    }).catch((err) => console.error('Failed to autosave draft:', err))
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data.id) draftIdRef.current = data.id })
+      .catch((err) => console.error('Failed to autosave draft:', err))
   }
 
   const fetchAIResponse = async (conversationHistory: Message[], currentPhase: number) => {
@@ -188,33 +194,29 @@ function ConceptualiseContent() {
     }
   }
 
-  const handleResumeDraft = () => {
-    if (!existingDraft) return
-    setMessages(existingDraft.messages)
-    setPhase(existingDraft.phase)
-    setReadyToAdvance(existingDraft.ready_to_advance)
-    if (existingDraft.question) setActiveQuestion(existingDraft.question)
+  const handleResumeDraft = (draft: Draft) => {
+    draftIdRef.current = draft.id
+    setMessages(draft.messages)
+    setPhase(draft.phase)
+    setReadyToAdvance(draft.ready_to_advance)
+    if (draft.question) setActiveQuestion(draft.question)
     setResumeDecided(true)
   }
 
   const handleStartFresh = () => {
-    setExistingDraft(null)
+    draftIdRef.current = null
+    setExistingDrafts([])
     setResumeDecided(true)
     fetchAIResponse([], 1)
   }
 
-  const handleDeleteDraft = async () => {
-    setIsDeletingDraft(true)
+  const handleDeleteDraft = async (draftId: string) => {
     try {
-      await fetch('/api/idea-lab/conceptualise/draft', { method: 'DELETE' })
+      await fetch(`/api/idea-lab/conceptualise/draft?id=${draftId}`, { method: 'DELETE' })
     } catch (err) {
       console.error('Failed to delete draft:', err)
-    } finally {
-      setIsDeletingDraft(false)
-      setExistingDraft(null)
-      setResumeDecided(true)
-      fetchAIResponse([], 1)
     }
+    setExistingDrafts((prev) => prev.filter((d) => d.id !== draftId))
   }
 
   const startRecording = async () => {
@@ -278,9 +280,11 @@ function ConceptualiseContent() {
 
   const handleDeclare = () => {
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages))
-    fetch('/api/idea-lab/conceptualise/draft', { method: 'DELETE' }).catch((err) =>
-      console.error('Failed to clear draft on declare:', err)
-    )
+    if (draftIdRef.current) {
+      fetch(`/api/idea-lab/conceptualise/draft?id=${draftIdRef.current}`, { method: 'DELETE' }).catch((err) =>
+        console.error('Failed to clear draft on declare:', err)
+      )
+    }
     router.push('/idea-lab/core-concept')
   }
 
@@ -292,50 +296,61 @@ function ConceptualiseContent() {
     )
   }
 
-  if (existingDraft && !resumeDecided) {
-    const lastMessage = existingDraft.messages[existingDraft.messages.length - 1]
+  if (existingDrafts.length > 0 && !resumeDecided) {
     return (
-      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
-        <div style={{ maxWidth: 440, width: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ maxWidth: 480, width: '100%', display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 8 }}>
-              Unfinished exploration
+              Unfinished explorations
             </p>
-            <h1 style={{ fontSize: 24, fontWeight: 300, color: c.textPrimary }}>Resume where you left off?</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 300, color: c.textPrimary }}>
+              {existingDrafts.length === 1 ? 'Resume where you left off?' : `You have ${existingDrafts.length} unfinished ideas`}
+            </h1>
           </div>
 
-          <div style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted }}>
-              Phase {existingDraft.phase}: {PHASE_LABELS[existingDraft.phase]}
-            </p>
-            {lastMessage && (
-              <p style={{ fontSize: 15, color: c.textSecondary, lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                {lastMessage.content}
-              </p>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {existingDrafts.map((draft) => {
+              const lastMsg = draft.messages[draft.messages.length - 1]
+              const preview = lastMsg?.content?.slice(0, 120) + (lastMsg?.content?.length > 120 ? '…' : '')
+              return (
+                <div
+                  key={draft.id}
+                  style={{ background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, margin: 0 }}>
+                      Phase {draft.phase}: {PHASE_LABELS[draft.phase]}
+                    </p>
+                    <button
+                      onClick={() => handleDeleteDraft(draft.id)}
+                      style={{ background: 'none', border: 'none', fontSize: 11, color: c.textMuted, cursor: 'pointer', padding: 0, opacity: 0.6 }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  {preview && (
+                    <p style={{ fontSize: 14, color: c.textSecondary, lineHeight: 1.55, margin: 0 }}>
+                      {preview}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => handleResumeDraft(draft)}
+                    style={{ width: '100%', padding: '10px', background: c.textPrimary, color: c.containerBg, fontSize: 13, fontWeight: 500, borderRadius: 7, border: 'none', cursor: 'pointer' }}
+                  >
+                    Resume this exploration
+                  </button>
+                </div>
+              )
+            })}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button
-              onClick={handleResumeDraft}
-              style={{ width: '100%', padding: '12px', background: c.textPrimary, color: c.containerBg, fontSize: 14, fontWeight: 500, borderRadius: 8, border: 'none', cursor: 'pointer' }}
-            >
-              Resume this exploration
-            </button>
-            <button
-              onClick={handleStartFresh}
-              style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${c.divider}`, color: c.textSecondary, fontSize: 14, fontWeight: 500, borderRadius: 8, cursor: 'pointer' }}
-            >
-              Start a new idea instead
-            </button>
-            <button
-              onClick={handleDeleteDraft}
-              disabled={isDeletingDraft}
-              style={{ background: 'none', border: 'none', fontSize: 12, color: c.textMuted, cursor: 'pointer', textDecoration: 'underline', marginTop: 4, opacity: isDeletingDraft ? 0.5 : 1 }}
-            >
-              {isDeletingDraft ? 'Deleting…' : 'Delete this draft'}
-            </button>
-          </div>
+          <button
+            onClick={handleStartFresh}
+            style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${c.divider}`, color: c.textSecondary, fontSize: 14, fontWeight: 500, borderRadius: 8, cursor: 'pointer' }}
+          >
+            Start a new exploration
+          </button>
         </div>
       </div>
     )
