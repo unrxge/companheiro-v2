@@ -560,11 +560,8 @@ function HomeContent() {
         transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
+        className="fixed bottom-7 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-7"
         style={{
-          position: 'fixed',
-          bottom: '28px',
-          left: '50%',
-          transform: 'translateX(-50%)',
           height: '56px',
           paddingLeft: '22px',
           paddingRight: '28px',
