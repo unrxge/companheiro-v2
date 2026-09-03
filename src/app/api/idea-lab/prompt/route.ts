@@ -23,6 +23,7 @@ interface PromptRequest {
   randomTerritories?: boolean;
   energy?: string;
   impersonal?: boolean;
+  previousPrompt?: string;
 }
 
 function resolveTerritoryKey(t: TerritoryInput): string {
@@ -178,10 +179,25 @@ const TERRITORY_FACET_SEEDS: Record<string, string[]> = {
   ],
 };
 
-function pickFacetSeed(territories: TerritoryInput[]): string | null {
+function pickFacetSeed(territories: TerritoryInput[], previousPrompt?: string): string | null {
   const pool = resolveAllFacetSeeds(territories)
   if (pool.length === 0) return null
-  return pool[Math.floor(Math.random() * pool.length)]
+  if (!previousPrompt || pool.length === 1) {
+    return pool[Math.floor(Math.random() * pool.length)]
+  }
+  // When regenerating, actively pick a seed that shares as few words as possible
+  // with the previous prompt — forces a genuinely different corner of the territory.
+  const prevWords = new Set(previousPrompt.toLowerCase().match(/\b\w{4,}\b/g) ?? [])
+  const scored = pool.map((seed) => {
+    const seedWords = seed.toLowerCase().match(/\b\w{4,}\b/g) ?? []
+    const overlap = seedWords.filter((w) => prevWords.has(w)).length
+    return { seed, overlap }
+  })
+  scored.sort((a, b) => a.overlap - b.overlap)
+  // Pick randomly from the bottom third (lowest overlap) so there's still variety
+  const cutoff = Math.max(1, Math.floor(scored.length / 3))
+  const candidates = scored.slice(0, cutoff)
+  return candidates[Math.floor(Math.random() * candidates.length)].seed
 }
 
 // Each arc as a directional force applied to a territory —
@@ -243,6 +259,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     }
 
     const body: PromptRequest = await request.json();
+    const previousPrompt = body.previousPrompt?.trim() || undefined;
 
     const arcsSkipped = body.arcs === null;
     if (!arcsSkipped && (!body.arcs || body.arcs.length === 0) && !body.randomArcs) {
@@ -272,7 +289,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     // One random facet seed from the resolved territories forces a different
     // corner of the range map each generation — prevents convergence.
     // Custom territories have no predefined seeds so this may return null.
-    const facetSeed = pickFacetSeed(finalTerritories);
+    const facetSeed = pickFacetSeed(finalTerritories, previousPrompt);
 
     const isImpersonal = body.impersonal === true;
     const energy = body.energy ?? "steady";
@@ -355,7 +372,12 @@ PERSONAL GROUNDING — use the context below to ground which specific facet the 
 
 ${groundingBlock}`;
 
+    const divergenceBlock = previousPrompt
+      ? `\nREGENERATION — THE PREVIOUS PROMPT WAS REJECTED:\n"${previousPrompt}"\n\nDo NOT rephrase, echo, or rhyme structurally with this. The new prompt must go somewhere entirely different: a different corner of the territory, a different subject within the facet, a different grammatical form, a different emotional register within the energy level. If the previous prompt was a "What would you tell..." question, do not write another one. If it opened with wonder, try specificity. If it addressed "people who X", address the act or the moment instead. Treat this as a hard divergence requirement — same settings, completely different door.\n`
+      : ''
+
     const system = `You are Companheiro, generating a prompt that opens a door into the writer's relationship with the world.
+${divergenceBlock}
 
 ${renderingSection}
 

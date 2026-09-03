@@ -275,6 +275,7 @@ export default function IdeaLabPage() {
 
     try {
       const payload: Record<string, unknown> = { energy: energyLevel, impersonal }
+      if (generatedPrompt) payload.previousPrompt = generatedPrompt
 
       if (skipArcs) payload.arcs = null
       else if (useRandomArcs) payload.randomArcs = true
