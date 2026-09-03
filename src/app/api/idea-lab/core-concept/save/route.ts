@@ -202,27 +202,28 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const pieceId = pieceData[0].id;
     console.log('Piece created successfully:', pieceId)
 
-    // Distill what this conceptualisation reveals about how they develop
-    // ideas — never blocks on failure.
+    // Run portrait distillation and task generation in parallel — both are
+    // independent of each other and were previously sequential, adding ~2s
+    // to every save. distillPortrait never blocks on failure.
     const conversationText = body.conversation_history
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n\n");
-    await distillPortrait(
-      { supabase, user: userData.user },
-      "conceptualise",
-      `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
-    );
-
-    // Generate suggested tasks in-process (no HTTP round-trip)
-    const suggestedTasks = await generateTasks({
-      one_sentence: body.one_sentence,
-      arc: normalisedArc,
-      conviction_statement: body.conviction_statement,
-      emotional_journey: body.emotional_journey,
-      core_truth: body.core_truth,
-      substack_goals: body.substack_goals,
-      short_form_goals: body.short_form_goals,
-    })
+    const [, suggestedTasks] = await Promise.all([
+      distillPortrait(
+        { supabase, user: userData.user },
+        "conceptualise",
+        `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
+      ),
+      generateTasks({
+        one_sentence: body.one_sentence,
+        arc: normalisedArc,
+        conviction_statement: body.conviction_statement,
+        emotional_journey: body.emotional_journey,
+        core_truth: body.core_truth,
+        substack_goals: body.substack_goals,
+        short_form_goals: body.short_form_goals,
+      }),
+    ])
 
     let insertedTasks: Array<{ id: string; title: string; type: string }> = []
     if (suggestedTasks.length > 0) {
