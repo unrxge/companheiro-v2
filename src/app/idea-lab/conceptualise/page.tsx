@@ -37,6 +37,7 @@ function ConceptualiseContent() {
   const searchParams = useSearchParams()
   const seed = searchParams.get('seed')
   const question = searchParams.get('question')
+  const resumeId = searchParams.get('resume')
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<Message[]>([])
@@ -47,9 +48,9 @@ function ConceptualiseContent() {
   const [error, setError] = useState<string | null>(null)
   const [readyToAdvance, setReadyToAdvance] = useState(false)
 
-  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed)
+  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId)
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
-  const [resumeDecided, setResumeDecided] = useState(!!seed)
+  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId)
   // Pre-assign a UUID so every save targets the same row from the first call.
   // handleResumeDraft overwrites this with the existing draft's id.
   // handleStartFresh generates a fresh one.
@@ -75,6 +76,27 @@ function ConceptualiseContent() {
       return
     }
 
+    if (resumeId) {
+      const autoResume = async () => {
+        try {
+          const res = await fetch('/api/idea-lab/conceptualise/draft')
+          const data = await res.json()
+          const draft = (data.drafts as Draft[] | undefined)?.find((d) => d.id === resumeId)
+          if (draft) {
+            draftIdRef.current = draft.id
+            setMessages(draft.messages)
+            setPhase(draft.phase)
+            setReadyToAdvance(draft.ready_to_advance)
+            if (draft.question) setActiveQuestion(draft.question)
+          }
+        } catch (err) {
+          console.error('Failed to auto-resume draft:', err)
+        }
+      }
+      autoResume()
+      return
+    }
+
     const checkDraft = async () => {
       try {
         const res = await fetch('/api/idea-lab/conceptualise/draft')
@@ -91,7 +113,7 @@ function ConceptualiseContent() {
 
     checkDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed])
+  }, [seed, resumeId])
 
   // Resize textarea when dictation injects text; scroll to bottom so latest word stays in view
   useEffect(() => {

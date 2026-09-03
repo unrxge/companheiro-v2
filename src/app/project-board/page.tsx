@@ -879,7 +879,7 @@ function ProjectBoardContent() {
           return (
             <div key={draft.id} className="group" style={{ marginBottom: 4, position: 'relative' }}>
               <button
-                onClick={() => router.push('/idea-lab/conceptualise')}
+                onClick={() => router.push(`/idea-lab/conceptualise?resume=${draft.id}`)}
                 style={{
                   width: '100%',
                   textAlign: 'left',
