@@ -121,6 +121,9 @@ export default function IdeaLabPage() {
   type ScratchState = 'idle' | 'choosing' | 'importing'
   const [scratchState, setScratchState] = useState<ScratchState>('idle')
   const [importText, setImportText] = useState('')
+  const [isImportRecording, setIsImportRecording] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const importRecognitionRef = useRef<any>(null)
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
@@ -328,6 +331,43 @@ export default function IdeaLabPage() {
 
   const isGenerateDisabled =
     (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
+
+  // ── Import dictation ──────────────────────────────────────────────────────
+
+  const startImportRecording = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognitionAPI) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition: any = new SpeechRecognitionAPI()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+    recognition.onstart = () => setIsImportRecording(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          const transcript = event.results[i][0].transcript
+          setImportText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + transcript)
+        }
+      }
+    }
+    recognition.onerror = () => setIsImportRecording(false)
+    recognition.onend = () => setIsImportRecording(false)
+    importRecognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const stopImportRecording = () => {
+    importRecognitionRef.current?.stop()
+    setIsImportRecording(false)
+  }
+
+  const handleImportRecordToggle = () => {
+    if (isImportRecording) stopImportRecording()
+    else startImportRecording()
+  }
 
   // ── Style helpers ──────────────────────────────────────────────────────────
 
@@ -761,7 +801,7 @@ export default function IdeaLabPage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => { setScratchState('idle'); setImportText('') }}
+                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText('') }}
                         style={{
                           flexShrink: 0,
                           marginLeft: '16px',
@@ -787,7 +827,7 @@ export default function IdeaLabPage() {
                       value={importText}
                       onChange={(e) => setImportText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Escape') { setScratchState('idle'); setImportText('') }
+                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText('') }
                       }}
                       placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore..."
                       style={{
@@ -808,40 +848,81 @@ export default function IdeaLabPage() {
                       }}
                     />
 
-                    {/* Submit */}
-                    <button
-                      onClick={() => {
-                        if (!importText.trim()) return
-                        const syntheticConversation = [
-                          { role: 'user' as const, content: importText.trim() },
-                        ]
-                        sessionStorage.setItem(
-                          'conceptualisation_conversation',
-                          JSON.stringify(syntheticConversation)
-                        )
-                        sessionStorage.setItem('bring_idea_flow', 'true')
-                        router.push('/idea-lab/core-concept')
-                      }}
-                      disabled={!importText.trim()}
-                      style={{
-                        flexShrink: 0,
-                        width: '100%',
-                        padding: '14px',
-                        borderRadius: '12px',
-                        border: 'none',
-                        backgroundColor: c.textPrimary,
-                        color: c.containerBg,
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: !importText.trim() ? 'not-allowed' : 'pointer',
-                        opacity: !importText.trim() ? 0.25 : 1,
-                        transition: 'opacity 0.15s ease',
-                        letterSpacing: '-0.01em',
-                      }}
-                    >
-                      Build core concept →
-                    </button>
+                    {/* Dictation + submit row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                      {/* Mic button */}
+                      <button
+                        onClick={handleImportRecordToggle}
+                        aria-label={isImportRecording ? 'Stop dictation' : 'Dictate your idea'}
+                        title={isImportRecording ? 'Stop dictation' : 'Dictate your idea'}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: isImportRecording ? '8px' : '50%',
+                          border: isImportRecording ? 'none' : `1px solid ${c.inputBorder}`,
+                          background: isImportRecording ? c.textPrimary : c.inputBg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {isImportRecording ? (
+                          /* Stop square */
+                          <span style={{ display: 'block', width: 12, height: 12, background: c.containerBg, borderRadius: 2 }} />
+                        ) : (
+                          /* Mic dot */
+                          <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="5" y="1" width="6" height="10" rx="3" fill={c.textMuted} />
+                            <path d="M2 9a6 6 0 0 0 12 0" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                            <line x1="8" y1="15" x2="8" y2="19" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+                            <line x1="5" y1="19" x2="11" y2="19" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* Submit */}
+                      <button
+                        onClick={() => {
+                          if (!importText.trim()) return
+                          if (isImportRecording) stopImportRecording()
+                          const syntheticConversation = [
+                            { role: 'user' as const, content: importText.trim() },
+                          ]
+                          sessionStorage.setItem(
+                            'conceptualisation_conversation',
+                            JSON.stringify(syntheticConversation)
+                          )
+                          sessionStorage.setItem('bring_idea_flow', 'true')
+                          router.push('/idea-lab/core-concept')
+                        }}
+                        disabled={!importText.trim()}
+                        style={{
+                          flex: 1,
+                          padding: '14px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: c.textPrimary,
+                          color: c.containerBg,
+                          fontFamily: 'var(--font-geist-sans)',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          cursor: !importText.trim() ? 'not-allowed' : 'pointer',
+                          opacity: !importText.trim() ? 0.25 : 1,
+                          transition: 'opacity 0.15s ease',
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        Build core concept →
+                      </button>
+                    </div>
+                    {isImportRecording && (
+                      <p style={{ textAlign: 'center', fontSize: '11px', color: c.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '-8px' }}>
+                        Listening…
+                      </p>
+                    )}
                   </motion.div>
                 ) : !generatedPrompt ? (
                   /* Empty — expectant */
