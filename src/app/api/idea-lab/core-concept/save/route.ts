@@ -169,6 +169,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       : body.open_threads || [];
     console.log('Converted open_threads to array:', openThreadsArray)
 
+    // If the conversation has a single user message it came from "Bring an idea".
+    // Store that text as the substack_draft so the write page can ingest it.
+    const bringIdeaDraft =
+      body.conversation_history.length === 1 &&
+      body.conversation_history[0].role === 'user'
+        ? body.conversation_history[0].content.trim()
+        : null
+
     const { data: pieceData, error: pieceError } = await supabase
       .from("pieces")
       .insert([
@@ -186,6 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
           substack_goals: body.substack_goals,
           short_form_goals: body.short_form_goals,
           open_threads: openThreadsArray,
+          ...(bringIdeaDraft ? { substack_draft: bringIdeaDraft } : {}),
           next_action: "Begin writing the Substack piece",
         },
       ])

@@ -83,6 +83,9 @@ function WriteContent() {
   const [chatExpanded, setChatExpanded] = useState(false)
   const [showCoreConceptModal, setShowCoreConceptModal] = useState(false)
   const [pendingEdit, setPendingEdit] = useState<{ sectionId: string; content: string } | null>(null)
+  const [isIngesting, setIsIngesting] = useState(false)
+  const [ingestType, setIngestType] = useState<'draft' | 'loose' | null>(null)
+  const ingestCalledRef = useRef(false)
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -131,6 +134,37 @@ function WriteContent() {
       setIsLoading(false)
     }
   }
+
+  // Auto-ingest: when the piece has a substack_draft and no sections yet,
+  // immediately discern and distribute (full draft) or anchor-line (loose text).
+  const ingestDraft = useCallback(async () => {
+    if (!pieceId || isIngesting) return
+    setIsIngesting(true)
+    try {
+      const res = await fetch('/api/write/sections/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ piece_id: pieceId }),
+      })
+      const data = await res.json()
+      if (data.sections) setSections(data.sections)
+      if (data.anchorLines) setAnchorLines((prev) => [...prev, ...data.anchorLines])
+      if (data.type) setIngestType(data.type)
+    } catch (err) {
+      console.error('Failed to ingest draft:', err)
+    } finally {
+      setIsIngesting(false)
+    }
+  }, [pieceId, isIngesting])
+
+  useEffect(() => {
+    if (!piece || sections.length > 0 || !piece.substack_draft?.trim()) return
+    if (ingestCalledRef.current) return
+    ingestCalledRef.current = true
+    ingestDraft()
+  // sections.length is the key dependency — once sections arrive, this stops firing
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piece?.id, sections.length])
 
   const flushSections = useCallback(async () => {
     const dirty = Array.from(dirtySectionsRef.current)
@@ -547,35 +581,47 @@ function WriteContent() {
             }}
           />
 
+          {ingestType && sections.length > 0 && (
+            <div className="mb-6 flex items-center justify-between text-xs text-[#4a4946] border border-[#1f1f1d] rounded px-3 py-2">
+              <span>
+                {ingestType === 'draft'
+                  ? 'Your draft has been distributed across the sections drawn from your emotional journey.'
+                  : 'Your notes have been saved as anchor lines, placed into the sections that suit them.'}
+              </span>
+              <button onClick={() => setIngestType(null)} className="ml-3 text-[#3d3c39] hover:text-[#8c8a87] flex-shrink-0">✕</button>
+            </div>
+          )}
+
           {sections.length === 0 ? (
             <div className="mt-8 border border-[#1f1f1d] rounded-lg p-8 text-center space-y-4">
-              <p className="text-base text-[#8c8a87] leading-relaxed">
-                Shape this piece into sections drawn from its emotional journey, or start with a blank
-                section and build it yourself.
-              </p>
-              <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                <button
-                  onClick={() => seedSections(false)}
-                  disabled={isSeeding}
-                  className="py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50"
-                >
-                  {isSeeding ? 'Shaping…' : 'Shape from emotional journey'}
-                </button>
-                {piece.substack_draft?.trim() && (
-                  <button
-                    onClick={() => addSection(piece.substack_draft)}
-                    className="py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
-                  >
-                    Continue existing draft as one section
-                  </button>
-                )}
-                <button
-                  onClick={() => addSection('')}
-                  className="py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
-                >
-                  Start with a blank section
-                </button>
-              </div>
+              {isIngesting ? (
+                <div className="space-y-2">
+                  <p className="text-base text-[#8c8a87] leading-relaxed">Reading your draft…</p>
+                  <p className="text-xs text-[#4a4946]">Shaping sections from your emotional journey</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-base text-[#8c8a87] leading-relaxed">
+                    Shape this piece into sections drawn from its emotional journey, or start with a blank
+                    section and build it yourself.
+                  </p>
+                  <div className="flex flex-col gap-2 max-w-xs mx-auto">
+                    <button
+                      onClick={() => seedSections(false)}
+                      disabled={isSeeding}
+                      className="py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50"
+                    >
+                      {isSeeding ? 'Shaping…' : 'Shape from emotional journey'}
+                    </button>
+                    <button
+                      onClick={() => addSection('')}
+                      className="py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
+                    >
+                      Start with a blank section
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className={flowView ? 'space-y-0' : 'space-y-4'}>

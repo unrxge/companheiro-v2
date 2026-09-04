@@ -85,20 +85,13 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
         .eq('user_id', user.id)
     }
 
-    // Seed the first section with any existing legacy draft so nothing is lost.
-    const legacyDraft = (piece.substack_draft || '').trim()
-
     const rows = beats.map((b, i) => ({
       user_id: user.id,
       piece_id,
       position: i,
       label: b.label || `Section ${i + 1}`,
-      // Store the loose suggestion as the intended_emotion's companion via a
-      // placeholder in content? No — keep content empty; suggestion lives in
-      // intended_emotion-adjacent UI. We store emotion; suggestion is returned
-      // to the client to show as guidance but not persisted as content.
       intended_emotion: b.intended_emotion || null,
-      content: i === 0 && legacyDraft ? legacyDraft : '',
+      content: '',
     }))
 
     const { data: inserted, error } = await supabase
