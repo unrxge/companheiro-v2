@@ -339,6 +339,9 @@ function WriteContent() {
         // Divide replaces sections, so anchor placements reset to unplaced.
         setAnchorLines((prev) => prev.map((l) => ({ ...l, section_id: null })))
         setResizeNonce((n) => n + 1)
+        // Show the sectional result — if the user was in flow view, switch so
+        // they can see how the prose landed in each beat.
+        setFlowView(false)
       }
     } catch (err) {
       console.error('Failed to divide:', err)
@@ -511,7 +514,7 @@ function WriteContent() {
   const unplacedLines = anchorLines.filter((l) => !l.section_id)
   const activeSection = sections.find((s) => s.id === activeSectionId)
   const anyLocked = sections.some((s) => s.is_locked)
-  const canDivide = sections.length > 0 && !flowView && wordCount > 30 && !anyLocked
+  const canDivide = sections.length > 0 && wordCount > 30 && !anyLocked
   const sectionLabelFor = (id: string | null) =>
     sections.find((s) => s.id === id)?.label || 'Unplaced'
 
@@ -545,7 +548,7 @@ function WriteContent() {
               className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors disabled:opacity-50"
               title="Split what you've written into the intended sections"
             >
-              {isDividing ? 'Dividing…' : 'Divide into sections'}
+              {isDividing ? (flowView ? 'Redistributing…' : 'Dividing…') : (flowView ? 'Redistribute into sections' : 'Divide into sections')}
             </button>
           )}
           {sections.length > 0 && (
@@ -701,16 +704,24 @@ function WriteContent() {
                             </div>
                           ))
                         )}
-                        <input
+                        <textarea
                           placeholder="Add a line to this section…"
-                          className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-2 py-1 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                          rows={2}
+                          className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-2 py-1 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                          onInput={(e) => {
+                            const el = e.currentTarget
+                            el.style.height = 'auto'
+                            el.style.height = el.scrollHeight + 'px'
+                          }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && e.currentTarget.value.trim()) {
                               addAnchorLine(e.currentTarget.value, section.id)
                               e.currentTarget.value = ''
+                              e.currentTarget.style.height = 'auto'
                             }
                           }}
                         />
+                        <p className="text-xs text-[#3d3c39]">⌘↵ to add</p>
                       </div>
                     )}
 
@@ -902,19 +913,36 @@ function WriteContent() {
 
           {openTool === 'anchor' && (
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="p-4 border-b border-[#1f1f1d]">
-                <input
+              <div className="p-4 border-b border-[#1f1f1d] space-y-2">
+                <textarea
                   value={newLineText}
-                  onChange={(e) => setNewLineText(e.target.value)}
+                  onChange={(e) => {
+                    setNewLineText(e.target.value)
+                    e.target.style.height = 'auto'
+                    e.target.style.height = e.target.scrollHeight + 'px'
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newLineText.trim()) {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && newLineText.trim()) {
                       addAnchorLine(newLineText)
                       setNewLineText('')
+                      e.currentTarget.style.height = 'auto'
                     }
                   }}
                   placeholder="A line dear to you — we'll place it…"
-                  className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946]"
+                  rows={3}
+                  className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
                 />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-[#3d3c39]">⌘↵ to add</p>
+                  {newLineText.trim() && (
+                    <button
+                      onClick={() => { addAnchorLine(newLineText); setNewLineText('') }}
+                      className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+                    >
+                      Add
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {anchorLines.length === 0 ? (
