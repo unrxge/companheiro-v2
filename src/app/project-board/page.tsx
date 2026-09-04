@@ -48,6 +48,7 @@ interface ActiveCard {
   thematic_territory: string
   stage: string
   next_action: string
+  created_at?: string
   tasks: Task[]
 }
 
@@ -751,7 +752,8 @@ function ProjectBoardContent() {
     dragItem?: { type: 'idea' | 'piece'; id: string },
     onDelete?: () => void,
     territory?: string,
-    sizeVariant?: 'default' | 'large'
+    sizeVariant?: 'default' | 'large',
+    date?: string
   ) => (
     <div key={id} className="group" style={{ position: 'relative' }}>
       <button
@@ -807,7 +809,7 @@ function ProjectBoardContent() {
             {title}
           </p>
         </div>
-        {(arc || territory) && (
+        {(date || arc || territory) && (
           <p
             style={{
               color: c.textMuted,
@@ -815,6 +817,8 @@ function ProjectBoardContent() {
               margin: '8px 0 0 0',
             }}
           >
+            {date && new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {date && (arc || territory) && ' • '}
             {arc}
             {arc && territory && ' • '}
             {territory && (TERRITORY_LABELS[territory] || territory)}
@@ -1176,7 +1180,8 @@ function ProjectBoardContent() {
                   { type: 'piece', id: piece.id },
                   () => handleDeletePiece(piece.id),
                   piece.thematic_territory,
-                  'large'
+                  'large',
+                  piece.created_at
                 )
               )}
             </div>

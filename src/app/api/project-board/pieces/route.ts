@@ -9,6 +9,7 @@ interface PiecesResponse {
     thematic_territory: string;
     stage: string;
     next_action: string;
+    created_at: string;
     tasks: Array<{ id: string; title: string; type: string }>;
   }>;
   queue: Array<{
@@ -48,7 +49,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
     const [{ data: activePieces }, { data: allQueueIdeas }, { data: archivedPieces }, { count: draftCount }] = await Promise.all([
       supabase
         .from("pieces")
-        .select("id, title, arc, thematic_territory, stage, next_action, idea_id")
+        .select("id, title, arc, thematic_territory, stage, next_action, idea_id, created_at")
         .eq("user_id", userId)
         .neq("stage", "posted")
         .neq("stage", "queued")
@@ -84,9 +85,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
           .eq("status", "pending")
           .order("order", { ascending: true });
 
-        const { id, title, arc, thematic_territory, stage, next_action } = piece;
+        const { id, title, arc, thematic_territory, stage, next_action, created_at } = piece;
         return {
-          id, title, arc, thematic_territory, stage, next_action,
+          id, title, arc, thematic_territory, stage, next_action, created_at,
           tasks: (tasks || []).map((t) => ({ id: t.id, title: t.title, type: t.type })),
         };
       })
