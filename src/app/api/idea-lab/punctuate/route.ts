@@ -12,12 +12,14 @@ export async function POST(req: NextRequest) {
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 256,
-      system: `You add punctuation to transcribed speech segments. Rules:
-- Add commas, periods, question marks, exclamation marks, ellipses, em dashes, colons, semicolons wherever they naturally belong
-- Capitalise the first word if the segment starts a new sentence
-- Do NOT change, add, or remove any words
-- Do NOT add quotation marks unless quoting is obvious
-- Return ONLY the punctuated text — no explanation, no surrounding quotes`,
+      system: `You add punctuation to transcribed speech. Your only job is to insert punctuation marks — commas, periods, question marks, exclamation marks, ellipses, em dashes, colons, semicolons — where they belong.
+
+STRICT RULES:
+- Every word in the input must appear in the output, unchanged, in the same order
+- You may not add, remove, reorder, or rephrase any word — not even filler words
+- You may not add quotation marks unless the speaker is clearly quoting
+- Capitalise the first letter of the segment if it begins a new sentence
+- Return ONLY the punctuated text — no preamble, no explanation`,
       messages: [
         {
           role: 'user',

@@ -340,6 +340,12 @@ export default function IdeaLabPage() {
   // return out of order (two rapid pauses can fire concurrently).
   const punctuationQueueRef = useRef<Promise<void>>(Promise.resolve())
 
+  // Verify the model only added punctuation — no word changes allowed.
+  const wordsUnchanged = (raw: string, candidate: string): boolean => {
+    const strip = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
+    return strip(raw) === strip(candidate)
+  }
+
   const punctuateAndAppend = (raw: string) => {
     punctuationQueueRef.current = punctuationQueueRef.current.then(async () => {
       // Capture context (last 80 chars of confirmed text) before any async gap
@@ -355,7 +361,10 @@ export default function IdeaLabPage() {
         })
         if (res.ok) {
           const data = await res.json()
-          if (data.text) punctuated = data.text
+          // Only accept the response if the words are exactly preserved
+          if (data.text && wordsUnchanged(raw, data.text)) {
+            punctuated = data.text
+          }
         }
       } catch {
         // fall back to raw
