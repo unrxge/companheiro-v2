@@ -1172,7 +1172,7 @@ function ProjectBoardContent() {
                   piece.title,
                   piece.arc,
                   '#10B981',
-                  () => openPieceModal(piece.id),
+                  () => router.push(`/write?piece_id=${piece.id}`),
                   { type: 'piece', id: piece.id },
                   () => handleDeletePiece(piece.id),
                   piece.thematic_territory,
@@ -1246,7 +1246,7 @@ function ProjectBoardContent() {
                 piece.title,
                 piece.arc,
                 '#10B981',
-                () => openPieceModal(piece.id),
+                () => router.push(`/write?piece_id=${piece.id}`),
                 undefined,
                 () => handleDeletePiece(piece.id),
                 piece.thematic_territory

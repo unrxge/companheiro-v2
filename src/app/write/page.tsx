@@ -16,11 +16,14 @@ interface Task {
 interface PieceCore {
   id: string
   title: string
+  one_sentence: string
   substack_draft: string
   conviction_statement: string
   emotional_journey: string
   core_truth: string
   substack_goals: string
+  short_form_goals: string
+  open_threads: string[]
   tasks: Task[]
 }
 
@@ -78,6 +81,7 @@ function WriteContent() {
 
   const [openTool, setOpenTool] = useState<ToolKey | null>(null)
   const [chatExpanded, setChatExpanded] = useState(false)
+  const [showCoreConceptModal, setShowCoreConceptModal] = useState(false)
   const [pendingEdit, setPendingEdit] = useState<{ sectionId: string; content: string } | null>(null)
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -778,6 +782,17 @@ function WriteContent() {
               {TOOL_META.find((t) => t.key === openTool)?.label}
             </span>
             <div className="flex items-center gap-3">
+              {openTool === 'core' && (
+                <button
+                  onClick={() => setShowCoreConceptModal(true)}
+                  className="text-[#6b6966] hover:text-[#d4d2cd] transition-colors"
+                  title="View full core concept"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                </button>
+              )}
               {openTool === 'assistant' && (
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
@@ -928,6 +943,113 @@ function WriteContent() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Core Concept full-view modal */}
+      {showCoreConceptModal && piece && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.72)', padding: '24px' }}
+          onClick={() => setShowCoreConceptModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1a1917',
+              border: '1px solid #2e2d2a',
+              borderRadius: '20px',
+              width: '100%',
+              maxWidth: '640px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                background: '#1a1917',
+                borderBottom: '1px solid #2e2d2a',
+                padding: '16px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderRadius: '20px 20px 0 0',
+              }}
+            >
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#e8e6e0', letterSpacing: '-0.02em', margin: 0 }}>
+                {piece.title}
+              </h2>
+              <button
+                onClick={() => setShowCoreConceptModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b6966', padding: '4px', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e8e6e0' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6b6966' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {piece.one_sentence && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>One Sentence</p>
+                  <p style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3, color: '#e8e6e0', margin: 0 }}>{piece.one_sentence}</p>
+                </div>
+              )}
+              {piece.conviction_statement && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Conviction</p>
+                  <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
+                    <div style={{ width: '3px', borderRadius: '2px', background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
+                    <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0 }}>{piece.conviction_statement}</p>
+                  </div>
+                </div>
+              )}
+              {piece.emotional_journey && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Emotional Journey</p>
+                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
+                </div>
+              )}
+              {piece.core_truth && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Core Truth</p>
+                  <p style={{ fontSize: '16px', fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.01em', color: '#e8e6e0', borderLeft: '2px solid #10B981', paddingLeft: '14px', margin: 0 }}>{piece.core_truth}</p>
+                </div>
+              )}
+              {piece.substack_goals && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Writing Goals</p>
+                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
+                </div>
+              )}
+              {piece.short_form_goals && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Short Form Goals</p>
+                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.short_form_goals}</p>
+                </div>
+              )}
+              {piece.open_threads && piece.open_threads.length > 0 && (
+                <div>
+                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Open Threads</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {piece.open_threads.map((thread, i) => (
+                      <div key={i} style={{ display: 'flex', gap: '10px', fontSize: '14px', color: '#d4d2cd', lineHeight: 1.55 }}>
+                        <span style={{ color: '#10B981', flexShrink: 0 }}>•</span>
+                        <span>{thread}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

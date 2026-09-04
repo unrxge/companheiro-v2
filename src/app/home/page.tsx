@@ -259,7 +259,7 @@ function HomeContent() {
                 {activePieces.map((piece, index) => (
                   <a
                     key={piece.id}
-                    href={`/project-board?piece_id=${piece.id}`}
+                    href={`/write?piece_id=${piece.id}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
