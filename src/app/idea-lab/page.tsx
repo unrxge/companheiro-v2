@@ -122,6 +122,8 @@ export default function IdeaLabPage() {
   const [scratchState, setScratchState] = useState<ScratchState>('idle')
   const [importText, setImportText] = useState('')
   const [isImportRecording, setIsImportRecording] = useState(false)
+  const [interimText, setInterimText] = useState('')
+  const interimTextRef = useRef('')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const importRecognitionRef = useRef<any>(null)
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
@@ -334,6 +336,25 @@ export default function IdeaLabPage() {
 
   // ── Import dictation ──────────────────────────────────────────────────────
 
+  // Capitalise and terminate each finalized speech segment.
+  const autoPunctuate = (text: string): string => {
+    if (!text) return text
+    const t = text.charAt(0).toUpperCase() + text.slice(1)
+    return /[.!?,;:]$/.test(t) ? t : t + '.'
+  }
+
+  const commitInterim = () => {
+    const pending = interimTextRef.current.trim()
+    if (pending) {
+      setImportText((prev) => {
+        const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+        return prev + sep + autoPunctuate(pending)
+      })
+    }
+    interimTextRef.current = ''
+    setInterimText('')
+  }
+
   const startImportRecording = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -346,22 +367,36 @@ export default function IdeaLabPage() {
     recognition.onstart = () => setIsImportRecording(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (event: any) => {
+      let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
         if (event.results[i].isFinal) {
-          const transcript = event.results[i][0].transcript
-          setImportText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + transcript)
+          // Commit this segment and clear interim
+          setImportText((prev) => {
+            const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+            return prev + sep + autoPunctuate(transcript.trim())
+          })
+          interimTextRef.current = ''
+          setInterimText('')
+        } else {
+          interim += transcript
         }
       }
+      if (interim) {
+        interimTextRef.current = interim
+        setInterimText(interim)
+      }
     }
-    recognition.onerror = () => setIsImportRecording(false)
-    recognition.onend = () => setIsImportRecording(false)
+    recognition.onerror = () => { commitInterim(); setIsImportRecording(false) }
+    // On end, commit any remaining interim so nothing is lost
+    recognition.onend = () => { commitInterim(); setIsImportRecording(false) }
     importRecognitionRef.current = recognition
     recognition.start()
   }
 
   const stopImportRecording = () => {
     importRecognitionRef.current?.stop()
-    setIsImportRecording(false)
+    // onend will fire and call commitInterim
   }
 
   const handleImportRecordToggle = () => {
@@ -801,7 +836,7 @@ export default function IdeaLabPage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText('') }}
+                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); setInterimText('') }}
                         style={{
                           flexShrink: 0,
                           marginLeft: '16px',
@@ -821,13 +856,18 @@ export default function IdeaLabPage() {
 
                     <div style={{ height: '1px', backgroundColor: c.divider, flexShrink: 0 }} />
 
-                    {/* Spacious textarea */}
+                    {/* Spacious textarea — shows confirmed + live interim text */}
                     <textarea
                       autoFocus
-                      value={importText}
-                      onChange={(e) => setImportText(e.target.value)}
+                      value={importText + (interimText ? (importText && !importText.endsWith(' ') && !importText.endsWith('\n') ? ' ' : '') + interimText : '')}
+                      onChange={(e) => {
+                        // User is typing manually; clear interim to avoid double-text
+                        interimTextRef.current = ''
+                        setInterimText('')
+                        setImportText(e.target.value)
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText('') }
+                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); setInterimText('') }
                       }}
                       placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore..."
                       style={{
