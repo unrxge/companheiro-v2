@@ -336,21 +336,41 @@ export default function IdeaLabPage() {
 
   // ── Import dictation ──────────────────────────────────────────────────────
 
-  // Capitalise and terminate each finalized speech segment.
-  const autoPunctuate = (text: string): string => {
-    if (!text) return text
-    const t = text.charAt(0).toUpperCase() + text.slice(1)
-    return /[.!?,;:]$/.test(t) ? t : t + '.'
+  // Queue ensures segments are appended in spoken order even if API calls
+  // return out of order (two rapid pauses can fire concurrently).
+  const punctuationQueueRef = useRef<Promise<void>>(Promise.resolve())
+
+  const punctuateAndAppend = (raw: string) => {
+    punctuationQueueRef.current = punctuationQueueRef.current.then(async () => {
+      // Capture context (last 80 chars of confirmed text) before any async gap
+      let context = ''
+      setImportText((prev) => { context = prev.slice(-80); return prev })
+
+      let punctuated = raw
+      try {
+        const res = await fetch('/api/idea-lab/punctuate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: raw, context }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.text) punctuated = data.text
+        }
+      } catch {
+        // fall back to raw
+      }
+
+      setImportText((prev) => {
+        const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+        return prev + sep + punctuated
+      })
+    })
   }
 
   const commitInterim = () => {
     const pending = interimTextRef.current.trim()
-    if (pending) {
-      setImportText((prev) => {
-        const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
-        return prev + sep + autoPunctuate(pending)
-      })
-    }
+    if (pending) punctuateAndAppend(pending)
     interimTextRef.current = ''
     setInterimText('')
   }
@@ -371,11 +391,7 @@ export default function IdeaLabPage() {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript
         if (event.results[i].isFinal) {
-          // Commit this segment and clear interim
-          setImportText((prev) => {
-            const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
-            return prev + sep + autoPunctuate(transcript.trim())
-          })
+          punctuateAndAppend(transcript.trim())
           interimTextRef.current = ''
           setInterimText('')
         } else {
@@ -388,7 +404,6 @@ export default function IdeaLabPage() {
       }
     }
     recognition.onerror = () => { commitInterim(); setIsImportRecording(false) }
-    // On end, commit any remaining interim so nothing is lost
     recognition.onend = () => { commitInterim(); setIsImportRecording(false) }
     importRecognitionRef.current = recognition
     recognition.start()
@@ -396,7 +411,7 @@ export default function IdeaLabPage() {
 
   const stopImportRecording = () => {
     importRecognitionRef.current?.stop()
-    // onend will fire and call commitInterim
+    // onend fires and calls commitInterim
   }
 
   const handleImportRecordToggle = () => {
