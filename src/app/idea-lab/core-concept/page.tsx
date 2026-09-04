@@ -266,8 +266,16 @@ export default function CoreConceptPage() {
         body: JSON.stringify(documentData),
       })
       const data = await res.json()
-      if (data.success) { setPieceId(data.piece_id); setTasks(data.tasks || []); setShowTaskReview(true) }
-      else setError(data.error || 'Failed to save document')
+      if (data.success) {
+        const bringIdeaFlow = sessionStorage.getItem('bring_idea_flow') === 'true'
+        sessionStorage.removeItem('bring_idea_flow')
+        sessionStorage.removeItem('conceptualisation_conversation')
+        if (bringIdeaFlow) {
+          router.push(`/project-board?piece_id=${data.piece_id}`)
+        } else {
+          setPieceId(data.piece_id); setTasks(data.tasks || []); setShowTaskReview(true)
+        }
+      } else setError(data.error || 'Failed to save document')
     } catch (err) {
       console.error('Save error:', err)
       setError('Failed to save document')
