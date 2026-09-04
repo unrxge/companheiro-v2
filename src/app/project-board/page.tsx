@@ -785,8 +785,8 @@ function ProjectBoardContent() {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
           <div
             style={{
-              width: '8px',
-              height: '8px',
+              width: sizeVariant === 'large' ? '10px' : '8px',
+              height: sizeVariant === 'large' ? '10px' : '8px',
               borderRadius: '50%',
               backgroundColor: color,
               flexShrink: 0,
@@ -797,7 +797,7 @@ function ProjectBoardContent() {
             style={{
               color: c.textPrimary,
               fontWeight: 500,
-              fontSize: '13px',
+              fontSize: sizeVariant === 'large' ? '15px' : '13px',
               margin: 0,
               whiteSpace: 'normal',
               wordWrap: 'break-word',
@@ -811,7 +811,7 @@ function ProjectBoardContent() {
           <p
             style={{
               color: c.textMuted,
-              fontSize: '11px',
+              fontSize: sizeVariant === 'large' ? '12px' : '11px',
               margin: '8px 0 0 0',
             }}
           >
