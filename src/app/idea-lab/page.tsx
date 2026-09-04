@@ -116,6 +116,11 @@ export default function IdeaLabPage() {
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+
+  // "Start from scratch" inline expansion — idle → choosing → importing
+  type ScratchState = 'idle' | 'choosing' | 'importing'
+  const [scratchState, setScratchState] = useState<ScratchState>('idle')
+  const [importText, setImportText] = useState('')
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
@@ -309,6 +314,8 @@ export default function IdeaLabPage() {
       const data = await res.json()
       if (data.prompt) {
         setGeneratedPrompt(data.prompt)
+        setScratchState('idle')
+        setImportText('')
       } else {
         setError('Failed to generate — try again')
       }
@@ -799,23 +806,201 @@ export default function IdeaLabPage() {
                       >
                         {isGenerating ? 'Summoning...' : 'Generate a question →'}
                       </motion.button>
-                      <motion.button
-                        onClick={() => router.push('/idea-lab/conceptualise')}
-                        whileHover={{ opacity: 0.65 }}
-                        whileTap={{ scale: 0.97 }}
-                        style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '12px',
-                          color: c.textMuted,
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          textUnderlineOffset: '3px',
-                        }}
-                      >
-                        Or start from scratch
-                      </motion.button>
+
+                      {/* Inline scratch expansion — idle → choosing → importing */}
+                      <AnimatePresence mode="wait">
+                        {scratchState === 'idle' && (
+                          <motion.button
+                            key="idle"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            onClick={() => setScratchState('choosing')}
+                            whileHover={{ opacity: 0.65 }}
+                            whileTap={{ scale: 0.97 }}
+                            style={{
+                              fontFamily: 'var(--font-geist-sans)',
+                              fontSize: '12px',
+                              color: c.textMuted,
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              textUnderlineOffset: '3px',
+                            }}
+                          >
+                            Or start from scratch
+                          </motion.button>
+                        )}
+
+                        {scratchState === 'choosing' && (
+                          <motion.div
+                            key="choosing"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+                          >
+                            <motion.button
+                              onClick={() => router.push('/idea-lab/conceptualise')}
+                              whileHover={{ opacity: 0.65 }}
+                              style={{
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '12px',
+                                color: c.textMuted,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: '3px',
+                              }}
+                            >
+                              Write fresh
+                            </motion.button>
+                            <span style={{ color: c.divider, fontSize: '11px' }}>·</span>
+                            <motion.button
+                              onClick={() => setScratchState('importing')}
+                              whileHover={{ opacity: 0.65 }}
+                              style={{
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '12px',
+                                color: c.textMuted,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: '3px',
+                              }}
+                            >
+                              Bring an idea
+                            </motion.button>
+                            <span style={{ color: c.divider, fontSize: '11px' }}>·</span>
+                            <motion.button
+                              onClick={() => setScratchState('idle')}
+                              whileHover={{ opacity: 0.65 }}
+                              style={{
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '11px',
+                                color: c.textMuted,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                opacity: 0.5,
+                              }}
+                            >
+                              ✕
+                            </motion.button>
+                          </motion.div>
+                        )}
+
+                        {scratchState === 'importing' && (
+                          <motion.div
+                            key="importing"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{
+                              width: '100%',
+                              maxWidth: '380px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <p style={{
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: c.textMuted,
+                                margin: 0,
+                              }}>
+                                Describe your idea
+                              </p>
+                              <button
+                                onClick={() => { setScratchState('idle'); setImportText('') }}
+                                style={{
+                                  fontFamily: 'var(--font-geist-sans)',
+                                  fontSize: '11px',
+                                  color: c.textMuted,
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  opacity: 0.5,
+                                  padding: 0,
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <textarea
+                              autoFocus
+                              value={importText}
+                              onChange={(e) => {
+                                setImportText(e.target.value)
+                                e.target.style.height = 'auto'
+                                e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') { setScratchState('idle'); setImportText('') }
+                              }}
+                              placeholder="Describe what you already know about this idea — its angle, the feeling you want to leave, what it's really about..."
+                              rows={3}
+                              style={{
+                                width: '100%',
+                                backgroundColor: c.inputBg,
+                                border: `1px solid ${c.inputBorder}`,
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '13px',
+                                color: c.textPrimary,
+                                outline: 'none',
+                                resize: 'none',
+                                lineHeight: 1.6,
+                                boxSizing: 'border-box',
+                                transition: 'border-color 0.15s ease',
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (!importText.trim()) return
+                                const syntheticConversation = [
+                                  { role: 'user' as const, content: importText.trim() },
+                                ]
+                                sessionStorage.setItem(
+                                  'conceptualisation_conversation',
+                                  JSON.stringify(syntheticConversation)
+                                )
+                                router.push('/idea-lab/core-concept')
+                              }}
+                              disabled={!importText.trim()}
+                              style={{
+                                width: '100%',
+                                padding: '11px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                backgroundColor: c.textPrimary,
+                                color: c.containerBg,
+                                fontFamily: 'var(--font-geist-sans)',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: !importText.trim() ? 'not-allowed' : 'pointer',
+                                opacity: !importText.trim() ? 0.25 : 1,
+                                transition: 'opacity 0.15s ease',
+                                letterSpacing: '-0.01em',
+                              }}
+                            >
+                              Build core concept →
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </motion.div>
                 ) : (
