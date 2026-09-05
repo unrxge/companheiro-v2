@@ -3,7 +3,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
-import { shellBackground } from '@/lib/card-theme'
+import { shellBackground, cardPalette } from '@/lib/card-theme'
+
+const c = cardPalette.dark
 
 interface Task {
   id: string
@@ -543,7 +545,7 @@ function WriteContent() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
       {/* Header */}
-      <div className="h-12 border-b border-[#1f1f1d] flex items-center justify-between px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)' }}>
+      <div className="h-12 flex items-center justify-between px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${c.divider}` }}>
         <button
           onClick={async () => {
             await flushSections()
@@ -833,16 +835,21 @@ function WriteContent() {
       <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2">
         {TOOL_META.map((tool) => (
           <div key={tool.key} className="group relative flex items-center justify-end">
-            <span className="absolute right-12 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-[#1f1f1d] text-[#d4d2cd] text-xs px-2 py-1 rounded pointer-events-none">
+            <span
+              className="absolute right-12 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded pointer-events-none"
+              style={{ background: c.cardBg, color: c.textSecondary, border: `1px solid ${c.divider}`, boxShadow: c.shadow }}
+            >
               {tool.label}
             </span>
             <button
               onClick={() => setOpenTool(openTool === tool.key ? null : tool.key)}
-              className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${
-                openTool === tool.key
-                  ? 'bg-[#2e2d2a] border-[#4a4946] text-[#e8e6e1]'
-                  : 'bg-[#161614] border-[#1f1f1d] text-[#8c8a87] hover:text-[#e8e6e1] hover:border-[#4a4946]'
-              }`}
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              style={{
+                border: `1px solid ${openTool === tool.key ? c.textMuted : c.divider}`,
+                background: openTool === tool.key ? c.cardBg : c.containerBg,
+                color: openTool === tool.key ? c.textPrimary : c.textMuted,
+                boxShadow: openTool === tool.key ? c.shadow : 'none',
+              }}
             >
               {tool.icon}
             </button>
@@ -853,18 +860,29 @@ function WriteContent() {
       {/* Floating tool panel */}
       {openTool && (
         <div
-          className="fixed right-20 top-16 bottom-4 z-30 flex flex-col rounded-lg border border-[#1f1f1d] bg-[#141312] shadow-2xl overflow-hidden"
-          style={{ width: openTool === 'assistant' && chatExpanded ? '38%' : '360px' }}
+          className="fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden"
+          style={{
+            width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
+            background: c.containerBg,
+            border: `1px solid ${c.divider}`,
+            borderRadius: 20,
+            boxShadow: c.containerShadow,
+          }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1f1f1d]">
-            <span className="text-xs font-medium text-[#e8e6e1] uppercase tracking-widest">
+          <div
+            className="flex items-center justify-between px-4 py-3"
+            style={{ borderBottom: `1px solid ${c.divider}` }}
+          >
+            <span style={{ fontSize: 10, fontWeight: 700, color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
               {TOOL_META.find((t) => t.key === openTool)?.label}
             </span>
             <div className="flex items-center gap-3">
               {openTool === 'core' && (
                 <button
                   onClick={() => setShowCoreConceptModal(true)}
-                  className="text-[#6b6966] hover:text-[#d4d2cd] transition-colors"
+                  style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
                   title="View full core concept"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -875,40 +893,56 @@ function WriteContent() {
               {openTool === 'assistant' && (
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
-                  className="text-[#6b6966] hover:text-[#d4d2cd] text-sm transition-colors"
+                  style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
                   title={chatExpanded ? 'Shrink' : 'Maximize'}
                 >
                   {chatExpanded ? '⤡' : '⤢'}
                 </button>
               )}
-              <button onClick={() => setOpenTool(null)} className="text-[#6b6966] hover:text-[#e8e6e1] text-sm">✕</button>
+              <button
+                onClick={() => setOpenTool(null)}
+                style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+              >✕</button>
             </div>
           </div>
 
           {openTool === 'core' && (
-            <div className="p-4 overflow-y-auto space-y-3 text-xs">
+            <div className="p-4 overflow-y-auto" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {piece.one_sentence && (
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
+                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: c.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
+                </div>
+              )}
               {piece.conviction_statement && (
                 <div>
-                  <p className="text-[#4a4946] uppercase tracking-widest mb-1">Conviction</p>
-                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.conviction_statement}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Conviction</p>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+                    <div style={{ width: 3, borderRadius: 2, background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
+                  </div>
                 </div>
               )}
               {piece.emotional_journey && (
                 <div>
-                  <p className="text-[#4a4946] uppercase tracking-widest mb-1">Emotional Journey</p>
-                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.emotional_journey}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
                 </div>
               )}
               {piece.core_truth && (
                 <div>
-                  <p className="text-[#4a4946] uppercase tracking-widest mb-1">Core Truth</p>
-                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.core_truth}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Core Truth</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textPrimary, margin: 0, fontWeight: 500 }}>{piece.core_truth}</p>
                 </div>
               )}
               {piece.substack_goals && (
                 <div>
-                  <p className="text-[#4a4946] uppercase tracking-widest mb-1">Substack Goals</p>
-                  <p className="text-[#d4d2cd] text-base leading-relaxed">{piece.substack_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
                 </div>
               )}
             </div>
@@ -917,15 +951,31 @@ function WriteContent() {
           {openTool === 'tasks' && (
             <div className="p-4 overflow-y-auto">
               {writingTasks.length === 0 ? (
-                <p className="text-xs text-[#3d3c39]">No writing tasks yet.</p>
+                <p style={{ fontSize: 13, color: c.textMuted }}>No writing tasks yet.</p>
               ) : (
-                <div className="divide-y divide-[#1f1f1d]">
-                  {writingTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                      <span className={`flex-shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center ${task.status === 'complete' ? 'bg-green-900/20 border-green-700/50' : 'border-[#3d3c39]'}`}>
-                        {task.status === 'complete' && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+                <div>
+                  {writingTasks.map((task, i) => (
+                    <div
+                      key={task.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 0',
+                        borderBottom: i < writingTasks.length - 1 ? `1px solid ${c.divider}` : 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          flexShrink: 0, width: 14, height: 14, borderRadius: '50%',
+                          border: task.status === 'complete' ? '1px solid rgba(16,185,129,0.4)' : `1px solid ${c.textMuted}`,
+                          background: task.status === 'complete' ? 'rgba(16,185,129,0.12)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        {task.status === 'complete' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'block' }} />}
                       </span>
-                      <span className={`text-base ${task.status === 'complete' ? 'text-[#4a4946] line-through' : 'text-[#d4d2cd]'}`}>{task.title}</span>
+                      <span style={{ fontSize: 14, color: task.status === 'complete' ? c.textMuted : c.textSecondary, textDecoration: task.status === 'complete' ? 'line-through' : 'none' }}>
+                        {task.title}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -934,8 +984,8 @@ function WriteContent() {
           )}
 
           {openTool === 'anchor' && (
-            <div className="flex flex-col flex-1 min-h-0">
-              <div className="p-4 border-b border-[#1f1f1d] space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{ padding: 16, borderBottom: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <textarea
                   value={newLineText}
                   onChange={(e) => {
@@ -950,33 +1000,43 @@ function WriteContent() {
                       e.currentTarget.style.height = 'auto'
                     }
                   }}
-                  placeholder="A line dear to you — we'll place it…"
+                  placeholder="A line dear to you - we'll place it..."
                   rows={3}
-                  className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                  style={{
+                    width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`,
+                    borderRadius: 10, padding: '10px 12px', fontSize: 14, color: c.textPrimary,
+                    outline: 'none', resize: 'none', overflow: 'hidden', fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                  }}
                 />
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-[#3d3c39]">⌘↵ to add</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>⌘↵ to add</p>
                   {newLineText.trim() && (
                     <button
                       onClick={() => { addAnchorLine(newLineText); setNewLineText('') }}
-                      className="text-xs text-[#8c8a87] hover:text-[#e8e6e1] transition-colors"
+                      style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       Add
                     </button>
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {anchorLines.length === 0 ? (
-                  <p className="text-xs text-[#3d3c39]">No anchor lines yet.</p>
+                  <p style={{ fontSize: 13, color: c.textMuted }}>No anchor lines yet.</p>
                 ) : (
                   anchorLines.map((l) => (
-                    <div key={l.id} className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
-                        <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300 text-xs flex-shrink-0">✕</button>
+                    <div key={l.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontSize: 14, color: c.textSecondary, fontStyle: 'italic', lineHeight: 1.5 }}>&ldquo;{l.text}&rdquo;</span>
+                        <button
+                          onClick={() => deleteAnchorLine(l.id)}
+                          style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                        >✕</button>
                       </div>
-                      <p className="text-xs text-[#4a4946]">{sectionLabelFor(l.section_id)}</p>
+                      <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>{sectionLabelFor(l.section_id)}</p>
                     </div>
                   ))
                 )}
@@ -985,26 +1045,30 @@ function WriteContent() {
           )}
 
           {openTool === 'assistant' && (
-            <div className="flex flex-col flex-1 min-h-0">
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               {/* Mode toggle */}
-              <div className="px-4 py-2.5 border-b border-[#1f1f1d] flex items-center gap-1">
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', gap: 4 }}>
                 <button
                   onClick={() => setAssistantMode('write')}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
-                    assistantMode === 'write'
-                      ? 'bg-[#2e2d2a] text-[#e8e6e1]'
-                      : 'text-[#6b6966] hover:text-[#d4d2cd]'
-                  }`}
+                  style={{
+                    flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: assistantMode === 'write' ? c.cardBg : 'transparent',
+                    color: assistantMode === 'write' ? c.textPrimary : c.textMuted,
+                    boxShadow: assistantMode === 'write' ? c.shadow : 'none',
+                  }}
                 >
                   Write for me
                 </button>
                 <button
                   onClick={() => setAssistantMode('coach')}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
-                    assistantMode === 'coach'
-                      ? 'bg-[#2e2d2a] text-[#e8e6e1]'
-                      : 'text-[#6b6966] hover:text-[#d4d2cd]'
-                  }`}
+                  style={{
+                    flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: assistantMode === 'coach' ? c.cardBg : 'transparent',
+                    color: assistantMode === 'coach' ? c.textPrimary : c.textMuted,
+                    boxShadow: assistantMode === 'coach' ? c.shadow : 'none',
+                  }}
                 >
                   Find my words
                 </button>
@@ -1012,45 +1076,49 @@ function WriteContent() {
 
               {/* Context strip: selection or focused section */}
               {selectedText && sections.find(s => s.id === selectedText.sectionId) && (
-                <div className="px-4 py-2 border-b border-[#1f1f1d] flex items-start gap-2 bg-[#111110]">
-                  <span className="text-[#10B981] text-xs flex-shrink-0 mt-0.5">↳</span>
-                  <p className="text-xs text-[#8c8a87] italic flex-1 leading-relaxed line-clamp-2">
+                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${c.divider}`, background: c.inputBg, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: '#10B981', fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
+                  <p style={{ fontSize: 12, color: c.textSecondary, fontStyle: 'italic', flex: 1, lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     &ldquo;{selectedText.text}&rdquo;
                   </p>
                   <button
                     onClick={() => setSelectedText(null)}
-                    className="text-[#3d3c39] hover:text-[#6b6966] text-xs flex-shrink-0"
-                  >
-                    ✕
-                  </button>
+                    style={{ fontSize: 11, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                  >✕</button>
                 </div>
               )}
               {!selectedText && activeSection && (
-                <p className="px-4 py-2 text-xs text-[#6b6966] border-b border-[#1f1f1d]">
-                  Focused on: <span className="text-[#8c8a87]">{activeSection.label || 'this section'}</span>
+                <p style={{ padding: '8px 16px', fontSize: 12, color: c.textMuted, borderBottom: `1px solid ${c.divider}`, margin: 0 }}>
+                  Focused on: <span style={{ color: c.textSecondary }}>{activeSection.label || 'this section'}</span>
                   {activeSection.is_locked && ' (locked)'}
                 </p>
               )}
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {chatMessages.length === 0 ? (
-                  <p className="text-base text-[#3d3c39]">
+                  <p style={{ fontSize: 14, color: c.textMuted, lineHeight: 1.6, margin: 0 }}>
                     {assistantMode === 'write'
                       ? "Click into a section, then ask me to write or rewrite. Select a specific sentence first and I'll focus there — approved rewrites land in the section for you to accept."
                       : "I won't write for you here — instead I'll ask questions and reflect things back until the words come from you. Select a sentence to discuss it specifically, or ask about the piece as a whole."}
                   </p>
                 ) : (
                   chatMessages.map((msg, i) => (
-                    <div key={i} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
-                      <div className={`inline-block max-w-[85%] px-3 py-2 rounded whitespace-pre-wrap text-base ${msg.role === 'user' ? 'bg-[#2e2d2a] text-[#e8e6e1]' : 'bg-[#1f1f1d] text-[#d4d2cd]'}`}>
+                    <div key={i} style={{ textAlign: msg.role === 'user' ? 'right' : 'left' }}>
+                      <div style={{
+                        display: 'inline-block', maxWidth: '85%', padding: '10px 14px',
+                        borderRadius: 12, whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55,
+                        background: msg.role === 'user' ? c.cardBg : c.inputBg,
+                        color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
+                        boxShadow: msg.role === 'user' ? c.shadow : 'none',
+                      }}>
                         {msg.content}
                       </div>
                     </div>
                   ))
                 )}
-                {isChatLoading && <p className="text-xs text-[#4a4946]">Thinking…</p>}
+                {isChatLoading && <p style={{ fontSize: 12, color: c.textMuted }}>Thinking…</p>}
               </div>
-              <div className="border-t border-[#1f1f1d] p-3 space-y-2">
+              <div style={{ borderTop: `1px solid ${c.divider}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <textarea
                   ref={chatInputRef}
                   value={chatInput}
@@ -1067,13 +1135,22 @@ function WriteContent() {
                   }}
                   placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
                   rows={1}
-                  className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
-                  style={{ overflow: 'hidden', maxHeight: '200px' }}
+                  style={{
+                    width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`,
+                    borderRadius: 10, padding: '10px 12px', fontSize: 14, color: c.textPrimary,
+                    outline: 'none', resize: 'none', overflow: 'hidden', maxHeight: 200,
+                    fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box',
+                  }}
                 />
                 <button
                   onClick={handleChatSend}
                   disabled={!chatInput.trim() || isChatLoading}
-                  className="w-full px-3 py-2 bg-[#2e2d2a] text-[#e8e6e1] text-xs font-medium rounded hover:bg-[#3d3c39] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    width: '100%', padding: '10px', background: c.cardBg, color: c.textPrimary,
+                    fontSize: 13, fontWeight: 600, borderRadius: 10, border: `1px solid ${c.divider}`,
+                    cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
+                    opacity: !chatInput.trim() || isChatLoading ? 0.4 : 1,
+                  }}
                 >
                   Send
                 </button>
@@ -1093,93 +1170,93 @@ function WriteContent() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#1a1917',
-              border: '1px solid #2e2d2a',
-              borderRadius: '20px',
+              background: c.containerBg,
+              border: `1px solid ${c.divider}`,
+              borderRadius: 20,
               width: '100%',
               maxWidth: '640px',
               maxHeight: '80vh',
               overflowY: 'auto',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+              boxShadow: c.containerShadow,
               display: 'flex',
               flexDirection: 'column',
             }}
           >
             <div
               style={{
-                position: 'sticky',
-                top: 0,
-                background: '#1a1917',
-                borderBottom: '1px solid #2e2d2a',
+                position: 'sticky', top: 0,
+                background: c.containerBg,
+                borderBottom: `1px solid ${c.divider}`,
                 padding: '16px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 borderRadius: '20px 20px 0 0',
               }}
             >
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#e8e6e0', letterSpacing: '-0.02em', margin: 0 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em', margin: 0 }}>
                 {piece.title}
               </h2>
               <button
                 onClick={() => setShowCoreConceptModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b6966', padding: '4px', display: 'flex', alignItems: 'center' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e8e6e0' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6b6966' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.textMuted, padding: '4px', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
               {piece.one_sentence && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>One Sentence</p>
-                  <p style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3, color: '#e8e6e0', margin: 0 }}>{piece.one_sentence}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
+                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: c.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
                 </div>
               )}
               {piece.conviction_statement && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Conviction</p>
-                  <div style={{ display: 'flex', gap: '14px', alignItems: 'stretch' }}>
-                    <div style={{ width: '3px', borderRadius: '2px', background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
-                    <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0 }}>{piece.conviction_statement}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Conviction</p>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+                    <div style={{ width: 3, borderRadius: 2, background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
                   </div>
                 </div>
               )}
               {piece.emotional_journey && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Emotional Journey</p>
-                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
                 </div>
               )}
               {piece.core_truth && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Core Truth</p>
-                  <p style={{ fontSize: '16px', fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.01em', color: '#e8e6e0', borderLeft: '2px solid #10B981', paddingLeft: '14px', margin: 0 }}>{piece.core_truth}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Core Truth</p>
+                  <p style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.55, letterSpacing: '-0.01em', color: c.textPrimary, margin: 0 }}>{piece.core_truth}</p>
                 </div>
               )}
               {piece.substack_goals && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Writing Goals</p>
-                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
                 </div>
               )}
               {piece.short_form_goals && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Short Form Goals</p>
-                  <p style={{ fontSize: '14px', lineHeight: 1.65, color: '#d4d2cd', margin: 0, whiteSpace: 'pre-line' }}>{piece.short_form_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Visuals Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.short_form_goals}</p>
                 </div>
               )}
               {piece.open_threads && piece.open_threads.length > 0 && (
                 <div>
-                  <p style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: '#4a4946', margin: '0 0 8px' }}>Open Threads</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 10px' }}>Open Threads</p>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {piece.open_threads.map((thread, i) => (
-                      <div key={i} style={{ display: 'flex', gap: '10px', fontSize: '14px', color: '#d4d2cd', lineHeight: 1.55 }}>
-                        <span style={{ color: '#10B981', flexShrink: 0 }}>•</span>
-                        <span>{thread}</span>
+                      <div key={i}>
+                        <div style={{ display: 'flex', gap: 10, fontSize: 14, color: c.textSecondary, lineHeight: 1.55, padding: '8px 0' }}>
+                          <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+                          <span>{thread}</span>
+                        </div>
+                        {i < piece.open_threads.length - 1 && <div style={{ height: 1, background: c.divider }} />}
                       </div>
                     ))}
                   </div>
