@@ -7,48 +7,40 @@ import { withLanguage } from '@/lib/language'
 export async function POST(request: Request) {
   try {
     const auth = await requireUser()
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { text } = await request.json()
-
-    if (!text?.trim()) {
-      return NextResponse.json({ error: 'text is required' }, { status: 400 })
-    }
+    const { text, context } = await request.json()
+    if (!text?.trim()) return NextResponse.json({ error: 'text is required' }, { status: 400 })
 
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 1024,
-      system: withLanguage(`You are a punctuation assistant. Your task is to add proper punctuation and sentence structure to raw voice transcription.
+      system: withLanguage(`You add punctuation to transcribed speech. Your only job is to insert punctuation marks — commas, periods, question marks, exclamation marks, ellipses, em dashes, colons, semicolons — where they naturally belong.
 
-Rules:
-- Add punctuation only (periods, commas, question marks, exclamation marks, apostrophes)
-- Capitalize the first letter of sentences
-- Fix obvious capitalization (names, "I")
-- Do NOT rewrite, rephrase, or change word order
-- Preserve the speaker's voice, tone, and phrasing exactly
-- Do NOT add or remove any words
-- Return ONLY the punctuated text, nothing else`),
+STRICT RULES:
+- Every word in the input must appear in the output, unchanged, in the same order
+- You may not add, remove, reorder, or rephrase any word — not even filler words
+- Fix obvious capitalisation: first word of a sentence, the word "I"
+- You may not add quotation marks unless the speaker is clearly quoting
+- Return ONLY the punctuated text — no preamble, no explanation`),
       messages: [
         {
           role: 'user',
-          content: `Add punctuation to this voice transcript:\n\n${text}`,
+          content: context?.trim()
+            ? `Previous text (context only — do not include in output): "${context}"\n\nText to punctuate: ${text}`
+            : `Text to punctuate: ${text}`,
         },
       ],
     })
 
-    const punctuatedText =
+    const result =
       response.content[0].type === 'text' ? response.content[0].text.trim() : text
 
-    return NextResponse.json({
-      punctuated: punctuatedText,
-    })
+    // Return both keys so old callers (check-in, post-publication) and the
+    // new hook (which reads `text`) both work without a separate migration.
+    return NextResponse.json({ text: result, punctuated: result })
   } catch (err) {
     console.error('punctuate error:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

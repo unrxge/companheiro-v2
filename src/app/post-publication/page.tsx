@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useDictation } from '@/lib/use-dictation'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { shellBackground, cardPalette } from '@/lib/card-theme'
 import { IconButton } from '@/components/ui/icon-button'
@@ -21,15 +22,32 @@ function PostPublicationContent() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
-  const [isListening, setIsListening] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
-  const [isPunctuating, setIsPunctuating] = useState(false)
-
   const [form, setForm] = useState({
     thread: '',
     what_it_opened: '',
     unresolved: '',
     natural_continuations: '',
+  })
+  // Refs so the async onAppend closure always sees the latest field and form values.
+  const focusedFieldRef = useRef<string | null>(null)
+  focusedFieldRef.current = focusedField
+  const formRef = useRef(form)
+  formRef.current = form
+  const { isRecording: isListening, interimText: dictationInterim, handleRecordToggle: toggleDictation, clearInterim } = useDictation({
+    onAppend: useCallback((text: string) => {
+      const field = focusedFieldRef.current
+      if (!field) return
+      setForm((prev) => {
+        const cur = prev[field as keyof typeof prev] || ''
+        return { ...prev, [field]: cur + (cur && !cur.endsWith(' ') ? ' ' : '') + text }
+      })
+    }, []),
+    getContext: () => {
+      const field = focusedFieldRef.current
+      if (!field) return ''
+      return (formRef.current[field as keyof typeof formRef.current] || '').slice(-80)
+    },
   })
 
   const threadRef = useRef<HTMLInputElement>(null)
@@ -87,71 +105,6 @@ function PostPublicationContent() {
     }
   }
 
-  const punctuateTranscript = async (rawText: string, fieldName: string) => {
-    if (!rawText.trim()) return
-    setIsPunctuating(true)
-    try {
-      const res = await fetch('/api/punctuate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText }),
-      })
-      const data = await res.json()
-      if (data.punctuated) {
-        setForm((prev) => ({
-          ...prev,
-          [fieldName]: (prev[fieldName as keyof typeof form] || '') + data.punctuated,
-        }))
-      }
-    } catch (err) {
-      console.error('Punctuation error:', err)
-    } finally {
-      setIsPunctuating(false)
-    }
-  }
-
-  const startDictation = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Speech recognition not supported in this browser')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
-
-    let finalTranscript = ''
-
-    recognition.onstart = () => {
-      setIsListening(true)
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-      // Punctuate the transcript after recording ends
-      if (finalTranscript.trim() && focusedField) {
-        punctuateTranscript(finalTranscript.trim(), focusedField)
-      }
-    }
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' '
-        }
-      }
-    }
-
-    recognition.onerror = () => {
-      setIsListening(false)
-    }
-
-    recognition.start()
-  }
 
   const resizeTextarea = (element: HTMLTextAreaElement) => {
     if (element) {
@@ -243,8 +196,8 @@ function PostPublicationContent() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={startDictation}
-                disabled={isListening}
+                onClick={toggleDictation}
+                disabled={false}
                 style={{
                   padding: '6px 12px',
                   fontSize: 12,
@@ -263,8 +216,8 @@ function PostPublicationContent() {
                   Speaking into: {focusedField.replace(/_/g, ' ')}
                 </span>
               )}
-              {isPunctuating && (
-                <span style={{ fontSize: 12, color: c.textMuted }}>Punctuating…</span>
+              {isListening && dictationInterim && (
+                <span style={{ fontSize: 12, color: c.textMuted, fontStyle: 'italic' }}>{dictationInterim}</span>
               )}
             </div>
 
@@ -352,10 +305,6 @@ function PostPublicationContent() {
   )
 }
 
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number
-  results: SpeechRecognitionResultList
-}
 
 export default function PostPublicationPage() {
   return (

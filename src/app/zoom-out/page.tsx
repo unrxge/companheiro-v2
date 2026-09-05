@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDictation } from '@/lib/use-dictation'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -34,15 +35,20 @@ export default function ZoomOutPage() {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
+  const inputTextRef = useRef('')
+  inputTextRef.current = inputText
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [isCommitting, setIsCommitting] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+    onAppend: useCallback((text: string) => {
+      setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
+    }, []),
+    getContext: () => inputTextRef.current.slice(-80),
+  })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -127,49 +133,6 @@ export default function ZoomOutPage() {
     }
   }
 
-  const startRecording = async () => {
-    setError(null)
-    const SpeechRecognitionAPI =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    if (!SpeechRecognitionAPI) {
-      setError('Speech recognition not supported in your browser')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition: any = new SpeechRecognitionAPI()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-    recognition.onstart = () => setIsRecording(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i][0].isFinal) setInputText((prev) => prev + transcript + ' ')
-      }
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onerror = (event: any) => {
-      setError(`Error: ${event.error}`)
-      setIsRecording(false)
-    }
-    recognition.onend = () => setIsRecording(false)
-    recognitionRef.current = recognition
-    recognition.start()
-  }
-
-  const stopRecording = () => {
-    recognitionRef.current?.stop()
-    setIsRecording(false)
-  }
-
-  const handleRecordToggle = () => {
-    if (isRecording) stopRecording()
-    else startRecording()
-  }
 
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
@@ -504,8 +467,9 @@ export default function ZoomOutPage() {
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <textarea
               ref={textareaRef}
-              value={inputText}
+              value={inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
               onChange={(e) => {
+                clearInterim()
                 setInputText(e.target.value)
                 e.target.style.height = 'auto'
                 e.target.style.height = e.target.scrollHeight + 'px'

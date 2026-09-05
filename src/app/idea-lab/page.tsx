@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useDictation } from '@/lib/use-dictation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
@@ -121,11 +122,9 @@ export default function IdeaLabPage() {
   type ScratchState = 'idle' | 'choosing' | 'importing'
   const [scratchState, setScratchState] = useState<ScratchState>('idle')
   const [importText, setImportText] = useState('')
-  const [isImportRecording, setIsImportRecording] = useState(false)
-  const [interimText, setInterimText] = useState('')
-  const interimTextRef = useRef('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const importRecognitionRef = useRef<any>(null)
+  const importTextRef = useRef('')
+  // Keep ref in sync so the dictation hook's getContext always sees latest value
+  importTextRef.current = importText
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
@@ -336,97 +335,18 @@ export default function IdeaLabPage() {
 
   // ── Import dictation ──────────────────────────────────────────────────────
 
-  // Queue ensures segments are appended in spoken order even if API calls
-  // return out of order (two rapid pauses can fire concurrently).
-  const punctuationQueueRef = useRef<Promise<void>>(Promise.resolve())
-
-  // Verify the model only added punctuation — no word changes allowed.
-  const wordsUnchanged = (raw: string, candidate: string): boolean => {
-    const strip = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
-    return strip(raw) === strip(candidate)
-  }
-
-  const punctuateAndAppend = (raw: string) => {
-    punctuationQueueRef.current = punctuationQueueRef.current.then(async () => {
-      // Capture context (last 80 chars of confirmed text) before any async gap
-      let context = ''
-      setImportText((prev) => { context = prev.slice(-80); return prev })
-
-      let punctuated = raw
-      try {
-        const res = await fetch('/api/idea-lab/punctuate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: raw, context }),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          // Only accept the response if the words are exactly preserved
-          if (data.text && wordsUnchanged(raw, data.text)) {
-            punctuated = data.text
-          }
-        }
-      } catch {
-        // fall back to raw
-      }
-
-      setImportText((prev) => {
-        const sep = prev.length > 0 && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
-        return prev + sep + punctuated
-      })
-    })
-  }
-
-  const commitInterim = () => {
-    const pending = interimTextRef.current.trim()
-    if (pending) punctuateAndAppend(pending)
-    interimTextRef.current = ''
-    setInterimText('')
-  }
-
-  const startImportRecording = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition: any = new SpeechRecognitionAPI()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-    recognition.onstart = () => setIsImportRecording(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          punctuateAndAppend(transcript.trim())
-          interimTextRef.current = ''
-          setInterimText('')
-        } else {
-          interim += transcript
-        }
-      }
-      if (interim) {
-        interimTextRef.current = interim
-        setInterimText(interim)
-      }
-    }
-    recognition.onerror = () => { commitInterim(); setIsImportRecording(false) }
-    recognition.onend = () => { commitInterim(); setIsImportRecording(false) }
-    importRecognitionRef.current = recognition
-    recognition.start()
-  }
-
-  const stopImportRecording = () => {
-    importRecognitionRef.current?.stop()
-    // onend fires and calls commitInterim
-  }
-
-  const handleImportRecordToggle = () => {
-    if (isImportRecording) stopImportRecording()
-    else startImportRecording()
-  }
+  const {
+    isRecording: isImportRecording,
+    interimText,
+    handleRecordToggle: handleImportRecordToggle,
+    stopRecording: stopImportRecording,
+    clearInterim,
+  } = useDictation({
+    onAppend: useCallback((text: string) => {
+      setImportText((prev) => prev + (prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '') + text)
+    }, []),
+    getContext: () => importTextRef.current.slice(-80),
+  })
 
   // ── Style helpers ──────────────────────────────────────────────────────────
 
@@ -860,7 +780,7 @@ export default function IdeaLabPage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); setInterimText('') }}
+                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); clearInterim() }}
                         style={{
                           flexShrink: 0,
                           marginLeft: '16px',
@@ -885,13 +805,11 @@ export default function IdeaLabPage() {
                       autoFocus
                       value={importText + (interimText ? (importText && !importText.endsWith(' ') && !importText.endsWith('\n') ? ' ' : '') + interimText : '')}
                       onChange={(e) => {
-                        // User is typing manually; clear interim to avoid double-text
-                        interimTextRef.current = ''
-                        setInterimText('')
+                        clearInterim()
                         setImportText(e.target.value)
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); setInterimText('') }
+                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); clearInterim() }
                       }}
                       placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore..."
                       style={{

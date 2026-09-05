@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, Suspense, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, Suspense, type CSSProperties } from 'react'
+import { useDictation } from '@/lib/use-dictation'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 
@@ -94,7 +95,8 @@ function ReimagineContent() {
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
+  const inputTextRef = useRef('')
+  inputTextRef.current = inputText
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,7 +110,12 @@ function ReimagineContent() {
   const [paletteIndex, setPaletteIndex] = useState(0)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+    onAppend: useCallback((text: string) => {
+      setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
+    }, []),
+    getContext: () => inputTextRef.current.slice(-80),
+  })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
 
@@ -195,67 +202,6 @@ function ReimagineContent() {
     }
   }
 
-  const startRecording = async () => {
-    setError(null)
-
-    const SpeechRecognitionAPI =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    if (!SpeechRecognitionAPI) {
-      setError('Speech recognition not supported in your browser')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition: any = new SpeechRecognitionAPI()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    recognition.onstart = () => {
-      setIsRecording(true)
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i][0].isFinal) {
-          setInputText((prev) => prev + transcript + ' ')
-        }
-      }
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error)
-      setError(`Error: ${event.error}`)
-      setIsRecording(false)
-    }
-
-    recognition.onend = () => {
-      setIsRecording(false)
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-  }
-
-  const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      setIsRecording(false)
-    }
-  }
-
-  const handleRecordToggle = () => {
-    if (isRecording) {
-      stopRecording()
-    } else {
-      startRecording()
-    }
-  }
 
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
@@ -549,8 +495,9 @@ function ReimagineContent() {
         <div className="max-w-xl mx-auto w-full flex items-center gap-3">
           <textarea
             ref={textareaRef}
-            value={inputText}
+            value={inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
             onChange={(e) => {
+              clearInterim()
               setInputText(e.target.value)
               e.target.style.height = 'auto'
               e.target.style.height = e.target.scrollHeight + 'px'

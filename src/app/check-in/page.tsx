@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDictation } from '@/lib/use-dictation'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -72,8 +73,9 @@ export default function CheckInPage() {
   const c = cardPalette['dark']
 
   const [inputMode, setInputMode] = useState<'mic' | 'keyboard' | null>(null)
-  const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
+  const transcriptRef = useRef('')
+  transcriptRef.current = transcript
   const [messages, setMessages] = useState<Message[]>([])
   const [signals, setSignals] = useState<Signals | null>(null)
   const [inferredType, setInferredType] = useState<CheckInType | null>(null)
@@ -87,7 +89,6 @@ export default function CheckInPage() {
   const [isLoadingJournal, setIsLoadingJournal] = useState(false)
   const [journalPrompt, setJournalPrompt] = useState('')
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
-  const [isPunctuating, setIsPunctuating] = useState(false)
   const [pastCheckIns, setPastCheckIns] = useState<PastCheckIn[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [historyExpanded, setHistoryExpanded] = useState(false)
@@ -96,8 +97,12 @@ export default function CheckInPage() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+    onAppend: useCallback((text: string) => {
+      setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
+    }, []),
+    getContext: () => transcriptRef.current.slice(-80),
+  })
   const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -202,95 +207,14 @@ export default function CheckInPage() {
     })
   }
 
-  const startRecording = async () => {
+  const startMicMode = () => {
     setError(null)
     setTranscript('')
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel()
       setSpeakingIndex(null)
     }
-    const SpeechRecognitionAPI =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (SpeechRecognitionAPI) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const recognition: any = new SpeechRecognitionAPI()
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-      let finalTranscript = ''
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onresult = (event: any) => {
-        let interim = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i]
-          if (result.isFinal) finalTranscript += result[0].transcript + ' '
-          else interim += result[0].transcript
-        }
-        setTranscript((finalTranscript + interim).trim())
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onerror = (event: any) => {
-        if (event.error !== 'no-speech') setError(`Microphone error: ${event.error}`)
-      }
-      recognition.onend = () => {
-        if (finalTranscript.trim()) punctuateTranscript(finalTranscript.trim())
-      }
-      recognition.start()
-      recognitionRef.current = recognition
-      setIsRecording(true)
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const mediaRecorder = new MediaRecorder(stream)
-        chunksRef.current = []
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data)
-        }
-        mediaRecorder.start()
-        mediaRecorderRef.current = mediaRecorder
-        setIsRecording(true)
-        setError('Live transcription unavailable in this browser. Type your check-in below.')
-      } catch {
-        setError('Microphone access denied. Please allow microphone access and try again.')
-      }
-    }
-  }
-
-  const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null
-    }
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop())
-      mediaRecorderRef.current = null
-    }
-    setIsRecording(false)
-  }
-
-  const punctuateTranscript = async (rawText: string) => {
-    if (!rawText.trim()) return
-    setIsPunctuating(true)
-    try {
-      const res = await fetch('/api/punctuate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText }),
-      })
-      const data = await res.json()
-      if (data.punctuated) setTranscript(data.punctuated)
-    } catch (err) {
-      console.error('Punctuation error:', err)
-    } finally {
-      setIsPunctuating(false)
-    }
-  }
-
-  const handleRecordToggle = () => {
-    if (isRecording) stopRecording()
-    else startRecording()
+    handleRecordToggle()
   }
 
   const streamAiMessage = async <M,>(res: Response, hideFrom: string[] = []): Promise<M | null> => {
@@ -447,7 +371,7 @@ export default function CheckInPage() {
         >
           {/* Voice */}
           <motion.button
-            onClick={() => { setInputMode('mic'); startRecording() }}
+            onClick={() => { setInputMode('mic'); startMicMode() }}
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }}
@@ -517,19 +441,15 @@ export default function CheckInPage() {
                 Recording
               </motion.p>
             )}
-            {isPunctuating && !isRecording && (
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={eyebrow}>
-                Punctuating...
-              </motion.p>
-            )}
           </AnimatePresence>
 
           {/* Textarea — always visible in keyboard mode; shown in mic mode when recording or text exists */}
           {(transcript || isRecording || inputMode === 'keyboard') && (
             <textarea
               ref={transcriptTextareaRef}
-              value={transcript}
+              value={transcript + (dictationInterim ? (transcript && !transcript.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
               onChange={(e) => {
+                clearInterim()
                 setTranscript(e.target.value)
                 e.target.style.height = 'auto'
                 e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
