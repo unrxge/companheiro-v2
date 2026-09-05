@@ -29,6 +29,8 @@ interface ChatRequest {
   conversation_history: Array<{ role: "user" | "assistant"; content: string }>;
   active_section?: ActiveSection | null;
   preceding_sections?: PrecedingSection[];
+  selected_text?: string | null;
+  assistant_mode?: "write" | "coach";
 }
 
 export async function POST(request: NextRequest) {
@@ -65,7 +67,9 @@ export async function POST(request: NextRequest) {
     ]);
 
     const section = body.active_section;
-    const canEdit = !!section && !section.is_locked;
+    const assistantMode = body.assistant_mode || "write";
+    const selectedText = body.selected_text || null;
+    const canEdit = !!section && !section.is_locked && assistantMode === "write";
 
     const precedingSections = (body.preceding_sections || []).filter(
       (s) => s.content?.trim() || (s.anchor_lines && s.anchor_lines.length > 0)
@@ -95,27 +99,42 @@ Locked: ${section.is_locked ? "yes — you may discuss it but must NOT propose c
 Current text:
 """
 ${section.content || "(empty)"}
+"""${
+        selectedText
+          ? `\n\nSELECTED SENTENCE / PASSAGE (they highlighted this specific text — this is what the conversation is primarily about; treat it as the exact focus of the discussion, not the whole section):
+"""
+${selectedText}
 """`
+          : ""
+      }`
       : "They aren't focused on a specific section right now — keep it general.";
 
-    const editInstructions = canEdit
-      ? `PROPOSING AN EDIT: When — and only when — the person clearly wants you to write or rewrite prose for this section (not when they're just asking what you think), produce the section's full revised text and append it at the very end wrapped exactly like this:
+    const editInstructions =
+      assistantMode === "coach"
+        ? `COACH MODE — YOUR ONLY JOB IS TO HELP THEM FIND THEIR OWN WORDS:
+You must not write any prose for them, not even a sentence or a fragment. No proposed edits, no rewrites, no "here's how you might say it."
+Instead: ask questions, reflect their ideas back to them, name the gap between what they wrote and what they seem to mean, point at a contradiction worth resolving, offer a specific provocation or angle they haven't considered. Press them toward the thought they haven't finished yet.
+${selectedText ? `They've highlighted a specific passage — start there. What is this sentence trying to do? Does it land? What's the next honest thing to say after it?` : ""}
+Every response should end with a question that moves the writing forward. Stay Socratic; the prose stays entirely theirs.`
+      : canEdit
+        ? `PROPOSING AN EDIT: When — and only when — the person clearly wants you to write or rewrite prose for this section (not when they're just asking what you think), produce the section's full revised text and append it at the very end wrapped exactly like this:
 <proposed_edit>
 the complete new text for this section
 </proposed_edit>
 Rules:
 - Always the FULL section text, not a fragment — it replaces the section wholesale on approval.
+${selectedText ? `- They highlighted a specific sentence/passage. When rewriting, that passage is the focal change; keep the rest of the section consistent around it.` : ""}
 - Preserve the ethos of their voice; weave in their intent and adapt their wording to fit into the standard of phenomenal storytelling. If anchor lines are allocated to this section, work them in naturally — they're precious to the writer and must not be dropped or ignored.
 - Consistency is non-negotiable: the tone, style, and storyline must read as a continuation of THE PIECE SO FAR, not a fresh take on the topic in isolation. If your proposed text would contradict or ignore something already established above, don't propose it — raise the tension in chat instead.
 - When the ask is a localized tweak to one paragraph, don't just splice the new paragraph into untouched surroundings. Reread what comes before (that section's paragraph(s), as well any sections that come before) and after it within this section and adjust whatever's needed there too — a transition that no longer connects, a reference to phrasing you just changed, a beat that now repeats or contradicts — so the section reads as one coherent whole, not a patched-in fragment.
 - Let the length be whatever the moment needs — a tightened sentence or a full redraft.
 - Your chat message should briefly say what you changed and why; the person approves or rejects the proposed text before anything lands.
 - Never propose an edit speculatively or on the first exchange about a section — earn it through the back-and-forth.`
-      : section?.is_locked
-        ? "This section is LOCKED. Discuss it if asked, but do not propose any changes to it."
-        : "No section is focused, so do not propose edits — talk through the piece.";
+        : section?.is_locked
+          ? "This section is LOCKED. Discuss it if asked, but do not propose any changes to it."
+          : "No section is focused, so do not propose edits — talk through the piece.";
 
-    const systemPrompt = `You are Companheiro, sitting beside a writer while they work on a piece. You help them think, unstick sections, sharpen angles, challenge ideas, and give concrete examples. You are a companion, not a ghostwriter — the prose stays theirs.
+    const systemPrompt = `You are Companheiro, sitting beside a writer while they work on a piece. ${assistantMode === "coach" ? "In this session they have chosen coach mode — your role is to help them find their own words through questions and reflection, never by writing prose for them." : "You help them think, unstick sections, sharpen angles, challenge ideas, and give concrete examples. You are a companion, not a ghostwriter — the prose stays theirs."}
 
 ${COMPANION_TONE}
 

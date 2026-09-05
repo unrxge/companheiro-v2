@@ -47,6 +47,13 @@ interface ChatMessage {
   content: string
 }
 
+interface SelectedText {
+  text: string
+  sectionId: string
+}
+
+type AssistantMode = 'write' | 'coach'
+
 type ToolKey = 'core' | 'tasks' | 'anchor' | 'assistant'
 
 const svg = (path: ReactNode) => (
@@ -91,6 +98,8 @@ function WriteContent() {
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [newLineText, setNewLineText] = useState('')
+  const [selectedText, setSelectedText] = useState<SelectedText | null>(null)
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>('write')
 
   const dirtySectionsRef = useRef<Set<string>>(new Set())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -446,6 +455,8 @@ function WriteContent() {
           }))
       : []
 
+    const selectionPayload = selectedText?.sectionId === activeSectionId ? selectedText.text : null
+
     try {
       const res = await fetch('/api/write/chat', {
         method: 'POST',
@@ -456,6 +467,8 @@ function WriteContent() {
           conversation_history: priorHistory,
           active_section: activeSectionPayload,
           preceding_sections: precedingSections,
+          selected_text: selectionPayload,
+          assistant_mode: assistantMode,
         }),
       })
       if (!res.ok) return
@@ -735,6 +748,15 @@ function WriteContent() {
                       }}
                       onFocus={() => setActiveSectionId(section.id)}
                       onBlur={() => flushSections()}
+                      onSelect={(e) => {
+                        const el = e.target as HTMLTextAreaElement
+                        const sel = el.value.substring(el.selectionStart, el.selectionEnd).trim()
+                        if (sel.length > 0) {
+                          setSelectedText({ text: sel, sectionId: section.id })
+                        } else {
+                          setSelectedText(null)
+                        }
+                      }}
                       readOnly={section.is_locked}
                       placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
                       rows={flowView ? 1 : 3}
@@ -964,17 +986,58 @@ function WriteContent() {
 
           {openTool === 'assistant' && (
             <div className="flex flex-col flex-1 min-h-0">
-              {activeSection && (
+              {/* Mode toggle */}
+              <div className="px-4 py-2.5 border-b border-[#1f1f1d] flex items-center gap-1">
+                <button
+                  onClick={() => setAssistantMode('write')}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
+                    assistantMode === 'write'
+                      ? 'bg-[#2e2d2a] text-[#e8e6e1]'
+                      : 'text-[#6b6966] hover:text-[#d4d2cd]'
+                  }`}
+                >
+                  Write for me
+                </button>
+                <button
+                  onClick={() => setAssistantMode('coach')}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
+                    assistantMode === 'coach'
+                      ? 'bg-[#2e2d2a] text-[#e8e6e1]'
+                      : 'text-[#6b6966] hover:text-[#d4d2cd]'
+                  }`}
+                >
+                  Find my words
+                </button>
+              </div>
+
+              {/* Context strip: selection or focused section */}
+              {selectedText && sections.find(s => s.id === selectedText.sectionId) && (
+                <div className="px-4 py-2 border-b border-[#1f1f1d] flex items-start gap-2 bg-[#111110]">
+                  <span className="text-[#10B981] text-xs flex-shrink-0 mt-0.5">↳</span>
+                  <p className="text-xs text-[#8c8a87] italic flex-1 leading-relaxed line-clamp-2">
+                    &ldquo;{selectedText.text}&rdquo;
+                  </p>
+                  <button
+                    onClick={() => setSelectedText(null)}
+                    className="text-[#3d3c39] hover:text-[#6b6966] text-xs flex-shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {!selectedText && activeSection && (
                 <p className="px-4 py-2 text-xs text-[#6b6966] border-b border-[#1f1f1d]">
                   Focused on: <span className="text-[#8c8a87]">{activeSection.label || 'this section'}</span>
                   {activeSection.is_locked && ' (locked)'}
                 </p>
               )}
+
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {chatMessages.length === 0 ? (
                   <p className="text-base text-[#3d3c39]">
-                    Debate the piece, unstick a section, ask for examples. Click into a section first and I&apos;ll
-                    work on that one — approved rewrites land there for you to accept.
+                    {assistantMode === 'write'
+                      ? "Click into a section, then ask me to write or rewrite. Select a specific sentence first and I'll focus there — approved rewrites land in the section for you to accept."
+                      : "I won't write for you here — instead I'll ask questions and reflect things back until the words come from you. Select a sentence to discuss it specifically, or ask about the piece as a whole."}
                   </p>
                 ) : (
                   chatMessages.map((msg, i) => (
@@ -1002,7 +1065,7 @@ function WriteContent() {
                       handleChatSend()
                     }
                   }}
-                  placeholder="Ask something…"
+                  placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
                   rows={1}
                   className="w-full bg-[#2e2d2a] border border-[#2e2d2a] rounded px-3 py-2 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none leading-relaxed"
                   style={{ overflow: 'hidden', maxHeight: '200px' }}
