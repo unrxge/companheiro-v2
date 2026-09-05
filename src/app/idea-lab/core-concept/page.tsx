@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'motion/react'
 import { shellBackground, cardPalette } from '@/lib/card-theme'
@@ -23,6 +23,8 @@ interface DocumentSection {
 
 function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Palette }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   const stageData = useMemo(() => {
     const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length > 8)
@@ -61,9 +63,30 @@ function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Pale
     d += ` C ${cpx} ${pts[i - 1].y.toFixed(1)} ${cpx} ${pts[i].y.toFixed(1)} ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`
   }
 
+  const handleDotEnter = (i: number) => {
+    setHoveredIdx(i)
+    if (svgRef.current) {
+      const rect = svgRef.current.getBoundingClientRect()
+      const scaleX = rect.width / W
+      const scaleY = rect.height / (H + 30)
+      setTooltipPos({
+        x: rect.left + pts[i].x * scaleX,
+        y: rect.top + pts[i].y * scaleY,
+      })
+    }
+  }
+
+  const TOOLTIP_W = 220
+  const tooltipLeft = tooltipPos
+    ? Math.min(
+        Math.max(tooltipPos.x - TOOLTIP_W / 2, 8),
+        (typeof window !== 'undefined' ? window.innerWidth : 1200) - TOOLTIP_W - 8
+      )
+    : 0
+
   return (
     <div style={{ position: 'relative' }}>
-      <svg width="100%" viewBox={`0 0 ${W} ${H + 30}`} style={{ overflow: 'visible', display: 'block' }}>
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H + 30}`} style={{ overflow: 'visible', display: 'block' }}>
         <defs>
           <linearGradient id="ejFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={palette.textMuted} stopOpacity="0.07" />
@@ -76,8 +99,8 @@ function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Pale
         {pts.map((p, i) => (
           <g
             key={i}
-            onMouseEnter={() => setHoveredIdx(i)}
-            onMouseLeave={() => setHoveredIdx(null)}
+            onMouseEnter={() => handleDotEnter(i)}
+            onMouseLeave={() => { setHoveredIdx(null); setTooltipPos(null) }}
             style={{ cursor: 'default' }}
           >
             <circle cx={p.x} cy={p.y} r={18} fill="transparent" />
@@ -96,20 +119,19 @@ function EmotionalJourneyWidget({ text, palette }: { text: string; palette: Pale
         ))}
       </svg>
 
-      {hoveredIdx !== null && stageData[hoveredIdx].full && (
+      {hoveredIdx !== null && tooltipPos && stageData[hoveredIdx].full && (
         <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: `${(pts[hoveredIdx].x / W) * 100}%`,
-          transform: 'translateX(-50%)',
-          marginBottom: 8,
+          position: 'fixed',
+          left: tooltipLeft,
+          top: tooltipPos.y - 8,
+          transform: 'translateY(-100%)',
+          width: TOOLTIP_W,
           background: palette.cardBg,
           border: `1px solid ${pts[hoveredIdx].color}55`,
           borderRadius: 10,
           padding: '10px 14px',
-          maxWidth: 220,
           boxShadow: palette.shadow,
-          zIndex: 10,
+          zIndex: 9999,
           pointerEvents: 'none',
         }}>
           <p style={{ fontSize: 9, fontWeight: 700, color: pts[hoveredIdx].color, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 5px' }}>
