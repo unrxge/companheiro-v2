@@ -1046,34 +1046,6 @@ function WriteContent() {
 
           {openTool === 'assistant' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              {/* Mode toggle */}
-              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', gap: 4 }}>
-                <button
-                  onClick={() => setAssistantMode('write')}
-                  style={{
-                    flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, borderRadius: 8,
-                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                    background: assistantMode === 'write' ? c.cardBg : 'transparent',
-                    color: assistantMode === 'write' ? c.textPrimary : c.textMuted,
-                    boxShadow: assistantMode === 'write' ? c.shadow : 'none',
-                  }}
-                >
-                  Write for me
-                </button>
-                <button
-                  onClick={() => setAssistantMode('coach')}
-                  style={{
-                    flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600, borderRadius: 8,
-                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                    background: assistantMode === 'coach' ? c.cardBg : 'transparent',
-                    color: assistantMode === 'coach' ? c.textPrimary : c.textMuted,
-                    boxShadow: assistantMode === 'coach' ? c.shadow : 'none',
-                  }}
-                >
-                  Find my words
-                </button>
-              </div>
-
               {/* Context strip: selection or focused section */}
               {selectedText && sections.find(s => s.id === selectedText.sectionId) && (
                 <div style={{ padding: '8px 16px', borderBottom: `1px solid ${c.divider}`, background: c.inputBg, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -1142,18 +1114,44 @@ function WriteContent() {
                     fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box',
                   }}
                 />
-                <button
-                  onClick={handleChatSend}
-                  disabled={!chatInput.trim() || isChatLoading}
-                  style={{
-                    width: '100%', padding: '10px', background: c.cardBg, color: c.textPrimary,
-                    fontSize: 13, fontWeight: 600, borderRadius: 10, border: `1px solid ${c.divider}`,
-                    cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
-                    opacity: !chatInput.trim() || isChatLoading ? 0.4 : 1,
-                  }}
-                >
-                  Send
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={handleChatSend}
+                    disabled={!chatInput.trim() || isChatLoading}
+                    style={{
+                      flex: 1, padding: '10px', background: c.cardBg, color: c.textPrimary,
+                      fontSize: 13, fontWeight: 600, borderRadius: 10, border: `1px solid ${c.divider}`,
+                      cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
+                      opacity: !chatInput.trim() || isChatLoading ? 0.4 : 1,
+                    }}
+                  >
+                    Send
+                  </button>
+                </div>
+                {/* Mode pill toggle */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    background: 'rgba(255,255,255,0.04)', borderRadius: 20,
+                    padding: '2px 3px', gap: 1,
+                  }}>
+                    {(['coach', 'write'] as AssistantMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setAssistantMode(mode)}
+                        style={{
+                          padding: '3px 10px', fontSize: 11, fontWeight: 500,
+                          borderRadius: 16, border: 'none', cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          background: assistantMode === mode ? 'rgba(232,230,224,0.12)' : 'transparent',
+                          color: assistantMode === mode ? '#d4d2cd' : '#4a4946',
+                        }}
+                      >
+                        {mode === 'coach' ? 'suggest' : 'write'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
