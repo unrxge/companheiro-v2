@@ -266,6 +266,16 @@ function WriteContent() {
   const structureKey = sections.map((s) => s.id).join(',')
   useLayoutEffect(() => {
     resizeAll()
+    // openTool/chatExpanded drive the paddingRight CSS transition (0.3s) on
+    // the writing column below — this immediate call fires before that
+    // transition has settled, so mobile WebKit in particular can leave
+    // stale heights the ResizeObserver never corrects (it doesn't reliably
+    // fire mid-transition there). A second pass just after the transition
+    // ends guarantees one correct recompute regardless of browser quirks —
+    // this is what was still leaving gaps after opening/closing a panel in
+    // landscape without a device rotation to trigger the other listener.
+    const t = setTimeout(resizeAll, 320)
+    return () => clearTimeout(t)
   }, [structureKey, flowView, resizeNonce, openTool, chatExpanded, pendingEdit, resizeAll])
 
   // Mobile viewport + orientation tracking, plus a resize/orientation listener
