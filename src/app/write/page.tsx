@@ -780,8 +780,8 @@ function WriteContent() {
                           }
                           onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
                           placeholder="Untitled section"
-                          className="bg-transparent font-medium text-[#e8e6e1] uppercase tracking-widest focus:outline-none flex-1 min-w-0"
-                          style={{ fontSize: viewport.isMobile ? 10 : 12 }}
+                          className={`bg-transparent font-medium text-[#e8e6e1] uppercase focus:outline-none flex-1 min-w-0 ${viewport.isMobile ? 'tracking-wide' : 'tracking-widest'}`}
+                          style={{ fontSize: viewport.isMobile ? 9 : 12 }}
                         />
                         {section.intended_emotion && (!viewport.isMobile || !viewport.isPortrait) && (
                           <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
