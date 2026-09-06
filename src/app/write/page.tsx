@@ -290,14 +290,36 @@ function WriteContent() {
     }
   }, [])
 
-  // On mobile, the assistant panel covers the bottom half of the screen —
-  // scroll the section being written into the visible top half so the writer
-  // can still see their cursor while talking to the assistant.
+  // On mobile portrait, the assistant panel covers the bottom half of the
+  // screen as a bottom sheet — scroll the section being written into the
+  // visible top half so the writer can still see their cursor. In landscape
+  // (and on desktop) the panel sits beside the text instead, so this isn't
+  // needed there.
   useEffect(() => {
-    if (!viewport.isMobile || !openTool || !activeSectionId) return
+    if (!viewport.isMobile || !viewport.isPortrait || !openTool || !activeSectionId) return
     const el = textareaRefs.current[activeSectionId]
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [openTool, viewport.isMobile, activeSectionId])
+  }, [openTool, viewport.isMobile, viewport.isPortrait, activeSectionId])
+
+  // The writing column's available width changes whenever the side panel
+  // opens/closes (paddingRight animates over the CSS transition), but the
+  // structural resize effect above only fires once, synchronously, the
+  // instant that state changes — before the transition has settled to its
+  // final width. Textareas were left holding a height computed against a
+  // mid-transition width, which is what produced the "clicking into a
+  // different section looks broken while scrolled, panel open" glitch: the
+  // stale height only got corrected by browser layout much later, snapping
+  // the scroll position. A ResizeObserver watches the column's actual
+  // content-box width and recomputes on every real change, transition
+  // included, so the heights always match the settled layout.
+  const writingSurfaceRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = writingSurfaceRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => resizeAll())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [resizeAll])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -544,6 +566,26 @@ function WriteContent() {
     }
   }
 
+  // Optimistic toggle, persisted via the same tasks endpoint the project
+  // board uses — status sticks across sessions since it lives on the row.
+  const handleToggleTask = async (taskId: string, currentStatus: 'pending' | 'complete') => {
+    if (!piece) return
+    const nextStatus = currentStatus === 'complete' ? 'pending' : 'complete'
+    setPiece({
+      ...piece,
+      tasks: piece.tasks.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)),
+    })
+    try {
+      await fetch('/api/project-board/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, status: nextStatus }),
+      })
+    } catch (err) {
+      console.error('Failed to toggle task:', err)
+    }
+  }
+
   if (isLoading || !piece) {
     return (
       <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -556,7 +598,12 @@ function WriteContent() {
     .map((s) => s.content.trim().split(/\s+/).filter((w) => w.length > 0).length)
     .reduce((a, b) => a + b, 0)
   const canMarkReady = wordCount > 100
-  const writingTasks = piece.tasks.filter((t) => t.type === 'creation' && t.is_writing_related !== false)
+  // Completed tasks sink to the bottom but stay visible — status is
+  // persisted, so this ordering (and the tasks themselves) carries into
+  // future writing sessions rather than resetting.
+  const writingTasks = piece.tasks
+    .filter((t) => t.type === 'creation' && t.is_writing_related !== false)
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === 'complete' ? 1 : -1))
   const linesForSection = (id: string) => anchorLines.filter((l) => l.section_id === id)
   const unplacedLines = anchorLines.filter((l) => !l.section_id)
   const activeSection = sections.find((s) => s.id === activeSectionId)
@@ -567,12 +614,18 @@ function WriteContent() {
 
   // The writing column reserves room on the right for whatever rail panel is
   // open, so text recenters in the space that's left rather than sitting under
-  // the panel. Nothing open -> full width.
-  const reservedRight = viewport.isMobile || !openTool
+  // the panel. Nothing open -> full width. On mobile portrait the panel is a
+  // bottom sheet instead (no horizontal reservation needed); on mobile
+  // landscape it sits to the right like desktop, just narrower.
+  const reservedRight = !openTool
     ? '0px'
-    : openTool === 'assistant' && chatExpanded
-      ? 'calc(38vw + 100px)'
-      : '460px'
+    : viewport.isMobile
+      ? viewport.isPortrait
+        ? '0px'
+        : '55vw'
+      : openTool === 'assistant' && chatExpanded
+        ? 'calc(38vw + 100px)'
+        : '460px'
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
@@ -611,11 +664,12 @@ function WriteContent() {
 
       {/* Writing surface */}
       <div
+        ref={writingSurfaceRef}
         className="flex-1 overflow-y-auto"
         style={{
           background: 'transparent',
           paddingRight: reservedRight,
-          paddingBottom: viewport.isMobile && openTool ? '52vh' : undefined,
+          paddingBottom: viewport.isMobile && viewport.isPortrait && openTool ? '52vh' : undefined,
           transition: 'padding 0.3s ease',
         }}
       >
@@ -709,24 +763,18 @@ function WriteContent() {
                   >
                     {!flowView && (
                       <div className={`flex items-center gap-2 border-b border-[#1f1f1d] ${viewport.isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
-                        {viewport.isMobile && viewport.isPortrait ? (
-                          <div className="flex-1 min-w-0" />
-                        ) : (
-                          <>
-                            <input
-                              value={section.label || ''}
-                              onChange={(e) =>
-                                setSections((prev) => prev.map((s) => (s.id === section.id ? { ...s, label: e.target.value } : s)))
-                              }
-                              onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
-                              placeholder="Untitled section"
-                              className="bg-transparent font-medium text-[#e8e6e1] uppercase tracking-widest focus:outline-none flex-1 min-w-0"
-                              style={{ fontSize: viewport.isMobile ? 10 : 12 }}
-                            />
-                            {section.intended_emotion && (
-                              <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
-                            )}
-                          </>
+                        <input
+                          value={section.label || ''}
+                          onChange={(e) =>
+                            setSections((prev) => prev.map((s) => (s.id === section.id ? { ...s, label: e.target.value } : s)))
+                          }
+                          onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
+                          placeholder="Untitled section"
+                          className="bg-transparent font-medium text-[#e8e6e1] uppercase tracking-widest focus:outline-none flex-1 min-w-0"
+                          style={{ fontSize: viewport.isMobile ? 10 : 12 }}
+                        />
+                        {section.intended_emotion && (!viewport.isMobile || !viewport.isPortrait) && (
+                          <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
                         )}
                         <button
                           onClick={() => setOpenLinesFor(openLinesFor === section.id ? null : section.id)}
@@ -877,7 +925,7 @@ function WriteContent() {
 
       {/* Floating tool rail */}
       <div
-        className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2"
+        className="fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2"
         style={{ display: viewport.isMobile && openTool ? 'none' : 'flex' }}
       >
         {TOOL_META.map((tool) => (
@@ -907,17 +955,31 @@ function WriteContent() {
       {/* Floating tool panel */}
       {openTool && (
         <div
-          className={viewport.isMobile ? 'fixed inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden' : 'fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden'}
+          className={
+            viewport.isMobile
+              ? viewport.isPortrait
+                ? 'fixed inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden'
+                : 'fixed right-3 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
+              : 'fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
+          }
           style={
             viewport.isMobile
-              ? {
-                  height: '50vh',
-                  background: c.containerBg,
-                  borderTop: `1px solid ${c.divider}`,
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  boxShadow: c.containerShadow,
-                }
+              ? viewport.isPortrait
+                ? {
+                    height: '50vh',
+                    background: c.containerBg,
+                    borderTop: `1px solid ${c.divider}`,
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    boxShadow: c.containerShadow,
+                  }
+                : {
+                    width: '55vw',
+                    background: c.containerBg,
+                    border: `1px solid ${c.divider}`,
+                    borderRadius: 20,
+                    boxShadow: c.containerShadow,
+                  }
               : {
                   width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
                   background: c.containerBg,
@@ -1013,11 +1075,13 @@ function WriteContent() {
               ) : (
                 <div>
                   {writingTasks.map((task, i) => (
-                    <div
+                    <button
                       key={task.id}
+                      onClick={() => handleToggleTask(task.id, task.status)}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '10px 0',
+                        display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                        padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
+                        textAlign: 'left', font: 'inherit',
                         borderBottom: i < writingTasks.length - 1 ? `1px solid ${c.divider}` : 'none',
                       }}
                     >
@@ -1034,7 +1098,7 @@ function WriteContent() {
                       <span style={{ fontSize: 14, color: task.status === 'complete' ? c.textMuted : c.textSecondary, textDecoration: task.status === 'complete' ? 'line-through' : 'none' }}>
                         {task.title}
                       </span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
