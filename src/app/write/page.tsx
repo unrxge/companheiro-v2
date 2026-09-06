@@ -114,6 +114,7 @@ function WriteContent() {
   const distilledUpToRef = useRef(0)
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const [resizeNonce, setResizeNonce] = useState(0)
+  const [viewport, setViewport] = useState({ isMobile: false, isPortrait: true })
 
   useEffect(() => {
     if (!pieceId) {
@@ -266,6 +267,37 @@ function WriteContent() {
   useLayoutEffect(() => {
     resizeAll()
   }, [structureKey, flowView, resizeNonce, openTool, chatExpanded, pendingEdit, resizeAll])
+
+  // Mobile viewport + orientation tracking, plus a resize/orientation listener
+  // that also bumps resizeNonce. Rotating the phone reflows textarea width, so
+  // the inline pixel heights computed for the old width go stale — that's what
+  // produces the "abnormally large gap" between sections after rotating to
+  // landscape, since nothing else was recomputing height on rotation.
+  useEffect(() => {
+    const update = () => {
+      setViewport({
+        isMobile: window.innerWidth < 768,
+        isPortrait: window.innerHeight >= window.innerWidth,
+      })
+      setResizeNonce((n) => n + 1)
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', update)
+    }
+  }, [])
+
+  // On mobile, the assistant panel covers the bottom half of the screen —
+  // scroll the section being written into the visible top half so the writer
+  // can still see their cursor while talking to the assistant.
+  useEffect(() => {
+    if (!viewport.isMobile || !openTool || !activeSectionId) return
+    const el = textareaRefs.current[activeSectionId]
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [openTool, viewport.isMobile, activeSectionId])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -536,7 +568,7 @@ function WriteContent() {
   // The writing column reserves room on the right for whatever rail panel is
   // open, so text recenters in the space that's left rather than sitting under
   // the panel. Nothing open -> full width.
-  const reservedRight = !openTool
+  const reservedRight = viewport.isMobile || !openTool
     ? '0px'
     : openTool === 'assistant' && chatExpanded
       ? 'calc(38vw + 100px)'
@@ -545,22 +577,22 @@ function WriteContent() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
       {/* Header */}
-      <div className="h-12 flex items-center justify-between px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${c.divider}` }}>
+      <div className="h-12 flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${c.divider}` }}>
         <button
           onClick={async () => {
             await flushSections()
             router.push('/project-board')
           }}
-          className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
+          className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors flex-shrink-0"
         >
           ← Back
         </button>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
           {canDivide && (
             <button
               onClick={handleDivide}
               disabled={isDividing}
-              className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors disabled:opacity-50"
+              className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors disabled:opacity-50 truncate"
               title="Split what you've written into the intended sections"
             >
               {isDividing ? (flowView ? 'Redistributing…' : 'Dividing…') : (flowView ? 'Redistribute into sections' : 'Divide into sections')}
@@ -569,7 +601,7 @@ function WriteContent() {
           {sections.length > 0 && (
             <button
               onClick={() => setFlowView(!flowView)}
-              className="text-[#8c8a87] hover:text-[#e8e6e1] text-sm transition-colors"
+              className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors flex-shrink-0"
             >
               {flowView ? 'Section view' : 'Flow view'}
             </button>
@@ -580,9 +612,14 @@ function WriteContent() {
       {/* Writing surface */}
       <div
         className="flex-1 overflow-y-auto"
-        style={{ background: 'transparent', paddingRight: reservedRight, transition: 'padding 0.3s ease' }}
+        style={{
+          background: 'transparent',
+          paddingRight: reservedRight,
+          paddingBottom: viewport.isMobile && openTool ? '52vh' : undefined,
+          transition: 'padding 0.3s ease',
+        }}
       >
-        <div className="max-w-[900px] mx-auto px-6 md:px-10 py-12">
+        <div className="max-w-[900px] mx-auto px-6 md:px-10 py-8 md:py-12">
           <textarea
             value={title}
             onChange={(e) => {
@@ -642,7 +679,7 @@ function WriteContent() {
               )}
             </div>
           ) : (
-            <div className={flowView ? 'space-y-0' : 'space-y-4'}>
+            <div className={flowView ? 'space-y-0' : viewport.isMobile ? 'space-y-2' : 'space-y-4'}>
               {!flowView && unplacedLines.length > 0 && (
                 <div className="border border-dashed border-[#2e2d2a] rounded p-3 space-y-1">
                   <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Unplaced lines</p>
@@ -671,18 +708,25 @@ function WriteContent() {
                     }
                   >
                     {!flowView && (
-                      <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1f1f1d]">
-                        <input
-                          value={section.label || ''}
-                          onChange={(e) =>
-                            setSections((prev) => prev.map((s) => (s.id === section.id ? { ...s, label: e.target.value } : s)))
-                          }
-                          onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
-                          placeholder="Untitled section"
-                          className="bg-transparent text-xs font-medium text-[#e8e6e1] uppercase tracking-widest focus:outline-none flex-1 min-w-0"
-                        />
-                        {section.intended_emotion && (
-                          <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
+                      <div className={`flex items-center gap-2 border-b border-[#1f1f1d] ${viewport.isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
+                        {viewport.isMobile && viewport.isPortrait ? (
+                          <div className="flex-1 min-w-0" />
+                        ) : (
+                          <>
+                            <input
+                              value={section.label || ''}
+                              onChange={(e) =>
+                                setSections((prev) => prev.map((s) => (s.id === section.id ? { ...s, label: e.target.value } : s)))
+                              }
+                              onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
+                              placeholder="Untitled section"
+                              className="bg-transparent font-medium text-[#e8e6e1] uppercase tracking-widest focus:outline-none flex-1 min-w-0"
+                              style={{ fontSize: viewport.isMobile ? 10 : 12 }}
+                            />
+                            {section.intended_emotion && (
+                              <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
+                            )}
+                          </>
                         )}
                         <button
                           onClick={() => setOpenLinesFor(openLinesFor === section.id ? null : section.id)}
@@ -832,7 +876,10 @@ function WriteContent() {
       </div>
 
       {/* Floating tool rail */}
-      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2">
+      <div
+        className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2"
+        style={{ display: viewport.isMobile && openTool ? 'none' : 'flex' }}
+      >
         {TOOL_META.map((tool) => (
           <div key={tool.key} className="group relative flex items-center justify-end">
             <span
@@ -843,7 +890,7 @@ function WriteContent() {
             </span>
             <button
               onClick={() => setOpenTool(openTool === tool.key ? null : tool.key)}
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              className={viewport.isMobile ? 'w-11 h-11 rounded-full flex items-center justify-center transition-colors' : 'w-10 h-10 rounded-full flex items-center justify-center transition-colors'}
               style={{
                 border: `1px solid ${openTool === tool.key ? c.textMuted : c.divider}`,
                 background: openTool === tool.key ? c.cardBg : c.containerBg,
@@ -860,14 +907,25 @@ function WriteContent() {
       {/* Floating tool panel */}
       {openTool && (
         <div
-          className="fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden"
-          style={{
-            width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
-            background: c.containerBg,
-            border: `1px solid ${c.divider}`,
-            borderRadius: 20,
-            boxShadow: c.containerShadow,
-          }}
+          className={viewport.isMobile ? 'fixed inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden' : 'fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden'}
+          style={
+            viewport.isMobile
+              ? {
+                  height: '50vh',
+                  background: c.containerBg,
+                  borderTop: `1px solid ${c.divider}`,
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  boxShadow: c.containerShadow,
+                }
+              : {
+                  width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
+                  background: c.containerBg,
+                  border: `1px solid ${c.divider}`,
+                  borderRadius: 20,
+                  boxShadow: c.containerShadow,
+                }
+          }
         >
           <div
             className="flex items-center justify-between px-4 py-3"
@@ -890,7 +948,7 @@ function WriteContent() {
                   </svg>
                 </button>
               )}
-              {openTool === 'assistant' && (
+              {openTool === 'assistant' && !viewport.isMobile && (
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
                   style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
