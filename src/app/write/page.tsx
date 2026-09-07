@@ -3,11 +3,15 @@
 import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
-import { shellBackground, cardPalette } from '@/lib/card-theme'
+import { useTheme } from '@/components/theme/theme-provider'
+import { shell, journeyStepFromStage } from '@/lib/design-tokens'
 import { JourneyNav } from '@/components/widgets'
-import { journeyStepFromStage } from '@/lib/design-tokens'
-
-const c = cardPalette.dark
+import { IconButton } from '@/components/ui/icon-button'
+import { Pill } from '@/components/ui/pill'
+import { TextField } from '@/components/ui/field'
+import { ModalDialog } from '@/components/ui/modal-dialog'
+import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
+import { Thread, Composer } from '@/components/conversation/thread'
 
 interface Task {
   id: string
@@ -74,10 +78,102 @@ const TOOL_META: { key: ToolKey; label: string; icon: ReactNode }[] = [
   { key: 'assistant', label: 'Writing Assistant', icon: svg(<><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /></>) },
 ]
 
+/** A scroll-snap "wheel" column — one number per row, the centered one is
+ * selected. Used by the assistant write-lock duration picker. */
+function WheelColumn({
+  value,
+  onChange,
+  options,
+  format,
+}: {
+  value: number
+  onChange: (v: number) => void
+  options: number[]
+  format?: (v: number) => string
+}) {
+  const { t } = useTheme()
+  const itemHeight = 36
+  const visibleCount = 5
+  const containerHeight = itemHeight * visibleCount
+  const padding = itemHeight * Math.floor(visibleCount / 2)
+  const ref = useRef<HTMLDivElement>(null)
+  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const idx = options.indexOf(value)
+    if (idx === -1) return
+    el.scrollTop = idx * itemHeight
+    // Only ever snap to the initial value on mount — after that, scrolling
+    // itself is what drives value changes, so re-running this would fight
+    // the user's own scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleScroll = () => {
+    if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+    scrollTimeout.current = setTimeout(() => {
+      const el = ref.current
+      if (!el) return
+      const idx = Math.round(el.scrollTop / itemHeight)
+      const clamped = Math.max(0, Math.min(options.length - 1, idx))
+      const next = options[clamped]
+      if (next !== value) onChange(next)
+    }, 120)
+  }
+
+  return (
+    <div style={{ position: 'relative', width: 68 }}>
+      <div
+        ref={ref}
+        onScroll={handleScroll}
+        style={{
+          height: containerHeight,
+          overflowY: 'scroll',
+          scrollSnapType: 'y mandatory',
+          borderRadius: 10,
+          background: t.inputBg,
+          border: `1px solid ${t.inputBorder}`,
+        }}
+      >
+        <div style={{ height: padding }} />
+        {options.map((opt) => (
+          <div
+            key={opt}
+            style={{
+              height: itemHeight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              scrollSnapAlign: 'center',
+              fontSize: opt === value ? 18 : 15,
+              fontWeight: opt === value ? 700 : 400,
+              color: opt === value ? t.textPrimary : t.textMuted,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {format ? format(opt) : String(opt).padStart(2, '0')}
+          </div>
+        ))}
+        <div style={{ height: padding }} />
+      </div>
+      <div
+        style={{
+          position: 'absolute', top: padding, left: 0, right: 0, height: itemHeight,
+          borderTop: `1px solid ${t.divider}`, borderBottom: `1px solid ${t.divider}`,
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  )
+}
+
 function WriteContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pieceId = searchParams.get('piece_id')
+  const { t } = useTheme()
 
   const [piece, setPiece] = useState<PieceCore | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -94,7 +190,8 @@ function WriteContent() {
   const [openTool, setOpenTool] = useState<ToolKey | null>(null)
   const [chatExpanded, setChatExpanded] = useState(false)
   const [showCoreConceptModal, setShowCoreConceptModal] = useState(false)
-  const [pendingEdit, setPendingEdit] = useState<{ sectionId: string; content: string } | null>(null)
+  const [pendingEdit, setPendingEdit] = useState<{ sectionId: string; content: string; anchorText: string | null } | null>(null)
+  const [pendingEditTop, setPendingEditTop] = useState<number | null>(null)
   const [isIngesting, setIsIngesting] = useState(false)
   const [ingestType, setIngestType] = useState<'draft' | 'loose' | null>(null)
   const ingestCalledRef = useRef(false)
@@ -104,12 +201,23 @@ function WriteContent() {
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [newLineText, setNewLineText] = useState('')
   const [selectedText, setSelectedText] = useState<SelectedText | null>(null)
-  const [assistantMode, setAssistantMode] = useState<AssistantMode>('write')
+  // New sessions always start in suggest (coach) mode, regardless of what a
+  // past session left the toggle on — this state is never persisted.
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>('coach')
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [isAddingTask, setIsAddingTask] = useState(false)
+
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  const [showLockModal, setShowLockModal] = useState(false)
+  const [lockHours, setLockHours] = useState(0)
+  const [lockMinutes, setLockMinutes] = useState(30)
+  const [isLocking, setIsLocking] = useState(false)
+  const isAssistantLocked = !!lockedUntil && new Date(lockedUntil).getTime() > nowTick
 
   const dirtySectionsRef = useRef<Set<string>>(new Set())
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
   const sectionsRef = useRef<Section[]>([])
   sectionsRef.current = sections
   const chatMessagesRef = useRef<ChatMessage[]>([])
@@ -128,6 +236,28 @@ function WriteContent() {
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pieceId])
+
+  // Write-lock status, independent of piece — it's a per-user setting. If
+  // it's already active on load, the toggle opens in suggest mode regardless
+  // of the (already-defaulted-to-suggest) initial state.
+  useEffect(() => {
+    fetch('/api/write/assistant-lock')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.lockedUntil) {
+          setLockedUntil(data.lockedUntil)
+          setAssistantMode('coach')
+        }
+      })
+      .catch((err) => console.error('Failed to load assistant lock status:', err))
+  }, [])
+
+  // Ticks so isAssistantLocked flips back to false the moment a lock expires,
+  // without needing a page reload.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const fetchAll = async () => {
     try {
@@ -266,6 +396,80 @@ function WriteContent() {
     })
   }, [])
 
+  // Measures where charIndex sits vertically inside a textarea by rendering
+  // an identically-styled, invisible mirror and reading the offset of the
+  // character actually AT that index (not the one after it — anchoring on a
+  // trailing space/word-boundary character is ambiguous for the browser's
+  // line-breaking and can land a full line off). Used to position the
+  // proposed-edit card right after the passage it replaces, instead of
+  // always at the bottom of a possibly much-longer section.
+  const measureOffsetForCharIndex = useCallback((textarea: HTMLTextAreaElement, charIndex: number): number | null => {
+    try {
+      const style = window.getComputedStyle(textarea)
+      const mirror = document.createElement('div')
+      const props: (keyof CSSStyleDeclaration)[] = [
+        'boxSizing', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
+        'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+        'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+      ]
+      props.forEach((p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(mirror.style as any)[p] = style[p]
+      })
+      mirror.style.position = 'absolute'
+      mirror.style.visibility = 'hidden'
+      mirror.style.whiteSpace = 'pre-wrap'
+      mirror.style.wordWrap = 'break-word'
+      mirror.style.top = '0'
+      mirror.style.left = '-9999px'
+      mirror.style.width = `${textarea.clientWidth}px`
+
+      const before = textarea.value.substring(0, Math.max(charIndex, 1))
+      const head = before.slice(0, -1)
+      const lastChar = before.slice(-1) || ' '
+      mirror.textContent = head
+      const marker = document.createElement('span')
+      marker.textContent = lastChar
+      mirror.appendChild(marker)
+
+      document.body.appendChild(mirror)
+      const offsetBottom = marker.offsetTop + marker.offsetHeight
+      document.body.removeChild(mirror)
+      return offsetBottom
+    } catch {
+      return null
+    }
+  }, [])
+
+  // When a proposed edit scoped to a highlighted passage arrives, position
+  // the card right after that passage (and briefly select it natively) so a
+  // long section doesn't hide the fact that a suggestion landed. Whole-section
+  // edits (no anchor) keep the existing end-of-section placement.
+  useEffect(() => {
+    if (!pendingEdit?.anchorText) {
+      setPendingEditTop(null)
+      return
+    }
+    const el = textareaRefs.current[pendingEdit.sectionId]
+    const section = sectionsRef.current.find((s) => s.id === pendingEdit.sectionId)
+    if (!el || !section) {
+      setPendingEditTop(null)
+      return
+    }
+    const idx = section.content.indexOf(pendingEdit.anchorText)
+    if (idx === -1) {
+      setPendingEditTop(null)
+      return
+    }
+    const endIdx = idx + pendingEdit.anchorText.length
+    const offset = measureOffsetForCharIndex(el, endIdx)
+    setPendingEditTop(offset)
+    if (offset !== null) {
+      el.setSelectionRange(idx, endIdx)
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+  }, [pendingEdit, measureOffsetForCharIndex])
+
   const structureKey = sections.map((s) => s.id).join(',')
   useLayoutEffect(() => {
     resizeAll()
@@ -358,7 +562,7 @@ function WriteContent() {
     if (dirtySectionsRef.current.has(id)) await flushSections()
     const next = !target.is_locked
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, is_locked: next } : s)))
-    if (pendingEdit?.sectionId === id) setPendingEdit(null)
+    if (pendingEdit?.sectionId === id) { setPendingEdit(null); setPendingEditTop(null) }
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
@@ -387,7 +591,7 @@ function WriteContent() {
   const deleteSection = async (id: string) => {
     setSections((prev) => prev.filter((s) => s.id !== id))
     setAnchorLines((prev) => prev.filter((l) => l.section_id !== id))
-    if (pendingEdit?.sectionId === id) setPendingEdit(null)
+    if (pendingEdit?.sectionId === id) { setPendingEdit(null); setPendingEditTop(null) }
     try {
       await fetch('/api/write/sections', {
         method: 'DELETE',
@@ -496,7 +700,6 @@ function WriteContent() {
     if (!chatInput.trim() || !pieceId || isChatLoading) return
     const userMessage = chatInput
     setChatInput('')
-    if (chatInputRef.current) chatInputRef.current.style.height = 'auto'
     const priorHistory = chatMessages
     const newMessages = [...chatMessages, { role: 'user' as const, content: userMessage }]
     setChatMessages(newMessages)
@@ -542,15 +745,29 @@ function WriteContent() {
       })
       if (!res.ok) return
       setChatMessages([...newMessages, { role: 'assistant', content: '' }])
-      const { text, meta } = await readTextStream<{ proposedEdit?: { section_id: string; content: string } }>(
+      const { text, meta } = await readTextStream<{
+        proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
+        lockedMode?: 'coach' | null
+      }>(
         res,
         (visibleText) => {
           setChatMessages([...newMessages, { role: 'assistant', content: visibleText }])
         },
         ['<proposed_edit>']
       )
+      // The write-lock is enforced server-side regardless of what this client
+      // sent — if the server says locked, reflect that back into the toggle
+      // rather than trusting local state, in case it drifted (e.g. a lock
+      // started in another tab).
+      if (meta?.lockedMode === 'coach' && assistantMode !== 'coach') {
+        setAssistantMode('coach')
+      }
       if (meta?.proposedEdit) {
-        setPendingEdit({ sectionId: meta.proposedEdit.section_id, content: meta.proposedEdit.content })
+        setPendingEdit({
+          sectionId: meta.proposedEdit.section_id,
+          content: meta.proposedEdit.content,
+          anchorText: meta.proposedEdit.anchor_text,
+        })
       }
       if (text) {
         flushChatDistillation([...newMessages, { role: 'assistant', content: text }])
@@ -564,15 +781,31 @@ function WriteContent() {
 
   const approvePendingEdit = async () => {
     if (!pendingEdit || !pieceId) return
-    const { sectionId, content } = pendingEdit
-    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content } : s)))
+    const { sectionId, content, anchorText } = pendingEdit
+    const target = sections.find((s) => s.id === sectionId)
+    if (!target) return
+    let nextContent: string
+    if (anchorText) {
+      if (!target.content.includes(anchorText)) {
+        // The section changed since the proposal arrived and the highlighted
+        // passage no longer exists verbatim — refuse to guess where a
+        // fragment-only edit belongs rather than risk corrupting the section.
+        console.error('Anchor text no longer found in section; declining to apply partial edit')
+        return
+      }
+      nextContent = target.content.replace(anchorText, content)
+    } else {
+      nextContent = content
+    }
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextContent } : s)))
     setPendingEdit(null)
+    setPendingEditTop(null)
     setResizeNonce((n) => n + 1)
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content }),
+        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content: nextContent }),
       })
     } catch (err) {
       console.error('Failed to apply edit:', err)
@@ -586,7 +819,7 @@ function WriteContent() {
     const nextStatus = currentStatus === 'complete' ? 'pending' : 'complete'
     setPiece({
       ...piece,
-      tasks: piece.tasks.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)),
+      tasks: piece.tasks.map((task) => (task.id === taskId ? { ...task, status: nextStatus } : task)),
     })
     try {
       await fetch('/api/project-board/tasks', {
@@ -599,9 +832,58 @@ function WriteContent() {
     }
   }
 
+  // Creates via the same endpoint the project board uses, then refetches the
+  // piece for the real row id (needed for later toggles) rather than faking one.
+  const addTask = async () => {
+    const title = newTaskTitle.trim()
+    if (!title || !pieceId || isAddingTask) return
+    setIsAddingTask(true)
+    try {
+      await fetch('/api/project-board/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ piece_id: pieceId, title, type: 'creation' }),
+      })
+      setNewTaskTitle('')
+      const res = await fetch(`/api/project-board/piece?id=${pieceId}`)
+      const data = await res.json()
+      if (data.success) setPiece(data.piece)
+    } catch (err) {
+      console.error('Failed to add task:', err)
+    } finally {
+      setIsAddingTask(false)
+    }
+  }
+
+  // No UI path back to write mode while this is active — the server also
+  // re-checks it on every chat request, so it can't be bypassed by calling
+  // the API directly either.
+  const confirmLock = async () => {
+    const minutes = lockHours * 60 + lockMinutes
+    if (minutes <= 0 || isLocking) return
+    setIsLocking(true)
+    try {
+      const res = await fetch('/api/write/assistant-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLockedUntil(data.lockedUntil)
+        setAssistantMode('coach')
+        setShowLockModal(false)
+      }
+    } catch (err) {
+      console.error('Failed to set assistant lock:', err)
+    } finally {
+      setIsLocking(false)
+    }
+  }
+
   if (isLoading || !piece) {
     return (
-      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: shell.background, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p className="text-[#7d786f]">Loading...</p>
       </div>
     )
@@ -641,41 +923,67 @@ function WriteContent() {
         : '460px'
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: shell.background }}>
       {/* Header */}
-      <div className="h-12 flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${c.divider}` }}>
-        <button
+      <div className="h-12 flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ background: 'rgba(15,14,13,0.95)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${t.divider}` }}>
+        <IconButton
+          ariaLabel="Back to project board"
+          tone="shell"
+          size={32}
           onClick={async () => {
             await flushSections()
             router.push('/project-board')
           }}
-          className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors flex-shrink-0"
         >
-          ← Back
-        </button>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </IconButton>
         {pieceId && (
           <div className="hidden sm:block" style={{ width: 240, flexShrink: 0 }}>
             <JourneyNav pieceId={pieceId} step={journeyStepFromStage(piece?.stage)} compact />
           </div>
         )}
-        <div className="flex items-center gap-2 md:gap-4 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           {canDivide && (
-            <button
+            <IconButton
+              ariaLabel={
+                isDividing
+                  ? flowView ? 'Redistributing…' : 'Dividing…'
+                  : flowView ? 'Redistribute into sections' : 'Divide into sections'
+              }
+              tone="shell"
+              size={32}
               onClick={handleDivide}
-              disabled={isDividing}
-              className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors disabled:opacity-50 truncate"
-              title="Split what you've written into the intended sections"
             >
-              {isDividing ? (flowView ? 'Redistributing…' : 'Dividing…') : (flowView ? 'Redistribute into sections' : 'Divide into sections')}
-            </button>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: isDividing ? 0.5 : 1 }}>
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="6" cy="18" r="3" />
+                <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                <line x1="8.12" y1="8.12" x2="12" y2="12" />
+              </svg>
+            </IconButton>
           )}
           {sections.length > 0 && (
-            <button
+            <IconButton
+              ariaLabel={flowView ? 'Switch to section view' : 'Switch to flow view'}
+              tone="shell"
+              size={32}
               onClick={() => setFlowView(!flowView)}
-              className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors flex-shrink-0"
             >
-              {flowView ? 'Section view' : 'Flow view'}
-            </button>
+              {flowView ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <rect x="3" y="10" width="18" height="4" rx="1" />
+                  <rect x="3" y="16" width="18" height="4" rx="1" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12c3-6 6 6 9 0s6-6 9 0" />
+                </svg>
+              )}
+            </IconButton>
           )}
         </div>
       </div>
@@ -860,50 +1168,81 @@ function WriteContent() {
                       </div>
                     )}
 
-                    <textarea
-                      value={section.content}
-                      onChange={(e) => {
-                        if (section.is_locked) return
-                        handleSectionContentChange(section.id, e.target.value)
-                        e.target.style.height = 'auto'
-                        e.target.style.height = e.target.scrollHeight + 'px'
-                      }}
-                      onFocus={() => setActiveSectionId(section.id)}
-                      onBlur={() => flushSections()}
-                      onSelect={(e) => {
-                        const el = e.target as HTMLTextAreaElement
-                        const sel = el.value.substring(el.selectionStart, el.selectionEnd).trim()
-                        if (sel.length > 0) {
-                          setSelectedText({ text: sel, sectionId: section.id })
-                        } else {
-                          setSelectedText(null)
-                        }
-                      }}
-                      readOnly={section.is_locked}
-                      placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
-                      rows={flowView ? 1 : 3}
-                      ref={(el) => {
-                        textareaRefs.current[section.id] = el
-                      }}
-                      style={{
-                        width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                        resize: 'none', overflow: 'hidden', fontSize: '1.125rem',
-                        color: section.is_locked ? '#aaa59c' : '#ece9e2', lineHeight: '1.8',
-                        padding: flowView ? '0 0 1.5rem 0' : '0.75rem 1rem 1rem 1rem',
-                        // Safari specifically fails to repaint a textarea after its
-                        // JS-driven height changes while scrolled — the classic
-                        // symptom is stale/overlapping content until something else
-                        // forces a repaint. Layer-promoting the textarea itself
-                        // (not just its scrolling ancestor) is the fix that actually
-                        // reaches WebKit's per-element paint invalidation for
-                        // form controls.
-                        transform: 'translateZ(0)',
-                        WebkitTransform: 'translateZ(0)',
-                      }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <textarea
+                        value={section.content}
+                        onChange={(e) => {
+                          if (section.is_locked) return
+                          handleSectionContentChange(section.id, e.target.value)
+                          e.target.style.height = 'auto'
+                          e.target.style.height = e.target.scrollHeight + 'px'
+                        }}
+                        onFocus={() => setActiveSectionId(section.id)}
+                        onBlur={() => flushSections()}
+                        onSelect={(e) => {
+                          const el = e.target as HTMLTextAreaElement
+                          const sel = el.value.substring(el.selectionStart, el.selectionEnd).trim()
+                          if (sel.length > 0) {
+                            setSelectedText({ text: sel, sectionId: section.id })
+                          } else {
+                            setSelectedText(null)
+                          }
+                        }}
+                        readOnly={section.is_locked}
+                        placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
+                        rows={flowView ? 1 : 3}
+                        ref={(el) => {
+                          textareaRefs.current[section.id] = el
+                        }}
+                        style={{
+                          width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                          resize: 'none', overflow: 'hidden', fontSize: '1.125rem',
+                          color: section.is_locked ? '#aaa59c' : '#ece9e2', lineHeight: '1.8',
+                          padding: flowView ? '0 0 1.5rem 0' : '0.75rem 1rem 1rem 1rem',
+                          // Safari specifically fails to repaint a textarea after its
+                          // JS-driven height changes while scrolled — the classic
+                          // symptom is stale/overlapping content until something else
+                          // forces a repaint. Layer-promoting the textarea itself
+                          // (not just its scrolling ancestor) is the fix that actually
+                          // reaches WebKit's per-element paint invalidation for
+                          // form controls.
+                          transform: 'translateZ(0)',
+                          WebkitTransform: 'translateZ(0)',
+                        }}
+                      />
 
-                    {/* Pending AI edit */}
-                    {showPending && !flowView && (
+                      {/* Pending AI edit scoped to a highlighted passage — sits
+                          right after that passage, not the section's end, so a
+                          long section doesn't hide the fact a suggestion landed. */}
+                      {showPending && !flowView && pendingEdit!.anchorText && pendingEditTop !== null && (
+                        <div
+                          className="mx-4 rounded border border-[#39a875]/30 bg-[#16241d]/95 p-3 space-y-2"
+                          style={{ position: 'absolute', top: pendingEditTop, left: 0, right: 0, zIndex: 5, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+                        >
+                          <p className="text-xs text-[#39a875] uppercase tracking-widest">Proposed rewrite</p>
+                          <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={approvePendingEdit}
+                              className="px-3 py-1.5 bg-[#39a875]/20 text-[#39a875] text-xs font-medium rounded hover:bg-[#39a875]/30 transition-colors"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => { setPendingEdit(null); setPendingEditTop(null) }}
+                              className="px-3 py-1.5 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Whole-section pending edit (no highlight was made), or a
+                        fallback if the inline position couldn't be measured —
+                        same placement as before, at the section's end. */}
+                    {showPending && !flowView && (!pendingEdit!.anchorText || pendingEditTop === null) && (
                       <div className="mx-4 mb-4 rounded border border-[#39a875]/30 bg-[#16241d]/50 p-3 space-y-2">
                         <p className="text-xs text-[#39a875] uppercase tracking-widest">Proposed rewrite</p>
                         <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
@@ -915,7 +1254,7 @@ function WriteContent() {
                             Approve
                           </button>
                           <button
-                            onClick={() => setPendingEdit(null)}
+                            onClick={() => { setPendingEdit(null); setPendingEditTop(null) }}
                             className="px-3 py-1.5 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] transition-colors"
                           >
                             Reject
@@ -969,7 +1308,7 @@ function WriteContent() {
           <div key={tool.key} className="group relative flex items-center justify-end">
             <span
               className="absolute right-12 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded pointer-events-none"
-              style={{ background: c.cardBg, color: c.textSecondary, border: `1px solid ${c.divider}`, boxShadow: c.shadow }}
+              style={{ background: t.cardBg, color: t.textSecondary, border: `1px solid ${t.divider}`, boxShadow: t.shadow }}
             >
               {tool.label}
             </span>
@@ -977,10 +1316,10 @@ function WriteContent() {
               onClick={() => setOpenTool(openTool === tool.key ? null : tool.key)}
               className={viewport.isMobile ? 'w-11 h-11 rounded-full flex items-center justify-center transition-colors' : 'w-10 h-10 rounded-full flex items-center justify-center transition-colors'}
               style={{
-                border: `1px solid ${openTool === tool.key ? c.textMuted : c.divider}`,
-                background: openTool === tool.key ? c.cardBg : c.containerBg,
-                color: openTool === tool.key ? c.textPrimary : c.textMuted,
-                boxShadow: openTool === tool.key ? c.shadow : 'none',
+                border: `1px solid ${openTool === tool.key ? t.textMuted : t.divider}`,
+                background: openTool === tool.key ? t.cardBg : t.containerBg,
+                color: openTool === tool.key ? t.textPrimary : t.textMuted,
+                boxShadow: openTool === tool.key ? t.shadow : 'none',
               }}
             >
               {tool.icon}
@@ -1004,29 +1343,29 @@ function WriteContent() {
               ? viewport.isPortrait
                 ? {
                     height: '50vh',
-                    background: c.containerBg,
-                    borderTop: `1px solid ${c.divider}`,
+                    background: t.containerBg,
+                    borderTop: `1px solid ${t.divider}`,
                     borderTopLeftRadius: 20,
                     borderTopRightRadius: 20,
-                    boxShadow: c.containerShadow,
+                    boxShadow: t.containerShadow,
                     transform: 'translateZ(0)',
                     WebkitTransform: 'translateZ(0)',
                   }
                 : {
                     width: '55vw',
-                    background: c.containerBg,
-                    border: `1px solid ${c.divider}`,
+                    background: t.containerBg,
+                    border: `1px solid ${t.divider}`,
                     borderRadius: 20,
-                    boxShadow: c.containerShadow,
+                    boxShadow: t.containerShadow,
                     transform: 'translateZ(0)',
                     WebkitTransform: 'translateZ(0)',
                   }
               : {
                   width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
-                  background: c.containerBg,
-                  border: `1px solid ${c.divider}`,
+                  background: t.containerBg,
+                  border: `1px solid ${t.divider}`,
                   borderRadius: 20,
-                  boxShadow: c.containerShadow,
+                  boxShadow: t.containerShadow,
                   // Safari-specific fix — see the writing surface container
                   // above for the full explanation of this compositing bug.
                   transform: 'translateZ(0)',
@@ -1036,18 +1375,18 @@ function WriteContent() {
         >
           <div
             className="flex items-center justify-between px-4 py-3"
-            style={{ borderBottom: `1px solid ${c.divider}` }}
+            style={{ borderBottom: `1px solid ${t.divider}` }}
           >
-            <span style={{ fontSize: 10, fontWeight: 700, color: c.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
               {TOOL_META.find((t) => t.key === openTool)?.label}
             </span>
             <div className="flex items-center gap-3">
               {openTool === 'core' && (
                 <button
                   onClick={() => setShowCoreConceptModal(true)}
-                  style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                  style={{ color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textPrimary }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textMuted }}
                   title="View full core concept"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1058,9 +1397,9 @@ function WriteContent() {
               {openTool === 'assistant' && !viewport.isMobile && (
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
-                  style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                  style={{ color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textPrimary }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textMuted }}
                   title={chatExpanded ? 'Shrink' : 'Maximize'}
                 >
                   {chatExpanded ? '⤡' : '⤢'}
@@ -1068,9 +1407,9 @@ function WriteContent() {
               )}
               <button
                 onClick={() => setOpenTool(null)}
-                style={{ color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                style={{ color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textPrimary }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textMuted }}
               >✕</button>
             </div>
           </div>
@@ -1079,35 +1418,35 @@ function WriteContent() {
             <div className="p-4 overflow-y-auto" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {piece.one_sentence && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
-                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: c.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
+                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: t.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
                 </div>
               )}
               {piece.conviction_statement && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Conviction</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Conviction</p>
                   <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
                     <div style={{ width: 3, borderRadius: 2, background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
-                    <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
                   </div>
                 </div>
               )}
               {piece.emotional_journey && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
                 </div>
               )}
               {piece.core_truth && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Core Truth</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textPrimary, margin: 0, fontWeight: 500 }}>{piece.core_truth}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Core Truth</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textPrimary, margin: 0, fontWeight: 500 }}>{piece.core_truth}</p>
                 </div>
               )}
               {piece.substack_goals && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
                 </div>
               )}
             </div>
@@ -1115,8 +1454,26 @@ function WriteContent() {
 
           {openTool === 'tasks' && (
             <div className="p-4 overflow-y-auto">
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <TextField
+                  value={newTaskTitle}
+                  onChange={setNewTaskTitle}
+                  placeholder="Add a task…"
+                  ariaLabel="New task title"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addTask()
+                    }
+                  }}
+                  style={{ fontSize: 13 }}
+                />
+                <QuietButton size="sm" onClick={addTask} disabled={!newTaskTitle.trim() || isAddingTask}>
+                  Add
+                </QuietButton>
+              </div>
               {writingTasks.length === 0 ? (
-                <p style={{ fontSize: 13, color: c.textMuted }}>No writing tasks yet.</p>
+                <p style={{ fontSize: 13, color: t.textMuted }}>No writing tasks yet.</p>
               ) : (
                 <div>
                   {writingTasks.map((task, i) => (
@@ -1127,20 +1484,20 @@ function WriteContent() {
                         display: 'flex', alignItems: 'center', gap: 12, width: '100%',
                         padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
                         textAlign: 'left', font: 'inherit',
-                        borderBottom: i < writingTasks.length - 1 ? `1px solid ${c.divider}` : 'none',
+                        borderBottom: i < writingTasks.length - 1 ? `1px solid ${t.divider}` : 'none',
                       }}
                     >
                       <span
                         style={{
                           flexShrink: 0, width: 14, height: 14, borderRadius: '50%',
-                          border: task.status === 'complete' ? '1px solid rgba(16,185,129,0.4)' : `1px solid ${c.textMuted}`,
+                          border: task.status === 'complete' ? '1px solid rgba(16,185,129,0.4)' : `1px solid ${t.textMuted}`,
                           background: task.status === 'complete' ? 'rgba(16,185,129,0.12)' : 'transparent',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
                       >
                         {task.status === 'complete' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#39a875', display: 'block' }} />}
                       </span>
-                      <span style={{ fontSize: 14, color: task.status === 'complete' ? c.textMuted : c.textSecondary, textDecoration: task.status === 'complete' ? 'line-through' : 'none' }}>
+                      <span style={{ fontSize: 14, color: task.status === 'complete' ? t.textMuted : t.textSecondary, textDecoration: task.status === 'complete' ? 'line-through' : 'none' }}>
                         {task.title}
                       </span>
                     </button>
@@ -1152,7 +1509,7 @@ function WriteContent() {
 
           {openTool === 'anchor' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <div style={{ padding: 16, borderBottom: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ padding: 16, borderBottom: `1px solid ${t.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <textarea
                   value={newLineText}
                   onChange={(e) => {
@@ -1170,18 +1527,18 @@ function WriteContent() {
                   placeholder="A line dear to you - we'll place it..."
                   rows={3}
                   style={{
-                    width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`,
-                    borderRadius: 10, padding: '10px 12px', fontSize: 14, color: c.textPrimary,
+                    width: '100%', background: t.inputBg, border: `1px solid ${t.inputBorder}`,
+                    borderRadius: 10, padding: '10px 12px', fontSize: 14, color: t.textPrimary,
                     outline: 'none', resize: 'none', overflow: 'hidden', fontFamily: 'inherit',
                     boxSizing: 'border-box',
                   }}
                 />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>⌘↵ to add</p>
+                  <p style={{ fontSize: 11, color: t.textMuted, margin: 0 }}>⌘↵ to add</p>
                   {newLineText.trim() && (
                     <button
                       onClick={() => { addAnchorLine(newLineText); setNewLineText('') }}
-                      style={{ fontSize: 12, color: c.textSecondary, background: 'none', border: 'none', cursor: 'pointer' }}
+                      style={{ fontSize: 12, color: t.textSecondary, background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       Add
                     </button>
@@ -1190,20 +1547,20 @@ function WriteContent() {
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {anchorLines.length === 0 ? (
-                  <p style={{ fontSize: 13, color: c.textMuted }}>No anchor lines yet.</p>
+                  <p style={{ fontSize: 13, color: t.textMuted }}>No anchor lines yet.</p>
                 ) : (
                   anchorLines.map((l) => (
                     <div key={l.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontSize: 14, color: c.textSecondary, fontStyle: 'italic', lineHeight: 1.5 }}>&ldquo;{l.text}&rdquo;</span>
+                        <span style={{ fontSize: 14, color: t.textSecondary, fontStyle: 'italic', lineHeight: 1.5 }}>&ldquo;{l.text}&rdquo;</span>
                         <button
                           onClick={() => deleteAnchorLine(l.id)}
-                          style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                          style={{ fontSize: 12, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e05656' }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textMuted }}
                         >✕</button>
                       </div>
-                      <p style={{ fontSize: 11, color: c.textMuted, margin: 0 }}>{sectionLabelFor(l.section_id)}</p>
+                      <p style={{ fontSize: 11, color: t.textMuted, margin: 0 }}>{sectionLabelFor(l.section_id)}</p>
                     </div>
                   ))
                 )}
@@ -1215,109 +1572,72 @@ function WriteContent() {
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               {/* Context strip: selection or focused section */}
               {selectedText && sections.find(s => s.id === selectedText.sectionId) && (
-                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${c.divider}`, background: c.inputBg, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: '#39a875', fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
-                  <p style={{ fontSize: 12, color: c.textSecondary, fontStyle: 'italic', flex: 1, lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                <div style={{ padding: '8px 16px', borderBottom: `1px solid ${t.divider}`, background: t.inputBg, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: t.verdant, fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
+                  <p style={{ fontSize: 12, color: t.textSecondary, fontStyle: 'italic', flex: 1, lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     &ldquo;{selectedText.text}&rdquo;
                   </p>
                   <button
                     onClick={() => setSelectedText(null)}
-                    style={{ fontSize: 11, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ fontSize: 11, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                   >✕</button>
                 </div>
               )}
               {!selectedText && activeSection && (
-                <p style={{ padding: '8px 16px', fontSize: 12, color: c.textMuted, borderBottom: `1px solid ${c.divider}`, margin: 0 }}>
-                  Focused on: <span style={{ color: c.textSecondary }}>{activeSection.label || 'this section'}</span>
+                <p style={{ padding: '8px 16px', fontSize: 12, color: t.textMuted, borderBottom: `1px solid ${t.divider}`, margin: 0 }}>
+                  Focused on: <span style={{ color: t.textSecondary }}>{activeSection.label || 'this section'}</span>
                   {activeSection.is_locked && ' (locked)'}
                 </p>
               )}
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
                 {chatMessages.length === 0 ? (
-                  <p style={{ fontSize: 14, color: c.textMuted, lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 14, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>
                     {assistantMode === 'write'
                       ? "Click into a section, then ask me to write or rewrite. Select a specific sentence first and I'll focus there — approved rewrites land in the section for you to accept."
                       : "I won't write for you here — instead I'll ask questions and reflect things back until the words come from you. Select a sentence to discuss it specifically, or ask about the piece as a whole."}
                   </p>
                 ) : (
-                  chatMessages.map((msg, i) => (
-                    <div key={i} style={{ textAlign: msg.role === 'user' ? 'right' : 'left' }}>
-                      <div style={{
-                        display: 'inline-block', maxWidth: '85%', padding: '10px 14px',
-                        borderRadius: 12, whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55,
-                        background: msg.role === 'user' ? c.cardBg : c.inputBg,
-                        color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
-                        boxShadow: msg.role === 'user' ? c.shadow : 'none',
-                      }}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))
+                  <Thread messages={chatMessages} streaming={isChatLoading} align="left" />
                 )}
-                {isChatLoading && <p style={{ fontSize: 12, color: c.textMuted }}>Thinking…</p>}
               </div>
-              <div style={{ borderTop: `1px solid ${c.divider}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <textarea
-                  ref={chatInputRef}
+              <div style={{ borderTop: `1px solid ${t.divider}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Composer
                   value={chatInput}
-                  onChange={(e) => {
-                    setChatInput(e.target.value)
-                    e.target.style.height = 'auto'
-                    e.target.style.height = `${e.target.scrollHeight}px`
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && !isChatLoading) {
-                      e.preventDefault()
-                      handleChatSend()
-                    }
-                  }}
+                  onChange={setChatInput}
+                  onSend={handleChatSend}
+                  disabled={isChatLoading}
                   placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
-                  rows={1}
-                  style={{
-                    width: '100%', background: c.inputBg, border: `1px solid ${c.inputBorder}`,
-                    borderRadius: 10, padding: '10px 12px', fontSize: 14, color: c.textPrimary,
-                    outline: 'none', resize: 'none', overflow: 'hidden', maxHeight: 200,
-                    fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box',
-                  }}
+                  sendLabel="Send"
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={handleChatSend}
-                    disabled={!chatInput.trim() || isChatLoading}
-                    style={{
-                      flex: 1, padding: '10px', background: c.cardBg, color: c.textPrimary,
-                      fontSize: 13, fontWeight: 600, borderRadius: 10, border: `1px solid ${c.divider}`,
-                      cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
-                      opacity: !chatInput.trim() || isChatLoading ? 0.4 : 1,
-                    }}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                  {isAssistantLocked && (
+                    <span style={{ fontSize: 11, color: t.textMuted, marginRight: 2 }}>
+                      Locked until {new Date(lockedUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  <Pill size="sm" selected={assistantMode === 'coach'} onClick={() => setAssistantMode('coach')}>
+                    Suggest
+                  </Pill>
+                  <Pill
+                    size="sm"
+                    selected={assistantMode === 'write'}
+                    onClick={isAssistantLocked ? undefined : () => setAssistantMode('write')}
+                    style={isAssistantLocked ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
                   >
-                    Send
-                  </button>
-                </div>
-                {/* Mode pill toggle */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    background: 'rgba(255,255,255,0.04)', borderRadius: 20,
-                    padding: '2px 3px', gap: 1,
-                  }}>
-                    {(['coach', 'write'] as AssistantMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setAssistantMode(mode)}
-                        style={{
-                          padding: '3px 10px', fontSize: 11, fontWeight: 500,
-                          borderRadius: 16, border: 'none', cursor: 'pointer',
-                          transition: 'all 0.15s',
-                          background: assistantMode === mode ? 'rgba(232,230,224,0.12)' : 'transparent',
-                          color: assistantMode === mode ? '#aaa59c' : '#7d786f',
-                        }}
-                      >
-                        {mode === 'coach' ? 'suggest' : 'write'}
-                      </button>
-                    ))}
-                  </div>
+                    Write
+                  </Pill>
+                  <IconButton
+                    ariaLabel={isAssistantLocked ? 'Suggestions-only lock active' : 'Lock to suggestions only'}
+                    tone="card"
+                    size={26}
+                    onClick={() => { if (!isAssistantLocked) setShowLockModal(true) }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="11" width="14" height="10" rx="2" />
+                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                    </svg>
+                  </IconButton>
                 </div>
               </div>
             </div>
@@ -1335,14 +1655,14 @@ function WriteContent() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: c.containerBg,
-              border: `1px solid ${c.divider}`,
+              background: t.containerBg,
+              border: `1px solid ${t.divider}`,
               borderRadius: 20,
               width: '100%',
               maxWidth: '640px',
               maxHeight: '80vh',
               overflowY: 'auto',
-              boxShadow: c.containerShadow,
+              boxShadow: t.containerShadow,
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -1350,21 +1670,21 @@ function WriteContent() {
             <div
               style={{
                 position: 'sticky', top: 0,
-                background: c.containerBg,
-                borderBottom: `1px solid ${c.divider}`,
+                background: t.containerBg,
+                borderBottom: `1px solid ${t.divider}`,
                 padding: '16px 20px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 borderRadius: '20px 20px 0 0',
               }}
             >
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em', margin: 0 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: t.textPrimary, letterSpacing: '-0.02em', margin: 0 }}>
                 {piece.title}
               </h2>
               <button
                 onClick={() => setShowCoreConceptModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.textMuted, padding: '4px', display: 'flex', alignItems: 'center' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, padding: '4px', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textPrimary }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = t.textMuted }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18M6 6l12 12" />
@@ -1374,54 +1694,54 @@ function WriteContent() {
             <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
               {piece.one_sentence && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
-                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: c.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Idea in one sentence</p>
+                  <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.25, color: t.textPrimary, margin: 0 }}>{piece.one_sentence}</p>
                 </div>
               )}
               {piece.conviction_statement && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Conviction</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Conviction</p>
                   <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
                     <div style={{ width: 3, borderRadius: 2, background: 'rgba(165,63,43,0.4)', flexShrink: 0 }} />
-                    <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0 }}>{piece.conviction_statement}</p>
                   </div>
                 </div>
               )}
               {piece.emotional_journey && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Emotional Journey</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.emotional_journey}</p>
                 </div>
               )}
               {piece.core_truth && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Core Truth</p>
-                  <p style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.55, letterSpacing: '-0.01em', color: c.textPrimary, margin: 0 }}>{piece.core_truth}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Core Truth</p>
+                  <p style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.55, letterSpacing: '-0.01em', color: t.textPrimary, margin: 0 }}>{piece.core_truth}</p>
                 </div>
               )}
               {piece.substack_goals && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Writing Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.substack_goals}</p>
                 </div>
               )}
               {piece.short_form_goals && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 8px' }}>Visuals Suggestions</p>
-                  <p style={{ fontSize: 14, lineHeight: 1.65, color: c.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.short_form_goals}</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 8px' }}>Visuals Suggestions</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0, whiteSpace: 'pre-line' }}>{piece.short_form_goals}</p>
                 </div>
               )}
               {piece.open_threads && piece.open_threads.length > 0 && (
                 <div>
-                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: c.textMuted, margin: '0 0 10px' }}>Open Threads</p>
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: t.textMuted, margin: '0 0 10px' }}>Open Threads</p>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {piece.open_threads.map((thread, i) => (
                       <div key={i}>
-                        <div style={{ display: 'flex', gap: 10, fontSize: 14, color: c.textSecondary, lineHeight: 1.55, padding: '8px 0' }}>
-                          <span style={{ color: c.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
+                        <div style={{ display: 'flex', gap: 10, fontSize: 14, color: t.textSecondary, lineHeight: 1.55, padding: '8px 0' }}>
+                          <span style={{ color: t.textMuted, flexShrink: 0, fontWeight: 300 }}>—</span>
                           <span>{thread}</span>
                         </div>
-                        {i < piece.open_threads.length - 1 && <div style={{ height: 1, background: c.divider }} />}
+                        {i < piece.open_threads.length - 1 && <div style={{ height: 1, background: t.divider }} />}
                       </div>
                     ))}
                   </div>
@@ -1431,6 +1751,44 @@ function WriteContent() {
           </div>
         </div>
       )}
+
+      {showLockModal && (
+        <ModalDialog
+          onClose={() => setShowLockModal(false)}
+          title="Lock to suggestions only"
+          subtitle="This can't be undone early — the assistant re-checks it on every message, not just in this window."
+          footer={
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <GhostButton onClick={() => setShowLockModal(false)}>Cancel</GhostButton>
+              <PrimaryButton
+                onClick={confirmLock}
+                disabled={lockHours * 60 + lockMinutes <= 0}
+                loading={isLocking}
+                loadingLabel="Locking…"
+              >
+                Lock it in
+              </PrimaryButton>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
+            <p style={{ fontSize: 13, color: t.textSecondary, textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
+              While this is active, the assistant will only ask questions and offer brief, cautious examples — never write for you.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ textAlign: 'center' }}>
+                <WheelColumn value={lockHours} onChange={setLockHours} options={Array.from({ length: 13 }, (_, i) => i)} format={(v) => String(v)} />
+                <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>hours</p>
+              </div>
+              <span style={{ fontSize: 20, color: t.textMuted, marginTop: -20 }}>:</span>
+              <div style={{ textAlign: 'center' }}>
+                <WheelColumn value={lockMinutes} onChange={setLockMinutes} options={[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]} />
+                <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>minutes</p>
+              </div>
+            </div>
+          </div>
+        </ModalDialog>
+      )}
     </div>
   )
 }
@@ -1439,7 +1797,7 @@ export default function WritePage() {
   return (
     <Suspense
       fallback={
-        <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100vh', background: shell.background, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p className="text-[#7d786f]">Loading...</p>
         </div>
       }

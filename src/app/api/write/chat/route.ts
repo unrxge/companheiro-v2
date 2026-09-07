@@ -48,14 +48,21 @@ export async function POST(request: NextRequest) {
 
     const { supabase, user } = auth;
 
-    const { data: pieceData, error: pieceError } = await supabase
-      .from("pieces")
-      .select(
-        "title, conviction_statement, emotional_journey, core_truth, substack_goals, open_threads, substack_draft, writing_ethos"
-      )
-      .eq("id", body.piece_id)
-      .eq("user_id", user.id)
-      .single();
+    const [{ data: pieceData, error: pieceError }, { data: settingsData }] = await Promise.all([
+      supabase
+        .from("pieces")
+        .select(
+          "title, conviction_statement, emotional_journey, core_truth, substack_goals, open_threads, substack_draft, writing_ethos"
+        )
+        .eq("id", body.piece_id)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("user_settings")
+        .select("assistant_write_locked_until")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
 
     if (pieceError || !pieceData) {
       return NextResponse.json({ response: "" }, { status: 404 });
@@ -67,7 +74,12 @@ export async function POST(request: NextRequest) {
     ]);
 
     const section = body.active_section;
-    const assistantMode = body.assistant_mode || "write";
+    // The write-lock is re-checked here, not trusted from the client — the
+    // whole point of the lock is that switching back to write mode early
+    // isn't possible, including by calling this endpoint directly.
+    const lockedUntil = settingsData?.assistant_write_locked_until ?? null;
+    const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now();
+    const assistantMode = isLocked ? "coach" : body.assistant_mode || "write";
     const selectedText = body.selected_text || null;
     const canEdit = !!section && !section.is_locked && assistantMode === "write";
 
@@ -111,22 +123,28 @@ ${selectedText}
 
     const editInstructions =
       assistantMode === "coach"
-        ? `COACH MODE — YOUR ONLY JOB IS TO HELP THEM FIND THEIR OWN WORDS:
-You must not write any prose for them, not even a sentence or a fragment. No proposed edits, no rewrites, no "here's how you might say it."
-Instead: reflect their ideas back, name the tension between what they wrote and what they seem to mean, or offer one angle they haven't considered yet.
+        ? `SUGGEST MODE — HARD RULE, NO EXCEPTIONS: you never write for them here, full stop. This is not a preference to weigh against how stuck they seem — it holds exactly as much when they're breezing through as when they're visibly struggling to land a line. No <proposed_edit>, ever, in this mode.
+What you CAN do: a brief, cautious illustrative example — a fragment, half a sentence, just enough to point at a technique or a direction — never a usable drop-in line, never something that reads as "here, take this." If you catch yourself writing something they could paste in whole, cut it down until it can't be. The example exists to convey a point, not to solve their sentence for them.
+The more they express difficulty ("I don't know how to say this," "I can't find the words"), the more this matters, not less — that's the exact moment it would be easiest to just hand them a line, and the exact moment it would do them the least good. Instead: take a different angle each time. Ask what they actually mean underneath the words they're reaching for. Ask what it would sound like if they said it to one specific person instead of an audience. Name the shape of the sentence without filling it in. Point at a comparison from somewhere else entirely. Vary the approach — don't reach for the same move twice in a session.
 ${selectedText ? `They've highlighted a specific passage — start there.` : ""}
 One question maximum per response, and only when it genuinely opens something up. Sometimes a well-placed observation lands better than a question. Never stack questions; if you have several, pick the one that matters most now and let the conversation find the others. The prose stays entirely theirs.`
       : canEdit
-        ? `PROPOSING AN EDIT: When — and only when — the person clearly wants you to write or rewrite prose for this section (not when they're just asking what you think), produce the section's full revised text and append it at the very end wrapped exactly like this:
+        ? `WRITE MODE — you're allowed to write for them here, but don't rush to it.
+Before you ever get to "want to try it yourself, or should I write it" — when you've understood what they're reaching for, weave in a brief, concrete example of their own explanation put into practice, seamlessly, as part of the natural back-and-forth (not as a separate announced step). Show, in a compact way, what their idea could sound like — this is about keeping their own creative reflexes alive even in write mode, not about jumping straight to a full solve.
+Only once that's happened, and only when it's genuinely the moment for it, offer the choice: try it themselves first, or have you show a version. This offer must be phrased freshly every time — read the actual conversation and phrase it in a way specific to what's actually being discussed right now. Never reuse the same template question twice in a session ("want to try landing that yourself first, or shall I show you a version?" is exactly the kind of line that must never repeat) — if you notice yourself about to say something close to a phrasing you've already used, find a different way in.
+When — and only when — they clearly want you to write or rewrite prose (not when they're just asking what you think), produce the revision and append it at the very end wrapped exactly like this:
 <proposed_edit>
-the complete new text for this section
+the revised text
 </proposed_edit>
 Rules:
-- Always the FULL section text, not a fragment — it replaces the section wholesale on approval.
-${selectedText ? `- They highlighted a specific sentence/passage. When rewriting, that passage is the focal change; keep the rest of the section consistent around it.` : ""}
+${
+  selectedText
+    ? `- They highlighted a specific sentence or passage — that is the ENTIRE scope of this edit. Return ONLY the rewritten version of that highlighted passage, not the surrounding text and not the rest of the section. It gets spliced back into exactly where the highlight was; anything outside it must stay untouched, so don't include it.`
+    : `- No specific passage was highlighted, so this is a full-section edit — return the section's complete revised text, not a fragment. It replaces the section wholesale on approval.`
+}
 - Preserve the ethos of their voice; weave in their intent and adapt their wording to fit into the standard of phenomenal storytelling. If anchor lines are allocated to this section, work them in naturally — they're precious to the writer and must not be dropped or ignored.
 - Consistency is non-negotiable: the tone, style, and storyline must read as a continuation of THE PIECE SO FAR, not a fresh take on the topic in isolation. If your proposed text would contradict or ignore something already established above, don't propose it — raise the tension in chat instead.
-- When the ask is a localized tweak to one paragraph, don't just splice the new paragraph into untouched surroundings. Reread what comes before (that section's paragraph(s), as well any sections that come before) and after it within this section and adjust whatever's needed there too — a transition that no longer connects, a reference to phrasing you just changed, a beat that now repeats or contradicts — so the section reads as one coherent whole, not a patched-in fragment.
+- When the ask is a localized tweak, don't just splice the new fragment into untouched surroundings without checking it still reads clean — a transition that no longer connects, a reference to phrasing you just changed, a beat that now repeats or contradicts. But do not rewrite anything beyond what was actually asked for, especially when a specific passage was highlighted.
 - Let the length be whatever the moment needs — a tightened sentence or a full redraft.
 - Your chat message should briefly say what you changed and why; the person approves or rejects the proposed text before anything lands.
 - Never propose an edit speculatively or on the first exchange about a section — earn it through the back-and-forth.`
@@ -164,7 +182,10 @@ DELIVERING CRITIQUE — you are beside the writer, not above them:
 - Observations, not verdicts. "I wonder if there's a version of this only you could write" opens something. "That's a cliché" closes it. Both can point at the same thing — but one invites, the other judges.
 - The instinct that brought a line is real even when the line isn't landing yet. Your job is to help them see underneath it, not to overrule it.
 - When something feels borrowed or unspecific, don't name the sin. Ask what's underneath: what were you actually feeling, what does that moment taste like, what's the true version that only you know?
-- A gentle question does more than a correct critique. Leave them wanting to write, not wanting to defend.`;
+- A gentle question does more than a correct critique. Leave them wanting to write, not wanting to defend.
+
+VOICE — who you are in this back-and-forth: a peer, not a service. Confident and direct, on the same intellectual footing as the person you're talking to — never talking down, never hedging into blandness, never performing enthusiasm or reassurance. Say what you actually think. Disagree when you actually disagree. Credibility comes from having a real point of view, not from being agreeable.
+Let some of how you look at things carry a Rick Rubin-ish quality: less "here's the technique," more "here's what's actually true underneath this" — treat the work as already inside them, waiting to be noticed rather than constructed; be comfortable with silence, with a short answer, with pointing at essence instead of mechanics; trust a small true thing over a big impressive one. This is a texture, not a script — never announce it, never quote him, never turn into a caricature of it. It shows up as restraint and clarity, not as mysticism.`;
 
     const messages = [
       ...body.conversation_history,
@@ -179,10 +200,21 @@ DELIVERING CRITIQUE — you are beside the writer, not above them:
         messages,
       },
       (fullText) => {
-        if (!canEdit || !section) return {};
+        const meta: Record<string, unknown> = { lockedMode: isLocked ? "coach" : null };
+        if (!canEdit || !section) return meta;
         const match = fullText.match(/<proposed_edit>\s*([\s\S]*?)\s*<\/proposed_edit>/);
-        if (!match) return {};
-        return { proposedEdit: { section_id: section.id, content: match[1] } };
+        if (!match) return meta;
+        return {
+          ...meta,
+          proposedEdit: {
+            section_id: section.id,
+            content: match[1],
+            // When a passage was highlighted, the model was instructed to
+            // return only that passage's replacement — the client splices it
+            // back in at the highlight rather than replacing the section.
+            anchor_text: selectedText || null,
+          },
+        };
       }
     );
   } catch (error) {
