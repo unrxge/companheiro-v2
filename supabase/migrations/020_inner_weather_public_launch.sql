@@ -20,6 +20,7 @@ create table if not exists user_settings (
   updated_at     timestamptz default now()
 );
 alter table user_settings enable row level security;
+drop policy if exists "Users can only access their own user_settings" on user_settings;
 create policy "Users can only access their own user_settings"
   on user_settings for all using (auth.uid() = user_id);
 
@@ -34,5 +35,6 @@ create table if not exists letters (
   unique (user_id, week_start)
 );
 alter table letters enable row level security;
+drop policy if exists "Users can only access their own letters" on letters;
 create policy "Users can only access their own letters"
   on letters for all using (auth.uid() = user_id);
