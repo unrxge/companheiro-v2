@@ -689,6 +689,16 @@ function WriteContent() {
           paddingRight: reservedRight,
           paddingBottom: viewport.isMobile && viewport.isPortrait && openTool ? '52vh' : undefined,
           transition: 'padding 0.3s ease',
+          // Safari-specific: an overflow-y:auto scroller paired with a
+          // position:fixed sibling (the tool panel below) is a well-known
+          // WebKit compositing bug — scrolled content that Safari hasn't
+          // repainted for the current layer stays stale/overlapping until
+          // something forces a new layer. Promoting this container to its
+          // own GPU layer stops it from sharing (and going stale with) the
+          // fixed panel's paint.
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          WebkitBackfaceVisibility: 'hidden',
         }}
       >
         <div className="max-w-[900px] mx-auto px-6 md:px-10 py-8 md:py-12">
@@ -880,6 +890,15 @@ function WriteContent() {
                         resize: 'none', overflow: 'hidden', fontSize: '1.125rem',
                         color: section.is_locked ? '#aaa59c' : '#ece9e2', lineHeight: '1.8',
                         padding: flowView ? '0 0 1.5rem 0' : '0.75rem 1rem 1rem 1rem',
+                        // Safari specifically fails to repaint a textarea after its
+                        // JS-driven height changes while scrolled — the classic
+                        // symptom is stale/overlapping content until something else
+                        // forces a repaint. Layer-promoting the textarea itself
+                        // (not just its scrolling ancestor) is the fix that actually
+                        // reaches WebKit's per-element paint invalidation for
+                        // form controls.
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
                       }}
                     />
 
@@ -990,6 +1009,8 @@ function WriteContent() {
                     borderTopLeftRadius: 20,
                     borderTopRightRadius: 20,
                     boxShadow: c.containerShadow,
+                    transform: 'translateZ(0)',
+                    WebkitTransform: 'translateZ(0)',
                   }
                 : {
                     width: '55vw',
@@ -997,6 +1018,8 @@ function WriteContent() {
                     border: `1px solid ${c.divider}`,
                     borderRadius: 20,
                     boxShadow: c.containerShadow,
+                    transform: 'translateZ(0)',
+                    WebkitTransform: 'translateZ(0)',
                   }
               : {
                   width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
@@ -1004,6 +1027,10 @@ function WriteContent() {
                   border: `1px solid ${c.divider}`,
                   borderRadius: 20,
                   boxShadow: c.containerShadow,
+                  // Safari-specific fix — see the writing surface container
+                  // above for the full explanation of this compositing bug.
+                  transform: 'translateZ(0)',
+                  WebkitTransform: 'translateZ(0)',
                 }
           }
         >
