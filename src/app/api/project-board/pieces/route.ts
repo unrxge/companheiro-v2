@@ -26,6 +26,7 @@ interface PiecesResponse {
     arc: string;
     thematic_territory: string;
     created_at: string;
+    posted_at: string | null;
   }>;
   // In-progress conceptualise sessions that haven't reached core concept yet.
   // Included in queue count displays across the app.
@@ -62,7 +63,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
         .order("created_at", { ascending: false }),
       supabase
         .from("pieces")
-        .select("id, title, arc, thematic_territory, created_at")
+        .select("id, title, arc, thematic_territory, created_at, posted_at")
         .eq("user_id", userId)
         .eq("stage", "posted")
         .order("created_at", { ascending: false }),
@@ -76,22 +77,26 @@ export async function GET(_request: NextRequest): Promise<NextResponse<PiecesRes
     const linkedIdeaIds = new Set((activePieces || []).map((p) => p.idea_id).filter(Boolean));
     const queueIdeas = (allQueueIdeas || []).filter((idea) => !linkedIdeaIds.has(idea.id));
 
-    const activePiecesWithTasks = await Promise.all(
-      (activePieces || []).map(async (piece) => {
-        const { data: tasks } = await supabase
+    // One query for every active piece's pending tasks (was one per piece).
+    const activeIds = (activePieces || []).map((p) => p.id);
+    const { data: allTasks } = activeIds.length
+      ? await supabase
           .from("tasks")
-          .select("id, title, type")
-          .eq("piece_id", piece.id)
+          .select("id, piece_id, title, type")
+          .in("piece_id", activeIds)
           .eq("status", "pending")
-          .order("order", { ascending: true });
-
-        const { id, title, arc, thematic_territory, stage, next_action, created_at } = piece;
-        return {
-          id, title, arc, thematic_territory, stage, next_action, created_at,
-          tasks: (tasks || []).map((t) => ({ id: t.id, title: t.title, type: t.type })),
-        };
-      })
-    );
+          .order("order", { ascending: true })
+      : { data: [] as Array<{ id: string; piece_id: string; title: string; type: string }> };
+    const tasksByPiece = new Map<string, Array<{ id: string; title: string; type: string }>>();
+    for (const t of allTasks || []) {
+      const list = tasksByPiece.get(t.piece_id) ?? [];
+      list.push({ id: t.id, title: t.title, type: t.type });
+      tasksByPiece.set(t.piece_id, list);
+    }
+    const activePiecesWithTasks = (activePieces || []).map((piece) => {
+      const { id, title, arc, thematic_territory, stage, next_action, created_at } = piece;
+      return { id, title, arc, thematic_territory, stage, next_action, created_at, tasks: tasksByPiece.get(id) ?? [] };
+    });
 
     return NextResponse.json({
       active: activePiecesWithTasks,

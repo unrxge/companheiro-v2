@@ -4,6 +4,8 @@ import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, ty
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 import { shellBackground, cardPalette } from '@/lib/card-theme'
+import { JourneyNav } from '@/components/widgets'
+import { journeyStepFromStage } from '@/lib/design-tokens'
 
 const c = cardPalette.dark
 
@@ -18,6 +20,7 @@ interface Task {
 interface PieceCore {
   id: string
   title: string
+  stage?: string
   one_sentence: string
   substack_draft: string
   conviction_statement: string
@@ -599,7 +602,7 @@ function WriteContent() {
   if (isLoading || !piece) {
     return (
       <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p className="text-[#4a4946]">Loading...</p>
+        <p className="text-[#7d786f]">Loading...</p>
       </div>
     )
   }
@@ -646,16 +649,21 @@ function WriteContent() {
             await flushSections()
             router.push('/project-board')
           }}
-          className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors flex-shrink-0"
+          className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors flex-shrink-0"
         >
           ← Back
         </button>
+        {pieceId && (
+          <div className="hidden sm:block" style={{ width: 240, flexShrink: 0 }}>
+            <JourneyNav pieceId={pieceId} step={journeyStepFromStage(piece?.stage)} compact />
+          </div>
+        )}
         <div className="flex items-center gap-2 md:gap-4 min-w-0">
           {canDivide && (
             <button
               onClick={handleDivide}
               disabled={isDividing}
-              className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors disabled:opacity-50 truncate"
+              className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors disabled:opacity-50 truncate"
               title="Split what you've written into the intended sections"
             >
               {isDividing ? (flowView ? 'Redistributing…' : 'Dividing…') : (flowView ? 'Redistribute into sections' : 'Divide into sections')}
@@ -664,7 +672,7 @@ function WriteContent() {
           {sections.length > 0 && (
             <button
               onClick={() => setFlowView(!flowView)}
-              className="text-[#8c8a87] hover:text-[#e8e6e1] text-xs md:text-sm transition-colors flex-shrink-0"
+              className="text-[#aaa59c] hover:text-[#ece9e2] text-xs md:text-sm transition-colors flex-shrink-0"
             >
               {flowView ? 'Section view' : 'Flow view'}
             </button>
@@ -696,31 +704,31 @@ function WriteContent() {
             style={{
               width: '100%', background: 'transparent', border: 'none', outline: 'none',
               resize: 'none', overflow: 'hidden', fontSize: '2rem', fontWeight: 700,
-              color: '#e8e6e0', lineHeight: '1.3', marginBottom: '1.5rem', padding: 0,
+              color: '#ece9e2', lineHeight: '1.3', marginBottom: '1.5rem', padding: 0,
             }}
           />
 
           {ingestType && sections.length > 0 && (
-            <div className="mb-6 flex items-center justify-between text-xs text-[#4a4946] border border-[#1f1f1d] rounded px-3 py-2">
+            <div className="mb-6 flex items-center justify-between text-xs text-[#7d786f] border border-[#352f29] rounded px-3 py-2">
               <span>
                 {ingestType === 'draft'
                   ? 'Your draft has been distributed across the sections drawn from your emotional journey.'
                   : 'Your notes have been saved as anchor lines, placed into the sections that suit them.'}
               </span>
-              <button onClick={() => setIngestType(null)} className="ml-3 text-[#3d3c39] hover:text-[#8c8a87] flex-shrink-0">✕</button>
+              <button onClick={() => setIngestType(null)} className="ml-3 text-[#7d786f] hover:text-[#aaa59c] flex-shrink-0">✕</button>
             </div>
           )}
 
           {sections.length === 0 ? (
-            <div className="mt-8 border border-[#1f1f1d] rounded-lg p-8 text-center space-y-4">
+            <div className="mt-8 border border-[#352f29] rounded-lg p-8 text-center space-y-4">
               {isIngesting ? (
                 <div className="space-y-2">
-                  <p className="text-base text-[#8c8a87] leading-relaxed">Reading your draft…</p>
-                  <p className="text-xs text-[#4a4946]">Shaping sections from your emotional journey</p>
+                  <p className="text-base text-[#aaa59c] leading-relaxed">Reading your draft…</p>
+                  <p className="text-xs text-[#7d786f]">Shaping sections from your emotional journey</p>
                 </div>
               ) : (
                 <>
-                  <p className="text-base text-[#8c8a87] leading-relaxed">
+                  <p className="text-base text-[#aaa59c] leading-relaxed">
                     Shape this piece into sections drawn from its emotional journey, or start with a blank
                     section and build it yourself.
                   </p>
@@ -728,13 +736,13 @@ function WriteContent() {
                     <button
                       onClick={() => seedSections(false)}
                       disabled={isSeeding}
-                      className="py-2 bg-[#e8e6e1] text-[#111110] text-xs font-medium rounded hover:bg-[#d4d2cd] transition-colors disabled:opacity-50"
+                      className="py-2 bg-[#ece9e2] text-[#0d0c0b] text-xs font-medium rounded hover:bg-[#aaa59c] transition-colors disabled:opacity-50"
                     >
                       {isSeeding ? 'Shaping…' : 'Shape from emotional journey'}
                     </button>
                     <button
                       onClick={() => addSection('')}
-                      className="py-2 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
+                      className="py-2 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] hover:text-[#aaa59c] transition-colors"
                     >
                       Start with a blank section
                     </button>
@@ -745,12 +753,12 @@ function WriteContent() {
           ) : (
             <div className={flowView ? 'space-y-0' : viewport.isMobile ? 'space-y-2' : 'space-y-4'}>
               {!flowView && unplacedLines.length > 0 && (
-                <div className="border border-dashed border-[#2e2d2a] rounded p-3 space-y-1">
-                  <p className="text-xs text-[#4a4946] uppercase tracking-widest mb-1">Unplaced lines</p>
+                <div className="border border-dashed border-[#352f29] rounded p-3 space-y-1">
+                  <p className="text-xs text-[#7d786f] uppercase tracking-widest mb-1">Unplaced lines</p>
                   {unplacedLines.map((l) => (
                     <div key={l.id} className="flex items-center justify-between gap-2">
-                      <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
-                      <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300">✕</button>
+                      <span className="text-base text-[#aaa59c] italic">“{l.text}”</span>
+                      <button onClick={() => deleteAnchorLine(l.id)} className="text-[#7d786f] hover:text-red-300">✕</button>
                     </div>
                   ))}
                 </div>
@@ -767,12 +775,12 @@ function WriteContent() {
                       flowView
                         ? ''
                         : `rounded-lg border transition-colors ${
-                            isActive ? 'border-[#10B981]/50' : 'border-[#1f1f1d]'
-                          } ${section.is_locked ? 'bg-[#131312]' : 'bg-[#141312]'}`
+                            isActive ? 'border-[#39a875]/50' : 'border-[#352f29]'
+                          } ${section.is_locked ? 'bg-[#1c1916]' : 'bg-[#161412]'}`
                     }
                   >
                     {!flowView && (
-                      <div className={`flex items-center gap-2 border-b border-[#1f1f1d] ${viewport.isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
+                      <div className={`flex items-center gap-2 border-b border-[#352f29] ${viewport.isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
                         <input
                           value={section.label || ''}
                           onChange={(e) =>
@@ -780,29 +788,29 @@ function WriteContent() {
                           }
                           onBlur={(e) => handleSectionFieldSave(section.id, 'label', e.target.value)}
                           placeholder="Untitled section"
-                          className={`bg-transparent font-medium text-[#e8e6e1] uppercase focus:outline-none flex-1 min-w-0 ${viewport.isMobile ? 'tracking-wide' : 'tracking-widest'}`}
+                          className={`bg-transparent font-medium text-[#ece9e2] uppercase focus:outline-none flex-1 min-w-0 ${viewport.isMobile ? 'tracking-wide' : 'tracking-widest'}`}
                           style={{ fontSize: viewport.isMobile ? 9 : 12 }}
                         />
                         {section.intended_emotion && (!viewport.isMobile || !viewport.isPortrait) && (
-                          <span className="text-xs text-[#6b6966] italic flex-shrink-0">{section.intended_emotion}</span>
+                          <span className="text-xs text-[#7d786f] italic flex-shrink-0">{section.intended_emotion}</span>
                         )}
                         <button
                           onClick={() => setOpenLinesFor(openLinesFor === section.id ? null : section.id)}
-                          className="text-xs text-[#6b6966] hover:text-[#d4d2cd] transition-colors flex-shrink-0"
+                          className="text-xs text-[#7d786f] hover:text-[#aaa59c] transition-colors flex-shrink-0"
                         >
                           Lines{lines.length > 0 ? ` (${lines.length})` : ''}
                         </button>
                         <button
                           onClick={() => toggleLock(section.id)}
                           className={`text-xs transition-colors flex-shrink-0 ${
-                            section.is_locked ? 'text-[#10B981]' : 'text-[#6b6966] hover:text-[#d4d2cd]'
+                            section.is_locked ? 'text-[#39a875]' : 'text-[#7d786f] hover:text-[#aaa59c]'
                           }`}
                         >
                           {section.is_locked ? '🔒 Locked' : 'Lock'}
                         </button>
                         <button
                           onClick={() => deleteSection(section.id)}
-                          className="text-xs text-[#6b6966] hover:text-red-300 transition-colors flex-shrink-0"
+                          className="text-xs text-[#7d786f] hover:text-red-300 transition-colors flex-shrink-0"
                         >
                           ✕
                         </button>
@@ -810,21 +818,21 @@ function WriteContent() {
                     )}
 
                     {!flowView && openLinesFor === section.id && (
-                      <div className="px-4 py-3 border-b border-[#1f1f1d] space-y-2 bg-[#111110]">
+                      <div className="px-4 py-3 border-b border-[#352f29] space-y-2 bg-[#0d0c0b]">
                         {lines.length === 0 ? (
-                          <p className="text-xs text-[#3d3c39]">No lines placed here yet.</p>
+                          <p className="text-xs text-[#7d786f]">No lines placed here yet.</p>
                         ) : (
                           lines.map((l) => (
                             <div key={l.id} className="flex items-center justify-between gap-2">
-                              <span className="text-base text-[#d4d2cd] italic">“{l.text}”</span>
-                              <button onClick={() => deleteAnchorLine(l.id)} className="text-[#6b6966] hover:text-red-300 text-xs">✕</button>
+                              <span className="text-base text-[#aaa59c] italic">“{l.text}”</span>
+                              <button onClick={() => deleteAnchorLine(l.id)} className="text-[#7d786f] hover:text-red-300 text-xs">✕</button>
                             </div>
                           ))
                         )}
                         <textarea
                           placeholder="Add a line to this section…"
                           rows={2}
-                          className="w-full bg-[#1c1c1a] border border-[#2e2d2a] rounded px-2 py-1 text-base text-[#e8e6e1] placeholder:text-[#3d3c39] focus:outline-none focus:border-[#4a4946] resize-none overflow-hidden"
+                          className="w-full bg-[#1c1916] border border-[#352f29] rounded px-2 py-1 text-base text-[#ece9e2] placeholder:text-[#7d786f] focus:outline-none focus:border-[#7d786f] resize-none overflow-hidden"
                           onInput={(e) => {
                             const el = e.currentTarget
                             el.style.height = 'auto'
@@ -838,7 +846,7 @@ function WriteContent() {
                             }
                           }}
                         />
-                        <p className="text-xs text-[#3d3c39]">⌘↵ to add</p>
+                        <p className="text-xs text-[#7d786f]">⌘↵ to add</p>
                       </div>
                     )}
 
@@ -870,26 +878,26 @@ function WriteContent() {
                       style={{
                         width: '100%', background: 'transparent', border: 'none', outline: 'none',
                         resize: 'none', overflow: 'hidden', fontSize: '1.125rem',
-                        color: section.is_locked ? '#a8a6a0' : '#e8e6e0', lineHeight: '1.8',
+                        color: section.is_locked ? '#aaa59c' : '#ece9e2', lineHeight: '1.8',
                         padding: flowView ? '0 0 1.5rem 0' : '0.75rem 1rem 1rem 1rem',
                       }}
                     />
 
                     {/* Pending AI edit */}
                     {showPending && !flowView && (
-                      <div className="mx-4 mb-4 rounded border border-[#10B981]/30 bg-[#0d1f17]/50 p-3 space-y-2">
-                        <p className="text-xs text-[#6ee7b7] uppercase tracking-widest">Proposed rewrite</p>
-                        <p className="text-base text-[#d4d2cd] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
+                      <div className="mx-4 mb-4 rounded border border-[#39a875]/30 bg-[#16241d]/50 p-3 space-y-2">
+                        <p className="text-xs text-[#39a875] uppercase tracking-widest">Proposed rewrite</p>
+                        <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={approvePendingEdit}
-                            className="px-3 py-1.5 bg-[#10B981]/20 text-[#6ee7b7] text-xs font-medium rounded hover:bg-[#10B981]/30 transition-colors"
+                            className="px-3 py-1.5 bg-[#39a875]/20 text-[#39a875] text-xs font-medium rounded hover:bg-[#39a875]/30 transition-colors"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => setPendingEdit(null)}
-                            className="px-3 py-1.5 bg-transparent border border-[#2e2d2a] text-[#8c8a87] text-xs font-medium rounded hover:border-[#4a4946] transition-colors"
+                            className="px-3 py-1.5 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] transition-colors"
                           >
                             Reject
                           </button>
@@ -903,7 +911,7 @@ function WriteContent() {
               {!flowView && (
                 <button
                   onClick={() => addSection('')}
-                  className="w-full py-2 border border-dashed border-[#2e2d2a] text-[#6b6966] text-xs rounded hover:border-[#4a4946] hover:text-[#d4d2cd] transition-colors"
+                  className="w-full py-2 border border-dashed border-[#352f29] text-[#7d786f] text-xs rounded hover:border-[#7d786f] hover:text-[#aaa59c] transition-colors"
                 >
                   + Add section
                 </button>
@@ -912,8 +920,8 @@ function WriteContent() {
           )}
 
           {sections.length > 0 && (
-            <div className="mt-12 pt-8 border-t border-[#1f1f1d]">
-              <div className="flex justify-between items-center text-xs text-[#a8a6a0]">
+            <div className="mt-12 pt-8 border-t border-[#352f29]">
+              <div className="flex justify-between items-center text-xs text-[#aaa59c]">
                 <span>{wordCount} words</span>
                 <span>{isSaving ? 'Saving…' : 'Saved'}</span>
               </div>
@@ -921,9 +929,9 @@ function WriteContent() {
                 <button
                   onClick={async () => {
                     await flushSections()
-                    router.push(`/write/reimagine?piece_id=${pieceId}`)
+                    router.push(`/write/test?piece_id=${pieceId}`)
                   }}
-                  className="mt-6 text-sm text-[#a8a6a0] hover:text-[#e8e6e1] transition-colors underline"
+                  className="mt-6 text-sm text-[#aaa59c] hover:text-[#ece9e2] transition-colors underline"
                 >
                   This draft is ready →
                 </button>
@@ -1103,7 +1111,7 @@ function WriteContent() {
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
                       >
-                        {task.status === 'complete' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'block' }} />}
+                        {task.status === 'complete' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#39a875', display: 'block' }} />}
                       </span>
                       <span style={{ fontSize: 14, color: task.status === 'complete' ? c.textMuted : c.textSecondary, textDecoration: task.status === 'complete' ? 'line-through' : 'none' }}>
                         {task.title}
@@ -1164,7 +1172,7 @@ function WriteContent() {
                         <button
                           onClick={() => deleteAnchorLine(l.id)}
                           style={{ fontSize: 12, color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#e05656' }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
                         >✕</button>
                       </div>
@@ -1181,7 +1189,7 @@ function WriteContent() {
               {/* Context strip: selection or focused section */}
               {selectedText && sections.find(s => s.id === selectedText.sectionId) && (
                 <div style={{ padding: '8px 16px', borderBottom: `1px solid ${c.divider}`, background: c.inputBg, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: '#10B981', fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
+                  <span style={{ color: '#39a875', fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
                   <p style={{ fontSize: 12, color: c.textSecondary, fontStyle: 'italic', flex: 1, lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     &ldquo;{selectedText.text}&rdquo;
                   </p>
@@ -1276,7 +1284,7 @@ function WriteContent() {
                           borderRadius: 16, border: 'none', cursor: 'pointer',
                           transition: 'all 0.15s',
                           background: assistantMode === mode ? 'rgba(232,230,224,0.12)' : 'transparent',
-                          color: assistantMode === mode ? '#d4d2cd' : '#4a4946',
+                          color: assistantMode === mode ? '#aaa59c' : '#7d786f',
                         }}
                       >
                         {mode === 'coach' ? 'suggest' : 'write'}
@@ -1405,7 +1413,7 @@ export default function WritePage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p className="text-[#4a4946]">Loading...</p>
+          <p className="text-[#7d786f]">Loading...</p>
         </div>
       }
     >

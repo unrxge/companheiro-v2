@@ -1,7 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LangSync from "@/components/LangSync";
+import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -18,6 +20,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+
+// Pinch-zoom stays enabled (accessibility); the old maximumScale:1 is gone.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0d0c0b",
+};
+
 export const metadata: Metadata = {
   title: "Companheiro",
   description: "A companion for your inner life",
@@ -30,12 +41,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Companheiro",
-  },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
   },
   formatDetection: {
     telephone: false,
@@ -54,7 +59,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <LangSync />
-        {children}
+        <ThemeProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

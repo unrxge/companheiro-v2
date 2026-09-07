@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea'
-import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
+import { useTheme } from '@/components/theme/theme-provider'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useTerritories } from '@/hooks/useTerritories'
+import { PageShell, PageHeader, Container } from '@/components/shell/page-shell'
+import { Atmosphere } from '@/components/shell/atmosphere'
 import { IconButton } from '@/components/ui/icon-button'
-import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
+import { StageRibbon } from '@/components/widgets'
+import { arcHue, journeyStepFromStage, shell, toneHue, type Arc } from '@/lib/design-tokens'
 
 interface ConceptualiseDraft {
   id: string
@@ -115,24 +119,6 @@ interface Trajectory {
   created_at: string
 }
 
-// A small mood accent dot next to the trajectory text, not the card's own
-// bg/border/text — those are normal theme-aware card colors.
-// Same labels as idea-lab's TERRITORY_LABELS — thematic_territory is stored
-// as a snake_case slug, this is what makes it human-readable in the UI.
-const TERRITORY_LABELS: Record<string, string> = {
-  creativity_devotion_curiosity: 'Creativity, devotion & curiosity',
-  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
-  inner_child_tending_expression: 'Inner child tending & expression',
-  slow_living_life_in_service: 'Slow living & life in service',
-}
-
-const TONE_DOT_COLORS: Record<string, string> = {
-  grounded: '#10B981',
-  restless: '#F59E0B',
-  tender: '#F472B6',
-  expansive: '#8B5CF6',
-  urgent: '#EF4444',
-}
 
 // One sentence / conviction sit uncarded above the grid; emotional journey
 // gets its own path widget. Only core_truth remains in the sectional grid.
@@ -155,8 +141,12 @@ const DIRECTION_FIELDS = [
 
 function ProjectBoardContent() {
   const router = useRouter()
-  const { theme, toggle } = useCardTheme('light')
-  const c = cardPalette[theme]
+  const searchParams = useSearchParams()
+  const { t: c } = useTheme()
+  const confirm = useConfirm()
+  const territories = useTerritories()
+  const TONE_DOT_COLORS: Record<string, string> = Object.fromEntries(Object.entries(toneHue).map(([k, h]) => [k, c[h]]))
+  const accentColor = c.ember
   const [active, setActive] = useState<ActiveCard[]>([])
   const [queue, setQueue] = useState<QueueCard[]>([])
   const [completed, setCompleted] = useState<CompletedCard[]>([])
@@ -195,6 +185,9 @@ function ProjectBoardContent() {
     fetchBoard()
     fetchTrajectory()
     fetchConceptualiseDraft()
+    const deepLinked = searchParams.get('piece_id')
+    if (deepLinked) openPieceModal(deepLinked)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -434,7 +427,7 @@ function ProjectBoardContent() {
   }
 
   const handleDeleteIdea = async (ideaId: string) => {
-    if (!window.confirm('Delete this idea? This can\'t be undone.')) return
+    if (!(await confirm({ title: 'Delete this idea?', body: 'The idea and its core concept are removed. This cannot be undone.', danger: true }))) return
     try {
       await fetch('/api/project-board/idea', {
         method: 'DELETE',
@@ -449,7 +442,7 @@ function ProjectBoardContent() {
   }
 
   const handleDeletePiece = async (pieceId: string) => {
-    if (!window.confirm('Delete this piece? This can\'t be undone.')) return
+    if (!(await confirm({ title: 'Delete this piece?', body: 'The draft, tasks and reflections go with it. This cannot be undone.', danger: true }))) return
     try {
       await fetch('/api/project-board/piece', {
         method: 'DELETE',
@@ -549,112 +542,33 @@ function ProjectBoardContent() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
-        <div
-          style={{
-            padding: '24px',
-            maxWidth: '1200px',
-            margin: '0 auto',
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          {/* Header - matches loaded state so nothing jumps once data arrives */}
-          <div style={{ marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', rowGap: '12px', flexShrink: 0 }}>
-            <div style={{ flexShrink: 0 }}>
-              <p
-                aria-hidden="true"
-                style={{
-                  color: '#6e6c67',
-                  fontSize: '11px',
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontWeight: 600,
-                  marginBottom: '12px',
-                  margin: 0,
-                  visibility: 'hidden',
-                }}
-              >
-                Project Board
-              </p>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontWeight: 700,
-                  fontSize: 'clamp(24px, 8vw, 34px)',
-                  color: '#e8e6e0',
-                  margin: 0,
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                Project Board
-              </h1>
-            </div>
-            <div style={{ marginLeft: 'auto', marginTop: '6px', display: 'flex', gap: '12px' }}>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: c.divider }} />
-              ))}
-            </div>
+      <PageShell mood="verdant" fill>
+        <PageHeader eyebrow="Companheiro" title="Project Board" size="md" />
+        <Container fill padding={0}>
+          <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            {['Queue', 'Active', 'Completed'].map((name) => (
+              <div key={name} className="flex-1 py-3 flex items-center justify-center">
+                <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
+              </div>
+            ))}
           </div>
-
-          <div
-            style={{
-              backgroundColor: c.containerBg,
-              boxShadow: c.containerShadow,
-              borderRadius: '28px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            {/* Mobile tab bar skeleton */}
-            <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              {['Queue', 'Active', 'Completed'].map((name) => (
-                <div key={name} className="flex-1 py-3 flex items-center justify-center">
-                  <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop skeleton columns */}
-            <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
-              {[
-                { width: '260px', border: true },
-                { width: undefined, border: true },
-                { width: '260px', border: false },
-              ].map((col, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col px-4 py-3 space-y-3"
-                  style={{
-                    width: col.width,
-                    flex: col.width ? '0 0 auto' : '1 1 0%',
-                    borderRight: col.border ? `1px solid ${c.divider}` : 'none',
-                  }}
-                >
-                  <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
-                  {[...Array(3)].map((_, j) => (
-                    <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            {/* Mobile skeleton cards */}
-            <div className="md:hidden flex-1 px-4 py-3 space-y-3">
-              {[...Array(3)].map((_, j) => (
-                <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
-              ))}
-            </div>
+          <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+            {[{ width: '260px', border: true }, { width: undefined, border: true }, { width: '260px', border: false }].map((col, i) => (
+              <div key={i} className="flex flex-col px-4 py-3 space-y-3" style={{ width: col.width, flex: col.width ? '0 0 auto' : '1 1 0%', borderRight: col.border ? `1px solid ${c.divider}` : 'none' }}>
+                <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
+                {[...Array(3)].map((_, j) => (
+                  <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
+                ))}
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
+          <div className="md:hidden flex-1 px-4 py-3 space-y-3">
+            {[...Array(3)].map((_, j) => (
+              <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
+            ))}
+          </div>
+        </Container>
+      </PageShell>
     )
   }
 
@@ -753,7 +667,8 @@ function ProjectBoardContent() {
     onDelete?: () => void,
     territory?: string,
     sizeVariant?: 'default' | 'large',
-    date?: string
+    date?: string,
+    stage?: string
   ) => (
     <div key={id} className="group" style={{ position: 'relative' }}>
       <button
@@ -821,8 +736,13 @@ function ProjectBoardContent() {
             {date && (arc || territory) && ' • '}
             {arc}
             {arc && territory && ' • '}
-            {territory && (TERRITORY_LABELS[territory] || territory)}
+            {territory && (territories.label(territory))}
           </p>
+        )}
+        {stage && (
+          <div style={{ marginTop: 10 }}>
+            <StageRibbon step={journeyStepFromStage(stage)} compact />
+          </div>
         )}
       </button>
       {onDelete && (
@@ -851,7 +771,7 @@ function ProjectBoardContent() {
             padding: 0,
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+            (e.currentTarget as HTMLButtonElement).style.color = c.danger
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
@@ -866,7 +786,7 @@ function ProjectBoardContent() {
   )
 
   const handleDeleteDraft = async (draftId: string) => {
-    if (!window.confirm('Discard this draft? This can\'t be undone.')) return
+    if (!(await confirm({ title: 'Discard this exploration?', body: 'The unfinished conversation is deleted.', confirmLabel: 'Discard', danger: true }))) return
     try {
       await fetch(`/api/idea-lab/conceptualise/draft?id=${draftId}`, { method: 'DELETE' })
       setConceptualiseDrafts((prev) => prev.filter((d) => d.id !== draftId))
@@ -946,7 +866,7 @@ function ProjectBoardContent() {
                   cursor: 'pointer',
                   padding: 0,
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.danger }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.textMuted }}
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -971,101 +891,36 @@ function ProjectBoardContent() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: shellBackground }}>
+    <PageShell mood="verdant" fill>
       <style>{`
-        @keyframes strikethrough {
-          from {
-            text-decoration: none;
-            opacity: 1;
-          }
-          to {
-            text-decoration: line-through;
-            opacity: 0.6;
-            color: #4a4946;
-          }
-        }
-        .complete-task {
-          animation: strikethrough 0.3s ease-out forwards;
-        }
-        .board-scroll::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        .board-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .board-scroll::-webkit-scrollbar-thumb {
-          background-color: ${c.divider};
-          border-radius: 999px;
-        }
-        .board-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: ${c.divider} transparent;
-        }
+        @keyframes strikethrough { from { text-decoration: none; opacity: 1; } to { text-decoration: line-through; opacity: 0.6; } }
+        .complete-task { animation: strikethrough 0.3s ease-out forwards; }
+        .board-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .board-scroll::-webkit-scrollbar-track { background: transparent; }
+        .board-scroll::-webkit-scrollbar-thumb { background-color: ${c.divider}; border-radius: 999px; }
+        .board-scroll { scrollbar-width: thin; scrollbar-color: ${c.divider} transparent; }
       `}</style>
 
-      <div
-        style={{
-          padding: '24px',
-          maxWidth: '1200px',
-          margin: '0 auto',
-          width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
-        {/* Header */}
-        <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <h1
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontWeight: 700,
-              fontSize: 'clamp(22px, 6vw, 34px)',
-              color: '#e8e6e0',
-              margin: 0,
-              letterSpacing: '-0.02em',
-              flex: 1,
-            }}
-          >
-            Project Board
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <IconButton onClick={handleNewIdeaClick} ariaLabel="New idea">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </IconButton>
-            <ThemeToggleButton theme={theme} onToggle={toggle} />
-            <IconButton onClick={() => router.push('/home')} ariaLabel="Home">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" />
-              </svg>
-            </IconButton>
-          </div>
-        </div>
+      <PageHeader
+        eyebrow="Companheiro"
+        title="Project Board"
+        size="md"
+        actions={
+          <IconButton onClick={handleNewIdeaClick} ariaLabel="New idea">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </IconButton>
+        }
+      />
 
-        {/* Kanban container: same rounded-panel treatment as the home/portrait containers */}
-        <div
-          style={{
-            backgroundColor: c.containerBg,
-            boxShadow: c.containerShadow,
-            borderRadius: '28px',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0,
-            transition: 'background-color 0.3s ease',
-          }}
-        >
+      <Container fill padding={0}>
         {/* Mobile Tab Bar - Hidden on md+ */}
         <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
           {[
-          { name: 'Queue' as MobileTab, color: '#F59E0B', count: queue.length + queueDraftCount },
-          { name: 'Active' as MobileTab, color: '#10B981', count: active.length },
-          { name: 'Completed' as MobileTab, color: '#8B5CF6', count: completed.length },
+          { name: 'Queue' as MobileTab, color: c.ochre, count: queue.length + queueDraftCount },
+          { name: 'Active' as MobileTab, color: c.verdant, count: active.length },
+          { name: 'Completed' as MobileTab, color: c.violet, count: completed.length },
         ].map((tab) => (
           <button
             key={tab.name}
@@ -1124,7 +979,7 @@ function ProjectBoardContent() {
             }}
           >
             <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: c.ochre }}></div>
               <h2 style={columnEyebrow}>Queue</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({queue.length + queueDraftCount})</span>
             </div>
@@ -1135,7 +990,7 @@ function ProjectBoardContent() {
                   idea.id,
                   idea.title,
                   idea.arc,
-                  '#F59E0B',
+                  c.ochre,
                   () => openIdeaModal(idea.id),
                   { type: 'idea', id: idea.id },
                   () => handleDeleteIdea(idea.id),
@@ -1165,7 +1020,7 @@ function ProjectBoardContent() {
             }}
           >
             <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: c.verdant }}></div>
               <h2 style={columnEyebrow}>Active</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({active.length})</span>
             </div>
@@ -1175,13 +1030,14 @@ function ProjectBoardContent() {
                   piece.id,
                   piece.title,
                   piece.arc,
-                  '#10B981',
+                  c.verdant,
                   () => router.push(`/write?piece_id=${piece.id}`),
                   { type: 'piece', id: piece.id },
                   () => handleDeletePiece(piece.id),
                   piece.thematic_territory,
                   'large',
-                  piece.created_at
+                  piece.created_at,
+                  piece.stage
                 )
               )}
             </div>
@@ -1206,7 +1062,7 @@ function ProjectBoardContent() {
             }}
           >
             <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="w-3 h-3 rounded-full bg-[#8B5CF6]"></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: c.violet }}></div>
               <h2 style={columnEyebrow}>Completed</h2>
               <span style={{ color: c.textMuted, fontSize: '11px' }}>({completed.length})</span>
             </div>
@@ -1216,8 +1072,8 @@ function ProjectBoardContent() {
                   piece.id,
                   piece.title,
                   piece.arc,
-                  '#8B5CF6',
-                  () => openPieceModal(piece.id),
+                  c.violet,
+                  () => router.push(`/read?piece_id=${piece.id}`),
                   undefined,
                   () => handleDeletePiece(piece.id),
                   piece.thematic_territory
@@ -1237,7 +1093,7 @@ function ProjectBoardContent() {
                 idea.id,
                 idea.title,
                 idea.arc,
-                '#F59E0B',
+                c.ochre,
                 () => openIdeaModal(idea.id),
                 undefined,
                 () => handleDeleteIdea(idea.id),
@@ -1250,11 +1106,14 @@ function ProjectBoardContent() {
                 piece.id,
                 piece.title,
                 piece.arc,
-                '#10B981',
+                c.verdant,
                 () => router.push(`/write?piece_id=${piece.id}`),
                 undefined,
                 () => handleDeletePiece(piece.id),
-                piece.thematic_territory
+                piece.thematic_territory,
+                'default',
+                undefined,
+                piece.stage
               )
             )}
           {activeTab === 'Completed' &&
@@ -1263,8 +1122,8 @@ function ProjectBoardContent() {
                 piece.id,
                 piece.title,
                 piece.arc,
-                '#8B5CF6',
-                () => openPieceModal(piece.id),
+                c.violet,
+                () => router.push(`/read?piece_id=${piece.id}`),
                 undefined,
                 () => handleDeletePiece(piece.id),
                 piece.thematic_territory
@@ -1381,12 +1240,13 @@ function ProjectBoardContent() {
             </button>
           </div>
         </div>
-        </div>
-      </div>
+      </Container>
 
       {/* Piece Modal: mirrors the page-level shell -> header-on-shell -> container structure exactly */}
       {modalType === 'piece' && selectedPiece && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 65, background: shell.ink }}>
+          <Atmosphere mood={arcHue[selectedPiece.arc as Arc] ?? 'verdant'} />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
           <div style={{ height: '100%', maxWidth: '1080px', margin: '0 auto', padding: 'clamp(12px, 3vw, 24px) clamp(12px, 3vw, 24px) 0', display: 'flex', flexDirection: 'column' }}>
             {/* Header: plain text + actions floating directly on the dark shell, no card chrome of its own */}
             <div
@@ -1406,14 +1266,14 @@ function ProjectBoardContent() {
                     fontFamily: 'var(--font-geist-sans)',
                     fontWeight: 700,
                     fontSize: 'clamp(22px, 5vw, 28px)',
-                    color: '#e8e6e0',
+                    color: shell.text,
                     margin: 0,
                     letterSpacing: '-0.01em',
                   }}
                 >
                   {selectedPiece.title}
                 </h2>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: shell.muted }}>
                   {selectedPiece.created_at && (
                     <>
                       <span>{new Date(selectedPiece.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -1422,7 +1282,7 @@ function ProjectBoardContent() {
                   )}
                   <span>{selectedPiece.arc}</span>
                   <span>•</span>
-                  <span>{TERRITORY_LABELS[selectedPiece.thematic_territory] || selectedPiece.thematic_territory}</span>
+                  <span>{territories.label(selectedPiece.thematic_territory)}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginTop: '4px' }}>
@@ -1455,16 +1315,16 @@ function ProjectBoardContent() {
                   <button
                     onClick={() => handleDeletePiece(selectedPiece.id)}
                     aria-label="Delete piece"
-                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8a87' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#8c8a87' }}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: shell.muted }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.danger }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.muted }}
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
                     </svg>
                   </button>
                 <IconButton onClick={closeModal} ariaLabel="Close">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 6 6 18M6 6l12 12" />
                   </svg>
                 </IconButton>
@@ -1617,7 +1477,7 @@ function ProjectBoardContent() {
                                 className="opacity-0 group-hover:opacity-100 transition-opacity"
                                 style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                                 onMouseEnter={(e) => {
-                                  (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                                  (e.currentTarget as HTMLButtonElement).style.color = c.danger
                                 }}
                                 onMouseLeave={(e) => {
                                   (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
@@ -1704,7 +1564,7 @@ function ProjectBoardContent() {
                                   className="opacity-0 group-hover:opacity-100 transition-opacity"
                                   style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                                   onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                                    (e.currentTarget as HTMLButtonElement).style.color = c.danger
                                   }}
                                   onMouseLeave={(e) => {
                                     (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
@@ -1823,7 +1683,7 @@ function ProjectBoardContent() {
                     }}
                   >
                     {completedTaskCount > 0 && (
-                      <div style={{ flexGrow: completedTaskCount, flexBasis: 0, backgroundColor: '#10B981', transition: 'flex-grow 0.4s ease' }} />
+                      <div style={{ flexGrow: completedTaskCount, flexBasis: 0, backgroundColor: c.verdant, transition: 'flex-grow 0.4s ease' }} />
                     )}
                     {totalTaskCount - completedTaskCount > 0 && (
                       <div style={{ flexGrow: totalTaskCount - completedTaskCount, flexBasis: 0, backgroundColor: 'transparent' }} />
@@ -1883,7 +1743,7 @@ function ProjectBoardContent() {
                               onClick={() => handleDeleteTask(task.id)}
                               style={{ fontSize: '11px', color: c.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                               onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLButtonElement).style.color = '#EF4444'
+                                (e.currentTarget as HTMLButtonElement).style.color = c.danger
                               }}
                               onMouseLeave={(e) => {
                                 (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
@@ -2018,7 +1878,7 @@ function ProjectBoardContent() {
                     borderRadius: '10px',
                     border: 'none',
                     backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    color: '#10B981',
+                    color: c.verdant,
                     fontFamily: 'var(--font-geist-sans)',
                     fontWeight: 600,
                     fontSize: '13px',
@@ -2033,6 +1893,7 @@ function ProjectBoardContent() {
           </div>
           </div>
         </div>
+        </div>
       )}
 
       {/* Idea Modal — same full-screen shell as the piece modal, read-only */}
@@ -2043,15 +1904,17 @@ function ProjectBoardContent() {
           : (selectedIdea.open_threads || '').split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean)
         const parseGoals = (s?: string) => s ? s.split('\n').map(l => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean) : []
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: shellBackground }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 65, background: shell.ink }}>
+            <Atmosphere mood={arcHue[selectedIdea.arc as Arc] ?? 'ochre'} />
+            <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
             <div style={{ height: '100%', maxWidth: '1080px', margin: '0 auto', padding: 'clamp(12px, 3vw, 24px) clamp(12px, 3vw, 24px) 0', display: 'flex', flexDirection: 'column' }}>
               {/* Header */}
               <div style={{ marginBottom: '24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0, gap: '16px' }}>
                 <div style={{ minWidth: 0 }}>
-                  <h2 style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 700, fontSize: 'clamp(22px, 5vw, 28px)', color: '#e8e6e0', margin: 0, letterSpacing: '-0.01em' }}>
+                  <h2 style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 700, fontSize: 'clamp(22px, 5vw, 28px)', color: shell.text, margin: 0, letterSpacing: '-0.01em' }}>
                     {selectedIdea.title}
                   </h2>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: '#8c8a87' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: shell.muted }}>
                     {selectedIdea.created_at && (
                       <>
                         <span>{new Date(selectedIdea.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -2060,7 +1923,7 @@ function ProjectBoardContent() {
                     )}
                     <span>{selectedIdea.arc}</span>
                     <span>•</span>
-                    <span>{TERRITORY_LABELS[selectedIdea.thematic_territory] || selectedIdea.thematic_territory}</span>
+                    <span>{territories.label(selectedIdea.thematic_territory)}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginTop: '4px' }}>
@@ -2076,16 +1939,16 @@ function ProjectBoardContent() {
                   <button
                     onClick={() => handleDeleteIdea(selectedIdea.id)}
                     aria-label="Delete idea"
-                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8a87' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#8c8a87' }}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: shell.muted }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = c.danger }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.muted }}
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
                     </svg>
                   </button>
                   <IconButton onClick={closeModal} ariaLabel="Close">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 6 6 18M6 6l12 12" />
                     </svg>
                   </IconButton>
@@ -2221,6 +2084,7 @@ function ProjectBoardContent() {
               </div>
             </div>
           </div>
+          </div>
         )
       })()}
 
@@ -2269,9 +2133,9 @@ function ProjectBoardContent() {
               </button>
             </div>
           </div>
-        </div>
+          </div>
       )}
-    </div>
+    </PageShell>
   )
 }
 
@@ -2279,8 +2143,8 @@ export default function ProjectBoardPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#111110] flex items-center justify-center">
-          <p className="text-[#4a4946]">Loading...</p>
+        <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: shell.muted }}>Loading…</p>
         </div>
       }
     >

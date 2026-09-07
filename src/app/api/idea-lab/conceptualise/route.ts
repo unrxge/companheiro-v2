@@ -55,13 +55,21 @@ Guide them toward the principle, not the story. Universal over confessional.`,
 Help them claim it — not just as a feeling, but as something to be made.`,
 };
 
-function shouldAdvancePhase(messages: Message[], phase: number): boolean {
-  if (phase >= 5) return false;
+// Phases advance on content, not on message count: the model appends
+// <phase_complete/> when the phase's question has actually been answered.
+// A hard cap (four user turns per phase on average) keeps a stuck phase
+// from lasting forever.
+const PHASE_MARKER = "<phase_complete/>";
+const MAX_USER_TURNS_PER_PHASE = 4;
 
-  // Count exchanges in current phase (approximately)
-  // Simple heuristic: if we have 4+ messages and are not in the first phase, advance
-  const userMessagesInPhase = messages.filter((m) => m.role === "user").length;
-  return userMessagesInPhase >= 2;
+function hitTurnCap(messages: Message[], phase: number): boolean {
+  const userTurns = messages.filter((m) => m.role === "user").length;
+  return userTurns >= phase * MAX_USER_TURNS_PER_PHASE;
+}
+
+function lastAssistantMarked(messages: Message[]): boolean {
+  const last = [...messages].reverse().find((m) => m.role === "assistant");
+  return !!last && last.content.includes(PHASE_MARKER);
 }
 
 export async function POST(request: NextRequest) {
@@ -84,7 +92,10 @@ export async function POST(request: NextRequest) {
     }
 
     const currentPhase = body.phase;
-    const shouldAdvance = shouldAdvancePhase(body.messages, currentPhase);
+    // Advance now if the previous assistant turn declared the phase complete
+    // (the client keeps the marker in history), or if the cap was hit.
+    const shouldAdvance =
+      currentPhase < 5 && (lastAssistantMarked(body.messages) || hitTurnCap(body.messages, currentPhase));
     const nextPhase = shouldAdvance ? Math.min(currentPhase + 1, 5) : currentPhase;
 
     const companionContext = await buildCompanionContext(auth);
@@ -97,7 +108,9 @@ export async function POST(request: NextRequest) {
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}${questionContext}`;
+${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}${questionContext}
+
+PHASE COMPLETION: when this phase's work is genuinely done — the person has answered the phase's question with something real, not just acknowledged it — end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit it on the first turn of a phase.`;
 
     const claudeMessages: Message[] =
       body.messages.length > 0
@@ -111,9 +124,10 @@ ${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}$
         system: withLanguage(systemPrompt),
         messages: claudeMessages,
       },
-      () => ({
+      (fullText) => ({
         phase: nextPhase,
         readyToAdvance: nextPhase === 5,
+        phaseComplete: fullText.includes(PHASE_MARKER),
       })
     );
   } catch (error) {

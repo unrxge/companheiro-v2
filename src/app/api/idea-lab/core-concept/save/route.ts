@@ -3,6 +3,8 @@ import { createRouteClient } from "@/lib/supabase/route";
 import { generateTasks } from "@/lib/generate-tasks";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
+import { getUserTerritories } from "@/lib/territories-server";
+import { resolveTerritoryKey } from "@/lib/territories";
 
 interface SaveRequest {
   one_sentence: string;
@@ -33,42 +35,6 @@ function normaliseArc(raw: string): string {
   return "Beginning"; // default fallback
 }
 
-function normaliseThematicTerritory(raw: string): string {
-  const r = raw.toLowerCase();
-  // Check inner_child_tending_expression FIRST (higher priority)
-  if (
-    r.includes("inner") ||
-    r.includes("child") ||
-    r.includes("express") ||
-    r.includes("mental health") ||
-    r.includes("self-compassion") ||
-    r.includes("compassion") ||
-    r.includes("darkness") ||
-    r.includes("identity") ||
-    r.includes("healing")
-  )
-    return "inner_child_tending_expression";
-  if (
-    r.includes("creativ") ||
-    r.includes("devot") ||
-    r.includes("curios")
-  )
-    return "creativity_devotion_curiosity";
-  if (
-    r.includes("mascul") ||
-    r.includes("emotion") ||
-    r.includes("regulat")
-  )
-    return "healthy_masculinity_emotional_regulation";
-  if (
-    r.includes("slow") ||
-    r.includes("service") ||
-    r.includes("simple") ||
-    r.includes("living")
-  )
-    return "slow_living_life_in_service";
-  return "creativity_devotion_curiosity"; // default fallback
-}
 
 export async function POST(request: NextRequest): Promise<NextResponse<SaveResponse>> {
   try {
@@ -99,11 +65,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     const userId = userData.user.id;
-    console.log('User authenticated:', userId)
 
     // Normalise arc and thematic territory to valid enum values
     const normalisedArc = normaliseArc(body.arc);
-    const normalisedTerritory = normaliseThematicTerritory(body.thematic_territory);
+    const territories = await getUserTerritories({ supabase, user: userData.user });
+    const normalisedTerritory = resolveTerritoryKey(body.thematic_territory, territories) ?? body.thematic_territory;
     console.log('Normalised values:', {
       original_arc: body.arc,
       normalised_arc: normalisedArc,

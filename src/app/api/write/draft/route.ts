@@ -7,6 +7,8 @@ interface DraftRequest {
   substack_draft?: string;
   short_form_script?: string;
   writing_ethos?: string;
+  /** Journey step transition; only forward-moving working stages are accepted here. */
+  stage?: "writing" | "testing" | "translating" | "executing";
 }
 
 interface DraftResponse {
@@ -62,6 +64,12 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
     // Update stage to "writing" if it's "conceptualising"
     if (pieceData?.stage === "conceptualising") {
       updateData.stage = "writing";
+    }
+    // Explicit journey transitions from the writing screens. Never move a
+    // posted piece backwards.
+    const ALLOWED_STAGES = ["writing", "testing", "translating", "executing"];
+    if (body.stage && ALLOWED_STAGES.includes(body.stage) && pieceData?.stage !== "posted") {
+      updateData.stage = body.stage;
     }
 
     const { error: updateError } = await supabase
