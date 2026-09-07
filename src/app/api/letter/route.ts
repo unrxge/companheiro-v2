@@ -5,6 +5,7 @@ import { MODELS } from '@/lib/models'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
 import { getActivePortrait, formatPortraitForPrompt } from '@/lib/portrait'
+import { htmlToPlainText } from '@/lib/rich-text'
 
 /**
  * The Sunday letter. Opt-in. One per week, generated lazily the first time it
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
     const pieceTitle = new Map((pieces || []).map((p) => [p.id, p.title]))
     const wordsByPiece = new Map<string, number>()
     for (const s of sections || []) {
-      const n = (s.content || '').trim().split(/\s+/).filter(Boolean).length
+      const n = htmlToPlainText(s.content || '').split(/\s+/).filter(Boolean).length
       wordsByPiece.set(s.piece_id, (wordsByPiece.get(s.piece_id) ?? 0) + n)
     }
     const workLines = [...wordsByPiece.entries()].map(([id, n]) => `- "${pieceTitle.get(id) ?? 'untitled'}": about ${n} words touched`)

@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import type { Editor } from '@tiptap/react'
 import { readTextStream } from '@/lib/stream-client'
 import { useTheme } from '@/components/theme/theme-provider'
 import { shell, journeyStepFromStage } from '@/lib/design-tokens'
+import { ensureHtml, ensureSectionsHtml, htmlToPlainText, plainTextToHtml } from '@/lib/rich-text'
 import { JourneyNav } from '@/components/widgets'
 import { IconButton } from '@/components/ui/icon-button'
-import { Pill } from '@/components/ui/pill'
 import { TextField } from '@/components/ui/field'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
 import { Thread, Composer } from '@/components/conversation/thread'
+import { SectionEditor } from '@/components/writing/section-editor'
 
 interface Task {
   id: string
@@ -59,6 +61,8 @@ interface ChatMessage {
 interface SelectedText {
   text: string
   sectionId: string
+  from: number
+  to: number
 }
 
 type AssistantMode = 'write' | 'coach'
@@ -123,6 +127,15 @@ function WheelColumn({
     }, 120)
   }
 
+  // Clicking a row (instead of scrolling to it) — center that row and commit
+  // the value immediately rather than waiting on the scroll settle/debounce.
+  const selectIndex = (idx: number) => {
+    const el = ref.current
+    if (!el) return
+    el.scrollTo({ top: idx * itemHeight, behavior: 'smooth' })
+    onChange(options[idx])
+  }
+
   return (
     <div style={{ position: 'relative', width: 68 }}>
       <div
@@ -138,15 +151,17 @@ function WheelColumn({
         }}
       >
         <div style={{ height: padding }} />
-        {options.map((opt) => (
+        {options.map((opt, idx) => (
           <div
             key={opt}
+            onClick={() => selectIndex(idx)}
             style={{
               height: itemHeight,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               scrollSnapAlign: 'center',
+              cursor: 'pointer',
               fontSize: opt === value ? 18 : 15,
               fontWeight: opt === value ? 700 : 400,
               color: opt === value ? t.textPrimary : t.textMuted,
@@ -190,7 +205,12 @@ function WriteContent() {
   const [openTool, setOpenTool] = useState<ToolKey | null>(null)
   const [chatExpanded, setChatExpanded] = useState(false)
   const [showCoreConceptModal, setShowCoreConceptModal] = useState(false)
-  const [pendingEdit, setPendingEdit] = useState<{ sectionId: string; content: string; anchorText: string | null } | null>(null)
+  const [pendingEdit, setPendingEdit] = useState<{
+    sectionId: string
+    content: string
+    anchorText: string | null
+    range: { from: number; to: number } | null
+  } | null>(null)
   const [pendingEditTop, setPendingEditTop] = useState<number | null>(null)
   const [isIngesting, setIsIngesting] = useState(false)
   const [ingestType, setIngestType] = useState<'draft' | 'loose' | null>(null)
@@ -223,8 +243,11 @@ function WriteContent() {
   const chatMessagesRef = useRef<ChatMessage[]>([])
   chatMessagesRef.current = chatMessages
   const distilledUpToRef = useRef(0)
-  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
-  const [resizeNonce, setResizeNonce] = useState(0)
+  // Live Tiptap Editor instances per section, for imperative operations
+  // (splicing an approved AI edit into an exact position range) and for
+  // measuring where a highlighted passage sits on screen.
+  const sectionEditorsRef = useRef<Record<string, Editor | null>>({})
+  const sectionContainerRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [viewport, setViewport] = useState({ isMobile: false, isPortrait: true })
 
   useEffect(() => {
@@ -271,7 +294,7 @@ function WriteContent() {
         setPiece(pieceData.piece)
         setTitle(pieceData.piece.title || '')
       }
-      setSections(sectionsData.sections || [])
+      setSections(ensureSectionsHtml(sectionsData.sections || []))
       setAnchorLines(sectionsData.anchorLines || [])
     } catch (err) {
       console.error('Failed to load writing studio:', err)
@@ -292,7 +315,7 @@ function WriteContent() {
         body: JSON.stringify({ piece_id: pieceId }),
       })
       const data = await res.json()
-      if (data.sections) setSections(data.sections)
+      if (data.sections) setSections(ensureSectionsHtml(data.sections))
       if (data.anchorLines) setAnchorLines((prev) => [...prev, ...data.anchorLines])
       if (data.type) setIngestType(data.type)
     } catch (err) {
@@ -376,127 +399,37 @@ function WriteContent() {
     }
   }, [flushSections, flushChatDistillation])
 
-  // Resize section textareas to fit only on real structural/geometry change
-  // (load, add, delete, flow toggle, panel open/resize, pending-edit
-  // arrival, programmatic content change) — NOT on every render. Resizing
-  // every textarea on every render was collapsing/re-expanding the tall
-  // upper ones and letting scroll anchoring snap the view up to them.
-  //
-  // This runs in useLayoutEffect, not useEffect, so it recomputes heights
-  // synchronously before the browser paints. useEffect fires after paint,
-  // which left a visible frame where the DOM already had the new layout
-  // (padding, borders, column width from openTool/chatExpanded changing
-  // reservedRight) but textareas still carried stale cached heights from
-  // before — the "misplaced text" flash on view/panel switches.
-  const resizeAll = useCallback(() => {
-    Object.values(textareaRefs.current).forEach((el) => {
-      if (!el) return
-      el.style.height = 'auto'
-      el.style.height = `${el.scrollHeight}px`
-    })
-  }, [])
-
-  // Measures where charIndex sits vertically inside a textarea by rendering
-  // an identically-styled, invisible mirror and reading the offset of the
-  // character actually AT that index (not the one after it — anchoring on a
-  // trailing space/word-boundary character is ambiguous for the browser's
-  // line-breaking and can land a full line off). Used to position the
-  // proposed-edit card right after the passage it replaces, instead of
-  // always at the bottom of a possibly much-longer section.
-  const measureOffsetForCharIndex = useCallback((textarea: HTMLTextAreaElement, charIndex: number): number | null => {
-    try {
-      const style = window.getComputedStyle(textarea)
-      const mirror = document.createElement('div')
-      const props: (keyof CSSStyleDeclaration)[] = [
-        'boxSizing', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
-        'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-        'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-      ]
-      props.forEach((p) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(mirror.style as any)[p] = style[p]
-      })
-      mirror.style.position = 'absolute'
-      mirror.style.visibility = 'hidden'
-      mirror.style.whiteSpace = 'pre-wrap'
-      mirror.style.wordWrap = 'break-word'
-      mirror.style.top = '0'
-      mirror.style.left = '-9999px'
-      mirror.style.width = `${textarea.clientWidth}px`
-
-      const before = textarea.value.substring(0, Math.max(charIndex, 1))
-      const head = before.slice(0, -1)
-      const lastChar = before.slice(-1) || ' '
-      mirror.textContent = head
-      const marker = document.createElement('span')
-      marker.textContent = lastChar
-      mirror.appendChild(marker)
-
-      document.body.appendChild(mirror)
-      const offsetBottom = marker.offsetTop + marker.offsetHeight
-      document.body.removeChild(mirror)
-      return offsetBottom
-    } catch {
-      return null
-    }
-  }, [])
-
-  // When a proposed edit scoped to a highlighted passage arrives, position
-  // the card right after that passage (and briefly select it natively) so a
-  // long section doesn't hide the fact that a suggestion landed. Whole-section
-  // edits (no anchor) keep the existing end-of-section placement.
+  // Rich section editors grow with their own content natively (no manual
+  // height math needed — that entire class of textarea-resize bugs goes
+  // away with them). Positioning a proposal near a highlighted passage now
+  // uses the editor's own layout via coordsAtPos, which is exact — no mirror
+  // measurement required.
   useEffect(() => {
-    if (!pendingEdit?.anchorText) {
+    if (!pendingEdit?.range) {
       setPendingEditTop(null)
       return
     }
-    const el = textareaRefs.current[pendingEdit.sectionId]
-    const section = sectionsRef.current.find((s) => s.id === pendingEdit.sectionId)
-    if (!el || !section) {
+    const editor = sectionEditorsRef.current[pendingEdit.sectionId]
+    if (!editor) {
       setPendingEditTop(null)
       return
     }
-    const idx = section.content.indexOf(pendingEdit.anchorText)
-    if (idx === -1) {
+    try {
+      const rect = editor.view.coordsAtPos(pendingEdit.range.to)
+      const wrapperRect = editor.view.dom.getBoundingClientRect()
+      setPendingEditTop(rect.bottom - wrapperRect.top)
+    } catch {
       setPendingEditTop(null)
-      return
     }
-    const endIdx = idx + pendingEdit.anchorText.length
-    const offset = measureOffsetForCharIndex(el, endIdx)
-    setPendingEditTop(offset)
-    if (offset !== null) {
-      el.setSelectionRange(idx, endIdx)
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }
-  }, [pendingEdit, measureOffsetForCharIndex])
+  }, [pendingEdit])
 
-  const structureKey = sections.map((s) => s.id).join(',')
-  useLayoutEffect(() => {
-    resizeAll()
-    // openTool/chatExpanded drive the paddingRight CSS transition (0.3s) on
-    // the writing column below — this immediate call fires before that
-    // transition has settled, so mobile WebKit in particular can leave
-    // stale heights the ResizeObserver never corrects (it doesn't reliably
-    // fire mid-transition there). A second pass just after the transition
-    // ends guarantees one correct recompute regardless of browser quirks —
-    // this is what was still leaving gaps after opening/closing a panel in
-    // landscape without a device rotation to trigger the other listener.
-    const t = setTimeout(resizeAll, 320)
-    return () => clearTimeout(t)
-  }, [structureKey, flowView, resizeNonce, openTool, chatExpanded, pendingEdit, resizeAll])
-
-  // Mobile viewport + orientation tracking, plus a resize/orientation listener
-  // that also bumps resizeNonce. Rotating the phone reflows textarea width, so
-  // the inline pixel heights computed for the old width go stale — that's what
-  // produces the "abnormally large gap" between sections after rotating to
-  // landscape, since nothing else was recomputing height on rotation.
+  // Mobile viewport + orientation tracking.
   useEffect(() => {
     const update = () => {
       setViewport({
         isMobile: window.innerWidth < 768,
         isPortrait: window.innerHeight >= window.innerWidth,
       })
-      setResizeNonce((n) => n + 1)
     }
     update()
     window.addEventListener('resize', update)
@@ -514,29 +447,8 @@ function WriteContent() {
   // needed there.
   useEffect(() => {
     if (!viewport.isMobile || !viewport.isPortrait || !openTool || !activeSectionId) return
-    const el = textareaRefs.current[activeSectionId]
-    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    sectionContainerRefs.current[activeSectionId]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [openTool, viewport.isMobile, viewport.isPortrait, activeSectionId])
-
-  // The writing column's available width changes whenever the side panel
-  // opens/closes (paddingRight animates over the CSS transition), but the
-  // structural resize effect above only fires once, synchronously, the
-  // instant that state changes — before the transition has settled to its
-  // final width. Textareas were left holding a height computed against a
-  // mid-transition width, which is what produced the "clicking into a
-  // different section looks broken while scrolled, panel open" glitch: the
-  // stale height only got corrected by browser layout much later, snapping
-  // the scroll position. A ResizeObserver watches the column's actual
-  // content-box width and recomputes on every real change, transition
-  // included, so the heights always match the settled layout.
-  const writingSurfaceRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    const el = writingSurfaceRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => resizeAll())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [resizeAll])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -582,7 +494,7 @@ function WriteContent() {
         body: JSON.stringify({ piece_id: pieceId, content }),
       })
       const data = await res.json()
-      if (data.section) setSections((prev) => [...prev, data.section])
+      if (data.section) setSections((prev) => [...prev, { ...data.section, content: ensureHtml(data.section.content) }])
     } catch (err) {
       console.error('Failed to add section:', err)
     }
@@ -616,11 +528,10 @@ function WriteContent() {
       })
       const data = await res.json()
       if (data.sections) {
-        setSections(data.sections)
+        setSections(ensureSectionsHtml(data.sections))
         setSuggestions({})
         // Divide replaces sections, so anchor placements reset to unplaced.
         setAnchorLines((prev) => prev.map((l) => ({ ...l, section_id: null })))
-        setResizeNonce((n) => n + 1)
         // Show the sectional result — if the user was in flow view, switch so
         // they can see how the prose landed in each beat.
         setFlowView(false)
@@ -642,7 +553,7 @@ function WriteContent() {
       })
       const data = await res.json()
       if (data.sections) {
-        setSections(data.sections)
+        setSections(ensureSectionsHtml(data.sections))
         const map: Record<string, string> = {}
         data.sections.forEach((s: Section, i: number) => {
           if (data.suggestions?.[i]) map[s.id] = data.suggestions[i]
@@ -706,12 +617,14 @@ function WriteContent() {
     setIsChatLoading(true)
 
     const active = sections.find((s) => s.id === activeSectionId)
+    // The model only ever sees plain prose — HTML markup would just be noise
+    // in its context and risks it echoing tags back in its own reply.
     const activeSectionPayload = active
       ? {
           id: active.id,
           label: active.label,
           intended_emotion: active.intended_emotion,
-          content: active.content,
+          content: htmlToPlainText(active.content),
           is_locked: active.is_locked,
           anchor_lines: anchorLines.filter((l) => l.section_id === active.id).map((l) => l.text),
         }
@@ -722,12 +635,13 @@ function WriteContent() {
           .sort((a, b) => a.position - b.position)
           .map((s) => ({
             label: s.label,
-            content: s.content,
+            content: htmlToPlainText(s.content),
             anchor_lines: anchorLines.filter((l) => l.section_id === s.id).map((l) => l.text),
           }))
       : []
 
-    const selectionPayload = selectedText?.sectionId === activeSectionId ? selectedText.text : null
+    const activeSelection = selectedText?.sectionId === activeSectionId ? selectedText : null
+    const selectionPayload = activeSelection?.text || null
 
     try {
       const res = await fetch('/api/write/chat', {
@@ -767,6 +681,10 @@ function WriteContent() {
           sectionId: meta.proposedEdit.section_id,
           content: meta.proposedEdit.content,
           anchorText: meta.proposedEdit.anchor_text,
+          // Captured locally at send time — Tiptap positions are specific to
+          // this client's live document, so the server never needs to know
+          // them; it only needed the anchor text for its own prompt.
+          range: activeSelection ? { from: activeSelection.from, to: activeSelection.to } : null,
         })
       }
       if (text) {
@@ -781,31 +699,39 @@ function WriteContent() {
 
   const approvePendingEdit = async () => {
     if (!pendingEdit || !pieceId) return
-    const { sectionId, content, anchorText } = pendingEdit
-    const target = sections.find((s) => s.id === sectionId)
-    if (!target) return
-    let nextContent: string
-    if (anchorText) {
-      if (!target.content.includes(anchorText)) {
+    const { sectionId, content, anchorText, range } = pendingEdit
+    const editor = sectionEditorsRef.current[sectionId]
+    if (!editor) return
+
+    let nextHtml: string
+    if (range) {
+      const currentText = editor.state.doc.textBetween(range.from, range.to, ' ').trim()
+      if (anchorText && currentText !== anchorText.trim()) {
         // The section changed since the proposal arrived and the highlighted
-        // passage no longer exists verbatim — refuse to guess where a
-        // fragment-only edit belongs rather than risk corrupting the section.
-        console.error('Anchor text no longer found in section; declining to apply partial edit')
+        // passage no longer matches — refuse to guess where a fragment-only
+        // edit belongs rather than risk corrupting the section.
+        console.error('Highlighted passage changed since the proposal arrived; declining to apply partial edit')
         return
       }
-      nextContent = target.content.replace(anchorText, content)
+      // The model's reply is plain prose, not markup — inserted as plain
+      // text it replaces exactly the highlighted range, nothing else.
+      editor.chain().focus().insertContentAt(range, content).run()
+      nextHtml = editor.getHTML()
     } else {
-      nextContent = content
+      // Whole-section rewrite: the model's prose becomes proper paragraph
+      // nodes rather than one literal blob of text with embedded newlines.
+      editor.chain().focus().setContent(plainTextToHtml(content), false).run()
+      nextHtml = editor.getHTML()
     }
-    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextContent } : s)))
+
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextHtml } : s)))
     setPendingEdit(null)
     setPendingEditTop(null)
-    setResizeNonce((n) => n + 1)
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content: nextContent }),
+        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content: nextHtml }),
       })
     } catch (err) {
       console.error('Failed to apply edit:', err)
@@ -890,7 +816,7 @@ function WriteContent() {
   }
 
   const wordCount = sections
-    .map((s) => s.content.trim().split(/\s+/).filter((w) => w.length > 0).length)
+    .map((s) => htmlToPlainText(s.content).split(/\s+/).filter((w) => w.length > 0).length)
     .reduce((a, b) => a + b, 0)
   const canMarkReady = wordCount > 100
   // Completed tasks sink to the bottom but stay visible — status is
@@ -990,7 +916,6 @@ function WriteContent() {
 
       {/* Writing surface */}
       <div
-        ref={writingSurfaceRef}
         className="flex-1 overflow-y-auto"
         style={{
           background: 'transparent',
@@ -1089,6 +1014,9 @@ function WriteContent() {
                 return (
                   <div
                     key={section.id}
+                    ref={(el) => {
+                      sectionContainerRefs.current[section.id] = el
+                    }}
                     className={
                       flowView
                         ? ''
@@ -1168,47 +1096,25 @@ function WriteContent() {
                       </div>
                     )}
 
-                    <div style={{ position: 'relative' }}>
-                      <textarea
-                        value={section.content}
-                        onChange={(e) => {
+                    <div style={{ position: 'relative', padding: flowView ? '0 1rem' : '0.25rem 1rem 1rem', fontSize: '1.125rem' }}>
+                      <SectionEditor
+                        content={section.content}
+                        onChange={(html) => {
                           if (section.is_locked) return
-                          handleSectionContentChange(section.id, e.target.value)
-                          e.target.style.height = 'auto'
-                          e.target.style.height = e.target.scrollHeight + 'px'
+                          handleSectionContentChange(section.id, html)
                         }}
                         onFocus={() => setActiveSectionId(section.id)}
                         onBlur={() => flushSections()}
-                        onSelect={(e) => {
-                          const el = e.target as HTMLTextAreaElement
-                          const sel = el.value.substring(el.selectionStart, el.selectionEnd).trim()
-                          if (sel.length > 0) {
-                            setSelectedText({ text: sel, sectionId: section.id })
-                          } else {
-                            setSelectedText(null)
-                          }
+                        onSelectionChange={(sel) => {
+                          setSelectedText(sel ? { text: sel.text, sectionId: section.id, from: sel.from, to: sel.to } : null)
                         }}
-                        readOnly={section.is_locked}
+                        onReady={(editor) => {
+                          sectionEditorsRef.current[section.id] = editor
+                        }}
+                        editable={!section.is_locked}
                         placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
-                        rows={flowView ? 1 : 3}
-                        ref={(el) => {
-                          textareaRefs.current[section.id] = el
-                        }}
-                        style={{
-                          width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                          resize: 'none', overflow: 'hidden', fontSize: '1.125rem',
-                          color: section.is_locked ? '#aaa59c' : '#ece9e2', lineHeight: '1.8',
-                          padding: flowView ? '0 0 1.5rem 0' : '0.75rem 1rem 1rem 1rem',
-                          // Safari specifically fails to repaint a textarea after its
-                          // JS-driven height changes while scrolled — the classic
-                          // symptom is stale/overlapping content until something else
-                          // forces a repaint. Layer-promoting the textarea itself
-                          // (not just its scrolling ancestor) is the fix that actually
-                          // reaches WebKit's per-element paint invalidation for
-                          // form controls.
-                          transform: 'translateZ(0)',
-                          WebkitTransform: 'translateZ(0)',
-                        }}
+                        hideToolbar={flowView}
+                        textColor={section.is_locked ? '#aaa59c' : '#ece9e2'}
                       />
 
                       {/* Pending AI edit scoped to a highlighted passage — sits
@@ -1610,34 +1516,62 @@ function WriteContent() {
                   placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
                   sendLabel="Send"
                 />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                   {isAssistantLocked && (
-                    <span style={{ fontSize: 11, color: t.textMuted, marginRight: 2 }}>
+                    <span style={{ fontSize: 11, color: t.textMuted }}>
                       Locked until {new Date(lockedUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
-                  <Pill size="sm" selected={assistantMode === 'coach'} onClick={() => setAssistantMode('coach')}>
-                    Suggest
-                  </Pill>
-                  <Pill
-                    size="sm"
-                    selected={assistantMode === 'write'}
-                    onClick={isAssistantLocked ? undefined : () => setAssistantMode('write')}
-                    style={isAssistantLocked ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
-                  >
-                    Write
-                  </Pill>
-                  <IconButton
-                    ariaLabel={isAssistantLocked ? 'Suggestions-only lock active' : 'Lock to suggestions only'}
-                    tone="card"
-                    size={26}
-                    onClick={() => { if (!isAssistantLocked) setShowLockModal(true) }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="5" y="11" width="14" height="10" rx="2" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
-                  </IconButton>
+                  {(() => {
+                    // Three-step slider: Lock / Suggest / Write. The ball marks
+                    // the active position; the track itself carries the state
+                    // colour (red once locked, a non-primary accent once write
+                    // is armed, neutral for the default suggest state).
+                    const position = isAssistantLocked ? 0 : assistantMode === 'write' ? 2 : 1
+                    const trackBg = position === 0 ? t.soft.danger : position === 2 ? t.soft.violet : t.cardBgInner
+                    const segmentW = 56
+                    const ballLeft = 3 + position * segmentW + (segmentW - 24) / 2
+                    const segments: { key: 'lock' | 'coach' | 'write'; label: string; pos: number }[] = [
+                      { key: 'lock', label: 'Lock', pos: 0 },
+                      { key: 'coach', label: 'Suggest', pos: 1 },
+                      { key: 'write', label: 'Write', pos: 2 },
+                    ]
+                    return (
+                      <div
+                        style={{
+                          position: 'relative', display: 'flex', width: segmentW * 3 + 6, height: 30,
+                          borderRadius: 18, background: trackBg, transition: 'background-color 0.2s ease', flexShrink: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'absolute', top: 3, left: ballLeft, width: 24, height: 24, borderRadius: '50%',
+                            background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.2s ease',
+                          }}
+                        />
+                        {segments.map((seg) => (
+                          <button
+                            key={seg.key}
+                            type="button"
+                            onClick={() => {
+                              if (isAssistantLocked) return
+                              if (seg.key === 'lock') setShowLockModal(true)
+                              else setAssistantMode(seg.key === 'write' ? 'write' : 'coach')
+                            }}
+                            disabled={isAssistantLocked && seg.key !== 'lock'}
+                            style={{
+                              position: 'relative', zIndex: 1, flex: 1, height: '100%', border: 'none', background: 'none',
+                              cursor: isAssistantLocked ? 'default' : 'pointer', fontSize: 9, fontWeight: 700,
+                              letterSpacing: '0.02em', color: position === seg.pos ? '#1a1815' : t.textMuted,
+                              transition: 'color 0.2s ease',
+                            }}
+                          >
+                            {seg.label}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -1756,7 +1690,11 @@ function WriteContent() {
         <ModalDialog
           onClose={() => setShowLockModal(false)}
           title="Lock to suggestions only"
-          subtitle="This can't be undone early — the assistant re-checks it on every message, not just in this window."
+          subtitle={
+            <span style={{ display: 'block', marginTop: 6 }}>
+              Once it&rsquo;s set, there&rsquo;s no early way out — not here, not anywhere else in the app.
+            </span>
+          }
           footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <GhostButton onClick={() => setShowLockModal(false)}>Cancel</GhostButton>
