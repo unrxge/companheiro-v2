@@ -3,59 +3,58 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
-import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
-import { IconButton } from '@/components/ui/icon-button'
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
+import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
+import { MicButton } from '@/components/ui/mic-button'
+import { Pill } from '@/components/ui/pill'
+import { Thread } from '@/components/conversation/thread'
+import { SignalCards, WeatherStrip } from '@/components/widgets'
+import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn } from '@/lib/check-in-signals'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
-type ArcType = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 type EnergyLevel = 'low' | 'medium' | 'high'
 
 interface Signals {
   energy: EnergyLevel
   inner_weather: string
   creative_readiness: boolean
-  arc_texture: ArcType
+  arc_texture: Arc
 }
 
 interface Message {
-  role: 'user' | 'ai'
-  text: string
+  role: 'user' | 'assistant'
+  content: string
 }
 
-interface PastCheckIn {
-  id: string
-  created_at: string
-  raw_entry: string
+interface PastCheckIn extends StoredCheckIn {
   full_conversation: string | null
-  energy: EnergyLevel
-  inner_weather: string
-  arc_texture: ArcType | null
   check_in_type: CheckInType | null
 }
 
 function parseConversation(fullConversation: string | null, rawEntry: string): Message[] {
   if (!fullConversation?.trim()) {
-    return rawEntry ? [{ role: 'user', text: rawEntry }] : []
+    return rawEntry ? [{ role: 'user', content: rawEntry }] : []
   }
   return fullConversation
     .split(/\n\n(?=(?:You|Companheiro): )/)
     .map((chunk) => {
       const match = chunk.match(/^(You|Companheiro): ([\s\S]*)$/)
       if (!match) return null
-      return { role: match[1] === 'You' ? ('user' as const) : ('ai' as const), text: match[2].trim() }
+      return { role: match[1] === 'You' ? ('user' as const) : ('assistant' as const), content: match[2].trim() }
     })
-    .filter((m): m is Message => m !== null)
+    .filter((x): x is Message => x !== null)
 }
 
 const HISTORY_PAGE_SIZE = 5
 
-function previewText(text: string, maxLen = 80): string {
+function previewText(text: string, maxLen = 90): string {
   const trimmed = text.trim()
-  if (trimmed.length <= maxLen) return trimmed
-  return trimmed.slice(0, maxLen).trimEnd() + '…'
+  return trimmed.length <= maxLen ? trimmed : trimmed.slice(0, maxLen).trimEnd() + '…'
 }
 
 const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
@@ -64,13 +63,11 @@ const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
   evening: 'Evening',
   moment: 'A moment',
 }
-
 const ALL_CHECK_IN_TYPES: CheckInType[] = ['morning', 'after_work', 'evening', 'moment']
 
 export default function CheckInPage() {
   const router = useRouter()
-  // Dark mode throughout
-  const c = cardPalette['dark']
+  const { t } = useTheme()
 
   const [inputMode, setInputMode] = useState<'mic' | 'keyboard' | null>(null)
   const [transcript, setTranscript] = useState('')
@@ -95,38 +92,19 @@ export default function CheckInPage() {
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
     getContext: () => transcriptRef.current.slice(-80),
   })
   const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const pastCheckInsRef = useRef<HTMLDivElement>(null)
-  // Interruptible scroll: user scrolling up stops auto-scroll until they return to bottom
-  const userScrolledUpRef = useRef(false)
-  const programmaticScrollRef = useRef(false)
-  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const eyebrow: React.CSSProperties = {
-    color: c.textSecondary,
-    fontSize: '11px',
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    fontFamily: 'var(--font-geist-sans)',
-    fontWeight: 600,
-    margin: 0,
-  }
+  const historyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel()
-      }
+      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
     }
   }, [])
 
@@ -145,39 +123,19 @@ export default function CheckInPage() {
     window.speechSynthesis.speak(utterance)
   }
 
-  // Track manual scroll — stops auto-scroll when user scrolls up to read
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-    const onScroll = () => {
-      if (programmaticScrollRef.current) return
-      const { scrollTop, scrollHeight, clientHeight } = container
-      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 100
-    }
-    container.addEventListener('scroll', onScroll, { passive: true })
-    return () => container.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // Resize transcript textarea when dictation injects text (no onChange fires for state updates)
-  // Also scroll to bottom so the latest dictated word stays in view
+  // Resize transcript textarea when dictation injects text
   useEffect(() => {
     const el = transcriptTextareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
     el.scrollTop = el.scrollHeight
-  }, [transcript])
+  }, [transcript, dictationInterim])
 
-  // Scroll to latest content, but only if user hasn't manually scrolled up
   useEffect(() => {
-    if (messages.length === 0 || userScrolledUpRef.current) return
-    programmaticScrollRef.current = true
+    if (messages.length === 0) return
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current)
-    programmaticScrollTimer.current = setTimeout(() => {
-      programmaticScrollRef.current = false
-    }, 800)
-  }, [messages, isProcessing])
+  }, [messages, isProcessing, signals, logSuccess])
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -194,9 +152,12 @@ export default function CheckInPage() {
     fetchHistory()
   }, [])
 
-  const scrollToHistory = () => {
-    pastCheckInsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // Deep link from Home's weather strip.
+  useEffect(() => {
+    if (!isLoadingHistory && typeof window !== 'undefined' && window.location.hash === '#history') {
+      historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [isLoadingHistory])
 
   const toggleCheckInExpanded = (id: string) => {
     setExpandedCheckInIds((prev) => {
@@ -218,14 +179,14 @@ export default function CheckInPage() {
   }
 
   const streamAiMessage = async <M,>(res: Response, hideFrom: string[] = []): Promise<M | null> => {
-    setMessages((prev) => [...prev, { role: 'ai', text: '' }])
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
     try {
       const { meta } = await readTextStream<M>(
         res,
         (visibleText) => {
           setMessages((prev) => {
             const next = [...prev]
-            next[next.length - 1] = { role: 'ai', text: visibleText }
+            next[next.length - 1] = { role: 'assistant', content: visibleText }
             return next
           })
         },
@@ -233,11 +194,7 @@ export default function CheckInPage() {
       )
       return meta
     } catch (err) {
-      setMessages((prev) =>
-        prev[prev.length - 1]?.role === 'ai' && !prev[prev.length - 1].text
-          ? prev.slice(0, -1)
-          : prev
-      )
+      setMessages((prev) => (prev[prev.length - 1]?.role === 'assistant' && !prev[prev.length - 1].content ? prev.slice(0, -1) : prev))
       throw err
     }
   }
@@ -247,13 +204,10 @@ export default function CheckInPage() {
     setIsProcessing(true)
     setError(null)
     const userText = transcript.trim()
-    const priorHistory = messages.map((m) => ({
-      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
-      content: m.text,
-    }))
-    setMessages((prev) => [...prev, { role: 'user', text: userText }])
+    const priorHistory = messages.map((x) => ({ role: x.role, content: x.content }))
+    setMessages((prev) => [...prev, { role: 'user', content: userText }])
     setTranscript('')
-    const alreadyResponded = messages.some((m) => m.role === 'ai')
+    const alreadyResponded = messages.some((x) => x.role === 'assistant')
     try {
       if (alreadyResponded) {
         const res = await fetch('/api/check-in/respond', {
@@ -271,7 +225,8 @@ export default function CheckInPage() {
         const res = await fetch('/api/check-in/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transcript: userText }),
+          // The person's own clock, so "morning" means their morning.
+          body: JSON.stringify({ transcript: userText, local_hour: new Date().getHours() }),
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
@@ -291,17 +246,16 @@ export default function CheckInPage() {
     }
   }
 
+  const fullConversationText = () => messages.map((x) => `${x.role === 'user' ? 'You' : 'Companheiro'}: ${x.content}`).join('\n\n')
+
   const handleJournalPrompt = async () => {
     setIsLoadingJournal(true)
     setError(null)
     try {
-      const fullConversation = messages
-        .map((m) => `${m.role === 'user' ? 'You' : 'Companheiro'}: ${m.text}`)
-        .join('\n\n')
       const res = await fetch('/api/check-in/journal-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_entry: initialEntry, full_conversation: fullConversation }),
+        body: JSON.stringify({ raw_entry: initialEntry, full_conversation: fullConversationText() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate prompt')
@@ -319,15 +273,12 @@ export default function CheckInPage() {
     setIsLogging(true)
     setError(null)
     try {
-      const fullConversation = messages
-        .map((m) => `${m.role === 'user' ? 'You' : 'Companheiro'}: ${m.text}`)
-        .join('\n\n')
       const res = await fetch('/api/check-in/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           raw_entry: initialEntry,
-          full_conversation: fullConversation,
+          full_conversation: fullConversationText(),
           energy: signals.energy,
           inner_weather: signals.inner_weather,
           creative_readiness: signals.creative_readiness,
@@ -339,6 +290,10 @@ export default function CheckInPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Logging failed')
       setLogSuccess(true)
+      setPastCheckIns((prev) => [
+        { id: data.data?.id ?? `local-${Date.now()}`, created_at: new Date().toISOString(), raw_entry: initialEntry, full_conversation: fullConversationText(), energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture, check_in_type: confirmedType },
+        ...prev,
+      ])
     } catch (err) {
       console.error('Log error:', err)
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -347,844 +302,297 @@ export default function CheckInPage() {
     }
   }
 
-  const hasAiResponded = messages.some((m) => m.role === 'ai')
+  const resetAll = () => {
+    setLogSuccess(false)
+    setInputMode(null)
+    setMessages([])
+    setTranscript('')
+    setSignals(null)
+    setInferredType(null)
+    setConfirmedType(null)
+    setShowTypeCorrection(false)
+    setInitialEntry('')
+    setJournalPrompt('')
+    setShowJournalPrompt(false)
+    setError(null)
+  }
+
+  const hasAiResponded = messages.some((x) => x.role === 'assistant')
+  const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }] : pastCheckIns)
+  const hour = new Date().getHours()
+  const daypart = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
 
   // ── Input area ─────────────────────────────────────────────────────────────
-  const mainInputArea = (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '480px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '16px',
-      }}
-    >
+  const textareaValue = transcript + (dictationInterim ? (transcript && !transcript.endsWith(' ') ? ' ' : '') + dictationInterim : '')
+  const inputArea = (
+    <div style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '0 auto' }}>
       {inputMode === null ? (
-        /* Mode picker — fade in on first render */
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="check-in-mode-picker"
-        >
-          {/* Voice */}
-          <motion.button
-            onClick={() => { setInputMode('mic'); startMicMode() }}
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.94 }}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: c.inputBg, border: `1.5px solid ${c.inputBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: c.shadow }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
+        <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="check-in-mode-picker">
+          <m.button onClick={() => { setInputMode('mic'); startMicMode() }} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by voice">
+            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: '#1c1916', border: '1.5px solid #352f29', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.shadow }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#aaa59c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
               </svg>
             </div>
-            <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, letterSpacing: '0.04em' }}>Voice</span>
-          </motion.button>
-
-          {/* Type */}
-          <motion.button
-            onClick={() => setInputMode('keyboard')}
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.94 }}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: c.inputBg, border: `1.5px solid ${c.inputBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: c.shadow }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+            <span style={{ ...typeRoles.small, fontSize: 12, color: shell.muted, letterSpacing: '0.04em' }}>Voice</span>
+          </m.button>
+          <m.button onClick={() => setInputMode('keyboard')} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by typing">
+            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: '#1c1916', border: '1.5px solid #352f29', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.shadow }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#aaa59c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
               </svg>
             </div>
-            <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, letterSpacing: '0.04em' }}>Type</span>
-          </motion.button>
-        </motion.div>
+            <span style={{ ...typeRoles.small, fontSize: 12, color: shell.muted, letterSpacing: '0.04em' }}>Type</span>
+          </m.button>
+        </m.div>
       ) : (
         <>
-          {/* Mic button — only in voice mode */}
-          {inputMode === 'mic' && (
-            <motion.button
-              onClick={handleRecordToggle}
-              disabled={isProcessing}
-              whileHover={isProcessing ? {} : { scale: 1.04 }}
-              whileTap={isProcessing ? {} : { scale: 0.96 }}
-              style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                backgroundColor: isRecording ? '#e8e6e0' : c.inputBg,
-                border: `1.5px solid ${isRecording ? 'transparent' : c.inputBorder}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                opacity: isProcessing ? 0.3 : 1,
-                boxShadow: c.shadow,
-                transition: 'background-color 0.25s ease, border-color 0.25s ease',
-              }}
-            >
-              {isRecording ? (
-                <span style={{ display: 'block', width: '18px', height: '18px', backgroundColor: '#111110', borderRadius: '3px' }} />
-              ) : (
-                <span style={{ display: 'block', width: '18px', height: '18px', backgroundColor: c.textSecondary, borderRadius: '50%' }} />
-              )}
-            </motion.button>
-          )}
+          {inputMode === 'mic' && <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={isProcessing} size={80} onShell={messages.length === 0} />}
 
           <AnimatePresence>
             {isRecording && (
-              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={eyebrow}>
+              <m.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ ...typeRoles.eyebrow, color: messages.length === 0 ? shell.muted : t.textMuted }}>
                 Recording
-              </motion.p>
+              </m.p>
             )}
           </AnimatePresence>
 
-          {/* Textarea — always visible in keyboard mode; shown in mic mode when recording or text exists */}
           {(transcript || isRecording || inputMode === 'keyboard') && (
             <textarea
               ref={transcriptTextareaRef}
-              value={transcript + (dictationInterim ? (transcript && !transcript.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
+              value={textareaValue}
               onChange={(e) => {
                 clearInterim()
                 setTranscript(e.target.value)
-                e.target.style.height = 'auto'
-                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
               }}
-              placeholder={inputMode === 'keyboard' ? 'Begin typing...' : 'Your words will appear here...'}
+              placeholder={inputMode === 'keyboard' ? 'Begin typing…' : 'Your words will appear here…'}
               rows={inputMode === 'keyboard' ? 2 : 1}
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus={inputMode === 'keyboard'}
+              aria-label="Your check-in"
               style={{
                 width: '100%',
-                backgroundColor: inputMode === 'keyboard' ? 'transparent' : c.inputBg,
-                border: inputMode === 'keyboard' ? 'none' : `1px solid ${c.inputBorder}`,
-                borderRadius: inputMode === 'keyboard' ? 0 : '12px',
-                padding: inputMode === 'keyboard' ? '4px 0' : '12px 14px',
+                boxSizing: 'border-box',
+                backgroundColor: messages.length === 0 ? '#1c1916' : t.inputBg,
+                border: `1px solid ${messages.length === 0 ? '#352f29' : t.inputBorder}`,
+                borderRadius: 12,
+                padding: '12px 14px',
                 fontFamily: 'var(--font-geist-sans)',
-                fontSize: '16px',
-                fontWeight: inputMode === 'keyboard' ? 500 : 400,
-                color: c.textPrimary,
+                fontSize: 16,
+                fontWeight: 500,
+                color: messages.length === 0 ? '#ece9e2' : t.textPrimary,
                 outline: 'none',
                 resize: 'none',
                 lineHeight: 1.65,
                 overflowY: 'auto',
-                maxHeight: '200px',
+                maxHeight: 200,
               }}
             />
           )}
 
-          {error && (
-            <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: '#f87171', margin: 0, alignSelf: 'flex-start' }}>
-              {error}
-            </p>
-          )}
+          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error}</p>}
 
           {transcript.trim() && (
-            <motion.button
-              onClick={handleSend}
-              disabled={isProcessing}
-              whileHover={isProcessing ? {} : { opacity: 0.85 }}
-              whileTap={isProcessing ? {} : { scale: 0.98 }}
-              style={{
-                width: '100%',
-                padding: '13px',
-                borderRadius: '12px',
-                border: 'none',
-                backgroundColor: accentColor,
-                color: '#ffffff',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 600,
-                fontSize: '14px',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                opacity: isProcessing ? 0.4 : 1,
-              }}
-            >
-              {isProcessing ? 'Processing...' : 'Send'}
-            </motion.button>
-          )}
-
-          {showJournalPrompt && journalPrompt && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                width: '100%',
-                backgroundColor: c.cardBg,
-                boxShadow: c.shadow,
-                borderRadius: '14px',
-                padding: '16px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-              }}
-            >
-              <p style={eyebrow}>Journal prompt</p>
-              <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '15px', color: c.textPrimary, lineHeight: 1.6, margin: 0 }}>
-                {journalPrompt}
-              </p>
-              <button
-                onClick={() => navigator.clipboard.writeText(journalPrompt)}
-                style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '2px' }}
-              >
-                Copy prompt
-              </button>
-            </motion.div>
-          )}
-
-          {/* Log action */}
-          {hasAiResponded && confirmedType && !logSuccess && (
-            <motion.button
-              onClick={handleLog}
-              disabled={isLogging}
-              whileHover={isLogging ? {} : { opacity: 0.65 }}
-              whileTap={isLogging ? {} : { scale: 0.96 }}
-              style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: isLogging ? 'not-allowed' : 'pointer', opacity: isLogging ? 0.3 : 1 }}
-            >
-              {isLogging ? 'Saving...' : 'Log this check-in'}
-            </motion.button>
+            <PrimaryButton onClick={handleSend} disabled={isProcessing} loading={isProcessing} loadingLabel="Processing…" full size="lg">
+              Send
+            </PrimaryButton>
           )}
         </>
       )}
     </div>
   )
 
-  // ── Past check-ins section — only visible in idle state ───────────────────
-  const pastCheckInsSection = messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
-    <div
-      ref={pastCheckInsRef}
-      style={{
-        padding: '40px 24px 64px',
-        borderTop: `1px solid rgba(255,255,255,0.06)`,
-        scrollSnapAlign: 'start',
-      }}
-    >
-      <div style={{ maxWidth: '560px', margin: '0 auto' }}>
-        <p style={{ ...eyebrow, marginBottom: '24px' }}>Past check-ins</p>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map(
-            (checkIn, index, arr) => {
+  // ── History ────────────────────────────────────────────────────────────────
+  const historySection = !isLoadingHistory && pastCheckIns.length > 0 && messages.length === 0 && (
+    <div ref={historyRef} id="history" style={{ marginTop: 28 }}>
+      <Container>
+        <Card>
+          <Eyebrow style={{ marginBottom: 14 }}>Inner weather · 30 days</Eyebrow>
+          <WeatherStrip
+            days={weatherDays(pastCheckIns, 30)}
+            onSelect={(d) => {
+              const match = pastCheckIns.find((c) => new Date(c.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) === d.date)
+              if (match) setExpandedCheckInIds((prev) => new Set(prev).add(match.id))
+            }}
+          />
+        </Card>
+        <div style={{ marginTop: 20 }}>
+          <Eyebrow style={{ marginBottom: 12 }}>Past check-ins</Eyebrow>
+          <Card padding="4px 20px">
+            {(historyExpanded ? pastCheckIns : pastCheckIns.slice(0, HISTORY_PAGE_SIZE)).map((checkIn, index, arr) => {
               const isOpen = expandedCheckInIds.has(checkIn.id)
               return (
-                <div
-                  key={checkIn.id}
-                  style={{
-                    borderBottom: index < arr.length - 1 ? `1px solid ${c.divider}` : 'none',
-                    paddingBottom: '16px',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <button
-                    onClick={() => toggleCheckInExpanded(checkIn.id)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
+                <div key={checkIn.id} style={{ borderBottom: index < arr.length - 1 ? `1px solid ${t.divider}` : 'none', padding: '14px 0' }}>
+                  <button onClick={() => toggleCheckInExpanded(checkIn.id)} aria-expanded={isOpen} style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '11px',
-                          color: c.textMuted,
-                          margin: '0 0 4px',
-                        }}
-                      >
-                        {formatDateAsRelative(checkIn.created_at)}
-                        {checkIn.check_in_type
-                          ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}`
-                          : ''}
-                      </p>
-                      <p
-                        style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '15px',
-                          color: c.textPrimary,
-                          lineHeight: 1.55,
-                          margin: 0,
-                        }}
-                      >
-                        {previewText(checkIn.raw_entry)}
-                      </p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                        <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>
+                          {formatDateAsRelative(checkIn.created_at)}
+                          {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
+                        </span>
+                        {checkIn.arc_texture && <Pill hue={arcHue[checkIn.arc_texture]} dot>{checkIn.arc_texture}</Pill>}
+                        {checkIn.inner_weather && <span style={{ ...typeRoles.small, fontSize: 12, color: t.textSecondary, fontWeight: 500 }}>{checkIn.inner_weather}</span>}
+                      </div>
+                      <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary }}>{previewText(checkIn.raw_entry)}</p>
                     </div>
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '11px',
-                        color: c.textMuted,
-                        flexShrink: 0,
-                        marginTop: '2px',
-                      }}
-                    >
-                      {isOpen ? '▾' : '▸'}
-                    </span>
+                    <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flexShrink: 0, marginTop: 2 }}>{isOpen ? '▾' : '▸'}</span>
                   </button>
                   <AnimatePresence>
                     {isOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <div
-                          style={{
-                            paddingTop: '16px',
-                            paddingLeft: '12px',
-                            borderLeft: `2px solid ${c.divider}`,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px',
-                          }}
-                        >
-                          {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map(
-                            (msg, i) => (
-                              <p
-                                key={i}
-                                style={{
-                                  fontFamily: 'var(--font-geist-sans)',
-                                  fontSize: '14px',
-                                  lineHeight: 1.6,
-                                  margin: 0,
-                                  color:
-                                    msg.role === 'user' ? c.textPrimary : c.textSecondary,
-                                  fontWeight: msg.role === 'user' ? 500 : 400,
-                                }}
-                              >
-                                {msg.text}
-                              </p>
-                            )
-                          )}
+                      <m.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
+                        <div style={{ paddingTop: 16, paddingLeft: 12, borderLeft: `2px solid ${t.divider}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {parseConversation(checkIn.full_conversation, checkIn.raw_entry).map((msg, i) => (
+                            <p key={i} style={{ ...typeRoles.ui, fontSize: 14, color: msg.role === 'user' ? t.textPrimary : t.textSecondary, fontWeight: msg.role === 'user' ? 500 : 400 }}>
+                              {msg.content}
+                            </p>
+                          ))}
                         </div>
-                      </motion.div>
+                      </m.div>
                     )}
                   </AnimatePresence>
                 </div>
               )
-            }
+            })}
+          </Card>
+          {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
+            <div style={{ marginTop: 12 }}>
+              <GhostButton size="sm" onClick={() => setHistoryExpanded(true)}>Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)</GhostButton>
+            </div>
           )}
         </div>
-        {!historyExpanded && pastCheckIns.length > HISTORY_PAGE_SIZE && (
-          <motion.button
-            onClick={() => setHistoryExpanded(true)}
-            whileHover={{ opacity: 0.65 }}
-            style={{
-              marginTop: '8px',
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '12px',
-              color: c.textMuted,
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textUnderlineOffset: '2px',
-            }}
-          >
-            Show older check-ins ({pastCheckIns.length - HISTORY_PAGE_SIZE} more)
-          </motion.button>
-        )}
-      </div>
+      </Container>
     </div>
   )
 
-  // ── Log success screen ─────────────────────────────────────────────────────
-  if (logSuccess) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: shellBackground,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          style={{
-            textAlign: 'center',
-            padding: '0 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            alignItems: 'center',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '18px',
-              fontWeight: 500,
-              color: '#e8e6e0',
-              margin: 0,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            Check-in logged.
-          </p>
-          <p
-            style={{
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '14px',
-              color: '#6a6866',
-              margin: 0,
-            }}
-          >
-            Take it from here.
-          </p>
-          <div style={{ display: 'flex', gap: '24px', marginTop: '20px' }}>
-            <motion.button
-              onClick={() => router.push('/home')}
-              whileHover={{ opacity: 0.75 }}
-              style={{
-                fontFamily: 'var(--font-geist-sans)',
-                fontSize: '13px',
-                color: '#e8e6e0',
-                background: 'none',
-                border: `1px solid rgba(232,230,224,0.2)`,
-                borderRadius: '8px',
-                padding: '8px 18px',
-                cursor: 'pointer',
-              }}
-            >
-              Home
-            </motion.button>
-            <motion.button
-              onClick={() => {
-                setLogSuccess(false)
-                setInputMode(null)
-                setMessages([])
-                setTranscript('')
-                setSignals(null)
-                setInferredType(null)
-                setConfirmedType(null)
-                setShowTypeCorrection(false)
-                setInitialEntry('')
-                setJournalPrompt('')
-                setShowJournalPrompt(false)
-              }}
-              whileHover={{ opacity: 0.65 }}
-              style={{
-                fontFamily: 'var(--font-geist-sans)',
-                fontSize: '13px',
-                color: '#6a6866',
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                textUnderlineOffset: '3px',
-              }}
-            >
-              New check-in
-            </motion.button>
-
-          </div>
-        </motion.div>
-      </div>
-    )
-  }
-
-  // ── Main page ──────────────────────────────────────────────────────────────
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: shellBackground,
-        overflow: 'hidden',
-      }}
-    >
+    <PageShell mood={mood} intensity={intensity}>
       <style>{`
-        .check-in-scroll::-webkit-scrollbar { display: none; }
-        .check-in-scroll { scrollbar-width: none; }
         .check-in-mode-picker { display: flex; flex-direction: row; gap: 40px; align-items: center; }
         @media (max-width: 640px) { .check-in-mode-picker { flex-direction: column; gap: 20px; } }
       `}</style>
 
-      {/* Header — icon and title side by side */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        style={{
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          flexShrink: 0,
-        }}
-      >
-        <IconButton href="/home" ariaLabel="Back to home">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#e8e6e0"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </IconButton>
-        <h1
-          style={{
-            fontFamily: 'var(--font-geist-sans)',
-            fontWeight: 700,
-            fontSize: '20px',
-            color: '#e8e6e0',
-            margin: 0,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          Check-in
-        </h1>
-        {messages.length === 0 && !isLoadingHistory && pastCheckIns.length > 0 && (
-          <motion.button
-            onClick={scrollToHistory}
-            whileHover={{ opacity: 0.65 }}
-            style={{
-              marginLeft: 'auto',
-              fontFamily: 'var(--font-geist-sans)',
-              fontSize: '11px',
-              color: '#6e6c67',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              letterSpacing: '0.02em',
-            }}
-          >
-            History ↓
-          </motion.button>
-        )}
-      </motion.div>
+      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" size="md" />
 
-      {/* Snap-scroll container — fills remaining height.
-          Snap is only active in idle mode (no messages) to let the user snap-reveal past check-ins.
-          During an active check-in it's off so over-scrolling at the bottom doesn't jump to the top. */}
-      <div
-        ref={scrollContainerRef}
-        className="check-in-scroll"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          scrollSnapType: messages.length === 0 ? 'y mandatory' : 'none',
-        }}
-      >
-        {/* Section 1: main area */}
-        <div
-          style={{
-            minHeight: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            scrollSnapAlign: messages.length === 0 ? 'start end' : undefined,
-          }}
-        >
-          {messages.length === 0 ? (
-            /* Idle: mic centred in remaining space */
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '24px',
-              }}
-            >
-              {mainInputArea}
-            </motion.div>
-          ) : (
-            /* Active: thread + type detection + input below (all scroll naturally) */
-            <>
-              <div
-                style={{
-                  padding: '8px 24px 0',
-                  maxWidth: '560px',
-                  margin: '0 auto',
-                  width: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '24px',
-                }}
-              >
-                {messages.map((msg, i) => {
-                  const isStreamingLast =
-                    isProcessing && i === messages.length - 1 && msg.role === 'ai'
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {/* Veil: gradient overlay fades out when streaming ends */}
-                      <div style={{ position: 'relative' }}>
-                        <p
-                          style={{
-                            fontFamily: 'var(--font-geist-sans)',
-                            fontSize: '16px',
-                            lineHeight: 1.65,
-                            margin: 0,
-                            color: msg.role === 'user' ? c.textPrimary : c.textSecondary,
-                            fontWeight: msg.role === 'user' ? 500 : 400,
-                          }}
-                        >
-                          {msg.text}
-                        </p>
-                        <AnimatePresence>
-                          {isStreamingLast && (
-                            <motion.div
-                              key="veil"
-                              initial={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.5, ease: 'easeOut' }}
-                              style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                height: '52px',
-                                background: 'linear-gradient(to top, #111110, transparent)',
-                                pointerEvents: 'none',
-                              }}
-                            />
-                          )}
-                        </AnimatePresence>
-                      </div>
-                      {msg.role === 'ai' && msg.text && !isStreamingLast && (
-                        <button
-                          onClick={() => handleSpeak(msg.text, i)}
-                          aria-label={
-                            speakingIndex === i ? 'Stop reading aloud' : 'Read aloud'
-                          }
-                          style={{
-                            marginTop: '8px',
-                            color: c.textMuted,
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            transition: 'color 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            ;(e.currentTarget as HTMLButtonElement).style.color = c.textSecondary
-                          }}
-                          onMouseLeave={(e) => {
-                            ;(e.currentTarget as HTMLButtonElement).style.color = c.textMuted
-                          }}
-                        >
-                          {speakingIndex === i ? (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                              <rect
-                                x="6"
-                                y="6"
-                                width="12"
-                                height="12"
-                                rx="1.5"
-                                fill="currentColor"
-                              />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.75"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                    </motion.div>
-                  )
-                })}
+      {messages.length === 0 ? (
+        /* Idle: the two circles, directly on the shell, exactly as minimal as before */
+        <m.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }} style={{ minHeight: '46vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
+          {inputArea}
+        </m.div>
+      ) : (
+        <Container>
+          <div style={{ maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Thread messages={messages} streaming={isProcessing} align="left">
+              {/* Read aloud for the last companion reply */}
+              {hasAiResponded && !isProcessing && (
+                <div style={{ marginTop: -12 }}>
+                  {(() => {
+                    const lastAi = [...messages].map((x, i) => ({ x, i })).reverse().find(({ x }) => x.role === 'assistant')
+                    if (!lastAi) return null
+                    return (
+                      <button onClick={() => handleSpeak(lastAi.x.content, lastAi.i)} aria-label={speakingIndex === lastAi.i ? 'Stop reading aloud' : 'Read aloud'} style={{ color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, ...typeRoles.small, fontSize: 12 }}>
+                        {speakingIndex === lastAi.i ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
+                        )}
+                        {speakingIndex === lastAi.i ? 'Stop' : 'Read aloud'}
+                      </button>
+                    )
+                  })()}
+                </div>
+              )}
+            </Thread>
 
-                {isProcessing && messages[messages.length - 1]?.role !== 'ai' && (
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontSize: '14px',
-                      color: c.textMuted,
-                      margin: 0,
-                    }}
-                  >
-                    ...
-                  </p>
-                )}
-
-                {/* Type detection row — left: detected + change · right: journal prompt */}
-                {hasAiResponded && inferredType && !logSuccess && (
-                  <div style={{ paddingTop: '16px', borderTop: `1px solid ${c.divider}` }}>
+            {/* Signals you can correct → Log → one contextual door */}
+            {hasAiResponded && signals && inferredType && (
+              <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+                <Card>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <Eyebrow>What I heard · tap to correct</Eyebrow>
                     <AnimatePresence mode="wait">
                       {!showTypeCorrection ? (
-                        <motion.div
-                          key="detected"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '12px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span
-                              style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                fontSize: '12px',
-                                color: c.textMuted,
-                              }}
-                            >
-                              Detected as{' '}
-                              <span style={{ color: c.textSecondary, fontWeight: 500 }}>
-                                {CHECK_IN_TYPE_LABELS[inferredType]}
-                              </span>
-                            </span>
-                            <button
-                              onClick={() => setShowTypeCorrection(true)}
-                              style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                fontSize: '12px',
-                                color: c.textMuted,
-                                background: 'none',
-                                border: 'none',
-                                padding: 0,
-                                cursor: 'pointer',
-                                textDecoration: 'underline',
-                                textUnderlineOffset: '2px',
-                              }}
-                            >
+                        <m.div key="detected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
+                            {confirmedType ? CHECK_IN_TYPE_LABELS[confirmedType] : ''}
+                          </span>
+                          {!logSuccess && (
+                            <button onClick={() => setShowTypeCorrection(true)} style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
                               Change
                             </button>
-                          </div>
-                          <motion.button
-                            onClick={handleJournalPrompt}
-                            disabled={isLoadingJournal}
-                            whileHover={isLoadingJournal ? {} : { opacity: 0.65 }}
-                            style={{
-                              fontFamily: 'var(--font-geist-sans)',
-                              fontSize: '12px',
-                              color: c.textMuted,
-                              background: 'none',
-                              border: 'none',
-                              padding: 0,
-                              cursor: isLoadingJournal ? 'not-allowed' : 'pointer',
-                              opacity: isLoadingJournal ? 0.3 : 1,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {isLoadingJournal ? 'Generating...' : 'Journal prompt'}
-                          </motion.button>
-                        </motion.div>
+                          )}
+                        </m.div>
                       ) : (
-                        <motion.div
-                          key="picker"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-                        >
-                          <p
-                            style={{
-                              fontFamily: 'var(--font-geist-sans)',
-                              fontSize: '12px',
-                              color: c.textMuted,
-                              margin: 0,
-                            }}
-                          >
-                            What kind of check-in is this?
-                          </p>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                            {ALL_CHECK_IN_TYPES.map((type) => (
-                              <button
-                                key={type}
-                                onClick={() => {
-                                  setConfirmedType(type)
-                                  setShowTypeCorrection(false)
-                                }}
-                                style={{
-                                  padding: '6px 14px',
-                                  borderRadius: '999px',
-                                  border: `1px solid ${
-                                    confirmedType === type ? 'transparent' : c.inputBorder
-                                  }`,
-                                  backgroundColor:
-                                    confirmedType === type ? accentColor : 'transparent',
-                                  color: confirmedType === type ? '#ffffff' : c.textSecondary,
-                                  fontFamily: 'var(--font-geist-sans)',
-                                  fontSize: '12px',
-                                  fontWeight: confirmedType === type ? 600 : 400,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                }}
-                              >
-                                {CHECK_IN_TYPE_LABELS[type]}
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
+                        <m.div key="picker" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {ALL_CHECK_IN_TYPES.map((type) => (
+                            <Pill key={type} hue="neutral" selected={confirmedType === type} onClick={() => { setConfirmedType(type); setShowTypeCorrection(false) }}>
+                              {CHECK_IN_TYPE_LABELS[type]}
+                            </Pill>
+                          ))}
+                        </m.div>
                       )}
                     </AnimatePresence>
                   </div>
-                )}
+                  <SignalCards
+                    signals={{ energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }}
+                    onChange={logSuccess ? undefined : (next) => setSignals({ ...signals, ...next })}
+                  />
 
-                {/* Scroll anchor — smooth scroll targets this */}
-                <div ref={messagesEndRef} style={{ height: '1px' }} />
+                  {!logSuccess ? (
+                    <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+                      <PrimaryButton onClick={handleLog} disabled={isLogging || !confirmedType} loading={isLogging} loadingLabel="Saving…" style={{ flex: 1, minWidth: 160 }}>
+                        Log this check-in
+                      </PrimaryButton>
+                      <GhostButton onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
+                        Journal prompt
+                      </GhostButton>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 16 }}>
+                      <Divider style={{ marginBottom: 14 }} />
+                      <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary }}>Logged. Take it from here.</p>
+                      {signals.creative_readiness ? (
+                        <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>Something&apos;s alive in what you said.</p>
+                      ) : (
+                        <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>No next step is required. The door is there if you want it.</p>
+                      )}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+                        {signals.creative_readiness ? (
+                          <PrimaryButton href="/idea-lab">Take it to the Lab →</PrimaryButton>
+                        ) : (
+                          <QuietButton href="/home">Home</QuietButton>
+                        )}
+                        <GhostButton onClick={resetAll}>New check-in</GhostButton>
+                        {signals.creative_readiness && <GhostButton onClick={() => router.push('/home')}>Home</GhostButton>}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </m.div>
+            )}
+
+            {showJournalPrompt && journalPrompt && (
+              <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <Card>
+                  <Eyebrow style={{ marginBottom: 8 }}>Journal prompt</Eyebrow>
+                  <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{journalPrompt}</p>
+                  <div style={{ marginTop: 12 }}>
+                    <GhostButton size="sm" onClick={() => navigator.clipboard.writeText(journalPrompt)}>Copy prompt</GhostButton>
+                  </div>
+                </Card>
+              </m.div>
+            )}
+
+            {!logSuccess && (
+              <div style={{ paddingTop: 8 }}>
+                {inputArea}
               </div>
+            )}
+            <div ref={messagesEndRef} style={{ height: 1 }} />
+          </div>
+        </Container>
+      )}
 
-              {/* Input area — inside the scrollable section, scrolls away naturally */}
-              <div
-                style={{
-                  padding: '24px 24px 48px',
-                  maxWidth: '560px',
-                  margin: '0 auto',
-                  width: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                }}
-              >
-                {mainInputArea}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Section 2: past check-ins — snaps into view on scroll */}
-        {pastCheckInsSection}
-      </div>
-    </div>
+      {historySection}
+    </PageShell>
   )
 }

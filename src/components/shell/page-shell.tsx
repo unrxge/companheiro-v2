@@ -42,14 +42,20 @@ export function PageShell({
       }}
     >
       <Atmosphere mood={mood} intensity={intensity} />
+      <style>{`
+        .page-col { padding: 24px 20px 96px; }
+        @media (min-width: 720px) { .page-col { padding: ${dock ? 84 : 28}px 24px 48px; } }
+        .page-col.page-col-fill { padding-bottom: 0; }
+        @media (max-width: 719px) { .page-col.page-col-fill { padding-bottom: 76px; } }
+      `}</style>
       <div
+        className={`page-col${fill ? ' page-col-fill' : ''}`}
         style={{
           position: 'relative',
           zIndex: 1,
           width: '100%',
           maxWidth,
           margin: '0 auto',
-          padding: fill ? '24px 24px 0' : '24px 24px 112px',
           display: fill ? 'flex' : undefined,
           flexDirection: fill ? 'column' : undefined,
           flex: fill ? 1 : undefined,

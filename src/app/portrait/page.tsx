@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'motion/react'
-import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground } from '@/lib/card-theme'
-import { IconButton } from '@/components/ui/icon-button'
-import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { useState, useEffect, useMemo } from 'react'
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
+import { DangerButton, GhostButton } from '@/components/ui/buttons'
+import { ModalDialog } from '@/components/ui/modal-dialog'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { Pill } from '@/components/ui/pill'
+import { FacetCloud } from '@/components/widgets'
+import { formatDateAsRelative } from '@/lib/dates'
+import { type as typeRoles } from '@/lib/design-tokens'
 
 interface PortraitEntry {
   id: string
@@ -22,13 +26,24 @@ const KIND_LABELS: Record<PortraitEntry['kind'], string> = {
   guidance_note: 'What kind of guidance works',
 }
 
+const KIND_HUE: Record<PortraitEntry['kind'], 'tide' | 'ochre' | 'ember' | 'verdant'> = {
+  processing_pattern: 'tide',
+  recurring_theme: 'ochre',
+  creative_pattern: 'ember',
+  guidance_note: 'verdant',
+}
+
+const DECAY_DAYS = 150
+
 export default function PortraitPage() {
-  const { theme, toggle } = useCardTheme('light')
-  const c = cardPalette[theme]
+  const { t } = useTheme()
+  const confirm = useConfirm()
 
   const [entries, setEntries] = useState<PortraitEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [retiringId, setRetiringId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<PortraitEntry | null>(null)
+  const [view, setView] = useState<'facets' | 'list'>('facets')
 
   useEffect(() => {
     fetchEntries()
@@ -47,15 +62,14 @@ export default function PortraitPage() {
   }
 
   const handleRetire = async (id: string) => {
+    const ok = await confirm({ title: 'Forget this?', body: 'The companion stops carrying it. It can only come back if it is noticed and confirmed again.', confirmLabel: 'Forget', danger: true })
+    if (!ok) return
     setRetiringId(id)
     try {
-      const res = await fetch('/api/portrait/retire', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      })
+      const res = await fetch('/api/portrait/retire', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (res.ok) {
         setEntries((prev) => prev.filter((e) => e.id !== id))
+        if (selected?.id === id) setSelected(null)
       }
     } catch (err) {
       console.error('Failed to retire entry:', err)
@@ -64,156 +78,99 @@ export default function PortraitPage() {
     }
   }
 
+  const facets = useMemo(() => {
+    const max = Math.max(1, ...entries.map((e) => e.reinforcement_count))
+    const now = Date.now()
+    return entries.map((e) => {
+      const days = (now - new Date(e.last_reinforced_at).getTime()) / 86_400_000
+      return {
+        id: e.id,
+        statement: e.statement,
+        weight: e.reinforcement_count / max,
+        freshness: Math.max(0, 1 - days / DECAY_DAYS),
+        onClick: () => setSelected(e),
+      }
+    })
+  }, [entries])
+
   const grouped = (Object.keys(KIND_LABELS) as PortraitEntry['kind'][])
     .map((kind) => ({ kind, items: entries.filter((e) => e.kind === kind) }))
     .filter((g) => g.items.length > 0)
 
-  const eyebrowStyle: React.CSSProperties = {
-    color: c.textSecondary,
-    fontSize: '11px',
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    fontFamily: 'var(--font-geist-sans)',
-    fontWeight: 600,
-    margin: 0,
-  }
-
   return (
-    <div
-      style={{
-        position: 'relative',
-        minHeight: '100vh',
-        background: shellBackground,
-      }}
-    >
-      <div style={{ position: 'relative', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
-        {/* Header: plain text on the shell, no card chrome of its own */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          style={{
-            marginBottom: '32px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-            rowGap: '12px',
-          }}
-        >
-          <div style={{ flexShrink: 0 }}>
-            <IconButton href="/home" ariaLabel="Back to home">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </IconButton>
-            <h1
-              style={{
-                color: '#e8e6e0',
-                fontSize: 'clamp(24px, 8vw, 34px)',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 700,
-                margin: '16px 0 0',
-                letterSpacing: '-0.02em',
-              }}
-            >
-              My portrait
-            </h1>
-          </div>
-          <div style={{ marginTop: '6px', marginLeft: 'auto', flexShrink: 0 }}>
-            <ThemeToggleButton theme={theme} onToggle={toggle} />
-          </div>
-        </motion.div>
+    <PageShell mood="violet" intensity={0.85} maxWidth={860}>
+      <PageHeader eyebrow="Companheiro" title="My portrait" subtitle="Only what you have confirmed. It shapes how the companion approaches you, never its voice." />
 
-        {/* Container: the panel the header is enveloped by, holding all cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-          style={{
-            backgroundColor: c.containerBg,
-            boxShadow: c.containerShadow,
-            borderRadius: '28px',
-            padding: '24px',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-          <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6', margin: '0 0 24px' }}>
-            What the system has come to understand about you — only things you&apos;ve confirmed.
-            Nothing here shapes tone, only how it approaches you. Retire anything that no longer fits.
+      <Container>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+          <p style={{ ...typeRoles.small, color: t.textSecondary, maxWidth: '58ch' }}>
+            Size is how often a facet has been reinforced. Fading means it has not come up in a while and will retire on its own at {DECAY_DAYS} days. Tap one to see it, or forget it.
           </p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Pill hue="neutral" selected={view === 'facets'} onClick={() => setView('facets')} size="md">Facets</Pill>
+            <Pill hue="neutral" selected={view === 'list'} onClick={() => setView('list')} size="md">List</Pill>
+          </div>
+        </div>
 
-          {isLoading ? (
-            <p style={{ color: c.textMuted, fontSize: '12px' }}>Loading...</p>
-          ) : entries.length === 0 ? (
-            <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6' }}>
-              Nothing confirmed yet. As you check in, develop ideas, and zoom out over time, the
-              system may occasionally ask if a pattern it&apos;s noticed feels true — what you confirm
-              shows up here.
+        {isLoading ? (
+          <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+        ) : entries.length === 0 ? (
+          <Card>
+            <p style={{ ...typeRoles.ui, color: t.textSecondary }}>
+              Nothing confirmed yet. As you check in, develop ideas, write and zoom out, the system may occasionally ask if a pattern it has noticed feels true. What you confirm shows up here.
             </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {grouped.map(({ kind, items }, groupIndex) => (
-                <motion.div
-                  key={kind}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1 + groupIndex * 0.05, ease: 'easeOut' }}
-                  style={{
-                    backgroundColor: c.cardBg,
-                    boxShadow: c.shadow,
-                    borderRadius: '22px',
-                    padding: '20px',
-                  }}
-                >
-                  <p style={{ ...eyebrowStyle, marginBottom: '4px' }}>{KIND_LABELS[kind]}</p>
-                  <div>
-                    {items.map((entry, index) => (
-                      <div
-                        key={entry.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          gap: '16px',
-                          padding: '16px 0',
-                          borderBottom: index < items.length - 1 ? `1px solid ${c.divider}` : 'none',
-                        }}
-                      >
-                        <p style={{ color: c.textPrimary, fontSize: '14px', lineHeight: '1.6', margin: 0, flex: 1 }}>
-                          {entry.statement}
-                        </p>
-                        <button
-                          onClick={() => handleRetire(entry.id)}
-                          disabled={retiringId === entry.id}
-                          style={{
-                            fontSize: '11px',
-                            color: c.textMuted,
-                            background: 'none',
-                            border: 'none',
-                            cursor: retiringId === entry.id ? 'not-allowed' : 'pointer',
-                            whiteSpace: 'nowrap',
-                            opacity: retiringId === entry.id ? 0.5 : 1,
-                            padding: 0,
-                            transition: 'color 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = '#f87171'
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
-                          }}
-                        >
-                          {retiringId === entry.id ? 'Retiring...' : 'Forget this'}
-                        </button>
-                      </div>
-                    ))}
+          </Card>
+        ) : view === 'facets' ? (
+          <Card padding="32px 24px">
+            <FacetCloud facets={facets} />
+          </Card>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {grouped.map(({ kind, items }) => (
+              <Card key={kind}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t[KIND_HUE[kind]] }} />
+                  <Eyebrow>{KIND_LABELS[kind]}</Eyebrow>
+                </div>
+                {items.map((entry, index) => (
+                  <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '16px 0', borderBottom: index < items.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
+                      <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 4 }}>
+                        Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
+                      </p>
+                    </div>
+                    <GhostButton size="sm" onClick={() => handleRetire(entry.id)} disabled={retiringId === entry.id} loading={retiringId === entry.id} loadingLabel="Forgetting…">Forget this</GhostButton>
                   </div>
-                </motion.div>
-              ))}
+                ))}
+              </Card>
+            ))}
+          </div>
+        )}
+      </Container>
+
+      {selected && (
+        <ModalDialog
+          onClose={() => setSelected(null)}
+          title={KIND_LABELS[selected.kind]}
+          subtitle={<span>Reinforced {selected.reinforcement_count}× · last {formatDateAsRelative(selected.last_reinforced_at)}</span>}
+          maxWidth="520px"
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <GhostButton onClick={() => setSelected(null)}>Close</GhostButton>
+              <DangerButton onClick={() => handleRetire(selected.id)} loading={retiringId === selected.id} loadingLabel="Forgetting…">Forget this</DangerButton>
             </div>
-          )}
-        </motion.div>
-      </div>
-    </div>
+          }
+        >
+          <Card>
+            <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{selected.statement}</p>
+            <Divider style={{ margin: '16px 0 12px' }} />
+            <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
+              This facet adapts which questions the companion asks and when it challenges you. It never changes its tone.
+            </p>
+          </Card>
+        </ModalDialog>
+      )}
+    </PageShell>
   )
 }

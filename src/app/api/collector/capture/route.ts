@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { analyzeLink, type LinkContent } from "@/lib/link-analysis";
 import { withLanguage } from "@/lib/language";
+import { getUserTerritories, territoryKeyUnion, territoryPromptList } from "@/lib/territories-server";
+import { resolveTerritoryKey } from "@/lib/territories";
 
 interface CaptureRequest {
   raw_input: string;
@@ -60,7 +62,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CaptureRe
 
     // If a URL was shared, pull the real content signals — platform, caption,
     // author, thumbnail — so the capture interprets the content itself.
-    const link = body.url?.trim() ? await analyzeLink(body.url.trim()) : null;
+    const [link, territories] = await Promise.all([
+      body.url?.trim() ? analyzeLink(body.url.trim()) : Promise.resolve(null),
+      getUserTerritories(auth),
+    ]);
 
     const hasLinkContent = !!link && !!(link.title || link.description || link.imageBase64);
 
@@ -70,7 +75,8 @@ Your task:
 1. Unpack into 1-2 sentences that name the core idea or observation—what's actually being said underneath the surface
 2. Keep the original voice and tone intact; this is not a rewrite
 3. Infer the arc: Breakaway, Beginning, Expansion, or Integration
-4. Infer the thematic territory: creativity_devotion_curiosity, healthy_masculinity_emotional_regulation, inner_child_tending_expression, or slow_living_life_in_service
+4. Infer the thematic territory — one of this person's own territories (return the key exactly):
+${territoryPromptList(territories)}
 
 When unpacking, be direct and tender:
 - Name the real thing (the contradiction, the weight, the curiosity underneath)
@@ -88,7 +94,7 @@ Format your response as JSON:
 {
   "unpacked": "1-2 sentence clarification of the core idea",
   "arc": "Breakaway" | "Beginning" | "Expansion" | "Integration",
-  "thematic_territory": "creativity_devotion_curiosity" | "healthy_masculinity_emotional_regulation" | "inner_child_tending_expression" | "slow_living_life_in_service"${
+  "thematic_territory": ${territoryKeyUnion(territories)}${
     hasLinkContent ? `,\n  "content_read": "2-3 sentence interpretation of the shared content and its format"` : ""
   }
 }`;
@@ -148,7 +154,7 @@ Format your response as JSON:
           raw_input: body.raw_input,
           unpacked: analysis.unpacked,
           arc: analysis.arc,
-          thematic_territory: analysis.thematic_territory,
+          thematic_territory: resolveTerritoryKey(analysis.thematic_territory, territories),
           status: "captured",
           url: body.url || null,
           link_context: linkContext,

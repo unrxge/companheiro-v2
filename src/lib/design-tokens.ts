@@ -161,8 +161,8 @@ export const motion = {
 } as const
 
 export const fonts = {
-  /** Fraunces — only for the person's words and the companion's words. */
-  display: 'var(--font-fraunces), "Iowan Old Style", "Palatino Linotype", Georgia, serif',
+  /** Geist everywhere (decision 2026-09-07: no serif). Display roles differ by weight and size, not face. */
+  display: 'var(--font-geist-sans), Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
   /** Geist — everything the interface says. */
   ui: 'var(--font-geist-sans), Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
   mono: 'var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace',
@@ -172,20 +172,18 @@ export const fonts = {
 export const type: Record<'display' | 'h2' | 'h3' | 'quote' | 'ui' | 'small' | 'eyebrow' | 'mono', CSSProperties> = {
   display: {
     fontFamily: fonts.display,
-    fontWeight: 400,
-    fontSize: 'clamp(30px, 5vw, 44px)',
-    lineHeight: 1.02,
-    letterSpacing: '-0.02em',
-    fontVariationSettings: '"opsz" 144, "SOFT" 40',
+    fontWeight: 700,
+    fontSize: 'clamp(28px, 5vw, 40px)',
+    lineHeight: 1.05,
+    letterSpacing: '-0.025em',
     margin: 0,
   },
   h2: {
     fontFamily: fonts.display,
-    fontWeight: 400,
-    fontSize: 'clamp(22px, 3vw, 28px)',
-    lineHeight: 1.1,
-    letterSpacing: '-0.015em',
-    fontVariationSettings: '"opsz" 96, "SOFT" 30',
+    fontWeight: 600,
+    fontSize: 'clamp(20px, 3vw, 26px)',
+    lineHeight: 1.15,
+    letterSpacing: '-0.02em',
     margin: 0,
   },
   h3: {
@@ -196,14 +194,13 @@ export const type: Record<'display' | 'h2' | 'h3' | 'quote' | 'ui' | 'small' | '
     letterSpacing: '-0.01em',
     margin: 0,
   },
+  /** The person's own words, or the companion's: medium weight, a little larger, never a label. */
   quote: {
     fontFamily: fonts.display,
-    fontStyle: 'italic',
-    fontWeight: 400,
-    fontSize: '20px',
-    lineHeight: 1.35,
-    letterSpacing: '-0.01em',
-    fontVariationSettings: '"opsz" 48, "SOFT" 60',
+    fontWeight: 500,
+    fontSize: '18px',
+    lineHeight: 1.45,
+    letterSpacing: '-0.015em',
     margin: 0,
   },
   ui: { fontFamily: fonts.ui, fontWeight: 400, fontSize: '15px', lineHeight: 1.55, margin: 0 },

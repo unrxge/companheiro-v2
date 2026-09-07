@@ -25,15 +25,15 @@ function energyIndexFor(word?: string): number {
 
 type Style = CSSProperties & Record<string, string | number | undefined>
 
-// Dreamy pastel washes — each swap drags the whole scene to a different
-// emotional register. Picked at random on every click, anywhere.
+// Deep hues drifting on the ink shell — one per meaning colour, so a palette
+// swap reads as a change of mood, not a change of product. Picked at random
+// on every click, anywhere on the scene.
 const PALETTES: { bg: string; ink: string; muted: string; accent: string; blobs: [string, string, string] }[] = [
-  { bg: '#f5eefc', ink: '#6b3fa0', muted: '#a78bc4', accent: '#8b5cf6', blobs: ['#c4b5fd', '#93c5fd', '#f5d0fe'] },
-  { bg: '#fdf1f4', ink: '#9d174d', muted: '#c17a95', accent: '#ec4899', blobs: ['#fecdd3', '#fbcfe8', '#fde68a'] },
-  { bg: '#eef6fb', ink: '#0c4a6e', muted: '#5b8aa6', accent: '#0ea5e9', blobs: ['#bae6fd', '#a5f3fc', '#c7d2fe'] },
-  { bg: '#eefaf3', ink: '#065f46', muted: '#5fa98c', accent: '#10b981', blobs: ['#99f6e4', '#bbf7d0', '#ddd6fe'] },
-  { bg: '#fdf6e9', ink: '#92400e', muted: '#c99a5b', accent: '#f59e0b', blobs: ['#fde68a', '#fed7aa', '#fbcfe8'] },
-  { bg: '#eef0fb', ink: '#3730a3', muted: '#8785c9', accent: '#6366f1', blobs: ['#c7d2fe', '#ddd6fe', '#bae6fd'] },
+  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#e0674a', blobs: ['#6f2a1a', '#3a2a1a', '#1e3b5c'] },
+  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#39a875', blobs: ['#2d5a3a', '#1e3b5c', '#3a2a1a'] },
+  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#8a7cea', blobs: ['#3a2a6a', '#1e3b5c', '#2d3a5a'] },
+  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#bf8a30', blobs: ['#5a3f14', '#6f2a1a', '#2d3a2a'] },
+  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#4f9ad6', blobs: ['#1e3b5c', '#2d5a3a', '#3a2a6a'] },
 ]
 
 const KEYFRAMES = `
@@ -50,42 +50,35 @@ const KEYFRAMES = `
 }
 `
 
-const glassBase: Style = {
-  backdropFilter: 'blur(22px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(22px) saturate(180%)',
-  border: '1px solid rgba(255,255,255,0.6)',
-  boxShadow:
-    '0 8px 32px rgba(31,38,135,0.14), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -8px 16px -8px rgba(255,255,255,0.4)',
+// Paper on coal — the same surface language as every other screen, no glass.
+const cardBase: Style = {
+  backgroundColor: '#231f1b',
+  boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)',
+  border: 'none',
 }
 
 function glassPill(tinted = false): Style {
   return {
-    ...glassBase,
-    backgroundColor: tinted ? 'color-mix(in srgb, var(--accent) 40%, white 68%)' : 'rgba(255,255,255,0.4)',
+    ...cardBase,
+    backgroundColor: tinted ? 'var(--accent)' : '#231f1b',
+    color: tinted ? '#ffffff' : undefined,
     borderRadius: '9999px',
   }
 }
 
 function glassCard(): Style {
   return {
-    ...glassBase,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    ...cardBase,
     borderRadius: '28px',
   }
 }
 
 function headingGlow(): Style {
-  return {
-    color: 'var(--ink)',
-    textShadow: '0 0 2px currentColor, 0 0 22px currentColor, 0 0 48px currentColor',
-  }
+  return { color: 'var(--ink)' }
 }
 
 function bodyGlow(): Style {
-  return {
-    color: 'var(--ink)',
-    textShadow: '0 0 14px currentColor',
-  }
+  return { color: 'var(--ink)' }
 }
 
 function ReimagineContent() {
@@ -523,7 +516,7 @@ function ReimagineContent() {
             }`}
             style={{
               ...glassPill(isRecording),
-              boxShadow: isRecording ? `${glassBase.boxShadow}, 0 0 24px var(--accent)` : glassBase.boxShadow,
+              boxShadow: isRecording ? `${cardBase.boxShadow}, 0 0 24px var(--accent)` : cardBase.boxShadow,
             }}
           >
             <span

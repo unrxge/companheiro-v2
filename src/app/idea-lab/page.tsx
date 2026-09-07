@@ -3,21 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion as m, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
-import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
-import { IconButton } from '@/components/ui/icon-button'
-import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
+import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
+import { TextArea } from '@/components/ui/field'
+import { Pill } from '@/components/ui/pill'
+import { MicButton } from '@/components/ui/mic-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
-
-type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
-
-type PredefinedSlot = { type: 'predefined'; key: string }
-type CustomSlot    = { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[] }
-type TerritorySlot = PredefinedSlot | CustomSlot | null
-
-const MAX_SLOTS = 8
+import { UnderlineLink } from '@/components/ui/underline-link'
+import { useTerritories } from '@/hooks/useTerritories'
+import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
 
 interface Capture {
   id: string
@@ -36,76 +34,28 @@ const ARC_DEFINITIONS: Record<Arc, string> = {
   Integration: 'Synthesis, wholeness, bringing it together',
 }
 
-// Per-arc accent colors — shown only when selected, telling a story about each direction.
-const ARC_ACCENT: Record<Arc, string> = {
-  Breakaway:   '#a53f2b', // coral — disruption has heat
-  Beginning:   '#2a7a5c', // deep emerald — fresh starts, new life
-  Expansion:   '#5f4fa0', // muted indigo — depth, breadth of vision
-  Integration: '#8a6820', // warm amber-earth — synthesis, wholeness
-}
-
-// Short display labels and accent colors for the 4 predefined territories.
-const TERRITORY_SHORT: Record<string, string> = {
-  creativity_devotion_curiosity:            'Creativity & Devotion',
-  healthy_masculinity_emotional_regulation: 'Healthy Masculinity',
-  inner_child_tending_expression:           'Inner Child',
-  slow_living_life_in_service:              'Slow Living',
-}
-const TERRITORY_LABELS: Record<string, string> = {
-  creativity_devotion_curiosity:            'Creativity, devotion & curiosity',
-  healthy_masculinity_emotional_regulation: 'Healthy masculinity & emotional regulation',
-  inner_child_tending_expression:           'Inner child tending & expression',
-  slow_living_life_in_service:              'Slow living & life in service',
-}
-const TERRITORY_ACCENT: Record<string, string> = {
-  creativity_devotion_curiosity:            '#a53f2b',
-  healthy_masculinity_emotional_regulation: '#2a5f80',
-  inner_child_tending_expression:           '#8a6820',
-  slow_living_life_in_service:              '#2a7a5c',
-}
-
-function slotLabel(s: PredefinedSlot | CustomSlot): string {
-  return s.type === 'predefined' ? (TERRITORY_SHORT[s.key] || s.key) : s.label
-}
-function slotAccent(s: PredefinedSlot | CustomSlot): string {
-  return s.type === 'predefined' ? (TERRITORY_ACCENT[s.key] || accentColor) : accentColor
-}
-
-const DEFAULT_SLOTS: TerritorySlot[] = [
-  { type: 'predefined', key: 'creativity_devotion_curiosity' },
-  { type: 'predefined', key: 'healthy_masculinity_emotional_regulation' },
-  { type: 'predefined', key: 'inner_child_tending_expression' },
-  { type: 'predefined', key: 'slow_living_life_in_service' },
-]
-
 const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const
 type EnergyLevel = (typeof ENERGY_LEVELS)[number]
-const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = {
-  heavy: 'Heavy', low: 'Low', steady: 'Steady', light: 'Light', bright: 'Bright',
-}
+const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = { heavy: 'Heavy', low: 'Low', steady: 'Steady', light: 'Light', bright: 'Bright' }
 
 export default function IdeaLabPage() {
   const router = useRouter()
-  const { theme, toggle } = useCardTheme('light')
-  const c = cardPalette[theme]
+  const { t } = useTheme()
+  const territories = useTerritories()
+  const { slots: territorySlots, loaded: territoriesLoaded, save: saveTerritoryConfig } = territories
 
   const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
   const [skipArcs, setSkipArcs] = useState(false)
   const [useRandomArcs, setUseRandomArcs] = useState(false)
 
-  // Territory config — up to MAX_SLOTS slots; null = empty (deletable/addable)
-  const [territorySlots, setTerritorySlots] = useState<TerritorySlot[]>(DEFAULT_SLOTS)
-  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true)
   const [selectedTerritoryKeys, setSelectedTerritoryKeys] = useState<string[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
 
-  // Delete UX
   const [hoveringTerritoryKey, setHoveringTerritoryKey] = useState<string | null>(null)
   const [mobileDeleteKey, setMobileDeleteKey] = useState<string | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
-  // Add-theme UX
   const [addingInSlot, setAddingInSlot] = useState<number | null>(null)
   const [newThemeInput, setNewThemeInput] = useState('')
   const [generatingMapKey, setGeneratingMapKey] = useState<string | null>(null)
@@ -118,12 +68,10 @@ export default function IdeaLabPage() {
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // "Start from scratch" inline expansion — idle → choosing → importing
   type ScratchState = 'idle' | 'choosing' | 'importing'
   const [scratchState, setScratchState] = useState<ScratchState>('idle')
   const [importText, setImportText] = useState('')
   const importTextRef = useRef('')
-  // Keep ref in sync so the dictation hook's getContext always sees latest value
   importTextRef.current = importText
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -141,36 +89,13 @@ export default function IdeaLabPage() {
       .finally(() => setIsLoadingCaptures(false))
   }, [])
 
-  useEffect(() => {
-    fetch('/api/idea-lab/territories')
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data.slots)) setTerritorySlots(data.slots) })
-      .catch((err) => console.error('Failed to load territories:', err))
-      .finally(() => setIsLoadingTerritories(false))
-  }, [])
-
-  const saveTerritoryConfig = (slots: TerritorySlot[]) => {
-    fetch('/api/idea-lab/territories', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slots }),
-    }).catch((err) => console.error('Failed to save territories:', err))
-  }
-
   // ── Arc handlers ──────────────────────────────────────────────────────────
-
-  const toggleArc = (arc: Arc) => {
-    setSelectedArcs((prev) =>
-      prev.includes(arc) ? prev.filter((a) => a !== arc) : [...prev, arc]
-    )
-  }
-
+  const toggleArc = (arc: Arc) => setSelectedArcs((prev) => (prev.includes(arc) ? prev.filter((a) => a !== arc) : [...prev, arc]))
   const handleRandomArcs = () => {
     const next = !useRandomArcs
     setUseRandomArcs(next)
     if (next) { setSkipArcs(false); setSelectedArcs([]) }
   }
-
   const handleSkipArcs = () => {
     const next = !skipArcs
     setSkipArcs(next)
@@ -178,29 +103,22 @@ export default function IdeaLabPage() {
   }
 
   // ── Territory handlers ────────────────────────────────────────────────────
-
-  const handleTerritoryPillClick = (slot: PredefinedSlot | CustomSlot) => {
+  const handleTerritoryPillClick = (slot: FilledSlot) => {
     if (skipTerritories) return
     const isSelected = selectedTerritoryKeys.includes(slot.key)
-
-    // Mobile: second tap on a selected pill shows the delete X for 4s
     if (isTouchDevice && isSelected && mobileDeleteKey !== slot.key) {
       setMobileDeleteKey(slot.key)
       if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
       deleteTimerRef.current = setTimeout(() => setMobileDeleteKey(null), 4000)
       return
     }
-
-    setSelectedTerritoryKeys((prev) =>
-      prev.includes(slot.key) ? prev.filter((k) => k !== slot.key) : [...prev, slot.key]
-    )
+    setSelectedTerritoryKeys((prev) => (prev.includes(slot.key) ? prev.filter((k) => k !== slot.key) : [...prev, slot.key]))
   }
 
   const handleDeleteTerritory = (index: number) => {
     const slot = territorySlots[index]
     const next = [...territorySlots] as TerritorySlot[]
     next[index] = null
-    setTerritorySlots(next)
     if (slot) setSelectedTerritoryKeys((prev) => prev.filter((k) => k !== slot.key))
     setHoveringTerritoryKey(null)
     setMobileDeleteKey(null)
@@ -208,7 +126,7 @@ export default function IdeaLabPage() {
   }
 
   const handleRandomTerritories = () => {
-    const available = territorySlots.filter((s): s is PredefinedSlot | CustomSlot => s != null)
+    const available = territorySlots.filter(isFilled)
     if (available.length === 0) return
     const count = Math.floor(Math.random() * available.length) + 1
     const shuffled = [...available].sort(() => Math.random() - 0.5)
@@ -225,18 +143,14 @@ export default function IdeaLabPage() {
   const confirmAddTheme = async (index: number) => {
     const label = newThemeInput.trim()
     if (!label) return
-
-    const key = `custom_${Date.now()}`
+    const key = customKey(label)
     const baseSlot: CustomSlot = { type: 'custom', key, label }
     const next = [...territorySlots] as TerritorySlot[]
     next[index] = baseSlot
-
-    setTerritorySlots(next)
     setAddingInSlot(null)
     setNewThemeInput('')
     saveTerritoryConfig(next)
 
-    // Async: generate rich range map + facet seeds and silently upgrade the slot
     setGeneratingMapKey(key)
     try {
       const res = await fetch('/api/idea-lab/territories/generate-map', {
@@ -247,20 +161,10 @@ export default function IdeaLabPage() {
       const data = await res.json()
       if (data.rangeMap && data.facetSeeds) {
         const enriched: CustomSlot = { ...baseSlot, rangeMap: data.rangeMap, facetSeeds: data.facetSeeds }
-        setTerritorySlots((prev) => {
-          const updated = [...prev] as TerritorySlot[]
-          const idx = updated.findIndex((s) => s?.key === key)
-          if (idx !== -1) updated[idx] = enriched
-          return updated
-        })
-        saveTerritoryConfig(
-          ((prev: TerritorySlot[]) => {
-            const updated = [...prev] as TerritorySlot[]
-            const idx = updated.findIndex((s) => s?.key === key)
-            if (idx !== -1) updated[idx] = enriched
-            return updated
-          })(next)
-        )
+        const updated = [...next] as TerritorySlot[]
+        const idx = updated.findIndex((s) => s?.key === key)
+        if (idx !== -1) updated[idx] = enriched
+        saveTerritoryConfig(updated)
       }
     } catch (err) {
       console.error('Failed to generate range map:', err)
@@ -278,14 +182,11 @@ export default function IdeaLabPage() {
       setError('Skipping arcs needs a territory — select one or use random')
       return
     }
-
     setIsGenerating(true)
     setError(null)
-
     try {
       const payload: Record<string, unknown> = { energy: energyLevel, impersonal }
       if (generatedPrompt) payload.previousPrompt = generatedPrompt
-
       if (skipArcs) payload.arcs = null
       else if (useRandomArcs) payload.randomArcs = true
       else payload.arcs = selectedArcs
@@ -293,28 +194,15 @@ export default function IdeaLabPage() {
       if (skipTerritories) {
         payload.territories = null
       } else if (selectedTerritoryKeys.length > 0) {
-        const selectedSlots = selectedTerritoryKeys
-          .map((key) => territorySlots.find((s) => s?.key === key))
-          .filter((s): s is PredefinedSlot | CustomSlot => s != null)
+        const selectedSlots = selectedTerritoryKeys.map((key) => territorySlots.find((s) => s?.key === key) ?? null).filter(isFilled)
         payload.territories = selectedSlots.map((s) =>
           s.type === 'predefined'
             ? s.key
-            : {
-                key: s.key,
-                label: s.label,
-                custom: true as const,
-                ...(s.rangeMap ? { rangeMap: s.rangeMap } : {}),
-                ...(s.facetSeeds ? { facetSeeds: s.facetSeeds } : {}),
-              }
+            : { key: s.key, label: s.label, custom: true as const, ...(s.rangeMap ? { rangeMap: s.rangeMap } : {}), ...(s.facetSeeds ? { facetSeeds: s.facetSeeds } : {}) }
         )
       }
 
-      const res = await fetch('/api/idea-lab/prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
+      const res = await fetch('/api/idea-lab/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
       if (data.prompt) {
         setGeneratedPrompt(data.prompt)
@@ -330,1214 +218,352 @@ export default function IdeaLabPage() {
     }
   }
 
-  const isGenerateDisabled =
-    (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
+  const isGenerateDisabled = (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
 
   // ── Import dictation ──────────────────────────────────────────────────────
-
-  const {
-    isRecording: isImportRecording,
-    interimText,
-    handleRecordToggle: handleImportRecordToggle,
-    stopRecording: stopImportRecording,
-    clearInterim,
-  } = useDictation({
+  const { isRecording: isImportRecording, interimText, handleRecordToggle: handleImportRecordToggle, stopRecording: stopImportRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setImportText((prev) => prev + (prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '') + text)
     }, []),
     getContext: () => importTextRef.current.slice(-80),
   })
 
-  // ── Style helpers ──────────────────────────────────────────────────────────
-
-  const eyebrow: React.CSSProperties = {
-    fontFamily: 'var(--font-geist-sans)',
-    fontSize: '11px',
-    fontWeight: 600,
-    color: c.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
-    display: 'block',
-    margin: 0,
+  const closeImport = () => {
+    if (isImportRecording) stopImportRecording()
+    setScratchState('idle')
+    setImportText('')
+    clearInterim()
   }
 
-  // Content pills for arc/territory — each gets its own accent when selected.
-  const contentPill = (active: boolean, muted: boolean, activeColor: string): React.CSSProperties => ({
-    padding: '7px 14px',
-    borderRadius: '999px',
-    border: `1px solid ${active ? 'transparent' : c.inputBorder}`,
-    backgroundColor: active ? activeColor : 'transparent',
-    color: active ? '#fff' : c.textSecondary,
-    fontSize: '12px',
-    fontWeight: active ? 600 : 400,
-    cursor: muted ? 'default' : 'pointer',
-    opacity: muted && !active ? 0.35 : 1,
-    transition: 'all 0.15s ease',
-    lineHeight: 1,
-    flexShrink: 0,
-  })
-
-  const hdivider: React.CSSProperties = {
-    height: '1px',
-    backgroundColor: c.divider,
-    margin: '20px -24px',
-    flexShrink: 0,
+  const submitImport = () => {
+    if (!importText.trim()) return
+    if (isImportRecording) stopImportRecording()
+    sessionStorage.setItem('conceptualisation_conversation', JSON.stringify([{ role: 'user' as const, content: importText.trim() }]))
+    sessionStorage.setItem('bring_idea_flow', 'true')
+    router.push('/idea-lab/core-concept')
   }
+
+  const textLink = (onClick: () => void, label: string, active = false) => (
+    <button onClick={onClick} style={{ background: 'none', border: 'none', padding: '3px 0', color: active ? t.textPrimary : t.textMuted, ...typeRoles.small, fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
+      {label}
+    </button>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
+    <PageShell mood="ember">
+      <style>{`
+        .idea-lab-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: stretch; }
+        @media (max-width: 800px) { .idea-lab-grid { grid-template-columns: 1fr; } }
+        .idea-lab-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+        .idea-lab-carousel::-webkit-scrollbar { display: none; }
+        .idea-lab-carousel-card { flex: 0 0 calc(33.33% - 8px); min-width: 0; scroll-snap-align: start; }
+        @media (max-width: 800px) { .idea-lab-carousel-card { flex: 0 0 calc(72% - 6px); } }
+        .idea-lab-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; background: linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant}); outline: none; cursor: pointer; width: 100%; display: block; }
+        .idea-lab-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.28); border: 2px solid ${t.textPrimary}; }
+        .idea-lab-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; border: 2px solid ${t.textPrimary}; box-shadow: 0 1px 4px rgba(0,0,0,0.28); }
+      `}</style>
 
-      {/* Shell header */}
-      <div style={{
-        maxWidth: 1200,
-        margin: '0 auto',
-        width: '100%',
-        padding: '28px 28px 0',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <IconButton onClick={() => router.push('/project-board')} ariaLabel="Back to Project Board">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8L10 13" stroke="#e8e6e0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </IconButton>
-          <div>
-            <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '11px', fontWeight: 600, color: '#6e6c67', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>
-              Companheiro
-            </p>
-            <h1 style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '22px', fontWeight: 700, color: '#e8e6e0', margin: '2px 0 0', lineHeight: 1.1 }}>
-              Idea Lab
-            </h1>
-          </div>
-        </div>
-        <ThemeToggleButton theme={theme} onToggle={toggle} />
-      </div>
+      <PageHeader eyebrow="Companheiro" title="Idea Lab" subtitle="Configure the lens, summon a question, or bring an idea you already have." />
 
-      {/* Container panel */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        style={{
-          flex: 1,
-          maxWidth: 1200,
-          margin: '16px auto 0',
-          width: '100%',
-          padding: '0 28px',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{
-          flex: 1,
-          backgroundColor: c.containerBg,
-          boxShadow: c.containerShadow,
-          borderRadius: '28px 28px 0 0',
-          padding: '28px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          transition: 'background-color 0.3s ease',
-        }}>
-
-          {/* ── Main grid: Lens + Stage ── */}
-          <div className="idea-lab-grid">
-
-            {/* Left — The Lens */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.08, ease: 'easeOut' }}
-              style={{
-                backgroundColor: c.cardBg,
-                boxShadow: c.shadow,
-                borderRadius: '22px',
-                padding: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'background-color 0.3s ease',
-              }}
-            >
-
-              {/* Arc */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={eyebrow}>Arc</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {/* Random/Skip: no border, text-style, standard hover */}
-                    <motion.button
-                      onClick={handleRandomArcs}
-                      whileHover={{ opacity: 0.65 }}
-                      whileTap={{ scale: 0.95 }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '3px 0',
-                        color: useRandomArcs ? c.textPrimary : c.textMuted,
-                        fontSize: '11px',
-                        fontWeight: useRandomArcs ? 600 : 400,
-                        cursor: 'pointer',
-                        letterSpacing: '0.01em',
-                      }}
-                    >
-                      Random
-                    </motion.button>
-                    <span style={{ color: c.divider, fontSize: '11px', alignSelf: 'center' }}>·</span>
-                    <motion.button
-                      onClick={handleSkipArcs}
-                      whileHover={{ opacity: 0.65 }}
-                      whileTap={{ scale: 0.95 }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '3px 0',
-                        color: skipArcs ? c.textPrimary : c.textMuted,
-                        fontSize: '11px',
-                        fontWeight: skipArcs ? 600 : 400,
-                        cursor: 'pointer',
-                        letterSpacing: '0.01em',
-                      }}
-                    >
-                      Skip
-                    </motion.button>
-                  </div>
+      <Container>
+        <div className="idea-lab-grid">
+          {/* ── The Lens ── */}
+          <Card padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Eyebrow>Arc</Eyebrow>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {textLink(handleRandomArcs, 'Random', useRandomArcs)}
+                  {textLink(handleSkipArcs, 'Skip', skipArcs)}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-                  {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
-                    <button
-                      key={arc}
-                      onClick={() => !useRandomArcs && !skipArcs && toggleArc(arc)}
-                      title={ARC_DEFINITIONS[arc]}
-                      style={contentPill(selectedArcs.includes(arc), useRandomArcs || skipArcs, ARC_ACCENT[arc])}
-                    >
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, opacity: useRandomArcs || skipArcs ? 0.4 : 1, transition: 'opacity 0.15s' }}>
+                {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
+                  <span key={arc} title={ARC_DEFINITIONS[arc]}>
+                    <Pill hue={arcHue[arc]} selected={selectedArcs.includes(arc)} onClick={() => !useRandomArcs && !skipArcs && toggleArc(arc)} size="md">
                       {arc}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={hdivider} />
-
-              {/* Territory */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={eyebrow}>Territory</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <motion.button
-                      onClick={handleRandomTerritories}
-                      whileHover={{ opacity: 0.65 }}
-                      whileTap={{ scale: 0.95 }}
-                      style={{
-                        background: 'none', border: 'none', padding: '3px 0',
-                        color: c.textMuted, fontSize: '11px', fontWeight: 400,
-                        cursor: 'pointer', letterSpacing: '0.01em',
-                      }}
-                    >
-                      Random
-                    </motion.button>
-                    <span style={{ color: c.divider, fontSize: '11px', alignSelf: 'center' }}>·</span>
-                    <motion.button
-                      onClick={handleSkipTerritories}
-                      whileHover={{ opacity: 0.65 }}
-                      whileTap={{ scale: 0.95 }}
-                      style={{
-                        background: 'none', border: 'none', padding: '3px 0',
-                        color: skipTerritories ? c.textPrimary : c.textMuted,
-                        fontSize: '11px', fontWeight: skipTerritories ? 600 : 400,
-                        cursor: 'pointer', letterSpacing: '0.01em',
-                      }}
-                    >
-                      Skip
-                    </motion.button>
-                  </div>
-                </div>
-
-                {!isLoadingTerritories && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', alignItems: 'center' }}>
-                    {territorySlots.map((slot, index) => {
-                      if (!slot) return null
-                      const isSelected = selectedTerritoryKeys.includes(slot.key)
-                      const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
-                      return (
-                        <div
-                          key={slot.key}
-                          style={{ position: 'relative', display: 'inline-flex' }}
-                          onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)}
-                          onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}
-                        >
-                          <button
-                            onClick={() => handleTerritoryPillClick(slot)}
-                            title={slot.type === 'predefined' ? (TERRITORY_LABELS[slot.key] || slot.key) : slot.label}
-                            style={contentPill(isSelected, skipTerritories, slotAccent(slot))}
-                          >
-                            {slotLabel(slot)}
-                            {generatingMapKey === slot.key && (
-                              <span style={{ marginLeft: '5px', opacity: 0.5, fontSize: '10px' }}>·</span>
-                            )}
-                          </button>
-                          <AnimatePresence>
-                            {showX && (
-                              <motion.button
-                                key="x"
-                                initial={{ opacity: 0, scale: 0.6 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.6 }}
-                                transition={{ duration: 0.12 }}
-                                onClick={(e) => { e.stopPropagation(); handleDeleteTerritory(index) }}
-                                aria-label={`Remove ${slotLabel(slot)}`}
-                                style={{
-                                  position: 'absolute', top: -6, right: -6,
-                                  width: 16, height: 16, borderRadius: '50%',
-                                  background: c.textPrimary, color: c.containerBg,
-                                  border: 'none', cursor: 'pointer', padding: 0,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  fontSize: '8px', fontWeight: 700, lineHeight: 1, zIndex: 10,
-                                }}
-                              >
-                                ✕
-                              </motion.button>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      )
-                    })}
-
-                    {/* Inline input when adding a new theme */}
-                    {addingInSlot !== null && (
-                      <input
-                        key="adding"
-                        autoFocus
-                        value={newThemeInput}
-                        onChange={(e) => setNewThemeInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newThemeInput.trim()) confirmAddTheme(addingInSlot)
-                          if (e.key === 'Escape') { setAddingInSlot(null); setNewThemeInput('') }
-                        }}
-                        onBlur={() => { setAddingInSlot(null); setNewThemeInput('') }}
-                        placeholder="Theme name..."
-                        style={{
-                          padding: '6px 13px', borderRadius: '999px',
-                          border: `1px solid ${accentColor}`,
-                          background: c.inputBg, color: c.textPrimary,
-                          fontSize: '12px', outline: 'none', lineHeight: 1,
-                          width: '130px', flexShrink: 0,
-                        }}
-                      />
-                    )}
-
-                    {/* Add theme button — only when under max and not currently adding */}
-                    {addingInSlot === null && territorySlots.filter(Boolean).length < MAX_SLOTS && (
-                      <button
-                        onClick={() => {
-                          const nextIndex = territorySlots.findIndex(s => s === null)
-                          setAddingInSlot(nextIndex !== -1 ? nextIndex : territorySlots.length)
-                          setNewThemeInput('')
-                        }}
-                        className="idea-lab-empty-pill"
-                        style={{
-                          padding: '7px 14px', borderRadius: '999px',
-                          border: `1.5px dashed ${c.textMuted}`,
-                          backgroundColor: 'transparent', color: c.textMuted,
-                          fontSize: '12px', fontWeight: 400, cursor: 'pointer',
-                          opacity: 0.45, lineHeight: 1, flexShrink: 0,
-                          transition: 'opacity 0.15s ease',
-                        }}
-                      >
-                        + Add theme
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div style={hdivider} />
-
-              {/* Energy */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={eyebrow}>Energy</span>
-                  <span style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '12px', fontWeight: 600, color: c.textPrimary }}>
-                    {ENERGY_LEVEL_LABELS[energyLevel]}
+                    </Pill>
                   </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={4}
-                  value={energyIndex}
-                  onChange={(e) => setEnergyIndex(Number(e.target.value))}
-                  className="idea-lab-range"
-                  style={{ width: '100%', display: 'block' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '7px' }}>
-                  <span style={{ fontSize: '10px', color: c.textMuted }}>Heavy</span>
-                  <span style={{ fontSize: '10px', color: c.textMuted }}>Bright</span>
+                ))}
+              </div>
+            </div>
+
+            <Divider />
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Eyebrow>Territory</Eyebrow>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {textLink(handleRandomTerritories, 'Random')}
+                  {textLink(handleSkipTerritories, 'Skip', skipTerritories)}
                 </div>
               </div>
-
-              <div style={hdivider} />
-
-              {/* Question Mode */}
-              <div>
-                <span style={{ ...eyebrow, marginBottom: '12px' }}>Question Mode</span>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  borderRadius: '11px',
-                  border: `1px solid ${c.inputBorder}`,
-                  overflow: 'hidden',
-                }}>
-                  <button
-                    onClick={() => setImpersonal(true)}
-                    style={{
-                      padding: '9px 12px',
-                      border: 'none',
-                      borderRight: `1px solid ${c.inputBorder}`,
-                      backgroundColor: impersonal ? c.textPrimary : 'transparent',
-                      color: impersonal ? c.containerBg : c.textMuted,
-                      fontSize: '12px',
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={() => setImpersonal(false)}
-                    style={{
-                      padding: '9px 12px',
-                      border: 'none',
-                      backgroundColor: !impersonal ? c.textPrimary : 'transparent',
-                      color: !impersonal ? c.containerBg : c.textMuted,
-                      fontSize: '12px',
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    Charged
-                  </button>
-                </div>
-                <p style={{ fontSize: '11px', color: c.textMuted, margin: '8px 0 0', lineHeight: 1.45 }}>
-                  {impersonal
-                    ? 'Spacious — wide, many directions, no single right answer'
-                    : 'Direct — positions you as the only authority on the answer'}
-                </p>
-              </div>
-
-            </motion.div>
-
-            {/* Right — The Stage */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.14, ease: 'easeOut' }}
-              style={{
-                backgroundColor: c.cardBg,
-                boxShadow: c.shadow,
-                borderRadius: '22px',
-                display: 'flex',
-                flexDirection: 'column',
-                position: 'relative',
-                overflow: 'hidden',
-                transition: 'background-color 0.3s ease',
-              }}
-            >
-              <AnimatePresence mode="wait">
-                {scratchState === 'importing' ? (
-                  /* Bring an idea — full Stage takeover */
-                  <motion.div
-                    key="importing"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: '36px',
-                      gap: '20px',
-                    }}
-                  >
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <p style={{ ...eyebrow, marginBottom: '4px' }}>Bring an idea</p>
-                        <p style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '13px',
-                          color: c.textMuted,
-                          margin: 0,
-                          lineHeight: 1.5,
-                        }}>
-                          Describe what you already know — the angle, the feeling, what it&apos;s really about.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); clearInterim() }}
-                        style={{
-                          flexShrink: 0,
-                          marginLeft: '16px',
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '13px',
-                          color: c.textMuted,
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          opacity: 0.5,
-                          padding: 0,
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div style={{ height: '1px', backgroundColor: c.divider, flexShrink: 0 }} />
-
-                    {/* Spacious textarea — shows confirmed + live interim text */}
-                    <textarea
-                      autoFocus
-                      value={importText + (interimText ? (importText && !importText.endsWith(' ') && !importText.endsWith('\n') ? ' ' : '') + interimText : '')}
-                      onChange={(e) => {
-                        clearInterim()
-                        setImportText(e.target.value)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') { if (isImportRecording) stopImportRecording(); setScratchState('idle'); setImportText(''); clearInterim() }
-                      }}
-                      placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore..."
-                      style={{
-                        flex: 1,
-                        width: '100%',
-                        backgroundColor: c.inputBg,
-                        border: `1px solid ${c.inputBorder}`,
-                        borderRadius: '14px',
-                        padding: '18px 20px',
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '15px',
-                        color: c.textPrimary,
-                        outline: 'none',
-                        resize: 'none',
-                        lineHeight: 1.7,
-                        boxSizing: 'border-box',
-                        minHeight: '180px',
-                      }}
-                    />
-
-                    {/* Dictation + submit row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                      {/* Mic button */}
-                      <button
-                        onClick={handleImportRecordToggle}
-                        aria-label={isImportRecording ? 'Stop dictation' : 'Dictate your idea'}
-                        title={isImportRecording ? 'Stop dictation' : 'Dictate your idea'}
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: isImportRecording ? '8px' : '50%',
-                          border: isImportRecording ? 'none' : `1px solid ${c.inputBorder}`,
-                          background: isImportRecording ? c.textPrimary : c.inputBg,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        {isImportRecording ? (
-                          /* Stop square */
-                          <span style={{ display: 'block', width: 12, height: 12, background: c.containerBg, borderRadius: 2 }} />
-                        ) : (
-                          /* Mic dot */
-                          <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="5" y="1" width="6" height="10" rx="3" fill={c.textMuted} />
-                            <path d="M2 9a6 6 0 0 0 12 0" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                            <line x1="8" y1="15" x2="8" y2="19" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-                            <line x1="5" y1="19" x2="11" y2="19" stroke={c.textMuted} strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        )}
-                      </button>
-
-                      {/* Submit */}
-                      <button
-                        onClick={() => {
-                          if (!importText.trim()) return
-                          if (isImportRecording) stopImportRecording()
-                          const syntheticConversation = [
-                            { role: 'user' as const, content: importText.trim() },
-                          ]
-                          sessionStorage.setItem(
-                            'conceptualisation_conversation',
-                            JSON.stringify(syntheticConversation)
-                          )
-                          sessionStorage.setItem('bring_idea_flow', 'true')
-                          router.push('/idea-lab/core-concept')
-                        }}
-                        disabled={!importText.trim()}
-                        style={{
-                          flex: 1,
-                          padding: '14px',
-                          borderRadius: '12px',
-                          border: 'none',
-                          backgroundColor: c.textPrimary,
-                          color: c.containerBg,
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          cursor: !importText.trim() ? 'not-allowed' : 'pointer',
-                          opacity: !importText.trim() ? 0.25 : 1,
-                          transition: 'opacity 0.15s ease',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        Build core concept →
-                      </button>
-                    </div>
-                    {isImportRecording && (
-                      <p style={{ textAlign: 'center', fontSize: '11px', color: c.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '-8px' }}>
-                        Listening…
-                      </p>
-                    )}
-                  </motion.div>
-                ) : !generatedPrompt ? (
-                  /* Empty — expectant */
-                  <motion.div
-                    key="empty"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '64px 52px',
-                      textAlign: 'center',
-                      gap: '32px',
-                    }}
-                  >
-                    <div>
-                      <p style={{
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '26px',
-                        fontWeight: 500,
-                        color: c.textPrimary,
-                        margin: '0 0 10px',
-                        lineHeight: 1.25,
-                        letterSpacing: '-0.03em',
-                      }}>
-                        The question is waiting.
-                      </p>
-                      <p style={{
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '14px',
-                        color: c.textMuted,
-                        margin: 0,
-                        lineHeight: 1.5,
-                      }}>
-                        Configure your lens, then summon it.
-                      </p>
-                    </div>
-
-                    {error && (
-                      <div style={{
-                        backgroundColor: 'rgba(239,68,68,0.07)',
-                        border: '1px solid rgba(239,68,68,0.18)',
-                        borderRadius: '10px',
-                        padding: '10px 16px',
-                        maxWidth: '340px',
-                        width: '100%',
-                      }}>
-                        <p style={{ fontSize: '12px', color: '#ef4444', margin: 0 }}>{error}</p>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                      <motion.button
-                        onClick={handleGeneratePrompt}
-                        disabled={isGenerateDisabled}
-                        whileHover={isGenerateDisabled ? {} : { opacity: 0.85 }}
-                        whileTap={isGenerateDisabled ? {} : { scale: 0.97 }}
-                        style={{
-                          padding: '14px 44px',
-                          borderRadius: '14px',
-                          border: 'none',
-                          backgroundColor: isGenerateDisabled ? c.inputBg : accentColor,
-                          color: isGenerateDisabled ? c.textMuted : '#ffffff',
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '15px',
-                          fontWeight: 600,
-                          cursor: isGenerateDisabled ? 'not-allowed' : 'pointer',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        {isGenerating ? 'Summoning...' : 'Generate a question →'}
-                      </motion.button>
-
-                      {/* Inline scratch expansion — idle → choosing → importing (full panel) */}
-                      <AnimatePresence mode="wait">
-                        {scratchState === 'idle' && (
-                          <motion.button
-                            key="idle"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
-                            onClick={() => setScratchState('choosing')}
-                            whileHover={{ opacity: 0.65 }}
-                            whileTap={{ scale: 0.97 }}
-                            style={{
-                              fontFamily: 'var(--font-geist-sans)',
-                              fontSize: '12px',
-                              color: c.textMuted,
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                              textUnderlineOffset: '3px',
-                            }}
-                          >
-                            Or start from scratch
-                          </motion.button>
-                        )}
-
-                        {scratchState === 'choosing' && (
-                          <motion.div
-                            key="choosing"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-                          >
-                            <motion.button
-                              onClick={() => router.push('/idea-lab/conceptualise')}
-                              whileHover={{ opacity: 0.65 }}
-                              style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                fontSize: '12px',
-                                color: c.textMuted,
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                textDecoration: 'underline',
-                                textUnderlineOffset: '3px',
-                              }}
-                            >
-                              Write fresh
-                            </motion.button>
-                            <span style={{ color: c.divider, fontSize: '11px' }}>·</span>
-                            <motion.button
-                              onClick={() => setScratchState('importing')}
-                              whileHover={{ opacity: 0.65 }}
-                              style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                fontSize: '12px',
-                                color: c.textMuted,
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                textDecoration: 'underline',
-                                textUnderlineOffset: '3px',
-                              }}
-                            >
-                              Bring an idea
-                            </motion.button>
-                            <span style={{ color: c.divider, fontSize: '11px' }}>·</span>
-                            <motion.button
-                              onClick={() => setScratchState('idle')}
-                              whileHover={{ opacity: 0.65 }}
-                              style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                fontSize: '11px',
-                                color: c.textMuted,
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                opacity: 0.5,
-                              }}
+              {territoriesLoaded && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', opacity: skipTerritories ? 0.4 : 1, transition: 'opacity 0.15s' }}>
+                  {territorySlots.map((slot, index) => {
+                    if (!slot) return null
+                    const isSelected = selectedTerritoryKeys.includes(slot.key)
+                    const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
+                    return (
+                      <div key={slot.key} style={{ position: 'relative', display: 'inline-flex' }} onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)} onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}>
+                        <span title={slotLabel(slot)}>
+                          <Pill hue={territories.hue(slot.key)} selected={isSelected} onClick={() => handleTerritoryPillClick(slot)} size="md">
+                            {slotShort(slot)}
+                            {generatingMapKey === slot.key && <span style={{ opacity: 0.6 }}>·</span>}
+                          </Pill>
+                        </span>
+                        <AnimatePresence>
+                          {showX && (
+                            <m.button
+                              key="x"
+                              initial={{ opacity: 0, scale: 0.6 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.6 }}
+                              transition={{ duration: 0.12 }}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTerritory(index) }}
+                              aria-label={`Remove ${slotShort(slot)}`}
+                              style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: t.inverseBg, color: t.inverseText, border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, lineHeight: 1, zIndex: 10 }}
                             >
                               ✕
-                            </motion.button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
-                ) : (
-                  /* Active — the question is here */
-                  <motion.div
-                    key="active"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="idea-lab-response-active"
-                  style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                      <span style={{ ...eyebrow, paddingTop: '2px' }}>Your question</span>
-                      {/* Legible text button — no longer a tiny icon */}
-                      <motion.button
-                        onClick={handleGeneratePrompt}
-                        disabled={isGenerating}
-                        whileHover={isGenerating ? {} : { opacity: 0.65 }}
-                        whileTap={isGenerating ? {} : { scale: 0.96 }}
-                        style={{
-                          flexShrink: 0,
-                          padding: '5px 12px',
-                          borderRadius: '999px',
-                          border: `1px solid ${c.inputBorder}`,
-                          backgroundColor: 'transparent',
-                          color: c.textMuted,
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '11px',
-                          fontWeight: 500,
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating ? 0.4 : 1,
-                          letterSpacing: '0.01em',
-                        }}
-                      >
-                        {isGenerating ? 'Asking...' : 'Ask again'}
-                      </motion.button>
-                    </div>
+                            </m.button>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )
+                  })}
 
-                    <p style={{
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontSize: '22px',
-                      fontWeight: 500,
-                      color: c.textPrimary,
-                      margin: 0,
-                      lineHeight: 1.5,
-                      letterSpacing: '-0.025em',
-                    }}>
-                      {generatedPrompt}
-                    </p>
+                  {addingInSlot !== null && (
+                    <input
+                      key="adding"
+                      // eslint-disable-next-line jsx-a11y/no-autofocus
+                      autoFocus
+                      value={newThemeInput}
+                      onChange={(e) => setNewThemeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newThemeInput.trim()) confirmAddTheme(addingInSlot)
+                        if (e.key === 'Escape') { setAddingInSlot(null); setNewThemeInput('') }
+                      }}
+                      onBlur={() => { setAddingInSlot(null); setNewThemeInput('') }}
+                      placeholder="Theme name…"
+                      aria-label="New theme"
+                      style={{ padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.ember}`, background: t.inputBg, color: t.textPrimary, fontSize: 12, outline: 'none', lineHeight: 1, width: 140, flexShrink: 0 }}
+                    />
+                  )}
 
-                    <div style={{ height: '1px', backgroundColor: c.divider }} />
-
-                    <div>
-                      <span style={{ ...eyebrow, marginBottom: '10px' }}>Write your response</span>
-                      <textarea
-                        value={responseText}
-                        onChange={(e) => {
-                          setResponseText(e.target.value)
-                          e.target.style.height = 'auto'
-                          e.target.style.height = e.target.scrollHeight + 'px'
-                        }}
-                        placeholder="Begin here..."
-                        rows={1}
-                        className="idea-lab-textarea"
-                        style={{
-                          width: '100%',
-                          backgroundColor: c.inputBg,
-                          border: `1px solid ${c.inputBorder}`,
-                          borderRadius: '12px',
-                          padding: '14px 16px',
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '16px',
-                          color: c.textPrimary,
-                          outline: 'none',
-                          resize: 'none',
-                          overflowY: 'auto',
-                          maxHeight: '140px',
-                          lineHeight: 1.65,
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-
+                  {addingInSlot === null && territorySlots.filter(Boolean).length < MAX_TERRITORY_SLOTS && (
                     <button
                       onClick={() => {
-                        if (responseText.trim()) {
-                          const params = new URLSearchParams({ seed: responseText })
-                          if (generatedPrompt) params.set('question', generatedPrompt)
-                          router.push(`/idea-lab/conceptualise?${params.toString()}`)
-                        }
+                        const nextIndex = territorySlots.findIndex((s) => s === null)
+                        setAddingInSlot(nextIndex !== -1 ? nextIndex : territorySlots.length)
+                        setNewThemeInput('')
                       }}
-                      disabled={!responseText.trim()}
-                      style={{
-                        width: '100%',
-                        padding: '14px',
-                        borderRadius: '12px',
-                        border: 'none',
-                        backgroundColor: c.textPrimary,
-                        color: c.containerBg,
-                        fontFamily: 'var(--font-geist-sans)',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: !responseText.trim() ? 'not-allowed' : 'pointer',
-                        opacity: !responseText.trim() ? 0.25 : 1,
-                        transition: 'opacity 0.15s ease',
-                        letterSpacing: '-0.01em',
-                      }}
+                      style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px dashed ${t.textMuted}`, backgroundColor: 'transparent', color: t.textMuted, fontSize: 12, cursor: 'pointer', opacity: 0.6, lineHeight: 1, flexShrink: 0 }}
                     >
-                      Begin conceptualisation →
+                      + Add theme
                     </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-          </div>
-
-          {/* ── The Well: Capture Bank as horizontal carousel ── */}
-          {!isLoadingCaptures && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2, ease: 'easeOut' }}
-              style={{
-                backgroundColor: c.cardBg,
-                boxShadow: c.shadow,
-                borderRadius: '22px',
-                padding: '24px',
-                transition: 'background-color 0.3s ease',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
-                <span style={eyebrow}>Capture Bank</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Link
-                    href="/collector"
-                    style={{
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontSize: '11px',
-                      color: accentColor,
-                      textDecoration: 'none',
-                      letterSpacing: '0.01em',
-                    }}
-                  >
-                    Open Collector →
-                  </Link>
-                  <span style={{ fontSize: '11px', color: c.textMuted }}>
-                    {captures.length} {captures.length === 1 ? 'item' : 'items'}
-                  </span>
-                </div>
-              </div>
-
-              {captures.length === 0 ? (
-                <p style={{ fontFamily: 'var(--font-geist-sans)', fontSize: '13px', color: c.textMuted, lineHeight: 1.5, margin: 0 }}>
-                  No captures yet.{' '}
-                  <Link href="/collector" style={{ color: accentColor, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
-                    Start with Collector →
-                  </Link>
-                </p>
-              ) : (
-                /* Horizontal carousel — 3 visible + 4th fades out */
-                <div style={{ position: 'relative' }}>
-                  <div className="idea-lab-carousel">
-                    {captures.map((capture) => (
-                      <motion.div
-                        key={capture.id}
-                        className="idea-lab-carousel-card"
-                        onClick={() => setSelectedCapture(capture)}
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                        style={{
-                          backgroundColor: c.cardBgInner,
-                          borderRadius: '14px',
-                          padding: '16px 18px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          flexShrink: 0,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <p style={{
-                          fontFamily: 'var(--font-geist-sans)',
-                          fontSize: '13px',
-                          color: c.textPrimary,
-                          margin: 0,
-                          lineHeight: 1.55,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 4,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}>
-                          {capture.raw_input}
-                        </p>
-                        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            {capture.arc && (
-                              <span style={{ fontSize: '10px', color: c.textMuted, fontFamily: 'var(--font-geist-sans)' }}>
-                                {capture.arc}
-                              </span>
-                            )}
-                            {capture.arc && capture.thematic_territory && (
-                              <span style={{ fontSize: '10px', color: c.divider }}>·</span>
-                            )}
-                            {capture.thematic_territory && (
-                              <span style={{ fontSize: '10px', color: c.textMuted, fontFamily: 'var(--font-geist-sans)' }}>
-                                {TERRITORY_SHORT[capture.thematic_territory] || capture.thematic_territory}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)
-                            }}
-                            style={{
-                              fontFamily: 'var(--font-geist-sans)',
-                              fontSize: '12px',
-                              color: accentColor,
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: 0,
-                              textAlign: 'left',
-                            }}
-                          >
-                            Develop this →
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Fade overlay — only shown when there are more than 3 captures */}
-                  {captures.length > 3 && (
-                    <div
-                      aria-hidden
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: '120px',
-                        background: `linear-gradient(to right, transparent, ${c.cardBg})`,
-                        pointerEvents: 'none',
-                        borderRadius: '0 14px 14px 0',
-                      }}
-                    />
                   )}
                 </div>
               )}
-            </motion.div>
-          )}
+            </div>
 
+            <Divider />
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <Eyebrow>Energy</Eyebrow>
+                <span style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: t.textPrimary }}>{ENERGY_LEVEL_LABELS[energyLevel]}</span>
+              </div>
+              <input type="range" min={0} max={4} value={energyIndex} onChange={(e) => setEnergyIndex(Number(e.target.value))} className="idea-lab-range" aria-label="Energy" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 7 }}>
+                <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Heavy</span>
+                <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Bright</span>
+              </div>
+            </div>
+
+            <Divider />
+
+            <div>
+              <Eyebrow style={{ marginBottom: 12 }}>Question mode</Eyebrow>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderRadius: radius.field, border: `1px solid ${t.inputBorder}`, overflow: 'hidden' }}>
+                {[{ v: true, l: 'Open' }, { v: false, l: 'Charged' }].map(({ v, l }) => (
+                  <button key={l} onClick={() => setImpersonal(v)} aria-pressed={impersonal === v} style={{ padding: '9px 12px', border: 'none', backgroundColor: impersonal === v ? t.inverseBg : 'transparent', color: impersonal === v ? t.inverseText : t.textMuted, ...typeRoles.small, fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s ease' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 8 }}>
+                {impersonal ? 'Spacious — wide, many directions, no single right answer' : 'Direct — positions you as the only authority on the answer'}
+              </p>
+            </div>
+          </Card>
+
+          {/* ── The Stage ── */}
+          <Card padding={0} style={{ display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+            <AnimatePresence mode="wait">
+              {scratchState === 'importing' ? (
+                <m.div key="importing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 'clamp(20px, 4vw, 36px)', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div>
+                      <Eyebrow style={{ marginBottom: 4 }}>Bring an idea</Eyebrow>
+                      <p style={{ ...typeRoles.small, color: t.textMuted }}>Describe what you already know: the angle, the feeling, what it&apos;s really about.</p>
+                    </div>
+                    <GhostButton size="sm" onClick={closeImport}>Cancel</GhostButton>
+                  </div>
+                  <Divider />
+                  <TextArea
+                    autoFocus
+                    voice
+                    value={importText + (interimText ? (importText && !importText.endsWith(' ') && !importText.endsWith('\n') ? ' ' : '') + interimText : '')}
+                    onChange={(v) => { clearInterim(); setImportText(v) }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') closeImport() }}
+                    placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore…"
+                    ariaLabel="Your idea"
+                    minRows={7}
+                    maxHeight={480}
+                    style={{ fontSize: 15, lineHeight: 1.7, padding: '16px 18px', borderRadius: radius.widget }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <MicButton recording={isImportRecording} onToggle={handleImportRecordToggle} size={44} />
+                    <QuietButton onClick={submitImport} disabled={!importText.trim()} full size="lg">Build core concept →</QuietButton>
+                  </div>
+                  {isImportRecording && <p style={{ ...typeRoles.eyebrow, color: t.textMuted, textAlign: 'center', marginTop: -6 }}>Listening…</p>}
+                </m.div>
+              ) : !generatedPrompt ? (
+                <m.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'clamp(40px, 8vw, 64px) clamp(20px, 5vw, 52px)', textAlign: 'center', gap: 28 }}>
+                  <div>
+                    <p style={{ ...typeRoles.h2, fontSize: 'clamp(22px, 3.4vw, 28px)', color: t.textPrimary, marginBottom: 10 }}>The question is waiting.</p>
+                    <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted }}>Configure your lens, then summon it.</p>
+                  </div>
+                  {error && (
+                    <div style={{ backgroundColor: t.soft.danger, borderRadius: radius.field, padding: '10px 16px', maxWidth: 340, width: '100%' }}>
+                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                    <PrimaryButton onClick={handleGeneratePrompt} disabled={isGenerateDisabled} loading={isGenerating} loadingLabel="Summoning…" size="lg">
+                      Generate a question →
+                    </PrimaryButton>
+                    <AnimatePresence mode="wait">
+                      {scratchState === 'idle' && (
+                        <m.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                          <UnderlineLink onClick={() => setScratchState('choosing')} color={t.textMuted}>Or start from scratch</UnderlineLink>
+                        </m.div>
+                      )}
+                      {scratchState === 'choosing' && (
+                        <m.div key="choosing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <UnderlineLink onClick={() => router.push('/idea-lab/conceptualise')} color={t.textSecondary}>Write fresh</UnderlineLink>
+                          <span style={{ color: t.divider }}>·</span>
+                          <UnderlineLink onClick={() => setScratchState('importing')} color={t.textSecondary}>Bring an idea</UnderlineLink>
+                          <span style={{ color: t.divider }}>·</span>
+                          <UnderlineLink onClick={() => setScratchState('idle')} color={t.textMuted}>✕</UnderlineLink>
+                        </m.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </m.div>
+              ) : (
+                <m.div key="active" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: 'clamp(20px, 4vw, 36px)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                    <Eyebrow style={{ paddingTop: 4 }}>Your question</Eyebrow>
+                    <GhostButton size="sm" onClick={handleGeneratePrompt} disabled={isGenerating} loading={isGenerating} loadingLabel="Asking…">Ask again</GhostButton>
+                  </div>
+                  <p style={{ ...typeRoles.h2, fontSize: 'clamp(20px, 2.6vw, 24px)', fontWeight: 500, lineHeight: 1.45, color: t.textPrimary }}>{generatedPrompt}</p>
+                  <Divider />
+                  <div>
+                    <Eyebrow style={{ marginBottom: 10 }}>Write your response</Eyebrow>
+                    <TextArea voice value={responseText} onChange={setResponseText} placeholder="Begin here…" ariaLabel="Your response" minRows={2} maxHeight={200} style={{ fontSize: 16 }} />
+                  </div>
+                  <QuietButton
+                    onClick={() => {
+                      if (!responseText.trim()) return
+                      const params = new URLSearchParams({ seed: responseText })
+                      if (generatedPrompt) params.set('question', generatedPrompt)
+                      router.push(`/idea-lab/conceptualise?${params.toString()}`)
+                    }}
+                    disabled={!responseText.trim()}
+                    full
+                    size="lg"
+                  >
+                    Begin conceptualisation →
+                  </QuietButton>
+                </m.div>
+              )}
+            </AnimatePresence>
+          </Card>
         </div>
-      </motion.div>
 
-      <style>{`
-        .idea-lab-grid {
-          display: grid;
-          grid-template-columns: 310px 1fr;
-          gap: 16px;
-          align-items: stretch;
-        }
-        @media (max-width: 800px) {
-          .idea-lab-grid {
-            grid-template-columns: 1fr;
-          }
-        }
+        {/* ── Capture bank ── */}
+        {!isLoadingCaptures && (
+          <Card padding={24} style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+              <Eyebrow>Capture bank</Eyebrow>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Link href="/collector" style={{ ...typeRoles.small, fontSize: 12, color: t.ember, textDecoration: 'none' }}>Open Collector →</Link>
+                <Pill>{captures.length} {captures.length === 1 ? 'item' : 'items'}</Pill>
+              </div>
+            </div>
+            {captures.length === 0 ? (
+              <p style={{ ...typeRoles.small, color: t.textMuted }}>
+                No captures yet. <Link href="/collector" style={{ color: t.ember }}>Start with Collector →</Link>
+              </p>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <div className="idea-lab-carousel">
+                  {captures.map((capture) => (
+                    <m.div key={capture.id} className="idea-lab-carousel-card" onClick={() => setSelectedCapture(capture)} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} style={{ backgroundColor: t.cardBgInner, borderRadius: radius.widget, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}>
+                      <p style={{ ...typeRoles.small, color: t.textPrimary, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{capture.raw_input}</p>
+                      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                          {capture.arc && <Pill hue={arcHue[capture.arc as Arc] ?? 'ember'} dot>{capture.arc}</Pill>}
+                          {capture.thematic_territory && <Pill hue={territories.hue(capture.thematic_territory)}>{territories.short(capture.thematic_territory)}</Pill>}
+                        </div>
+                        <UnderlineLink onClick={() => router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(capture.unpacked)}`)} color={t.ember}>Develop this →</UnderlineLink>
+                      </div>
+                    </m.div>
+                  ))}
+                </div>
+                {captures.length > 3 && <div aria-hidden style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 100, background: `linear-gradient(to right, transparent, ${t.cardBg})`, pointerEvents: 'none' }} />}
+              </div>
+            )}
+          </Card>
+        )}
+      </Container>
 
-        /* Horizontal carousel — exactly 3 cards visible, scroll for more */
-        .idea-lab-carousel {
-          display: flex;
-          gap: 12px;
-          overflow-x: auto;
-          scroll-snap-type: x mandatory;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-          padding-bottom: 2px;
-        }
-        .idea-lab-carousel::-webkit-scrollbar {
-          display: none;
-        }
-        /* flex: 0 0 <basis> is the reliable way to fix card width in an
-           overflowing flex container — percentage on min-width resolves
-           differently and stretches when few items are present. */
-        .idea-lab-carousel-card {
-          flex: 0 0 calc(33.33% - 8px);
-          min-width: 0;
-          scroll-snap-align: start;
-        }
-        @media (max-width: 800px) {
-          .idea-lab-carousel-card {
-            flex: 0 0 calc(66.66% - 6px);
-          }
-        }
-
-        /* Response container — desktop gets generous padding; mobile tightens */
-        .idea-lab-response-active {
-          padding: 36px;
-        }
-        @media (max-width: 800px) {
-          .idea-lab-response-active {
-            padding: 20px 16px;
-          }
-        }
-
-        /* Energy slider — purple (heavy) → amber (mid) → green (bright) */
-        .idea-lab-range {
-          -webkit-appearance: none;
-          appearance: none;
-          height: 4px;
-          border-radius: 999px;
-          background: linear-gradient(to right, #8B5CF6, #F59E0B 50%, #10B981);
-          outline: none;
-          cursor: pointer;
-          width: 100%;
-          display: block;
-        }
-        .idea-lab-range::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #ffffff;
-          cursor: pointer;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.28);
-          border: 2px solid #F59E0B;
-        }
-        .idea-lab-range::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #ffffff;
-          cursor: pointer;
-          border: 2px solid #F59E0B;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.28);
-        }
-        .idea-lab-empty-pill:hover {
-          opacity: 0.7 !important;
-        }
-        .idea-lab-textarea::placeholder {
-          color: ${c.textMuted};
-        }
-        .idea-lab-textarea:focus {
-          border-color: ${accentColor} !important;
-        }
-      `}</style>
-
-      {/* Capture detail modal */}
       {selectedCapture && (
         <ModalDialog
-          theme={theme}
           onClose={() => setSelectedCapture(null)}
           title="Capture"
           subtitle={
             <>
               {selectedCapture.arc && <span>{selectedCapture.arc}</span>}
               {selectedCapture.arc && selectedCapture.thematic_territory && <span>·</span>}
-              {selectedCapture.thematic_territory && (
-                <span>{TERRITORY_SHORT[selectedCapture.thematic_territory] || selectedCapture.thematic_territory}</span>
-              )}
+              {selectedCapture.thematic_territory && <span>{territories.label(selectedCapture.thematic_territory)}</span>}
             </>
           }
-          footer={
-            <motion.button
-              onClick={() =>
-                router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(selectedCapture.unpacked)}`)
-              }
-              whileHover={{ opacity: 0.82 }}
-              whileTap={{ scale: 0.98 }}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: accentColor,
-                color: '#ffffff',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 600,
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              Develop this →
-            </motion.button>
-          }
+          footer={<PrimaryButton onClick={() => router.push(`/idea-lab/conceptualise?seed=${encodeURIComponent(selectedCapture.unpacked)}`)} full>Develop this →</PrimaryButton>}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {selectedCapture.raw_input && (
-              <div>
-                <p style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  color: c.textSecondary,
-                  margin: '0 0 8px',
-                }}>What I captured</p>
-                <p style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontSize: '15px',
-                  color: c.textPrimary,
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}>
-                  {selectedCapture.raw_input}
-                </p>
-              </div>
+              <Card padding={16}>
+                <Eyebrow style={{ marginBottom: 8 }}>What I captured</Eyebrow>
+                <p style={{ ...typeRoles.ui, color: t.textPrimary }}>{selectedCapture.raw_input}</p>
+              </Card>
             )}
-
             {selectedCapture.url && (
-              <div style={{ paddingTop: '12px', borderTop: `1px solid ${c.divider}` }}>
-                <p style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  color: c.textSecondary,
-                  margin: '0 0 6px',
-                }}>Source</p>
-                <a
-                  href={selectedCapture.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontFamily: 'var(--font-geist-sans)',
-                    fontSize: '13px',
-                    color: accentColor,
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {selectedCapture.url}
-                </a>
-              </div>
+              <Card padding={16}>
+                <Eyebrow style={{ marginBottom: 6 }}>Source</Eyebrow>
+                <a href={selectedCapture.url} target="_blank" rel="noopener noreferrer" style={{ ...typeRoles.small, color: t.ember, wordBreak: 'break-all' }}>{selectedCapture.url}</a>
+              </Card>
             )}
-
             {selectedCapture.unpacked && (
-              <div style={{ paddingTop: '12px', borderTop: `1px solid ${c.divider}` }}>
-                <p style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  color: c.textSecondary,
-                  margin: '0 0 8px',
-                }}>Analysis</p>
-                <p style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontSize: '14px',
-                  color: c.textSecondary,
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}>
-                  {selectedCapture.unpacked}
-                </p>
-              </div>
+              <Card padding={16}>
+                <Eyebrow style={{ marginBottom: 8 }}>Analysis</Eyebrow>
+                <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>{selectedCapture.unpacked}</p>
+              </Card>
             )}
           </div>
         </ModalDialog>
       )}
-    </div>
+    </PageShell>
   )
 }

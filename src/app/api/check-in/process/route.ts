@@ -6,8 +6,10 @@ import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
 
-function inferCheckInType(transcript: string): 'morning' | 'after_work' | 'evening' | 'moment' {
-  const hour = new Date().getHours()
+// `localHour` is the person's own clock (sent by the client). The server runs
+// in UTC on Vercel, so its hour would be wrong for almost everyone.
+function inferCheckInType(transcript: string, localHour: number): 'morning' | 'after_work' | 'evening' | 'moment' {
+  const hour = localHour
   const lower = transcript.toLowerCase()
 
   if (lower.includes('dream') || lower.includes('woke') || lower.includes('slept') || hour < 11) {
@@ -60,7 +62,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { transcript } = await request.json()
+    const { transcript, local_hour } = await request.json()
+    const localHour =
+      typeof local_hour === 'number' && local_hour >= 0 && local_hour <= 23 ? local_hour : new Date().getHours()
 
     if (!transcript?.trim()) {
       return NextResponse.json({ error: 'transcript is required' }, { status: 400 })
@@ -90,7 +94,7 @@ Arc texture guide:
 - Expansion: building momentum, going deeper, multiplying ideas
 - Integration: consolidating, reflecting, letting things settle`
 
-    const inferredType = inferCheckInType(transcript)
+    const inferredType = inferCheckInType(transcript, localHour)
 
     return streamClaudeText(
       {

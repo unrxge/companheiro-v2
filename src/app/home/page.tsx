@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { motion } from 'motion/react'
-import { useCardTheme } from '@/hooks/useCardTheme'
-import { cardPalette, shellBackground, accentColor } from '@/lib/card-theme'
+import { useCallback, useEffect, useState, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion as m } from 'motion/react'
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
+import { QuietButton, GhostButton, PrimaryButton } from '@/components/ui/buttons'
+import { TextField } from '@/components/ui/field'
 import { UnderlineLink } from '@/components/ui/underline-link'
-import { IconButton } from '@/components/ui/icon-button'
-import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
+import { SettingsButton } from '@/components/settings/settings-sheet'
+import { ModalDialog } from '@/components/ui/modal-dialog'
+import { ProportionBar, StageRibbon, WeatherStrip } from '@/components/widgets'
+import { journeyStepFromStage, JOURNEY_LABELS, shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
+import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn } from '@/lib/check-in-signals'
 
 interface ActivePiece {
   id: string
@@ -21,15 +27,24 @@ interface RecentCapture {
   arc: string
 }
 
+interface Letter {
+  id: string | null
+  week_start: string
+  body: string
+  created_at: string
+  read_at: string | null
+}
+
 function HomeContent() {
-  const { theme, toggle } = useCardTheme('light')
-  const c = cardPalette[theme]
+  const { t } = useTheme()
+  const router = useRouter()
 
   const [activePieces, setActivePieces] = useState<ActivePiece[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
   const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(null)
 
+  const [checkIns, setCheckIns] = useState<StoredCheckIn[]>([])
   const [recentCaptures, setRecentCaptures] = useState<RecentCapture[]>([])
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [captureUrl, setCaptureUrl] = useState('')
@@ -38,34 +53,48 @@ function HomeContent() {
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [justCaptured, setJustCaptured] = useState(false)
 
-  useEffect(() => {
-    const hour = new Date().getHours()
-    const greetingText = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-    setGreeting(greetingText)
-  }, [])
+  const [letterState, setLetterState] = useState<{ optedIn: boolean; letter: Letter | null }>({ optedIn: false, letter: null })
+  const [letterOpen, setLetterOpen] = useState(false)
+  const [writingLetter, setWritingLetter] = useState(false)
 
   useEffect(() => {
-    const fetchActivePieces = async () => {
+    const hour = new Date().getHours()
+    setGreeting(hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
+  }, [])
+
+  // First run: seed the territories before anything else.
+  useEffect(() => {
+    fetch('/api/onboarding')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.onboarded === false) router.replace('/welcome')
+      })
+      .catch(() => {})
+  }, [router])
+
+  useEffect(() => {
+    const load = async () => {
       try {
-        const res = await fetch('/api/project-board/pieces')
-        const data = await res.json()
+        const [piecesRes, historyRes] = await Promise.all([fetch('/api/project-board/pieces'), fetch('/api/check-in/history')])
+        const data = await piecesRes.json()
+        const history = await historyRes.json()
         setActivePieces((data.active || []).slice(0, 5))
         setPieceCounts({
           active: (data.active || []).length,
           queue: (data.queue || []).length + (data.draftCount ?? 0),
           completed: (data.archived || []).length,
         })
+        setCheckIns(history.checkIns || [])
       } catch (err) {
-        console.error('Failed to fetch active pieces:', err)
+        console.error('Failed to load home:', err)
       } finally {
         setIsLoading(false)
       }
     }
-
-    fetchActivePieces()
+    load()
   }, [])
 
-  const fetchRecentCaptures = async () => {
+  const fetchRecentCaptures = useCallback(async () => {
     try {
       const res = await fetch('/api/idea-lab/captures')
       const data = await res.json()
@@ -75,42 +104,63 @@ function HomeContent() {
     } finally {
       setIsLoadingCaptures(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchRecentCaptures()
+  }, [fetchRecentCaptures])
+
+  useEffect(() => {
+    fetch(`/api/letter?tz_offset=${new Date().getTimezoneOffset()}`)
+      .then((r) => r.json())
+      .then((d) => setLetterState({ optedIn: !!d.optedIn, letter: d.letter ?? null }))
+      .catch(() => {})
   }, [])
+
+  const writeLetter = async () => {
+    setWritingLetter(true)
+    try {
+      const res = await fetch(`/api/letter?tz_offset=${new Date().getTimezoneOffset()}&generate=1`)
+      const d = await res.json()
+      if (d.letter) {
+        setLetterState({ optedIn: true, letter: d.letter })
+        setLetterOpen(true)
+      }
+    } finally {
+      setWritingLetter(false)
+    }
+  }
+
+  const openLetter = () => {
+    setLetterOpen(true)
+    const l = letterState.letter
+    if (l?.id && !l.read_at) {
+      fetch('/api/letter', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: l.id }) }).catch(() => {})
+      setLetterState((s) => (s.letter ? { ...s, letter: { ...s.letter, read_at: new Date().toISOString() } } : s))
+    }
+  }
 
   const handleQuickCapture = async () => {
     const note = captureNote.trim()
     const url = captureUrl.trim()
     const rawInput = note || url
-
     if (!rawInput) {
       setCaptureError('Paste a link or add a note')
       return
     }
-
     setIsCapturing(true)
     setCaptureError(null)
-
     try {
       const res = await fetch('/api/collector/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          raw_input: rawInput,
-          url: url || undefined,
-        }),
+        body: JSON.stringify({ raw_input: rawInput, url: url || undefined }),
       })
-
       const data = await res.json()
-
       if (!data.success) {
         setCaptureError(data.error || 'Failed to capture')
         return
       }
-
       setCaptureUrl('')
       setCaptureNote('')
       setJustCaptured(true)
@@ -124,477 +174,183 @@ function HomeContent() {
     }
   }
 
+  const { mood, intensity } = atmosphereFromCheckIns(checkIns)
+  const days = weatherDays(checkIns, 30)
+  const hasWeather = checkIns.length > 0
+  const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
   const greetingWords = greeting.split(' ')
 
-  const eyebrowStyle: React.CSSProperties = {
-    color: c.textSecondary,
-    fontSize: '11px',
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    fontFamily: 'var(--font-geist-sans)',
-    fontWeight: 600,
-    margin: 0,
-  }
-
-  const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
-  const pipelineStats = [
-    { label: 'Queue', value: pieceCounts?.queue ?? 0, color: '#F59E0B' },
-    { label: 'Active', value: pieceCounts?.active ?? 0, color: '#10B981' },
-    { label: 'Completed', value: pieceCounts?.completed ?? 0, color: '#8B5CF6' },
-  ]
-
   return (
-    <div
-      style={{
-        position: 'relative',
-        minHeight: '100vh',
-        background: shellBackground,
-      }}
-    >
-      <div style={{ position: 'relative', padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header: plain text on the shell, no card chrome of its own */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          style={{
-            marginBottom: '32px',
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: '12px',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p
-              style={{
-                color: '#6e6c67',
-                fontSize: '11px',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 600,
-                margin: '0 0 12px',
-              }}
-            >
-              Companheiro
-            </p>
-            <h1
-              style={{
-                color: '#e8e6e0',
-                fontSize: 'clamp(22px, 6vw, 34px)',
-                fontFamily: 'var(--font-geist-sans)',
-                fontWeight: 700,
-                margin: 0,
-                letterSpacing: '-0.02em',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {greetingWords.map((word, i) => (
-                <motion.span
-                  key={i}
-                  style={{ display: 'inline-block', marginRight: '0.28em' }}
-                  initial={{ y: '110%', opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}
-                >
-                  {word}
-                </motion.span>
-              ))}
-            </h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, paddingBottom: '2px' }}>
-            <IconButton href="/portrait" ariaLabel="My portrait">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8e6e0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-              </svg>
-            </IconButton>
-            <ThemeToggleButton theme={theme} onToggle={toggle} />
-          </div>
-        </motion.div>
+    <PageShell mood={mood as Mood} intensity={intensity}>
+      <PageHeader
+        title={
+          <span style={{ display: 'inline-block', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+            {greetingWords.map((word, i) => (
+              <m.span key={i} style={{ display: 'inline-block', marginRight: '0.28em' }} initial={{ y: '110%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}>
+                {word}
+              </m.span>
+            ))}
+          </span>
+        }
+        actions={<SettingsButton />}
+      />
 
-        {/* Container: the panel the header is enveloped by, holding all cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-          style={{
-            backgroundColor: c.containerBg,
-            boxShadow: c.containerShadow,
-            borderRadius: '28px',
-            padding: '24px',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-      {/* Grid: Mobile stacked, Desktop 3-col with left 2/3, right 1/3 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left column: In Progress section */}
-        <motion.div
-          className="md:col-span-2"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-        >
-          <div
-            style={{
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              borderRadius: '22px',
-              padding: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <p style={{ ...eyebrowStyle, marginBottom: '16px' }}>In progress</p>
-
-            {isLoading ? (
-              <p style={{ color: c.textMuted, fontSize: '12px' }}>Loading...</p>
-            ) : activePieces.length === 0 ? (
-              <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6' }}>
-                Nothing in motion yet. Start from the project board.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                {activePieces.map((piece, index) => (
-                  <a
-                    key={piece.id}
-                    href={`/write?piece_id=${piece.id}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '16px 0',
-                      cursor: 'pointer',
-                      textDecoration: 'none',
-                      borderBottom: index < activePieces.length - 1 ? `1px solid ${c.divider}` : 'none',
-                      transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      const el = e.currentTarget as HTMLAnchorElement
-                      el.style.paddingLeft = '8px'
-                    }}
-                    onMouseLeave={(e) => {
-                      const el = e.currentTarget as HTMLAnchorElement
-                      el.style.paddingLeft = '0'
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        backgroundColor: '#10B981',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          color: c.textPrimary,
-                          fontSize: '13px',
-                          margin: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {piece.title}
-                      </p>
-                    </div>
-                    <div
-                      className="hidden md:flex"
-                      style={{
-                        gap: '8px',
-                        alignItems: 'center',
-                        fontSize: '11px',
-                        color: c.textSecondary,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span>{piece.arc}</span>
-                      <span style={{ color: c.textMuted }}>•</span>
-                      <span>{piece.stage}</span>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
-
-            <div
-              style={{
-                paddingTop: activePieces.length > 0 ? '16px' : 0,
-                borderTop: activePieces.length > 0 ? `1px solid ${c.divider}` : 'none',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '16px',
-              }}
-            >
-              <UnderlineLink href="/idea-lab" color={c.textSecondary}>New idea</UnderlineLink>
-              <UnderlineLink href="/project-board" color={c.textSecondary}>View full board →</UnderlineLink>
-            </div>
-          </div>
-
-          {/* Ideas: proportional bar showing how the total splits across Active/Queue/Completed */}
-          <div style={{ marginTop: '24px' }}>
-            <p style={{ ...eyebrowStyle, marginBottom: '14px' }}>Ideas</p>
-            <div
-              style={{
-                display: 'flex',
-                width: '100%',
-                height: '10px',
-                borderRadius: '999px',
-                overflow: 'hidden',
-                backgroundColor: c.divider,
-              }}
-            >
-              {total > 0 &&
-                pipelineStats
-                  .filter((stat) => stat.value > 0)
-                  .map((stat) => (
-                    <div
-                      key={stat.label}
-                      style={{
-                        flexGrow: stat.value,
-                        flexBasis: 0,
-                        backgroundColor: stat.color,
-                        transition: 'flex-grow 0.4s ease',
-                      }}
-                    />
-                  ))}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '16px' }}>
-              {pipelineStats.map((stat) => (
-                <div key={stat.label} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: stat.color,
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-geist-sans)',
-                      fontWeight: 700,
-                      fontSize: '18px',
-                      color: c.textPrimary,
-                    }}
-                  >
-                    {stat.value}
-                  </span>
-                  <span style={{ fontSize: '12px', color: c.textMuted }}>{stat.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Right column: Capture widget */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
-        >
-          <div
-            style={{
-              backgroundColor: c.cardBg,
-              boxShadow: c.shadow,
-              borderRadius: '22px',
-              padding: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-            }}
-          >
-            <p style={eyebrowStyle}>Capture what&apos;s alive</p>
-
-            {/* Quick capture form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-              <input
-                type="url"
-                value={captureUrl}
-                onChange={(e) => setCaptureUrl(e.target.value)}
-                placeholder="Paste a link that inspired you..."
-                style={{
-                  width: '100%',
-                  backgroundColor: c.inputBg,
-                  border: `1px solid ${c.inputBorder}`,
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  fontSize: '13px',
-                  color: c.textPrimary,
-                  outline: 'none',
-                }}
-              />
-              <input
-                type="text"
-                value={captureNote}
-                onChange={(e) => setCaptureNote(e.target.value)}
-                placeholder="What caught your eye? (optional)"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isCapturing) handleQuickCapture()
-                }}
-                style={{
-                  width: '100%',
-                  backgroundColor: c.inputBg,
-                  border: `1px solid ${c.inputBorder}`,
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  fontSize: '13px',
-                  color: c.textPrimary,
-                  outline: 'none',
-                }}
-              />
-              {captureError && (
-                <p style={{ color: '#f87171', fontSize: '11px', margin: 0 }}>{captureError}</p>
-              )}
-              <motion.button
-                onClick={handleQuickCapture}
-                disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())}
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: justCaptured ? '#10B981' : theme === 'light' ? '#171613' : '#e8e6e0',
-                  border: 'none',
-                  borderRadius: '10px',
-                  cursor: isCapturing ? 'not-allowed' : 'pointer',
-                  opacity: isCapturing || (!captureUrl.trim() && !captureNote.trim() && !justCaptured) ? 0.4 : 1,
-                  transition: 'opacity 0.2s ease, background-color 0.2s ease',
-                  color: justCaptured ? '#0f0e0d' : theme === 'light' ? '#f7f6f3' : '#111110',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                }}
-              >
-                {isCapturing ? 'Capturing...' : justCaptured ? 'Captured ✓' : 'Capture'}
-              </motion.button>
-            </div>
-
-            {/* Recent captures */}
-            <div
-              style={{
-                marginTop: '16px',
-                paddingTop: '16px',
-                borderTop: `1px solid ${c.divider}`,
-                display: 'flex',
-                flexDirection: 'column',
-                flex: 1,
-                minHeight: 0,
-              }}
-            >
-              {isLoadingCaptures ? (
-                <p style={{ color: c.textMuted, fontSize: '12px' }}>Loading...</p>
-              ) : recentCaptures.length === 0 ? (
-                <p style={{ color: c.textSecondary, fontSize: '13px', lineHeight: '1.6' }}>
-                  Nothing captured yet.
-                </p>
+      <Container>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Left column */}
+          <div className="md:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Card>
+              <Eyebrow style={{ marginBottom: 16 }}>In progress</Eyebrow>
+              {isLoading ? (
+                <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+              ) : activePieces.length === 0 ? (
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the project board.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto', flex: 1 }}>
-                  {recentCaptures.map((capture, index) => (
-                    <a
-                      key={capture.id}
-                      href="/collector"
-                      style={{
-                        display: 'block',
-                        padding: '10px 0 10px 10px',
-                        marginLeft: '-10px',
-                        borderLeft: '2px solid transparent',
-                        textDecoration: 'none',
-                        borderBottom: index < recentCaptures.length - 1 ? `1px solid ${c.divider}` : 'none',
-                        transition: 'border-color 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLAnchorElement).style.borderLeftColor = accentColor
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLAnchorElement).style.borderLeftColor = 'transparent'
-                      }}
-                    >
-                      <p
-                        style={{
-                          color: c.textPrimary,
-                          fontSize: '12px',
-                          margin: 0,
-                          lineHeight: '1.5',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {activePieces.map((piece, index) => {
+                    const step = journeyStepFromStage(piece.stage)
+                    return (
+                      <a
+                        key={piece.id}
+                        href={`/write?piece_id=${piece.id}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', textDecoration: 'none', borderBottom: index < activePieces.length - 1 ? `1px solid ${t.divider}` : 'none', borderLeft: '2px solid transparent', marginLeft: -12, paddingLeft: 10, transition: 'border-color 0.2s ease' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = t.ember }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = 'transparent' }}
                       >
-                        {capture.raw_input}
-                      </p>
-                      <span style={{ color: c.textSecondary, fontSize: '11px' }}>{capture.arc}</span>
-                    </a>
-                  ))}
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t.verdant, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{piece.title}</p>
+                          <div style={{ marginTop: 6, maxWidth: 220 }}>
+                            <StageRibbon step={step} compact />
+                          </div>
+                        </div>
+                        <span className="hidden md:inline" style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flexShrink: 0 }}>
+                          {piece.arc} · {JOURNEY_LABELS[step]}
+                        </span>
+                      </a>
+                    )
+                  })}
                 </div>
               )}
-
-              <div
-                style={{
-                  paddingTop: '12px',
-                  marginTop: 'auto',
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                }}
-              >
-                <UnderlineLink href="/collector" color={c.textSecondary}>View all captures →</UnderlineLink>
+              <div style={{ paddingTop: 16, borderTop: activePieces.length > 0 ? `1px solid ${t.divider}` : 'none', display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
+                <UnderlineLink href="/idea-lab" color={t.textSecondary}>New idea</UnderlineLink>
+                <UnderlineLink href="/project-board" color={t.textSecondary}>View full board →</UnderlineLink>
               </div>
-            </div>
-          </div>
-        </motion.div>
-        </div>
-        </motion.div>
-      </div>
+            </Card>
 
-      {/* Floating check-in pill button */}
-      <motion.a
-        href="/check-in"
-        aria-label="Start check-in"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        className="fixed bottom-7 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-7"
-        style={{
-          height: '56px',
-          paddingLeft: '22px',
-          paddingRight: '28px',
-          borderRadius: '999px',
-          backgroundColor: '#e8e6e0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          textDecoration: 'none',
-          boxShadow: '0 6px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(232, 230, 224, 0.08)',
-          zIndex: 50,
-          whiteSpace: 'nowrap',
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLAnchorElement
-          el.style.backgroundColor = '#d4d2cd'
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLAnchorElement
-          el.style.backgroundColor = '#e8e6e0'
-        }}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111110" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-          <line x1="12" y1="19" x2="12" y2="23" />
-          <line x1="8" y1="23" x2="16" y2="23" />
-        </svg>
-        <span style={{ fontSize: '15px', fontWeight: 600, color: '#111110', letterSpacing: '-0.01em' }}>
-          Check in
-        </span>
-      </motion.a>
-    </div>
+            <div>
+              <Eyebrow style={{ marginBottom: 14 }}>Ideas</Eyebrow>
+              <ProportionBar
+                segments={[
+                  { label: 'Queue', value: pieceCounts?.queue ?? 0, hue: 'ochre' },
+                  { label: 'Active', value: pieceCounts?.active ?? 0, hue: 'verdant' },
+                  { label: 'Completed', value: pieceCounts?.completed ?? 0, hue: 'violet' },
+                ]}
+                legend={total > 0 || !isLoading}
+              />
+            </div>
+
+            <Card>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 12 }}>
+                <Eyebrow>Inner weather · 30 days</Eyebrow>
+                <UnderlineLink href="/check-in" color={t.textSecondary}>Check in →</UnderlineLink>
+              </div>
+              {hasWeather ? (
+                <WeatherStrip days={days} onSelect={() => router.push('/check-in#history')} />
+              ) : (
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>No check-ins yet. When you do, the last thirty days show here: height is energy, colour is arc.</p>
+              )}
+            </Card>
+          </div>
+
+          {/* Right column: capture */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Card style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <Eyebrow>Capture what&apos;s alive</Eyebrow>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+                <TextField type="url" value={captureUrl} onChange={setCaptureUrl} placeholder="Paste a link that inspired you…" ariaLabel="Link" style={{ fontSize: 13, padding: '10px 12px' }} />
+                <TextField
+                  value={captureNote}
+                  onChange={setCaptureNote}
+                  placeholder="What caught your eye? (optional)"
+                  ariaLabel="Note"
+                  style={{ fontSize: 13, padding: '10px 12px' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isCapturing) handleQuickCapture()
+                  }}
+                />
+                {captureError && <p style={{ ...typeRoles.small, fontSize: 11, color: t.danger }}>{captureError}</p>}
+                <QuietButton onClick={handleQuickCapture} disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())} loading={isCapturing} loadingLabel="Capturing…" full style={justCaptured ? { backgroundColor: t.verdant, color: '#fff' } : undefined}>
+                  {justCaptured ? 'Captured ✓' : 'Capture'}
+                </QuietButton>
+              </div>
+
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.divider}`, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                {isLoadingCaptures ? (
+                  <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+                ) : recentCaptures.length === 0 ? (
+                  <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing captured yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {recentCaptures.map((capture, index) => (
+                      <a
+                        key={capture.id}
+                        href="/collector"
+                        style={{ display: 'block', padding: '10px 0 10px 10px', marginLeft: -10, borderLeft: '2px solid transparent', textDecoration: 'none', borderBottom: index < recentCaptures.length - 1 ? `1px solid ${t.divider}` : 'none', transition: 'border-color 0.2s ease' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = t.ember }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = 'transparent' }}
+                      >
+                        <p style={{ ...typeRoles.small, fontSize: 12, color: t.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{capture.raw_input}</p>
+                        <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>{capture.arc}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <div style={{ paddingTop: 12, marginTop: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
+                  <UnderlineLink href="/collector" color={t.textSecondary}>View all captures →</UnderlineLink>
+                </div>
+              </div>
+            </Card>
+
+            {letterState.optedIn && (
+              <Card>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                  <Eyebrow>The Sunday letter</Eyebrow>
+                  {letterState.letter && !letterState.letter.read_at && <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t.ember, display: 'inline-block' }} aria-label="Unread" />}
+                </div>
+                {letterState.letter ? (
+                  <>
+                    <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{letterState.letter.body}</p>
+                    <div style={{ marginTop: 12 }}>
+                      <GhostButton size="sm" onClick={openLetter}>Read the letter</GhostButton>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ ...typeRoles.small, color: t.textSecondary }}>This week&apos;s letter has not been written yet.</p>
+                    <div style={{ marginTop: 12 }}>
+                      <PrimaryButton size="sm" onClick={writeLetter} loading={writingLetter} loadingLabel="Writing…">Write it now</PrimaryButton>
+                    </div>
+                  </>
+                )}
+              </Card>
+            )}
+          </div>
+        </div>
+      </Container>
+
+      {letterOpen && letterState.letter && (
+        <ModalDialog onClose={() => setLetterOpen(false)} title="The Sunday letter" subtitle={<span>Week of {new Date(letterState.letter.week_start).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}</span>} maxWidth="600px">
+          <Card>
+            {letterState.letter.body.split(/\n{2,}/).map((para, i) => (
+              <p key={i} style={{ ...typeRoles.ui, fontSize: 16, lineHeight: 1.7, color: t.textPrimary, marginBottom: 14 }}>{para}</p>
+            ))}
+            <Divider style={{ margin: '4px 0 12px' }} />
+            <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>Written from your week. You can turn the letter off in Settings.</p>
+          </Card>
+        </ModalDialog>
+      )}
+    </PageShell>
   )
 }
 
@@ -602,16 +358,8 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            background: shellBackground,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <p style={{ color: '#6a6866' }}>Loading...</p>
+        <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: shell.muted }}>Loading…</p>
         </div>
       }
     >

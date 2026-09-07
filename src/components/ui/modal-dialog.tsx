@@ -1,10 +1,16 @@
 'use client'
 
-import { motion, AnimatePresence } from 'motion/react'
-import { cardPalette, type CardTheme } from '@/lib/card-theme'
+import { AnimatePresence, motion as m } from 'motion/react'
+import { useTheme } from '@/components/theme/theme-provider'
+import { IconButton } from '@/components/ui/icon-button'
+import { radius, shell, type as typeRoles, type Theme } from '@/lib/design-tokens'
 
+/**
+ * Centred dialog: dark backdrop, container panel, chrome-less header, optional
+ * footer. Theme comes from the app provider; the old `theme` prop is accepted
+ * and ignored so callers migrate at their own pace.
+ */
 export function ModalDialog({
-  theme,
   onClose,
   title,
   subtitle,
@@ -13,7 +19,7 @@ export function ModalDialog({
   maxWidth = '560px',
   children,
 }: {
-  theme: CardTheme
+  theme?: Theme
   onClose: () => void
   title: string
   subtitle?: React.ReactNode
@@ -22,11 +28,11 @@ export function ModalDialog({
   maxWidth?: string
   children: React.ReactNode
 }) {
-  const c = cardPalette[theme]
+  const { t } = useTheme()
 
   return (
     <AnimatePresence>
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -35,102 +41,57 @@ export function ModalDialog({
         style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 50,
+          zIndex: 70,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '16px',
+          padding: 16,
           backgroundColor: 'rgba(10, 9, 8, 0.82)',
           backdropFilter: 'blur(6px)',
         }}
       >
-        <motion.div
+        <m.div
+          role="dialog"
+          aria-modal="true"
           initial={{ opacity: 0, y: 12, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
           style={{
-            backgroundColor: c.containerBg,
-            boxShadow: c.containerShadow,
-            borderRadius: '24px',
+            backgroundColor: t.containerBg,
+            boxShadow: t.containerShadow,
+            borderRadius: radius.container,
             maxWidth,
             width: '100%',
-            maxHeight: '85vh',
+            maxHeight: '88dvh',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
           }}
         >
-          <div
-            style={{
-              padding: '20px 24px',
-              borderBottom: `1px solid ${c.divider}`,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              gap: '16px',
-              flexShrink: 0,
-            }}
-          >
+          <div style={{ padding: '20px 24px', borderBottom: `1px solid ${t.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexShrink: 0 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h2
-                style={{
-                  fontFamily: 'var(--font-geist-sans)',
-                  fontWeight: 700,
-                  fontSize: '19px',
-                  color: c.textPrimary,
-                  margin: 0,
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                {title}
-              </h2>
-              {subtitle && (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px', color: c.textMuted }}>
-                  {subtitle}
-                </div>
-              )}
+              <h2 style={{ ...typeRoles.h2, fontSize: 20, color: t.textPrimary }}>{title}</h2>
+              {subtitle && <div style={{ display: 'flex', gap: 8, marginTop: 8, ...typeRoles.small, fontSize: 12, color: t.textMuted, flexWrap: 'wrap' }}>{subtitle}</div>}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {headerActions}
-              <button
-                onClick={onClose}
-                aria-label="Close"
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: c.textMuted,
-                  transition: 'color 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = c.textPrimary
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = c.textMuted
-                }}
-              >
+              <IconButton onClick={onClose} ariaLabel="Close" tone="card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
-              </button>
+              </IconButton>
             </div>
           </div>
 
-          <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>{children}</div>
+          <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>{children}</div>
 
-          {footer && (
-            <div style={{ padding: '16px 24px', borderTop: `1px solid ${c.divider}`, flexShrink: 0 }}>{footer}</div>
-          )}
-        </motion.div>
-      </motion.div>
+          {footer && <div style={{ padding: '16px 24px', borderTop: `1px solid ${t.divider}`, flexShrink: 0 }}>{footer}</div>}
+        </m.div>
+      </m.div>
     </AnimatePresence>
   )
 }
+
+export { shell as modalShell }

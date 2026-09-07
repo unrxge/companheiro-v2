@@ -3,6 +3,7 @@ import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { withLanguage } from "@/lib/language";
+import { getUserTerritories, territoryPromptList } from "@/lib/territories-server";
 
 interface ConversationMessage {
   role: "user" | "assistant";
@@ -51,16 +52,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateR
     let userPrompt = "";
 
     if (body.phase === 1) {
+      const territories = await getUserTerritories(auth);
       systemPrompt = `You are distilling the core idea from a conceptualisation conversation. Your task is to:
 1. Generate a one-sentence idea statement that captures the essence of what they want to create
 2. Infer the arc (Breakaway, Beginning, Expansion, Integration) based on the conversation
-3. Infer the thematic territory based on the themes discussed
+3. Choose the thematic territory from this person's own territories — return the key exactly as written:
+${territoryPromptList(territories)}
 
 Return as JSON:
 {
   "one_sentence": "...",
-  "arc": "...",
-  "thematic_territory": "..."
+  "arc": "Breakaway" | "Beginning" | "Expansion" | "Integration",
+  "thematic_territory": "<one of the keys above>"
 }`;
 
       const conversationText = body.conversation_history

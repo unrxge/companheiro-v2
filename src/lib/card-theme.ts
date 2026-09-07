@@ -1,40 +1,16 @@
-// The page background is a constant dark shell — it never toggles, and the
-// header text sits directly on it (no separate header box).
+// Legacy palette module. Everything here now resolves to the Inner Weather
+// tokens in design-tokens.ts so any page not yet migrated still renders in
+// the approved palette. New code imports from design-tokens / useTheme().
+import { shell, tokensFor } from '@/lib/design-tokens'
+
 export type CardTheme = 'light' | 'dark'
 
-export const shellBackground = 'radial-gradient(ellipse at top, #161412 0%, #0f0e0d 70%)'
+export const shellBackground = shell.background
 
-// Brand accent — used for hover/highlight indicators (underlines, active
-// row markers) across the refreshed pages, independent of theme or text color.
-export const accentColor = '#a53f2b'
+// Brand accent (ember). Prefer `useTheme().t.ember` in new code.
+export const accentColor = tokensFor('light').ember
 
-// Below the header, a "container" panel sits on the shell and holds the
-// cards — this is what toggles between light and dark.
 export const cardPalette = {
-  light: {
-    containerBg: '#edebe4',
-    containerShadow: '0 24px 60px rgba(0, 0, 0, 0.4)',
-    cardBg: '#ffffff',
-    cardBgInner: '#f5f3ef',
-    textPrimary: '#171613',
-    textSecondary: '#6f6d68',
-    textMuted: '#9b9891',
-    divider: '#e3e0d8',
-    inputBg: '#f0eee9',
-    inputBorder: '#dedad2',
-    shadow: '0 12px 28px rgba(23, 22, 19, 0.1)',
-  },
-  dark: {
-    containerBg: '#141311',
-    containerShadow: '0 24px 60px rgba(0, 0, 0, 0.55)',
-    cardBg: '#211f1c',
-    cardBgInner: '#28251f',
-    textPrimary: '#e8e6e0',
-    textSecondary: '#a8a6a0',
-    textMuted: '#6a6866',
-    divider: '#332f2a',
-    inputBg: '#1c1a17',
-    inputBorder: '#332f2a',
-    shadow: '0 12px 28px rgba(0, 0, 0, 0.45)',
-  },
+  light: tokensFor('light'),
+  dark: tokensFor('dark'),
 } as const

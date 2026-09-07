@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
-import { Inter, Geist, Geist_Mono, Fraunces } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LangSync from "@/components/LangSync";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,14 +20,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Display face — only for the person's words and the companion's words.
-// Variable axes: optical size (9–144) and SOFT (rounded terminals).
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  axes: ["opsz", "SOFT"],
-});
+
+// Pinch-zoom stays enabled (accessibility); the old maximumScale:1 is gone.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0d0c0b",
+};
 
 export const metadata: Metadata = {
   title: "Companheiro",
@@ -41,12 +42,6 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Companheiro",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   formatDetection: {
     telephone: false,
   },
@@ -60,11 +55,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased dark`}
+      className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col">
         <LangSync />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

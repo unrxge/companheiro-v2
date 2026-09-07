@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { shellBackground, cardPalette } from '@/lib/card-theme'
-import { IconButton } from '@/components/ui/icon-button'
-
-const c = cardPalette['dark']
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
+import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
+import { TextArea } from '@/components/ui/field'
+import { JourneyNav } from '@/components/widgets'
+import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface PieceData {
   id: string
+  title: string
   substack_draft: string
   short_form_script: string
 }
@@ -16,6 +19,7 @@ interface PieceData {
 function TranslateContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { t } = useTheme()
   const pieceId = searchParams.get('piece_id')
 
   const [piece, setPiece] = useState<PieceData | null>(null)
@@ -23,15 +27,17 @@ function TranslateContent() {
   const [script, setScript] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!pieceId) {
       router.push('/project-board')
       return
     }
-
+    fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, stage: 'translating' }) }).catch(() => {})
     fetchPiece()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pieceId, router])
 
   const fetchPiece = async () => {
@@ -51,15 +57,9 @@ function TranslateContent() {
 
   const handleGenerateScript = async () => {
     if (!pieceId || isGenerating) return
-
     setIsGenerating(true)
     try {
-      const res = await fetch('/api/write/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId }),
-      })
-
+      const res = await fetch('/api/write/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId }) })
       const data = await res.json()
       setScript(data.script || '')
     } catch (err) {
@@ -69,19 +69,13 @@ function TranslateContent() {
     }
   }
 
-  const handleSaveScript = async () => {
-    if (!pieceId || isSaving) return
-
+  const saveScript = async (stage?: 'executing') => {
+    if (!pieceId) return
     setIsSaving(true)
     try {
-      await fetch('/api/write/draft', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          piece_id: pieceId,
-          short_form_script: script,
-        }),
-      })
+      await fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, short_form_script: script, ...(stage ? { stage } : {}) }) })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
     } catch (err) {
       console.error('Failed to save script:', err)
     } finally {
@@ -90,120 +84,74 @@ function TranslateContent() {
   }
 
   const handleMarkReady = async () => {
-    if (!pieceId) return
-
-    try {
-      await fetch('/api/write/draft', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          piece_id: pieceId,
-          short_form_script: script,
-        }),
-      })
-
-      router.push(`/post-publication?piece_id=${pieceId}`)
-    } catch (err) {
-      console.error('Failed to mark as ready:', err)
-    }
+    await saveScript('executing')
+    router.push(`/post-publication?piece_id=${pieceId}`)
   }
 
-  const resizeTextarea = () => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      textarea.style.height = 'auto'
-      textarea.style.height = textarea.scrollHeight + 'px'
-    }
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
-  useEffect(() => {
-    resizeTextarea()
-  }, [script])
-
-  if (isLoading || !piece) {
-    return (
-      <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: c.textMuted, fontSize: 14 }}>Loading…</p>
-      </div>
-    )
-  }
+  if (!pieceId) return null
 
   return (
-    <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{ padding: '0 24px', height: 64, borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <IconButton onClick={() => router.push('/write?piece_id=' + pieceId)} ariaLabel="Back to Write">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.textSecondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </IconButton>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: c.textPrimary, letterSpacing: '-0.02em' }}>Translate</h1>
-        </div>
-        {script && (
-          <button
-            onClick={handleMarkReady}
-            style={{ padding: '7px 14px', background: 'rgba(16,185,129,0.15)', color: '#6ee7b7', fontSize: 12, fontWeight: 500, borderRadius: 6, border: '1px solid rgba(16,185,129,0.25)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            This piece is ready to post
-          </button>
-        )}
-      </div>
+    <PageShell mood="violet">
+      <PageHeader
+        eyebrow="Write · Shape"
+        title={piece?.title || 'Translate'}
+        subtitle="Long-form to short-form. The draft stays as it is; the script is yours to shape."
+        size="md"
+        back={`/write?piece_id=${pieceId}`}
+        actions={script ? <PrimaryButton size="sm" onClick={handleMarkReady} loading={isSaving} loadingLabel="Saving…">Ready to post →</PrimaryButton> : undefined}
+      />
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', gap: 24, padding: 24 }}>
-        {/* Left panel - Substack draft (read-only) */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 12 }}>
-            Substack Draft
-          </h2>
-          <div style={{ flex: 1, overflowY: 'auto', background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16 }}>
-            <p style={{ fontSize: 15, color: c.textSecondary, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-              {piece.substack_draft}
-            </p>
+      <Container>
+        <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
+            <JourneyNav pieceId={pieceId} step="shape" />
           </div>
+          <GhostButton size="sm" href={`/write/reimagine?piece_id=${pieceId}`}>Or reimagine it through a lens →</GhostButton>
         </div>
 
-        {/* Right panel - Short form script */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <h2 style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: c.textMuted, marginBottom: 12 }}>
-            Short Form Script
-          </h2>
+        {isLoading || !piece ? (
+          <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <Card>
+              <Eyebrow style={{ marginBottom: 12 }}>Long-form draft</Eyebrow>
+              <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {(piece.substack_draft || '').split(/\n{2,}/).map((para, i) => (
+                  <p key={i} style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.7, color: t.textSecondary, marginBottom: 12, whiteSpace: 'pre-wrap' }}>{para}</p>
+                ))}
+              </div>
+            </Card>
 
-          {!script ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16 }}>
-              <button
-                onClick={handleGenerateScript}
-                disabled={isGenerating}
-                style={{ padding: '10px 20px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isGenerating ? 'not-allowed' : 'pointer', opacity: isGenerating ? 0.5 : 1 }}
-              >
-                {isGenerating ? 'Generating…' : 'Generate Short Form Script'}
-              </button>
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: 12 }}>
-              <textarea
-                ref={textareaRef}
-                value={script}
-                onChange={(e) => {
-                  setScript(e.target.value)
-                  e.target.style.height = 'auto'
-                  e.target.style.height = e.target.scrollHeight + 'px'
-                }}
-                style={{ flex: 1, background: c.cardBg, border: `1px solid ${c.divider}`, borderRadius: 8, padding: 16, fontSize: 15, color: c.textPrimary, lineHeight: 1.7, resize: 'none', outline: 'none', overflowY: 'auto', fontFamily: 'inherit' }}
-              />
-              <button
-                onClick={handleSaveScript}
-                disabled={isSaving}
-                style={{ padding: '10px', background: c.textPrimary, color: c.containerBg, fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.5 : 1 }}
-              >
-                {isSaving ? 'Saving…' : 'Save Script'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+            <Card>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <Eyebrow>Short-form script</Eyebrow>
+                {script && <GhostButton size="sm" onClick={() => copy(script)}>{copied ? 'Copied' : 'Copy'}</GhostButton>}
+              </div>
+              {!script ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '40px 0' }}>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, textAlign: 'center', maxWidth: '36ch' }}>A script cut from the draft, in your voice, shaped for the short form.</p>
+                  <QuietButton onClick={handleGenerateScript} loading={isGenerating} loadingLabel="Generating…">Generate the script</QuietButton>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <TextArea voice value={script} onChange={setScript} ariaLabel="Short-form script" minRows={10} maxHeight={900} style={{ fontSize: 15, lineHeight: 1.7 }} />
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <GhostButton size="sm" onClick={handleGenerateScript} loading={isGenerating} loadingLabel="Regenerating…">Regenerate</GhostButton>
+                    <QuietButton size="sm" onClick={() => saveScript()} loading={isSaving} loadingLabel="Saving…">{saved ? 'Saved ✓' : 'Save script'}</QuietButton>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </Container>
+    </PageShell>
   )
 }
 
@@ -211,8 +159,8 @@ export default function TranslatePage() {
   return (
     <Suspense
       fallback={
-        <div style={{ minHeight: '100vh', background: shellBackground, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: cardPalette['dark'].textMuted, fontSize: 14 }}>Loading…</p>
+        <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: shell.muted }}>Loading…</p>
         </div>
       }
     >

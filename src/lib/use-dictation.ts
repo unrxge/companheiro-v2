@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useLayoutEffect } from 'react'
+import { getDictationLang } from '@/lib/settings'
 
 interface UseDictationOptions {
   /** Called with each punctuated, word-validated segment as it's confirmed. */
@@ -85,7 +86,8 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     const recognition: any = new API()
     recognition.continuous = true
     recognition.interimResults = true
-    recognition.lang = 'en-US'
+    // The person's language (Settings), else the browser's — never a hard-coded en-US.
+    recognition.lang = getDictationLang()
     recognition.onstart = () => setIsRecording(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (event: any) => {

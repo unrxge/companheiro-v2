@@ -12,18 +12,21 @@ function hasSessionCookie(request: NextRequest): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const isLoginPage = pathname === '/login'
+  const isAuthPage = pathname === '/login' || pathname === '/signup'
+  // /reset is reachable both ways: unauthenticated to request a link, and
+  // authenticated (via the recovery session) to set the new password.
+  const isResetPage = pathname === '/reset'
   const isAuthenticated = hasSessionCookie(request)
 
-  if (!isAuthenticated && !isLoginPage) {
+  if (!isAuthenticated && !isAuthPage && !isResetPage) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     return NextResponse.redirect(loginUrl)
   }
 
-  if (isAuthenticated && isLoginPage) {
+  if (isAuthenticated && isAuthPage) {
     const appUrl = request.nextUrl.clone()
-    appUrl.pathname = '/check-in'
+    appUrl.pathname = '/home'
     return NextResponse.redirect(appUrl)
   }
 

@@ -22,8 +22,22 @@ interface SessionLog {
   duration_minutes: number | null;
 }
 
+interface Reflection {
+  id: string;
+  thread: string | null;
+  what_it_opened: string | null;
+  unresolved: string | null;
+  natural_continuations: string[] | null;
+  created_at: string;
+}
+
 interface PieceDetail {
   id: string;
+  stage?: string;
+  posted_at?: string | null;
+  substack_draft?: string | null;
+  short_form_script?: string | null;
+  reflection?: Reflection | null;
   title: string;
   arc: string;
   thematic_territory: string;
@@ -67,19 +81,17 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     }
 
     const userId = userData.user.id;
-    console.log('Fetching piece:', pieceId, 'for user:', userId);
 
     // Fetch piece details
     const { data: pieceData, error: pieceError } = await supabase
       .from("pieces")
       .select(
-        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, idea_id, substack_draft, created_at"
+        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, idea_id, substack_draft, short_form_script, stage, posted_at, created_at"
       )
       .eq("id", pieceId)
       .eq("user_id", userId)
       .single();
 
-    console.log('Piece query result:', { pieceError, hasPieceData: !!pieceData });
 
     if (pieceError || !pieceData) {
       console.error('Piece not found:', pieceError);
@@ -130,7 +142,16 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
       console.error('Session logs query error:', logsError);
     }
 
-    console.log('Successfully fetched piece with', tasksData?.length || 0, 'tasks and', logsData?.length || 0, 'logs');
+    // The reflection logged after publishing, if any (newest).
+    const { data: reflection } = await supabase
+      .from("post_publication_logs")
+      .select("id, thread, what_it_opened, unresolved, natural_continuations, created_at")
+      .eq("piece_id", pieceId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
 
     return NextResponse.json({
       success: true,
@@ -141,6 +162,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
         open_threads: pieceData.open_threads || [],
         tasks: (tasksData || []) as Task[],
         session_logs: (logsData || []) as SessionLog[],
+        reflection: reflection ?? null,
       },
     });
   } catch (error) {
