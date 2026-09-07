@@ -205,13 +205,21 @@ function WriteContent() {
   const [openTool, setOpenTool] = useState<ToolKey | null>(null)
   const [chatExpanded, setChatExpanded] = useState(false)
   const [showCoreConceptModal, setShowCoreConceptModal] = useState(false)
-  const [pendingEdit, setPendingEdit] = useState<{
+  // Whole-section rewrites (no passage was highlighted) still show as an
+  // end-of-section card — there's no single spot in the text to anchor a
+  // highlight to. Anchored edits (a passage was highlighted) are handled
+  // entirely differently: see pendingInlineEdit below.
+  const [pendingWholeEdit, setPendingWholeEdit] = useState<{ sectionId: string; content: string } | null>(null)
+  // An anchored edit is materialised directly into the document, wrapped in
+  // a highlight mark, the moment it arrives — no separate preview box.
+  // originalText is what Reject restores; nothing is persisted to the
+  // database until Approve or Reject actually runs.
+  const [pendingInlineEdit, setPendingInlineEdit] = useState<{
     sectionId: string
-    content: string
-    anchorText: string | null
-    range: { from: number; to: number } | null
+    range: { from: number; to: number }
+    originalText: string
   } | null>(null)
-  const [pendingEditTop, setPendingEditTop] = useState<number | null>(null)
+  const [pendingInlineTop, setPendingInlineTop] = useState<number | null>(null)
   const [isIngesting, setIsIngesting] = useState(false)
   const [ingestType, setIngestType] = useState<'draft' | 'loose' | null>(null)
   const ingestCalledRef = useRef(false)
@@ -411,23 +419,23 @@ function WriteContent() {
   // uses the editor's own layout via coordsAtPos, which is exact — no mirror
   // measurement required.
   useEffect(() => {
-    if (!pendingEdit?.range) {
-      setPendingEditTop(null)
+    if (!pendingInlineEdit) {
+      setPendingInlineTop(null)
       return
     }
-    const editor = sectionEditorsRef.current[pendingEdit.sectionId]
+    const editor = sectionEditorsRef.current[pendingInlineEdit.sectionId]
     if (!editor) {
-      setPendingEditTop(null)
+      setPendingInlineTop(null)
       return
     }
     try {
-      const rect = editor.view.coordsAtPos(pendingEdit.range.to)
+      const rect = editor.view.coordsAtPos(pendingInlineEdit.range.to)
       const wrapperRect = editor.view.dom.getBoundingClientRect()
-      setPendingEditTop(rect.bottom - wrapperRect.top)
+      setPendingInlineTop(rect.bottom - wrapperRect.top)
     } catch {
-      setPendingEditTop(null)
+      setPendingInlineTop(null)
     }
-  }, [pendingEdit])
+  }, [pendingInlineEdit])
 
   // Mobile viewport + orientation tracking.
   useEffect(() => {
@@ -480,7 +488,8 @@ function WriteContent() {
     if (dirtySectionsRef.current.has(id)) await flushSections()
     const next = !target.is_locked
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, is_locked: next } : s)))
-    if (pendingEdit?.sectionId === id) { setPendingEdit(null); setPendingEditTop(null) }
+    if (pendingWholeEdit?.sectionId === id) setPendingWholeEdit(null)
+    if (pendingInlineEdit?.sectionId === id) { setPendingInlineEdit(null); setPendingInlineTop(null) }
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
@@ -509,7 +518,8 @@ function WriteContent() {
   const deleteSection = async (id: string) => {
     setSections((prev) => prev.filter((s) => s.id !== id))
     setAnchorLines((prev) => prev.filter((l) => l.section_id !== id))
-    if (pendingEdit?.sectionId === id) { setPendingEdit(null); setPendingEditTop(null) }
+    if (pendingWholeEdit?.sectionId === id) setPendingWholeEdit(null)
+    if (pendingInlineEdit?.sectionId === id) { setPendingInlineEdit(null); setPendingInlineTop(null) }
     try {
       await fetch('/api/write/sections', {
         method: 'DELETE',
@@ -683,15 +693,30 @@ function WriteContent() {
         setAssistantMode('coach')
       }
       if (meta?.proposedEdit) {
-        setPendingEdit({
-          sectionId: meta.proposedEdit.section_id,
-          content: meta.proposedEdit.content,
-          anchorText: meta.proposedEdit.anchor_text,
-          // Captured locally at send time — Tiptap positions are specific to
-          // this client's live document, so the server never needs to know
-          // them; it only needed the anchor text for its own prompt.
-          range: activeSelection ? { from: activeSelection.from, to: activeSelection.to } : null,
-        })
+        const sectionId = meta.proposedEdit.section_id
+        const newText = meta.proposedEdit.content
+        const anchorText = meta.proposedEdit.anchor_text
+        const editor = sectionEditorsRef.current[sectionId]
+        if (anchorText && activeSelection && editor) {
+          const range = { from: activeSelection.from, to: activeSelection.to }
+          const currentText = editor.state.doc.textBetween(range.from, range.to, '\n\n').trim()
+          if (currentText === anchorText.trim()) {
+            // Materialise the proposal directly into the document, wrapped in
+            // a highlight mark — a plain inline highlight instead of a
+            // separate announcing box. Nothing is persisted to the database
+            // until Approve or Reject actually runs.
+            editor.chain().focus().insertContentAt(range, { type: 'text', text: newText, marks: [{ type: 'pendingEdit' }] }).run()
+            setPendingInlineEdit({ sectionId, range: { from: range.from, to: range.from + newText.length }, originalText: currentText })
+            setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: editor.getHTML() } : s)))
+          } else {
+            // The section changed since the request was sent and the
+            // highlighted passage no longer matches — refuse to guess where a
+            // fragment-only edit belongs rather than risk corrupting the section.
+            console.error('Highlighted passage changed since the request was sent; declining to show the proposal inline')
+          }
+        } else {
+          setPendingWholeEdit({ sectionId, content: newText })
+        }
       }
       if (text) {
         flushChatDistillation([...newMessages, { role: 'assistant', content: text }])
@@ -703,45 +728,61 @@ function WriteContent() {
     }
   }
 
-  const approvePendingEdit = async () => {
-    if (!pendingEdit || !pieceId) return
-    const { sectionId, content, anchorText, range } = pendingEdit
-    const editor = sectionEditorsRef.current[sectionId]
-    if (!editor) return
-
-    let nextHtml: string
-    if (range) {
-      const currentText = editor.state.doc.textBetween(range.from, range.to, ' ').trim()
-      if (anchorText && currentText !== anchorText.trim()) {
-        // The section changed since the proposal arrived and the highlighted
-        // passage no longer matches — refuse to guess where a fragment-only
-        // edit belongs rather than risk corrupting the section.
-        console.error('Highlighted passage changed since the proposal arrived; declining to apply partial edit')
-        return
-      }
-      // The model's reply is plain prose, not markup — inserted as plain
-      // text it replaces exactly the highlighted range, nothing else.
-      editor.chain().focus().insertContentAt(range, content).run()
-      nextHtml = editor.getHTML()
-    } else {
-      // Whole-section rewrite: the model's prose becomes proper paragraph
-      // nodes rather than one literal blob of text with embedded newlines.
-      editor.chain().focus().setContent(plainTextToHtml(content), false).run()
-      nextHtml = editor.getHTML()
-    }
-
-    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextHtml } : s)))
-    setPendingEdit(null)
-    setPendingEditTop(null)
+  const persistSectionContent = async (sectionId: string, content: string) => {
     try {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content: nextHtml }),
+        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content }),
       })
     } catch (err) {
-      console.error('Failed to apply edit:', err)
+      console.error('Failed to save section:', err)
     }
+  }
+
+  const approveInlineEdit = async () => {
+    if (!pendingInlineEdit || !pieceId) return
+    const { sectionId, range } = pendingInlineEdit
+    const editor = sectionEditorsRef.current[sectionId]
+    if (!editor) return
+    editor.chain().focus().setTextSelection(range).unsetMark('pendingEdit').run()
+    const nextHtml = editor.getHTML()
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextHtml } : s)))
+    setPendingInlineEdit(null)
+    setPendingInlineTop(null)
+    await persistSectionContent(sectionId, nextHtml)
+  }
+
+  const rejectInlineEdit = async () => {
+    if (!pendingInlineEdit || !pieceId) return
+    const { sectionId, range, originalText } = pendingInlineEdit
+    const editor = sectionEditorsRef.current[sectionId]
+    if (!editor) return
+    // Plain-text insertion at a position bordering a marked span inherits
+    // that mark by default (ProseMirror's stored-marks behaviour) — the
+    // restored original text would otherwise stay highlighted. Explicitly
+    // clearing it on the freshly-inserted range is what actually removes it.
+    const restoredEnd = range.from + originalText.length
+    editor.chain().focus().insertContentAt(range, originalText).setTextSelection({ from: range.from, to: restoredEnd }).unsetMark('pendingEdit').run()
+    const nextHtml = editor.getHTML()
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextHtml } : s)))
+    setPendingInlineEdit(null)
+    setPendingInlineTop(null)
+    await persistSectionContent(sectionId, nextHtml)
+  }
+
+  const approveWholeEdit = async () => {
+    if (!pendingWholeEdit || !pieceId) return
+    const { sectionId, content } = pendingWholeEdit
+    const editor = sectionEditorsRef.current[sectionId]
+    if (!editor) return
+    // Whole-section rewrite: the model's prose becomes proper paragraph
+    // nodes rather than one literal blob of text with embedded newlines.
+    editor.chain().focus().setContent(plainTextToHtml(content), false).run()
+    const nextHtml = editor.getHTML()
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, content: nextHtml } : s)))
+    setPendingWholeEdit(null)
+    await persistSectionContent(sectionId, nextHtml)
   }
 
   // Optimistic toggle, persisted via the same tasks endpoint the project
@@ -1035,7 +1076,8 @@ function WriteContent() {
               {sections.map((section) => {
                 const isActive = activeSectionId === section.id
                 const lines = linesForSection(section.id)
-                const showPending = pendingEdit?.sectionId === section.id
+                const showWholePending = pendingWholeEdit?.sectionId === section.id
+                const showInlinePending = pendingInlineEdit?.sectionId === section.id
                 return (
                   <div
                     key={section.id}
@@ -1142,50 +1184,67 @@ function WriteContent() {
                         textColor={section.is_locked ? '#aaa59c' : '#ece9e2'}
                       />
 
-                      {/* Pending AI edit scoped to a highlighted passage — sits
-                          right after that passage, not the section's end, so a
-                          long section doesn't hide the fact a suggestion landed. */}
-                      {showPending && !flowView && pendingEdit!.anchorText && pendingEditTop !== null && (
+                      {/* Anchored AI edit — the proposal is already visible
+                          in the text itself (highlighted). Just a small,
+                          minimal approve/reject pair right after it, not a
+                          separate announcing box. */}
+                      {showInlinePending && !flowView && (
                         <div
-                          className="mx-4 rounded border border-[#39a875]/30 bg-[#16241d]/95 p-3 space-y-2"
-                          style={{ position: 'absolute', top: pendingEditTop, left: 0, right: 0, zIndex: 5, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+                          style={{
+                            position: 'absolute', top: pendingInlineTop ?? 0, left: 16, zIndex: 5,
+                            display: 'flex', gap: 4, marginTop: 3,
+                          }}
                         >
-                          <p className="text-xs text-[#39a875] uppercase tracking-widest">Proposed rewrite</p>
-                          <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
-                          <div className="flex gap-2 pt-1">
-                            <button
-                              onClick={approvePendingEdit}
-                              className="px-3 py-1.5 bg-[#39a875]/20 text-[#39a875] text-xs font-medium rounded hover:bg-[#39a875]/30 transition-colors"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => { setPendingEdit(null); setPendingEditTop(null) }}
-                              className="px-3 py-1.5 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] transition-colors"
-                            >
-                              Reject
-                            </button>
-                          </div>
+                          <button
+                            onClick={approveInlineEdit}
+                            aria-label="Approve"
+                            title="Approve"
+                            style={{
+                              width: 20, height: 20, borderRadius: '50%', border: 'none',
+                              background: 'rgba(57,168,117,0.92)', color: '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                            }}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={rejectInlineEdit}
+                            aria-label="Reject"
+                            title="Reject"
+                            style={{
+                              width: 20, height: 20, borderRadius: '50%', border: `1px solid ${t.divider}`,
+                              background: t.cardBg, color: t.textMuted,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                            }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
                       )}
                     </div>
 
-                    {/* Whole-section pending edit (no highlight was made), or a
-                        fallback if the inline position couldn't be measured —
-                        same placement as before, at the section's end. */}
-                    {showPending && !flowView && (!pendingEdit!.anchorText || pendingEditTop === null) && (
+                    {/* Whole-section pending edit (no highlight was made) —
+                        no single spot in the text to anchor a highlight to,
+                        so this stays a card at the section's end. */}
+                    {showWholePending && !flowView && (
                       <div className="mx-4 mb-4 rounded border border-[#39a875]/30 bg-[#16241d]/50 p-3 space-y-2">
                         <p className="text-xs text-[#39a875] uppercase tracking-widest">Proposed rewrite</p>
-                        <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingEdit!.content}</p>
+                        <p className="text-base text-[#aaa59c] whitespace-pre-wrap leading-relaxed">{pendingWholeEdit!.content}</p>
                         <div className="flex gap-2 pt-1">
                           <button
-                            onClick={approvePendingEdit}
+                            onClick={approveWholeEdit}
                             className="px-3 py-1.5 bg-[#39a875]/20 text-[#39a875] text-xs font-medium rounded hover:bg-[#39a875]/30 transition-colors"
                           >
                             Approve
                           </button>
                           <button
-                            onClick={() => { setPendingEdit(null); setPendingEditTop(null) }}
+                            onClick={() => setPendingWholeEdit(null)}
                             className="px-3 py-1.5 bg-transparent border border-[#352f29] text-[#aaa59c] text-xs font-medium rounded hover:border-[#7d786f] transition-colors"
                           >
                             Reject
@@ -1532,7 +1591,7 @@ function WriteContent() {
                   <Thread messages={chatMessages} streaming={isChatLoading} align="left" />
                 )}
               </div>
-              <div style={{ borderTop: `1px solid ${t.divider}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ borderTop: `1px solid ${t.divider}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <Composer
                   value={chatInput}
                   onChange={setChatInput}
@@ -1541,76 +1600,101 @@ function WriteContent() {
                   placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
                   sendLabel="Send"
                 />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {isAssistantLocked && (
                     <span style={{ fontSize: 11, color: t.textMuted }}>
                       Locked until {new Date(lockedUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                   {(() => {
-                    // iOS-style switch, stretched to three positions: Lock /
-                    // Reflect / Suggest. The knob marks the active position;
-                    // the whole capsule recolours with it, the way a native
-                    // switch's track turns green when flipped on — violet for
-                    // Lock (deliberately not red/green/yellow, reads as
-                    // considered rather than alarming), tide for Suggest,
-                    // neutral for the default Reflect state.
+                    // iOS-style switch stretched across two labelled
+                    // positions, Reflect / Suggest — the knob marks the
+                    // active one and the whole capsule recolours with it,
+                    // the way a native switch's track turns green when
+                    // flipped on (tide, a blue, for Suggest; neutral for the
+                    // default Reflect state — deliberately never red/green/
+                    // yellow). Lock lives as its own small button, visually
+                    // separate from the capsule, but the knob still has a
+                    // third, unlabelled resting spot at the capsule's far
+                    // left it slides into once locked — sitting right where
+                    // the lock button is, so the motion still reads as
+                    // "toward" it even though they're no longer one control.
                     const position = isAssistantLocked ? 0 : assistantMode === 'write' ? 2 : 1
                     const trackBg = position === 0 ? t.violet : position === 2 ? t.tide : t.cardBgInner
-                    const segmentW = 44
+                    const segmentW = 34
                     const trackW = segmentW * 3
-                    const knobLeft = position * segmentW + (segmentW - 22) / 2
-                    const segments: { key: 'lock' | 'coach' | 'write'; label: string; pos: number; activeColor: string }[] = [
-                      { key: 'lock', label: 'Lock', pos: 0, activeColor: t.violet },
+                    const knobD = 18
+                    const knobLeft = position * segmentW + (segmentW - knobD) / 2
+                    const segments: { key: 'coach' | 'write'; label: string; pos: number; activeColor: string }[] = [
                       { key: 'coach', label: 'Reflect', pos: 1, activeColor: t.textPrimary },
                       { key: 'write', label: 'Suggest', pos: 2, activeColor: t.tide },
                     ]
                     return (
-                      <div>
-                        <div
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => { if (!isAssistantLocked) setShowLockModal(true) }}
+                          disabled={isAssistantLocked}
+                          aria-label={isAssistantLocked ? 'Suggestions-only lock active' : 'Lock to reflective prompts only'}
                           style={{
-                            position: 'relative', display: 'flex', width: trackW, height: 26,
-                            borderRadius: 16, background: trackBg, transition: 'background-color 0.25s ease',
+                            width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                            border: `1px solid ${isAssistantLocked ? t.violet : t.divider}`,
+                            background: isAssistantLocked ? t.soft.violet : t.cardBgInner,
+                            color: isAssistantLocked ? t.violet : t.textMuted,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: isAssistantLocked ? 'default' : 'pointer', transition: 'all 0.25s ease',
                           }}
                         >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5" y="11" width="14" height="10" rx="2" />
+                            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                          </svg>
+                        </button>
+                        <div>
                           <div
                             style={{
-                              position: 'absolute', top: 2, left: knobLeft, width: 22, height: 22, borderRadius: '50%',
-                              background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.25s ease',
+                              position: 'relative', display: 'flex', width: trackW, height: 22,
+                              borderRadius: 14, background: trackBg, transition: 'background-color 0.25s ease',
                             }}
-                          />
-                          {segments.map((seg) => (
-                            <button
-                              key={seg.key}
-                              type="button"
-                              onClick={() => {
-                                if (isAssistantLocked) return
-                                if (seg.key === 'lock') setShowLockModal(true)
-                                else setAssistantMode(seg.key === 'write' ? 'write' : 'coach')
-                              }}
-                              disabled={isAssistantLocked && seg.key !== 'lock'}
-                              aria-label={seg.label}
+                          >
+                            <div
                               style={{
-                                position: 'relative', zIndex: 1, flex: 1, height: '100%', border: 'none', background: 'none',
-                                cursor: isAssistantLocked ? 'default' : 'pointer',
+                                position: 'absolute', top: (22 - knobD) / 2, left: knobLeft, width: knobD, height: knobD, borderRadius: '50%',
+                                background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.25s ease',
                               }}
                             />
-                          ))}
-                        </div>
-                        <div style={{ display: 'flex', width: trackW, marginTop: 4 }}>
-                          {segments.map((seg) => (
-                            <span
-                              key={seg.key}
-                              style={{
-                                flex: 1, textAlign: 'center', fontSize: 9, letterSpacing: '0.02em',
-                                fontWeight: position === seg.pos ? 700 : 500,
-                                color: position === seg.pos ? seg.activeColor : t.textMuted,
-                                transition: 'color 0.25s ease',
-                              }}
-                            >
-                              {seg.label}
-                            </span>
-                          ))}
+                            {/* Reserved, unlabelled — where the knob parks once locked. */}
+                            <div style={{ width: segmentW, flexShrink: 0 }} />
+                            {segments.map((seg) => (
+                              <button
+                                key={seg.key}
+                                type="button"
+                                onClick={() => { if (!isAssistantLocked) setAssistantMode(seg.key === 'write' ? 'write' : 'coach') }}
+                                disabled={isAssistantLocked}
+                                aria-label={seg.label}
+                                style={{
+                                  position: 'relative', zIndex: 1, width: segmentW, flexShrink: 0, height: '100%',
+                                  border: 'none', background: 'none', cursor: isAssistantLocked ? 'default' : 'pointer',
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', width: trackW, marginTop: 4, gap: 3 }}>
+                            <div style={{ width: segmentW - 3, flexShrink: 0 }} />
+                            {segments.map((seg) => (
+                              <span
+                                key={seg.key}
+                                style={{
+                                  flex: 1, textAlign: 'center', fontSize: 9, letterSpacing: '0.01em', whiteSpace: 'nowrap',
+                                  fontWeight: position === seg.pos ? 700 : 500,
+                                  color: position === seg.pos ? seg.activeColor : t.textMuted,
+                                  transition: 'color 0.25s ease',
+                                }}
+                              >
+                                {seg.label}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )

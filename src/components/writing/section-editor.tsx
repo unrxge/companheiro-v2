@@ -2,11 +2,26 @@
 
 import { useEffect } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { Mark } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import Typography from '@tiptap/extension-typography'
 import { useTheme } from '@/components/theme/theme-provider'
+
+// Marks a proposed AI edit that's been materialised into the document but not
+// yet decided on — styled (see globals.css) as a plain inline highlight, no
+// separate preview box. Approve removes just the mark; Reject replaces the
+// marked range with the original text remembered before the edit landed.
+export const PendingEditMark = Mark.create({
+  name: 'pendingEdit',
+  parseHTML() {
+    return [{ tag: 'mark[data-pending-edit]' }]
+  },
+  renderHTML() {
+    return ['mark', { 'data-pending-edit': 'true' }, 0]
+  },
+})
 
 // Typing two hyphens together becomes an em dash — the standard shorthand
 // every writing tool from Word to Substack supports. Everything else the
@@ -208,6 +223,7 @@ export function SectionEditor({
       Underline,
       Placeholder.configure({ placeholder: placeholder || '' }),
       EmDashOnly,
+      PendingEditMark,
     ],
     content,
     editable,
@@ -222,7 +238,12 @@ export function SectionEditor({
         onSelectionChange(null)
         return
       }
-      const text = editor.state.doc.textBetween(from, to, ' ').trim()
+      // A '\n\n' block separator, not a single space — a multi-paragraph
+      // selection ("these three paragraphs") was otherwise flattened into
+      // one run-on blob with no paragraph breaks, which is a very plausible
+      // reason the model would doubt it's reading real content and ask the
+      // person to paste it in again.
+      const text = editor.state.doc.textBetween(from, to, '\n\n').trim()
       onSelectionChange(text ? { text, from, to } : null)
     },
   })

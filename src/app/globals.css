@@ -203,3 +203,13 @@ body {
   pointer-events: none;
   opacity: 0.5;
 }
+/* A proposed AI edit, materialised in place and awaiting a decision — a
+   plain inline highlight, not a separate announcing box. */
+.write-section-editor .ProseMirror mark[data-pending-edit] {
+  background-color: rgba(57, 168, 117, 0.28);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

@@ -113,7 +113,7 @@ Current text:
 ${section.content || "(empty)"}
 """${
         selectedText
-          ? `\n\nSELECTED SENTENCE / PASSAGE (they highlighted this specific text — this is what the conversation is primarily about; treat it as the exact focus of the discussion, not the whole section):
+          ? `\n\nSELECTED SENTENCE / PASSAGE (they highlighted this specific text — this is what the conversation is primarily about; treat it as the exact focus of the discussion, not the whole section). This is the verbatim, current, on-the-page text — you already have it in full below; never ask them to paste it in or re-share it, that's exactly what this block is for:
 """
 ${selectedText}
 """`
