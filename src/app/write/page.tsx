@@ -13,7 +13,7 @@ import { TextField } from '@/components/ui/field'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
 import { Thread, Composer } from '@/components/conversation/thread'
-import { SectionEditor } from '@/components/writing/section-editor'
+import { SectionEditor, SectionToolbar } from '@/components/writing/section-editor'
 
 interface Task {
   id: string
@@ -221,6 +221,12 @@ function WriteContent() {
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [newLineText, setNewLineText] = useState('')
   const [selectedText, setSelectedText] = useState<SelectedText | null>(null)
+  // Bumped on every transaction of any section's editor (content OR a bare
+  // caret move) so the shared toolbar's bold/italic/heading highlights stay
+  // current — reading sectionEditorsRef directly wouldn't otherwise trigger
+  // a re-render, since ref mutation is invisible to React.
+  const [, setToolbarTick] = useState(0)
+  const bumpToolbar = useCallback(() => setToolbarTick((n) => n + 1), [])
   // New sessions always start in suggest (coach) mode, regardless of what a
   // past session left the toggle on — this state is never persisted.
   const [assistantMode, setAssistantMode] = useState<AssistantMode>('coach')
@@ -914,12 +920,31 @@ function WriteContent() {
         </div>
       </div>
 
+      {/* Formatting toolbar — one shared instance, fixed in place like the
+          app's Dock, rather than embedded per-section and scrolling away
+          with whichever section it belonged to. Drives whichever section is
+          currently focused. */}
+      {sections.length > 0 && !flowView && (
+        <div
+          style={{
+            position: 'fixed', top: 56, left: '50%', transform: 'translateX(-50%)', zIndex: 40,
+            display: 'flex', padding: '6px 10px', borderRadius: 999,
+            backgroundColor: 'rgba(13,12,11,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+            border: `1px solid ${shell.line}`, boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
+            maxWidth: 'calc(100vw - 24px)', overflowX: 'auto',
+          }}
+        >
+          <SectionToolbar editor={activeSectionId ? sectionEditorsRef.current[activeSectionId] ?? null : null} />
+        </div>
+      )}
+
       {/* Writing surface */}
       <div
         className="flex-1 overflow-y-auto"
         style={{
           background: 'transparent',
           paddingRight: reservedRight,
+          paddingTop: sections.length > 0 && !flowView ? 44 : undefined,
           paddingBottom: viewport.isMobile && viewport.isPortrait && openTool ? '52vh' : undefined,
           transition: 'padding 0.3s ease',
           // Safari-specific: an overflow-y:auto scroller paired with a
@@ -1111,9 +1136,9 @@ function WriteContent() {
                         onReady={(editor) => {
                           sectionEditorsRef.current[section.id] = editor
                         }}
+                        onTransaction={bumpToolbar}
                         editable={!section.is_locked}
                         placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
-                        hideToolbar={flowView}
                         textColor={section.is_locked ? '#aaa59c' : '#ece9e2'}
                       />
 
@@ -1500,7 +1525,7 @@ function WriteContent() {
                 {chatMessages.length === 0 ? (
                   <p style={{ fontSize: 14, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>
                     {assistantMode === 'write'
-                      ? "Click into a section, then ask me to write or rewrite. Select a specific sentence first and I'll focus there — approved rewrites land in the section for you to accept."
+                      ? "Click into a section, then ask for a suggestion when you want one. Select a specific sentence first and I'll focus there — approved suggestions land in the section for you to accept."
                       : "I won't write for you here — instead I'll ask questions and reflect things back until the words come from you. Select a sentence to discuss it specifically, or ask about the piece as a whole."}
                   </p>
                 ) : (
@@ -1516,59 +1541,77 @@ function WriteContent() {
                   placeholder={assistantMode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
                   sendLabel="Send"
                 />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
                   {isAssistantLocked && (
                     <span style={{ fontSize: 11, color: t.textMuted }}>
                       Locked until {new Date(lockedUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                   {(() => {
-                    // Three-step slider: Lock / Suggest / Write. The ball marks
-                    // the active position; the track itself carries the state
-                    // colour (red once locked, a non-primary accent once write
-                    // is armed, neutral for the default suggest state).
+                    // iOS-style switch, stretched to three positions: Lock /
+                    // Reflect / Suggest. The knob marks the active position;
+                    // the whole capsule recolours with it, the way a native
+                    // switch's track turns green when flipped on — violet for
+                    // Lock (deliberately not red/green/yellow, reads as
+                    // considered rather than alarming), tide for Suggest,
+                    // neutral for the default Reflect state.
                     const position = isAssistantLocked ? 0 : assistantMode === 'write' ? 2 : 1
-                    const trackBg = position === 0 ? t.soft.danger : position === 2 ? t.soft.violet : t.cardBgInner
-                    const segmentW = 56
-                    const ballLeft = 3 + position * segmentW + (segmentW - 24) / 2
-                    const segments: { key: 'lock' | 'coach' | 'write'; label: string; pos: number }[] = [
-                      { key: 'lock', label: 'Lock', pos: 0 },
-                      { key: 'coach', label: 'Suggest', pos: 1 },
-                      { key: 'write', label: 'Write', pos: 2 },
+                    const trackBg = position === 0 ? t.violet : position === 2 ? t.tide : t.cardBgInner
+                    const segmentW = 44
+                    const trackW = segmentW * 3
+                    const knobLeft = position * segmentW + (segmentW - 22) / 2
+                    const segments: { key: 'lock' | 'coach' | 'write'; label: string; pos: number; activeColor: string }[] = [
+                      { key: 'lock', label: 'Lock', pos: 0, activeColor: t.violet },
+                      { key: 'coach', label: 'Reflect', pos: 1, activeColor: t.textPrimary },
+                      { key: 'write', label: 'Suggest', pos: 2, activeColor: t.tide },
                     ]
                     return (
-                      <div
-                        style={{
-                          position: 'relative', display: 'flex', width: segmentW * 3 + 6, height: 30,
-                          borderRadius: 18, background: trackBg, transition: 'background-color 0.2s ease', flexShrink: 0,
-                        }}
-                      >
+                      <div>
                         <div
                           style={{
-                            position: 'absolute', top: 3, left: ballLeft, width: 24, height: 24, borderRadius: '50%',
-                            background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.2s ease',
+                            position: 'relative', display: 'flex', width: trackW, height: 26,
+                            borderRadius: 16, background: trackBg, transition: 'background-color 0.25s ease',
                           }}
-                        />
-                        {segments.map((seg) => (
-                          <button
-                            key={seg.key}
-                            type="button"
-                            onClick={() => {
-                              if (isAssistantLocked) return
-                              if (seg.key === 'lock') setShowLockModal(true)
-                              else setAssistantMode(seg.key === 'write' ? 'write' : 'coach')
-                            }}
-                            disabled={isAssistantLocked && seg.key !== 'lock'}
+                        >
+                          <div
                             style={{
-                              position: 'relative', zIndex: 1, flex: 1, height: '100%', border: 'none', background: 'none',
-                              cursor: isAssistantLocked ? 'default' : 'pointer', fontSize: 9, fontWeight: 700,
-                              letterSpacing: '0.02em', color: position === seg.pos ? '#1a1815' : t.textMuted,
-                              transition: 'color 0.2s ease',
+                              position: 'absolute', top: 2, left: knobLeft, width: 22, height: 22, borderRadius: '50%',
+                              background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.25s ease',
                             }}
-                          >
-                            {seg.label}
-                          </button>
-                        ))}
+                          />
+                          {segments.map((seg) => (
+                            <button
+                              key={seg.key}
+                              type="button"
+                              onClick={() => {
+                                if (isAssistantLocked) return
+                                if (seg.key === 'lock') setShowLockModal(true)
+                                else setAssistantMode(seg.key === 'write' ? 'write' : 'coach')
+                              }}
+                              disabled={isAssistantLocked && seg.key !== 'lock'}
+                              aria-label={seg.label}
+                              style={{
+                                position: 'relative', zIndex: 1, flex: 1, height: '100%', border: 'none', background: 'none',
+                                cursor: isAssistantLocked ? 'default' : 'pointer',
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', width: trackW, marginTop: 4 }}>
+                          {segments.map((seg) => (
+                            <span
+                              key={seg.key}
+                              style={{
+                                flex: 1, textAlign: 'center', fontSize: 9, letterSpacing: '0.02em',
+                                fontWeight: position === seg.pos ? 700 : 500,
+                                color: position === seg.pos ? seg.activeColor : t.textMuted,
+                                transition: 'color 0.25s ease',
+                              }}
+                            >
+                              {seg.label}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )
                   })()}
@@ -1689,7 +1732,7 @@ function WriteContent() {
       {showLockModal && (
         <ModalDialog
           onClose={() => setShowLockModal(false)}
-          title="Lock to suggestions only"
+          title="Lock to reflective prompts only"
           subtitle={
             <span style={{ display: 'block', marginTop: 6 }}>
               Once it&rsquo;s set, there&rsquo;s no early way out — not here, not anywhere else in the app.
@@ -1711,7 +1754,7 @@ function WriteContent() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
             <p style={{ fontSize: 13, color: t.textSecondary, textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
-              While this is active, the assistant will only ask questions and offer brief, cautious examples — never write for you.
+              You&rsquo;re choosing to find these words yourself — for this stretch, the assistant will only ask, never write.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ textAlign: 'center' }}>

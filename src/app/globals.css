@@ -145,37 +145,49 @@ body {
 /* Writing Studio section editor (Tiptap/ProseMirror). Paragraph spacing here
    is what gives Enter its Notion/Substack feel: a new block gets a real gap,
    while a line that merely wraps for width stays tight — because only
-   consecutive <p> elements pick up this margin, not wrapped lines within one. */
+   consecutive block elements pick up this margin, not wrapped lines within
+   one. Deliberately rem-based, not em-based: an em margin is relative to
+   each element's OWN font-size, so a heading (larger font-size) got a
+   visibly bigger gap than the plain-paragraph case that's actually the
+   overwhelming common case — a fixed rem value gives every block type the
+   same clearly-defined gap regardless of its own font size.
+
+   The margin lives directly on p/h1/h2/h3/ul themselves, not on a separate
+   `> * + *` sibling-combinator rule — a `.ProseMirror p { margin: 0 }` reset
+   is one type-selector more specific than `.ProseMirror > * + *`, so the
+   reset silently won and zeroed the gap for the plain-paragraph case (the
+   overwhelmingly common one) while this went unnoticed. Setting margin-top
+   at the same specificity as the reset avoids that entirely. */
 .write-section-editor .ProseMirror {
   outline: none;
   line-height: 1.8;
 }
-.write-section-editor .ProseMirror > * + * {
-  margin-top: 0.9em;
+.write-section-editor .ProseMirror p,
+.write-section-editor .ProseMirror h1,
+.write-section-editor .ProseMirror h2,
+.write-section-editor .ProseMirror h3,
+.write-section-editor .ProseMirror ul {
+  margin: 1.5rem 0 0 0;
 }
-.write-section-editor .ProseMirror p {
-  margin: 0;
+.write-section-editor .ProseMirror > *:first-child {
+  margin-top: 0;
 }
 .write-section-editor .ProseMirror h1 {
   font-size: 1.6em;
   font-weight: 700;
   line-height: 1.25;
-  margin: 0;
 }
 .write-section-editor .ProseMirror h2 {
   font-size: 1.35em;
   font-weight: 700;
   line-height: 1.3;
-  margin: 0;
 }
 .write-section-editor .ProseMirror h3 {
   font-size: 1.15em;
   font-weight: 600;
   line-height: 1.35;
-  margin: 0;
 }
 .write-section-editor .ProseMirror ul {
-  margin: 0;
   padding-left: 1.4em;
 }
 .write-section-editor .ProseMirror li {
