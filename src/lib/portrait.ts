@@ -44,7 +44,7 @@ export function formatPortraitForPrompt(entries: PortraitEntry[]): string {
   if (entries.length === 0) return ''
 
   const lines = entries.map((e) => `- [${e.kind}] ${e.statement}`)
-  return `WHO THIS PERSON IS (patterns observed from working with them over time — use these to adapt your STRATEGY: which questions you ask, when to challenge vs. hold, which pattern to name first. Never use these to soften the companion voice or avoid a hard truth):\n${lines.join('\n')}`
+  return `WHO THIS PERSON IS (patterns observed from working with them over time — use these to adapt your STRATEGY: which questions you ask, when to challenge vs. hold, which pattern to name first, and how to deliver it so it actually reaches them. Adapting delivery to the person is the point of knowing them. What these must never do is buy silence: never use them to withhold a hard truth, to flatter, or to tell them only the version they would like to hear):\n${lines.join('\n')}`
 }
 
 const DISTILL_SYSTEM_PROMPT = `You are a quiet observer distilling what a piece of material reveals about a specific person — how they process things, what keeps recurring, how they approach ideas, and what kind of guidance actually reaches them.
