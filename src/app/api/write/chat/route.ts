@@ -195,7 +195,12 @@ Let some of how you look at things carry a Rick Rubin-ish quality: less "here's 
     return streamClaudeText(
       {
         model: MODELS.deep,
-        max_tokens: 2400,
+        // The RESPONSE DISCIPLINE section of the prompt already asks Claude to
+        // match length to what was asked, so this cap exists as a backstop
+        // against a genuinely runaway reply, not to bound normal ones — a
+        // conversational writing-coach reply that goes long (worked examples,
+        // a real critique) can still be a few thousand tokens.
+        max_tokens: 4096,
         system: withLanguage(systemPrompt),
         messages,
       },
