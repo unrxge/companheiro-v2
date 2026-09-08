@@ -1073,7 +1073,7 @@ function WriteContent() {
                 </div>
               )}
 
-              {sections.map((section) => {
+              {sections.map((section, sectionIndex) => {
                 const isActive = activeSectionId === section.id
                 const lines = linesForSection(section.id)
                 const showWholePending = pendingWholeEdit?.sectionId === section.id
@@ -1182,6 +1182,7 @@ function WriteContent() {
                         editable={!section.is_locked}
                         placeholder={suggestions[section.id] || (flowView ? '' : 'Write this section…')}
                         textColor={section.is_locked ? '#aaa59c' : '#ece9e2'}
+                        className={flowView && sectionIndex > 0 ? 'flow-continued' : undefined}
                       />
 
                       {/* Anchored AI edit — the proposal is already visible
@@ -1629,8 +1630,13 @@ function WriteContent() {
                       { key: 'coach', label: 'Reflect', pos: 1, activeColor: t.textPrimary },
                       { key: 'write', label: 'Suggest', pos: 2, activeColor: t.tide },
                     ]
+                    // flex-start, not center — this row's second child is the
+                    // pill PLUS the label row beneath it, so centering against
+                    // that combined height pulls the lock button down off the
+                    // pill's own middle. Lock button and pill are both exactly
+                    // 22px, so aligning both to the top lines their centers up.
                     return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <button
                           type="button"
                           onClick={() => { if (!isAssistantLocked) setShowLockModal(true) }}

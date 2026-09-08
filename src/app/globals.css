@@ -172,6 +172,17 @@ body {
 .write-section-editor .ProseMirror > *:first-child {
   margin-top: 0;
 }
+/* Flow view stacks every section's editor directly on top of the next with
+   no visible boundary between them, meant to read as one continuous piece —
+   but each section is architecturally its own separate editor, so the
+   zero-margin first-child reset above fired independently in every one of
+   them, leaving no gap between the last paragraph of one section and the
+   first of the next. Applied to every section but the first in flow view,
+   restoring the normal gap right at that boundary while the very top of the
+   whole piece stays flush. */
+.write-section-editor.flow-continued .ProseMirror > *:first-child {
+  margin-top: 1.5rem;
+}
 .write-section-editor .ProseMirror h1 {
   font-size: 1.6em;
   font-weight: 700;

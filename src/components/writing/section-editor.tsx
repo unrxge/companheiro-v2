@@ -193,6 +193,12 @@ interface SectionEditorProps {
    *  current even without a text selection driving onSelectionChange. */
   onTransaction?: () => void
   textColor?: string
+  /** Extra class on the editor wrapper — e.g. flow view uses this to let a
+   *  section's first paragraph pick up the normal inter-paragraph gap
+   *  instead of the zero-margin reset every section's first paragraph gets
+   *  by default, so consecutive sections read as continuous flow rather
+   *  than each restarting flush against the one above it. */
+  className?: string
 }
 
 export function SectionEditor({
@@ -206,6 +212,7 @@ export function SectionEditor({
   onReady,
   onTransaction,
   textColor,
+  className,
 }: SectionEditorProps) {
   const editor = useEditor({
     // Next.js SSR would otherwise render the editor once on the server and
@@ -272,7 +279,7 @@ export function SectionEditor({
   if (!editor) return null
 
   return (
-    <div className="write-section-editor" style={{ color: textColor }}>
+    <div className={`write-section-editor${className ? ` ${className}` : ''}`} style={{ color: textColor }}>
       <EditorContent editor={editor} />
     </div>
   )
