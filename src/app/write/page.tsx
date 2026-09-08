@@ -675,18 +675,51 @@ function WriteContent() {
           assistant_mode: assistantMode,
         }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        setChatMessages([
+          ...newMessages,
+          { role: 'assistant', content: "Something went wrong on my end and that didn't send — try again?" },
+        ])
+        return
+      }
       setChatMessages([...newMessages, { role: 'assistant', content: '' }])
-      const { text, meta } = await readTextStream<{
+      let text = ''
+      let meta: {
         proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
         lockedMode?: 'coach' | null
-      }>(
-        res,
-        (visibleText) => {
-          setChatMessages([...newMessages, { role: 'assistant', content: visibleText }])
-        },
-        ['<proposed_edit>']
-      )
+      } | null = null
+      try {
+        const result = await readTextStream<{
+          proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
+          lockedMode?: 'coach' | null
+        }>(
+          res,
+          (visibleText) => {
+            setChatMessages([...newMessages, { role: 'assistant', content: visibleText }])
+          },
+          ['<proposed_edit>']
+        )
+        text = result.text
+        meta = result.meta
+      } catch (streamErr) {
+        // The stream can die mid-response (e.g. Claude's API erroring out
+        // partway through, more likely when Anthropic is under heavy load) —
+        // without this, whatever text had already streamed in stays on
+        // screen looking like a complete reply, with isChatLoading's own
+        // finally-block reset giving no hint anything went wrong. Whatever
+        // came through stays, but the person can see it was cut off instead
+        // of mistaking a truncated answer for the whole thing.
+        console.error('Chat stream ended early:', streamErr)
+        setChatMessages((prev) => {
+          const last = prev[prev.length - 1]
+          if (last?.role !== 'assistant') return prev
+          const cutoffNote = last.content
+            ? `${last.content}\n\n— cut off there; the connection dropped mid-reply, try again?`
+            : "That didn't come through — try again?"
+          return [...prev.slice(0, -1), { ...last, content: cutoffNote }]
+        })
+        return
+      }
       // The write-lock is enforced server-side regardless of what this client
       // sent — if the server says locked, reflect that back into the toggle
       // rather than trusting local state, in case it drifted (e.g. a lock
