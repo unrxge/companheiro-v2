@@ -199,8 +199,13 @@ Let some of how you look at things carry a Rick Rubin-ish quality: less "here's 
         // match length to what was asked, so this cap exists as a backstop
         // against a genuinely runaway reply, not to bound normal ones — a
         // conversational writing-coach reply that goes long (worked examples,
-        // a real critique) can still be a few thousand tokens.
-        max_tokens: 4096,
+        // a real critique) can still be a few thousand tokens. Sized well
+        // above what a normal reply needs (not tuned tight to it) because the
+        // model behind MODELS.deep moved from Sonnet 4.6 to Sonnet 5 on
+        // 2026-09-08 (see models.ts) and the two aren't equally verbose for
+        // the same prompt — a cap that was never in reach on 4.6 started
+        // getting hit the same day, on prompts no denser than before.
+        max_tokens: 8192,
         system: withLanguage(systemPrompt),
         messages,
       },
