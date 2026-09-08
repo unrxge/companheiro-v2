@@ -757,7 +757,21 @@ function WriteContent() {
         flushChatDistillation([...newMessages, { role: 'assistant', content: text }])
       }
     } catch (err) {
+      // Catches failures before/outside the inner stream handling too — e.g.
+      // fetch() itself throwing on a dropped connection. Same silent-failure
+      // shape as the two paths above: without a visible message here, a
+      // network error looks identical to no reply ever being attempted.
       console.error('Failed to send chat message:', err)
+      setChatMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role === 'assistant' && !last.content) {
+          return [...prev.slice(0, -1), { ...last, content: "That didn't go through — try again?" }]
+        }
+        if (last?.role === 'user') {
+          return [...prev, { role: 'assistant', content: "That didn't go through — try again?" }]
+        }
+        return prev
+      })
     } finally {
       setIsChatLoading(false)
     }
