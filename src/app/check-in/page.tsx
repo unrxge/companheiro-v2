@@ -81,8 +81,8 @@ export default function CheckInPage() {
   const [confirmedType, setConfirmedType] = useState<CheckInType | null>(null)
   const [showTypeCorrection, setShowTypeCorrection] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isLogging, setIsLogging] = useState(false)
-  const [logSuccess, setLogSuccess] = useState(false)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const checkInIdRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [initialEntry, setInitialEntry] = useState('')
   const [isLoadingJournal, setIsLoadingJournal] = useState(false)
@@ -138,7 +138,7 @@ export default function CheckInPage() {
   useEffect(() => {
     if (messages.length === 0) return
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [messages, isProcessing, signals, logSuccess])
+  }, [messages, isProcessing, signals, savedAt])
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -277,42 +277,98 @@ export default function CheckInPage() {
     }
   }
 
-  const handleLog = async () => {
-    if (!signals || !confirmedType) return
-    setIsLogging(true)
-    setError(null)
+  // Everything the save needs, mirrored so the on-the-way-out flush can read
+  // current values instead of whatever a stale closure captured.
+  const persistRef = useRef({ signals, confirmedType, initialEntry, messages })
+  persistRef.current = { signals, confirmedType, initialEntry, messages }
+
+  // The check-in writes itself: once there is something to save it saves, and
+  // keeps the same row up to date as the conversation goes on. Nobody has to
+  // remember to press anything at the end of saying something hard.
+  const persist = useCallback(async (finalise: boolean) => {
+    const { signals: s, confirmedType: type, initialEntry: entry, messages: msgs } = persistRef.current
+    if (!s || !type || !entry.trim()) return
+
+    const payload = {
+      id: checkInIdRef.current,
+      finalise,
+      raw_entry: entry,
+      full_conversation: msgs.map((x) => `${x.role === 'user' ? 'You' : 'Companheiro'}: ${x.content}`).join('\n\n'),
+      energy: s.energy,
+      inner_weather: s.inner_weather,
+      creative_readiness: s.creative_readiness,
+      arc_texture: s.arc_texture,
+      check_in_type: type,
+    }
+
+    // On the way out there is no time to await anything — fire and let it land.
+    if (finalise) {
+      if (!checkInIdRef.current) return
+      fetch('/api/check-in/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {})
+      return
+    }
+
     try {
       const res = await fetch('/api/check-in/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          raw_entry: initialEntry,
-          full_conversation: fullConversationText(),
-          energy: signals.energy,
-          inner_weather: signals.inner_weather,
-          creative_readiness: signals.creative_readiness,
-          arc_texture: signals.arc_texture,
-          check_in_type: confirmedType,
-          engaged_with_deeper_work: false,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Logging failed')
-      setLogSuccess(true)
-      setPastCheckIns((prev) => [
-        { id: data.data?.id ?? `local-${Date.now()}`, created_at: new Date().toISOString(), raw_entry: initialEntry, full_conversation: fullConversationText(), energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture, check_in_type: confirmedType },
-        ...prev,
-      ])
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      const savedId: string | undefined = data.data?.id
+      if (savedId) {
+        const isNew = !checkInIdRef.current
+        checkInIdRef.current = savedId
+        setPastCheckIns((prev) => {
+          const row = {
+            id: savedId,
+            created_at: new Date().toISOString(),
+            raw_entry: payload.raw_entry,
+            full_conversation: payload.full_conversation,
+            energy: payload.energy,
+            inner_weather: payload.inner_weather,
+            arc_texture: payload.arc_texture,
+            check_in_type: payload.check_in_type,
+          }
+          return isNew ? [row, ...prev] : prev.map((c) => (c.id === savedId ? row : c))
+        })
+      }
+      setSavedAt(new Date())
     } catch (err) {
-      console.error('Log error:', err)
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setIsLogging(false)
+      // A failed autosave is not something to interrupt them with mid-thought.
+      console.error('Check-in autosave failed:', err)
     }
-  }
+  }, [])
+
+  // Save once the reading exists and again whenever the conversation moves on,
+  // but never mid-stream — a half-written reply is not worth persisting.
+  useEffect(() => {
+    if (!signals || !confirmedType || isProcessing) return
+    persist(false)
+  }, [signals, confirmedType, isProcessing, messages.length, persist])
+
+  // Leaving the page is the only reliable signal a conversation is over, so it
+  // is where the portrait distillation gets triggered.
+  useEffect(() => {
+    const onHide = () => persist(true)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      persist(true)
+    }
+  }, [persist])
 
   const resetAll = () => {
-    setLogSuccess(false)
+    // Close the books on the one they're leaving before starting a new row.
+    persist(true)
+    checkInIdRef.current = null
+    setSavedAt(null)
     setInputMode(null)
     setMessages([])
     setTranscript('')
@@ -525,11 +581,9 @@ export default function CheckInPage() {
                           <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
                             {confirmedType ? CHECK_IN_TYPE_LABELS[confirmedType] : ''}
                           </span>
-                          {!logSuccess && (
-                            <button onClick={() => setShowTypeCorrection(true)} style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                              Change
-                            </button>
-                          )}
+                          <button onClick={() => setShowTypeCorrection(true)} style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                            Change
+                          </button>
                         </m.div>
                       ) : (
                         <m.div key="picker" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -544,38 +598,28 @@ export default function CheckInPage() {
                   </div>
                   <SignalCards
                     signals={{ energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }}
-                    onChange={logSuccess ? undefined : (next) => { signalsEditedRef.current = true; setSignals({ ...signals, ...next }) }}
+                    onChange={(next) => { signalsEditedRef.current = true; setSignals({ ...signals, ...next }) }}
                   />
 
-                  {!logSuccess ? (
-                    <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-                      <PrimaryButton onClick={handleLog} disabled={isLogging || !confirmedType} loading={isLogging} loadingLabel="Saving…" style={{ flex: 1, minWidth: 160 }}>
-                        Log this check-in
-                      </PrimaryButton>
-                      <GhostButton onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
+                  <div style={{ marginTop: 16 }}>
+                    <Divider style={{ marginBottom: 14 }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
+                        {savedAt ? 'Saved. Nothing to press — keep going or leave it here.' : 'Saving…'}
+                      </p>
+                      <GhostButton size="sm" onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
                         Journal prompt
                       </GhostButton>
                     </div>
-                  ) : (
-                    <div style={{ marginTop: 16 }}>
-                      <Divider style={{ marginBottom: 14 }} />
-                      <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary }}>Logged. Take it from here.</p>
-                      {signals.creative_readiness ? (
-                        <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>Something&apos;s alive in what you said.</p>
-                      ) : (
-                        <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>No next step is required. The door is there if you want it.</p>
-                      )}
-                      <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-                        {signals.creative_readiness ? (
-                          <PrimaryButton href="/idea-lab">Take it to the Lab →</PrimaryButton>
-                        ) : (
-                          <QuietButton href="/home">Home</QuietButton>
-                        )}
-                        <GhostButton onClick={resetAll}>New check-in</GhostButton>
-                        {signals.creative_readiness && <GhostButton onClick={() => router.push('/home')}>Home</GhostButton>}
-                      </div>
+                    {/* Doors, not prompts. Nothing here pushes them anywhere —
+                        a conversation that went somewhere heavy should not be
+                        met with an invitation to go and be productive. */}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+                      {signals.creative_readiness && <QuietButton href="/idea-lab">Take it to the Lab →</QuietButton>}
+                      <GhostButton onClick={() => router.push('/home')}>Home</GhostButton>
+                      <GhostButton onClick={resetAll}>New check-in</GhostButton>
                     </div>
-                  )}
+                  </div>
                 </Card>
               </m.div>
             )}
@@ -592,11 +636,11 @@ export default function CheckInPage() {
               </m.div>
             )}
 
-            {!logSuccess && (
-              <div style={{ paddingTop: 8 }}>
-                {inputArea}
-              </div>
-            )}
+            {/* Always available: saving is not the end of the conversation,
+                so nothing here should stop them carrying on talking. */}
+            <div style={{ paddingTop: 8 }}>
+              {inputArea}
+            </div>
             <div ref={messagesEndRef} style={{ height: 1 }} />
           </div>
         </Container>

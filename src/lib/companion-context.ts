@@ -2,6 +2,10 @@ import { formatDateAsRelative } from './dates'
 import { getActivePortrait, formatPortraitForPrompt } from './portrait'
 import type { AuthedContext } from './supabase/route'
 
+// How many recent check-ins carry their conversation tail, not just the
+// opening line. Two keeps the added cost at roughly +400 tokens per call.
+const CONVERSATION_RECALL_COUNT = 2
+
 interface ContextOptions {
   // Days of check-ins to include (default 7)
   checkInDays?: number
@@ -32,7 +36,7 @@ export async function buildCompanionContext(
     ] = await Promise.all([
       supabase
         .from('check_ins')
-        .select('raw_entry, energy, inner_weather, arc_texture, created_at')
+        .select('raw_entry, full_conversation, energy, inner_weather, arc_texture, created_at')
         .eq('user_id', user.id)
         .gte('created_at', since.toISOString())
         .order('created_at', { ascending: false })
@@ -71,10 +75,19 @@ export async function buildCompanionContext(
     }
 
     if (checkIns && checkIns.length > 0) {
-      const lines = checkIns.map(
-        (c) =>
-          `- ${formatDateAsRelative(c.created_at)}: energy ${c.energy}, weather "${c.inner_weather}", arc ${c.arc_texture}. They said: "${truncate(c.raw_entry, 220)}"`
-      )
+      const lines = checkIns.map((c, i) => {
+        const head = `- ${formatDateAsRelative(c.created_at)}: energy ${c.energy}, weather "${c.inner_weather}", arc ${c.arc_texture}. They said: "${truncate(c.raw_entry, 220)}"`
+        // The opening line is rarely where a check-in actually got to. For the
+        // two most recent, carry the END of the conversation as well — trimmed
+        // from the front, because the front is the bit already quoted above.
+        // This is what lets the companion recall the specific thing said on
+        // Tuesday rather than only the shape the portrait distilled from it.
+        if (i < CONVERSATION_RECALL_COUNT && c.full_conversation?.trim()) {
+          const tail = tailOf(c.full_conversation, 700)
+          if (tail) return `${head}\n  Where that conversation got to: "${tail}"`
+        }
+        return head
+      })
       parts.push(`Recent check-ins (newest first):\n${lines.join('\n')}`)
     }
 
@@ -111,4 +124,14 @@ export async function buildCompanionContext(
 function truncate(text: string, max: number): string {
   if (!text) return ''
   return text.length > max ? text.slice(0, max).trimEnd() + '…' : text
+}
+
+// Keeps the last `max` characters rather than the first, starting at a turn
+// boundary where one is close by so the excerpt doesn't open mid-sentence.
+function tailOf(text: string, max: number): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= max) return trimmed
+  const cut = trimmed.slice(trimmed.length - max)
+  const boundary = cut.search(/(?:^|\n)(?:You|Companheiro): /)
+  return '…' + (boundary > 0 ? cut.slice(boundary).trim() : cut.trim())
 }

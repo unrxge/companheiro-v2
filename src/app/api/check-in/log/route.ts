@@ -7,6 +7,8 @@ export async function POST(request: Request) {
     const body = await request.json()
 
     const {
+      id,
+      finalise,
       raw_entry,
       full_conversation,
       energy,
@@ -35,35 +37,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const row = {
+      raw_entry,
+      full_conversation: full_conversation ?? null,
+      energy,
+      inner_weather,
+      creative_readiness: creative_readiness ?? false,
+      arc_texture: arc_texture ?? null,
+      check_in_type: check_in_type ?? null,
+      dream_content: dream_content ?? null,
+      engaged_with_deeper_work: engaged_with_deeper_work ?? false,
+    }
+
+    // The check-in saves itself as the conversation goes: the first call
+    // creates the row, every call after updates it in place. Nobody has to
+    // remember to press anything at the end of saying something hard.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from('check_ins')
-      .insert({
-        user_id: user.id,
-        raw_entry,
-        full_conversation: full_conversation ?? null,
-        energy,
-        inner_weather,
-        creative_readiness: creative_readiness ?? false,
-        arc_texture: arc_texture ?? null,
-        check_in_type: check_in_type ?? null,
-        dream_content: dream_content ?? null,
-        engaged_with_deeper_work: engaged_with_deeper_work ?? false,
-      })
-      .select()
-      .single()
+    const table = (supabase as any).from('check_ins')
+    const query = id
+      ? table.update(row).eq('id', id).eq('user_id', user.id)
+      : table.insert({ ...row, user_id: user.id })
+
+    const { data, error } = await query.select().single()
 
     if (error) {
-      console.error('supabase insert error:', error)
+      console.error('supabase write error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Distill what this check-in reveals about how they process things.
-    // Never blocks the response on failure.
-    const material = full_conversation
-      ? `${raw_entry}\n\nFull conversation:\n${full_conversation}`
-      : raw_entry
-    await distillPortrait({ supabase, user }, 'check_in', material)
+    // Distillation is expensive and reads the conversation as a whole, so it
+    // runs once the conversation is actually over — not on every autosave.
+    if (finalise) {
+      const material = full_conversation
+        ? `${raw_entry}\n\nFull conversation:\n${full_conversation}`
+        : raw_entry
+      await distillPortrait({ supabase, user }, 'check_in', material)
+    }
 
     return NextResponse.json({ success: true, data })
   } catch (err) {
