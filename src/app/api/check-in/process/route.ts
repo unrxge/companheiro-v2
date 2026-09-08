@@ -69,7 +69,7 @@ ${SIGNALS_SPEC}`
       {
         // First turn has no reading yet, so this routes on the entry itself:
         // delicate material or a long, dense one earns the deeper model.
-        model: modelForCheckIn({ text: transcript }),
+        model: modelForCheckIn({ currentText: transcript }),
         max_tokens: 512,
         system: withLanguage(systemPrompt),
         messages: [

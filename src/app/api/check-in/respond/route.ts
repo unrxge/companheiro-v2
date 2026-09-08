@@ -77,12 +77,11 @@ ${SIGNALS_REVISION_SPEC}`
 
     return streamClaudeText(
       {
-        // Routes on the whole session, not just the latest line — by the time
-        // someone is two real turns in, this is where the deeper model earns
-        // its cost. Short, light exchanges stay on the fast one.
+        // This turn and the one before it — never the accumulated session, or
+        // the escalation would latch on the first heavy word and never lift.
         model: modelForCheckIn({
-          text: [...history.map((m) => m.content), response].join('\n'),
-          substantiveTurns,
+          currentText: response,
+          previousText: [...history].reverse().find((m) => m.role === 'user')?.content ?? '',
           energy: typeof energy === 'string' ? (energy as 'low' | 'medium' | 'high') : null,
         }),
         max_tokens: 512,

@@ -47,30 +47,53 @@ function readsDelicate(text: string): boolean {
   return DELICATE_MARKERS.some((m) => lower.includes(m))
 }
 
+/** A message long enough to be someone actually saying something. */
+const SUBSTANTIAL_CHARS = 120
+/** An opening entry dense enough that misreading it is the real risk. */
+const DENSE_ENTRY_CHARS = 500
+
 export interface RoutingInput {
-  /** Everything the person has written this session, newest included. */
-  text: string
-  /** Substantive user turns so far — the excavation phase needs nuance most. */
-  substantiveTurns?: number
-  /** Energy from the reading so far, when there is one. */
+  /** What they just wrote, this turn only. */
+  currentText: string
+  /** What they wrote the turn before, if any. Provides the decay window. */
+  previousText?: string
+  /** Energy from the most recent reading, which is revised every turn. */
   energy?: 'low' | 'medium' | 'high' | null
 }
 
 /**
  * The fast model handles the ordinary check-in well and cheaply. This lifts to
- * the deeper model only where the extra judgment actually buys something:
- * delicate material, a conversation that has gone somewhere, a dense entry
- * that has to be read accurately, or someone with nothing left in the tank.
+ * the deeper model where the extra judgment buys something — and drops back
+ * when it stops buying anything.
+ *
+ * Everything is measured on the CURRENT moment plus the turn before it, never
+ * on the accumulated session. That one-turn window is deliberate: it gives an
+ * escalation enough stickiness not to evaporate because someone answered a
+ * hard question with three words, while still letting a conversation that has
+ * genuinely lightened come back down. Nothing here latches — a check-in that
+ * opens heavy and resolves into something ordinary should stop costing what
+ * heavy costs, and a single difficult word should not pin the rest of the
+ * session to the expensive model.
  */
-export function modelForCheckIn({ text, substantiveTurns = 0, energy = null }: RoutingInput): string {
-  if (readsDelicate(text)) return MODELS.deep
-  // Past the second real turn this is no longer a check-in, it is a
-  // conversation with something in it — which is where calibration between
-  // pressing and holding gets hard, and where a flattened reply costs most.
-  if (substantiveTurns >= 2) return MODELS.deep
-  // A long entry is someone who came with a lot. Misreading it is the failure.
-  if (text.trim().length > 500) return MODELS.deep
-  // Depleted is the state most often mishandled by the single stern register.
+export function modelForCheckIn({ currentText, previousText = '', energy = null }: RoutingInput): string {
+  const current = currentText.trim()
+  // The decay window: this turn and the one before it, nothing older.
+  const recent = `${previousText}\n${current}`
+
+  // Delicate material anywhere in the window. Decays one turn after the
+  // subject actually changes, rather than persisting for the whole session.
+  if (readsDelicate(recent)) return MODELS.deep
+  // Someone came with a lot in one go. Misreading that is the failure mode.
+  if (current.length > DENSE_ENTRY_CHARS) return MODELS.deep
+  // Still in deep water right now — both of the last two turns carried real
+  // weight. Being far into a conversation is not itself the trigger; being in
+  // a substantial exchange is, and that condition can stop being true.
+  if (current.length >= SUBSTANTIAL_CHARS && previousText.trim().length >= SUBSTANTIAL_CHARS) {
+    return MODELS.deep
+  }
+  // Depleted is the state most often mishandled by a single stern register.
+  // Re-read every turn, so it lifts as they do.
   if (energy === 'low') return MODELS.deep
+
   return MODELS.fast
 }
