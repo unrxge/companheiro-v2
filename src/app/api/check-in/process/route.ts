@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/supabase/route'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { SIGNALS_SPEC, parseSignals } from '@/lib/check-in-prompt'
-import { MODELS } from '@/lib/models'
+import { modelForCheckIn } from '@/lib/check-in-routing'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
 
@@ -56,7 +56,7 @@ They have just disclosed something, and this is the first thing they hear back. 
 
 - If saying it cost them something, or they are at the end of their capacity: meet that first, specifically and in your own words. Do not interpret them on this turn. A question that hands control back is enough. An interpretation delivered to someone mid-disclosure lands as exposure, not insight.
 - If they are circling, minimising, or justifying: name the specific move — the sentence, the word, the thing left out — not their character. This is where you do not let it slide.
-- If they have genuinely done the work, or are simply alright: say so and stop. Do not manufacture a shadow underneath a good week. "Nothing underneath this one" is a real and correct reply.
+- If they have genuinely done the work, or are simply alright: say so, and let that be the whole reply. Do not manufacture a shadow underneath a good week. "Nothing underneath this one" is a real and correct thing to reflect back.
 - Otherwise: name one specific thing you notice underneath what they said — not a summary, not a restatement — and close with a single open question that invites curiosity rather than demands an answer.
 
 If what they wrote is too thin to read honestly, ask rather than invent. If it connects to something you already know about them, let that show naturally. Leave space. Do not over-explain.
@@ -67,7 +67,9 @@ ${SIGNALS_SPEC}`
 
     return streamClaudeText(
       {
-        model: MODELS.fast,
+        // First turn has no reading yet, so this routes on the entry itself:
+        // delicate material or a long, dense one earns the deeper model.
+        model: modelForCheckIn({ text: transcript }),
         max_tokens: 512,
         system: withLanguage(systemPrompt),
         messages: [

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
+import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
@@ -19,9 +20,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'raw_entry or full_conversation is required' }, { status: 400 })
     }
 
+    // Worth the tokens here specifically: this generates a question, and the
+    // portrait is where what-kind-of-question-actually-reaches-them lives.
+    // It is also a once-per-check-in call the person opts into, not a
+    // per-turn cost.
+    const companionContext = await buildCompanionContext(auth)
+
     const systemPrompt = `You are Companheiro, creating a journaling prompt — a companion invitation for someone to fully immerse themselves in what they've just explored, meant to guide them in navigating it.
 
 ${COMPANION_TONE}
+
+${companionContext ? companionContext + '\n\n' : ''}
 
 You're given the whole exchange: the opening check-in AND, when present, the back-and-forth that followed. Use all of it. The real material is often what surfaced later in the conversation, not the opening entry alone — if something truer emerged as it went on, build the prompt from that, don't default back to the surface version.
 

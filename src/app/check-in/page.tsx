@@ -218,7 +218,7 @@ export default function CheckInPage() {
         const res = await fetch('/api/check-in/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: userText, messages: priorHistory }),
+          body: JSON.stringify({ response: userText, messages: priorHistory, energy: signals?.energy ?? null }),
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
