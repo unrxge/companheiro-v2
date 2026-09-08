@@ -543,7 +543,7 @@ function ProjectBoardContent() {
   if (isLoading) {
     return (
       <PageShell mood="verdant" fill>
-        <PageHeader eyebrow="Companheiro" title="Project Board" size="md" />
+        <PageHeader eyebrow="Companheiro" title="Project Board" />
         <Container fill padding={0}>
           <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
             {['Queue', 'Active', 'Completed'].map((name) => (
@@ -904,7 +904,6 @@ function ProjectBoardContent() {
       <PageHeader
         eyebrow="Companheiro"
         title="Project Board"
-        size="md"
         actions={
           <IconButton onClick={handleNewIdeaClick} ariaLabel="New idea">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

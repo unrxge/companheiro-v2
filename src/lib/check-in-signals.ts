@@ -21,14 +21,22 @@ export function atmosphereFromCheckIns(checkIns: StoredCheckIn[]): { mood: Mood;
   return { mood: arcHue[latest.arc_texture] ?? 'neutral', intensity: ENERGY_INTENSITY[latest.energy] ?? 0.8 }
 }
 
+/** Per-day seconds from `/api/write/activity`, keyed by the same local date string it was posted with. */
+export interface WritingActivityRow {
+  date: string
+  seconds: number
+}
+
 /** Last `days` calendar days as WeatherStrip input (one bar per day, latest check-in wins). */
-export function weatherDays(checkIns: StoredCheckIn[], days = 30): WeatherDay[] {
+export function weatherDays(checkIns: StoredCheckIn[], days = 30, writingActivity: WritingActivityRow[] = []): WeatherDay[] {
   const byDay = new Map<string, StoredCheckIn>()
   for (const c of checkIns) {
     const key = c.created_at.slice(0, 10)
     const prev = byDay.get(key)
     if (!prev || prev.created_at < c.created_at) byDay.set(key, c)
   }
+  const writingByDay = new Map<string, number>()
+  for (const a of writingActivity) writingByDay.set(a.date, a.seconds)
   const out: WeatherDay[] = []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -43,6 +51,7 @@ export function weatherDays(checkIns: StoredCheckIn[], days = 30): WeatherDay[] 
       arc: c?.arc_texture ?? null,
       weather: c?.inner_weather ?? null,
       entry: c?.raw_entry ?? null,
+      writingMinutes: Math.round((writingByDay.get(key) ?? 0) / 60),
     })
   }
   return out

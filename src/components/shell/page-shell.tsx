@@ -43,7 +43,7 @@ export function PageShell({
     >
       <Atmosphere mood={mood} intensity={intensity} />
       <style>{`
-        .page-col { padding: 24px 20px 96px; }
+        .page-col { padding: max(24px, env(safe-area-inset-top)) 20px 96px; }
         @media (min-width: 720px) { .page-col { padding: ${dock ? 84 : 28}px 24px 48px; } }
         .page-col.page-col-fill { padding-bottom: 0; }
         @media (max-width: 719px) { .page-col.page-col-fill { padding-bottom: 76px; } }

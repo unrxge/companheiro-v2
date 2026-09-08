@@ -12,7 +12,7 @@ import { SettingsButton } from '@/components/settings/settings-sheet'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { ProportionBar, StageRibbon, WeatherStrip } from '@/components/widgets'
 import { journeyStepFromStage, JOURNEY_LABELS, shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
-import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn } from '@/lib/check-in-signals'
+import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 
 interface ActivePiece {
   id: string
@@ -45,6 +45,7 @@ function HomeContent() {
   const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(null)
 
   const [checkIns, setCheckIns] = useState<StoredCheckIn[]>([])
+  const [writingActivity, setWritingActivity] = useState<WritingActivityRow[]>([])
   const [recentCaptures, setRecentCaptures] = useState<RecentCapture[]>([])
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [captureUrl, setCaptureUrl] = useState('')
@@ -75,9 +76,10 @@ function HomeContent() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [piecesRes, historyRes] = await Promise.all([fetch('/api/project-board/pieces'), fetch('/api/check-in/history')])
+        const [piecesRes, historyRes, activityRes] = await Promise.all([fetch('/api/project-board/pieces'), fetch('/api/check-in/history'), fetch('/api/write/activity')])
         const data = await piecesRes.json()
         const history = await historyRes.json()
+        const activity = await activityRes.json()
         setActivePieces((data.active || []).slice(0, 5))
         setPieceCounts({
           active: (data.active || []).length,
@@ -85,6 +87,7 @@ function HomeContent() {
           completed: (data.archived || []).length,
         })
         setCheckIns(history.checkIns || [])
+        setWritingActivity(activity.activity || [])
       } catch (err) {
         console.error('Failed to load home:', err)
       } finally {
@@ -175,8 +178,8 @@ function HomeContent() {
   }
 
   const { mood, intensity } = atmosphereFromCheckIns(checkIns)
-  const days = weatherDays(checkIns, 30)
-  const hasWeather = checkIns.length > 0
+  const days = weatherDays(checkIns, 30, writingActivity)
+  const hasWeather = checkIns.length > 0 || writingActivity.some((a) => a.seconds >= 60)
   const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
   const greetingWords = greeting.split(' ')
 
@@ -258,7 +261,7 @@ function HomeContent() {
               {hasWeather ? (
                 <WeatherStrip days={days} onSelect={() => router.push('/check-in#history')} />
               ) : (
-                <p style={{ ...typeRoles.small, color: t.textSecondary }}>No check-ins yet. When you do, the last thirty days show here: height is energy, colour is arc.</p>
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>No check-ins or writing sessions yet. Once you have either, the last thirty days show here: height is energy, colour is arc.</p>
               )}
             </Card>
           </div>

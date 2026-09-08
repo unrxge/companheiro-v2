@@ -14,7 +14,7 @@ import { Pill } from '@/components/ui/pill'
 import { Thread } from '@/components/conversation/thread'
 import { SignalCards, WeatherStrip } from '@/components/widgets'
 import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
-import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn } from '@/lib/check-in-signals'
+import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type EnergyLevel = 'low' | 'medium' | 'high'
@@ -87,6 +87,7 @@ export default function CheckInPage() {
   const [journalPrompt, setJournalPrompt] = useState('')
   const [showJournalPrompt, setShowJournalPrompt] = useState(false)
   const [pastCheckIns, setPastCheckIns] = useState<PastCheckIn[]>([])
+  const [writingActivity, setWritingActivity] = useState<WritingActivityRow[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
@@ -140,9 +141,11 @@ export default function CheckInPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch('/api/check-in/history')
+        const [res, activityRes] = await Promise.all([fetch('/api/check-in/history'), fetch('/api/write/activity')])
         const data = await res.json()
+        const activity = await activityRes.json()
         setPastCheckIns(data.checkIns || [])
+        setWritingActivity(activity.activity || [])
       } catch (err) {
         console.error('Failed to fetch check-in history:', err)
       } finally {
@@ -409,7 +412,7 @@ export default function CheckInPage() {
         <Card>
           <Eyebrow style={{ marginBottom: 14 }}>Inner weather · 30 days</Eyebrow>
           <WeatherStrip
-            days={weatherDays(pastCheckIns, 30)}
+            days={weatherDays(pastCheckIns, 30, writingActivity)}
             onSelect={(d) => {
               const match = pastCheckIns.find((c) => new Date(c.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) === d.date)
               if (match) setExpandedCheckInIds((prev) => new Set(prev).add(match.id))
@@ -468,10 +471,10 @@ export default function CheckInPage() {
     <PageShell mood={mood} intensity={intensity}>
       <style>{`
         .check-in-mode-picker { display: flex; flex-direction: row; gap: 40px; align-items: center; }
-        @media (max-width: 640px) { .check-in-mode-picker { flex-direction: column; gap: 20px; } }
+        @media (max-width: 640px) { .check-in-mode-picker { gap: 32px; } }
       `}</style>
 
-      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" size="md" />
+      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" />
 
       {messages.length === 0 ? (
         /* Idle: the two circles, directly on the shell, exactly as minimal as before */

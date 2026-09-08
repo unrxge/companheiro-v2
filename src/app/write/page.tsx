@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense, useCallback, type ReactNode } fr
 import { useSearchParams, useRouter } from 'next/navigation'
 import type { Editor } from '@tiptap/react'
 import { readTextStream } from '@/lib/stream-client'
+import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { useTheme } from '@/components/theme/theme-provider'
 import { shell, journeyStepFromStage } from '@/lib/design-tokens'
 import { ensureHtml, ensureSectionsHtml, htmlToPlainText, plainTextToHtml } from '@/lib/rich-text'
@@ -189,6 +190,7 @@ function WriteContent() {
   const router = useRouter()
   const pieceId = searchParams.get('piece_id')
   const { t } = useTheme()
+  useWritingTimeTracker(!!pieceId)
 
   const [piece, setPiece] = useState<PieceCore | null>(null)
   const [isLoading, setIsLoading] = useState(true)

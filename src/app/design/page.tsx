@@ -30,12 +30,16 @@ const WEATHER_WORDS = ['foggy but clearing', 'steady', 'stormy', 'bright', 'tend
 const SAMPLE_DAYS: WeatherDay[] = Array.from({ length: 30 }, (_, i) => {
   const d = new Date(2026, 7, 8 + i)
   const skip = i % 7 === 3 || i % 11 === 5
+  // A skipped day isn't always a blank one — some had a writing session with
+  // no check-in, which the strip should still show as something happened.
+  const wroteInstead = skip && i % 11 === 5
   const energy = (['low', 'medium', 'high'] as const)[(i * 7 + 2) % 3]
   return {
     date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
     energy: skip ? null : energy,
     arc: skip ? null : ARCS[Math.floor(i / 4) % 4],
     weather: skip ? null : WEATHER_WORDS[i % WEATHER_WORDS.length],
+    writingMinutes: wroteInstead ? 25 + ((i * 13) % 60) : undefined,
   }
 })
 
