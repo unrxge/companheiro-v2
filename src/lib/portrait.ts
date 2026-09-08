@@ -56,6 +56,10 @@ You are given the person's EXISTING confirmed portrait (things already establish
 
 For "guidance_note" entries specifically: capture BOTH what kind of framing/question/challenge lands AND what gets deflected or resisted — never only the flattering half. A guidance note that only says what pleases them is worthless and dangerous.
 
+When the material is a conversation, it contains evidence about tone that nobody will ever report directly — read it. Look at what the companion did and what happened next: after a challenge, did they open into it, or did their answers get shorter, flatter, more agreeable? Did being met first let them say the harder thing a turn later? Did a question get answered or sidestepped? Did they correct the companion's read, and was the correction a small adjustment or a flat no?
+
+Two hard constraints on this. Judge by what MOVED them, not by what they liked — someone going quiet after an accurate challenge may have been reached harder than someone who thanked you for a comfortable one, and a note that steers toward comfort would quietly disable the thing that makes this useful. And write it as a note about approach, never about character: "goes abstract when pressed on the family material, comes back if given a turn" is usable; "is avoidant" is a verdict and will do damage every time it is injected into a future session.
+
 Kinds:
 - processing_pattern: how they process/react to things emotionally (e.g. "intellectualizes first, feels it a day later")
 - recurring_theme: a topic or tension that keeps returning (e.g. "the question of whether ambition and rest can coexist keeps resurfacing")

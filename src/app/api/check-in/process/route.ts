@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
+import { SIGNALS_SPEC, parseSignals } from '@/lib/check-in-prompt'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
@@ -12,7 +13,11 @@ function inferCheckInType(transcript: string, localHour: number): 'morning' | 'a
   const hour = localHour
   const lower = transcript.toLowerCase()
 
-  if (lower.includes('dream') || lower.includes('woke') || lower.includes('slept') || hour < 11) {
+  // Sleep words only mean "morning" if the clock doesn't contradict them.
+  // "I have this dream of leaving my job", typed at 11pm, is not a morning
+  // check-in — the word used to win outright, before any hour was consulted.
+  const sleepWords = lower.includes('dream') || lower.includes('woke') || lower.includes('slept')
+  if (hour < 11 || (sleepWords && hour < 14)) {
     return 'morning'
   }
   if (lower.includes('just finished work') || lower.includes('leaving the office') || (hour >= 16 && hour < 18)) {
@@ -22,40 +27,6 @@ function inferCheckInType(transcript: string, localHour: number): 'morning' | 'a
     return 'evening'
   }
   return 'moment'
-}
-
-interface Signals {
-  energy: 'low' | 'medium' | 'high'
-  inner_weather: string
-  creative_readiness: boolean
-  arc_texture: 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
-}
-
-function parseSignals(fullText: string): Signals {
-  // Reached when the model omits or malforms the <signals> block. This gets
-  // written into the permanent emotional record, so the weather word says it
-  // is unread rather than inventing a plausible-sounding one.
-  const fallback: Signals = {
-    energy: 'medium',
-    inner_weather: 'unclear',
-    creative_readiness: false,
-    arc_texture: 'Expansion',
-  }
-
-  const match = fullText.match(/<signals>([\s\S]*?)<\/signals>/)
-  if (!match) return fallback
-
-  try {
-    const parsed = JSON.parse(match[1].trim())
-    return {
-      energy: parsed.energy ?? fallback.energy,
-      inner_weather: parsed.inner_weather ?? fallback.inner_weather,
-      creative_readiness: parsed.creative_readiness ?? fallback.creative_readiness,
-      arc_texture: parsed.arc_texture ?? fallback.arc_texture,
-    }
-  } catch {
-    return fallback
-  }
 }
 
 export async function POST(request: Request) {
@@ -90,21 +61,7 @@ They have just disclosed something, and this is the first thing they hear back. 
 
 If what they wrote is too thin to read honestly, ask rather than invent. If it connects to something you already know about them, let that show naturally. Leave space. Do not over-explain.
 
-Then extract four signals from the check-in as a JSON block at the very end of your response, in this exact format:
-<signals>
-{
-  "energy": "low" | "medium" | "high",
-  "inner_weather": "<short evocative descriptor, e.g. 'foggy but clearing', 'steady', 'stormy'>",
-  "creative_readiness": true | false,
-  "arc_texture": "Breakaway" | "Beginning" | "Expansion" | "Integration"
-}
-</signals>
-
-Arc texture guide:
-- Breakaway: restless, wanting to escape, resistant to structure
-- Beginning: fresh energy, openness, new curiosity
-- Expansion: building momentum, going deeper, multiplying ideas
-- Integration: consolidating, reflecting, letting things settle`
+${SIGNALS_SPEC}`
 
     const inferredType = inferCheckInType(transcript, localHour)
 

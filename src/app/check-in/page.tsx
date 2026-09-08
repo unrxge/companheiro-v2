@@ -75,6 +75,8 @@ export default function CheckInPage() {
   transcriptRef.current = transcript
   const [messages, setMessages] = useState<Message[]>([])
   const [signals, setSignals] = useState<Signals | null>(null)
+  // Once they've corrected the reading themselves, later turns stop revising it.
+  const signalsEditedRef = useRef(false)
   const [inferredType, setInferredType] = useState<CheckInType | null>(null)
   const [confirmedType, setConfirmedType] = useState<CheckInType | null>(null)
   const [showTypeCorrection, setShowTypeCorrection] = useState(false)
@@ -222,7 +224,11 @@ export default function CheckInPage() {
           const d = await res.json().catch(() => ({}))
           throw new Error(d.error ?? 'Processing failed')
         }
-        await streamAiMessage(res)
+        // Every turn re-reads the whole conversation, so a check-in that opened
+        // flat and arrived somewhere real is logged as where it arrived. A
+        // reading the person has corrected by hand always wins.
+        const meta = await streamAiMessage<{ signals?: Signals }>(res, ['<signals>'])
+        if (meta?.signals && !signalsEditedRef.current) setSignals(meta.signals)
       } else {
         setInitialEntry(userText)
         const res = await fetch('/api/check-in/process', {
@@ -311,6 +317,7 @@ export default function CheckInPage() {
     setMessages([])
     setTranscript('')
     setSignals(null)
+    signalsEditedRef.current = false
     setInferredType(null)
     setConfirmedType(null)
     setShowTypeCorrection(false)
@@ -537,7 +544,7 @@ export default function CheckInPage() {
                   </div>
                   <SignalCards
                     signals={{ energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }}
-                    onChange={logSuccess ? undefined : (next) => setSignals({ ...signals, ...next })}
+                    onChange={logSuccess ? undefined : (next) => { signalsEditedRef.current = true; setSignals({ ...signals, ...next }) }}
                   />
 
                   {!logSuccess ? (
