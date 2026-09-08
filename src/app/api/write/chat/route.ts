@@ -195,7 +195,7 @@ Let some of how you look at things carry a Rick Rubin-ish quality: less "here's 
     return streamClaudeText(
       {
         model: MODELS.deep,
-        max_tokens: 1200,
+        max_tokens: 2400,
         system: withLanguage(systemPrompt),
         messages,
       },

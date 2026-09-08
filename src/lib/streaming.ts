@@ -30,11 +30,16 @@ export function streamClaudeText(
           }
         }
 
-        if (buildMeta) {
-          controller.enqueue(
-            encoder.encode(META_DELIMITER + JSON.stringify(buildMeta(fullText)))
-          )
+        // stop_reason === 'max_tokens' means Claude was cut off by the
+        // max_tokens cap mid-thought, not that it actually finished — that
+        // reads identically to a complete reply unless the client is told,
+        // so it's always included regardless of what buildMeta returns.
+        const finalMessage = await messageStream.finalMessage()
+        const meta: Record<string, unknown> = {
+          ...(buildMeta ? buildMeta(fullText) : {}),
+          truncated: finalMessage.stop_reason === 'max_tokens',
         }
+        controller.enqueue(encoder.encode(META_DELIMITER + JSON.stringify(meta)))
         controller.close()
       } catch (error) {
         console.error('streamClaudeText error:', error)

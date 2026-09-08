@@ -692,11 +692,13 @@ function WriteContent() {
       let meta: {
         proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
         lockedMode?: 'coach' | null
+        truncated?: boolean
       } | null = null
       try {
         const result = await readTextStream<{
           proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
           lockedMode?: 'coach' | null
+          truncated?: boolean
         }>(
           res,
           (visibleText) => {
@@ -731,6 +733,20 @@ function WriteContent() {
       // started in another tab).
       if (meta?.lockedMode === 'coach' && assistantMode !== 'coach') {
         setAssistantMode('coach')
+      }
+      if (meta?.truncated) {
+        // stop_reason came back 'max_tokens' — Claude actually ran out of
+        // room mid-thought, not an error, so it streamed to completion and
+        // reads as a normal finished reply otherwise. Note it so a reply
+        // ending mid-sentence isn't mistaken for the whole answer.
+        setChatMessages((prev) => {
+          const last = prev[prev.length - 1]
+          if (last?.role !== 'assistant') return prev
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: `${last.content}\n\n— ran out of room there, cut short mid-thought` },
+          ]
+        })
       }
       if (meta?.proposedEdit) {
         const sectionId = meta.proposedEdit.section_id
