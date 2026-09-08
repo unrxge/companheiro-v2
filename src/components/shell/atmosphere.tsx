@@ -36,6 +36,16 @@ export function Atmosphere({ mood = 'neutral', intensity = 1 }: { mood?: Mood; i
         overflow: 'hidden',
         pointerEvents: 'none',
         background: `radial-gradient(ellipse at 50% 0%, ${shell.ink2}, ${shell.ink} 65%)`,
+        // iOS Safari can lose the plot compositing a fixed, blurred, endlessly
+        // animating layer while its own chrome collapses/expands during
+        // scroll — the layer visibly lags or blanks at the top until the
+        // scroll settles. Pinning it to its own GPU layer up front (instead
+        // of promoting it mid-scroll) keeps WebKit from having to recomposite
+        // it against the changing viewport.
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+        WebkitBackfaceVisibility: 'hidden',
+        contain: 'paint',
       }}
     >
       <style>{KEYFRAMES}</style>
