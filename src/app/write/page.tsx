@@ -634,34 +634,39 @@ function WriteContent() {
     setChatMessages(newMessages)
     setIsChatLoading(true)
 
-    const active = sections.find((s) => s.id === activeSectionId)
-    // The model only ever sees plain prose — HTML markup would just be noise
-    // in its context and risks it echoing tags back in its own reply.
-    const activeSectionPayload = active
-      ? {
-          id: active.id,
-          label: active.label,
-          intended_emotion: active.intended_emotion,
-          content: htmlToPlainText(active.content),
-          is_locked: active.is_locked,
-          anchor_lines: anchorLines.filter((l) => l.section_id === active.id).map((l) => l.text),
-        }
-      : null
-    const precedingSections = active
-      ? sections
-          .filter((s) => s.position < active.position)
-          .sort((a, b) => a.position - b.position)
-          .map((s) => ({
-            label: s.label,
-            content: htmlToPlainText(s.content),
-            anchor_lines: anchorLines.filter((l) => l.section_id === s.id).map((l) => l.text),
-          }))
-      : []
-
-    const activeSelection = selectedText?.sectionId === activeSectionId ? selectedText : null
-    const selectionPayload = activeSelection?.text || null
-
+    // Everything below (payload construction included, not just the fetch)
+    // now lives inside this try — isChatLoading was already flipped true
+    // above, and a synchronous throw while building the payload used to
+    // escape uncaught, leaving the button disabled forever with no error and
+    // no way to retry short of a page refresh.
     try {
+      const active = sections.find((s) => s.id === activeSectionId)
+      // The model only ever sees plain prose — HTML markup would just be
+      // noise in its context and risks it echoing tags back in its own reply.
+      const activeSectionPayload = active
+        ? {
+            id: active.id,
+            label: active.label,
+            intended_emotion: active.intended_emotion,
+            content: htmlToPlainText(active.content),
+            is_locked: active.is_locked,
+            anchor_lines: anchorLines.filter((l) => l.section_id === active.id).map((l) => l.text),
+          }
+        : null
+      const precedingSections = active
+        ? sections
+            .filter((s) => s.position < active.position)
+            .sort((a, b) => a.position - b.position)
+            .map((s) => ({
+              label: s.label,
+              content: htmlToPlainText(s.content),
+              anchor_lines: anchorLines.filter((l) => l.section_id === s.id).map((l) => l.text),
+            }))
+        : []
+
+      const activeSelection = selectedText?.sectionId === activeSectionId ? selectedText : null
+      const selectionPayload = activeSelection?.text || null
+
       const res = await fetch('/api/write/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
