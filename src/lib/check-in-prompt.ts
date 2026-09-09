@@ -71,3 +71,15 @@ export function hasSignals(fullText: string): boolean {
     return false
   }
 }
+
+// Appended to the signal spec. The model emits this only when a genuine
+// realisation has emerged or the conversation has reached a natural close —
+// it gates the journal-prompt button in the UI.
+export const JOURNAL_CUE_SPEC = `After the signals block, if a genuine realisation has surfaced — something the person would benefit from sitting with alone in a reflective offline environment — or if the conversation has reached a natural resting point, add:
+<journal_cue>1</journal_cue>
+Omit it entirely otherwise. Do not add it just because the conversation felt productive or because you gave a good reflection.`
+
+// True when the model decided this moment warrants a journal prompt.
+export function parseJournalCue(fullText: string): boolean {
+  return fullText.includes('<journal_cue>')
+}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
-import { SIGNALS_SPEC, parseSignals } from '@/lib/check-in-prompt'
+import { SIGNALS_SPEC, JOURNAL_CUE_SPEC, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
 import { modelForCheckIn } from '@/lib/check-in-routing'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
@@ -61,7 +61,9 @@ They have just disclosed something, and this is the first thing they hear back. 
 
 If what they wrote is too thin to read honestly, ask rather than invent. If it connects to something you already know about them, let that show naturally. Leave space. Do not over-explain.
 
-${SIGNALS_SPEC}`
+${SIGNALS_SPEC}
+
+${JOURNAL_CUE_SPEC}`
 
     const inferredType = inferCheckInType(transcript, localHour)
 
@@ -82,6 +84,7 @@ ${SIGNALS_SPEC}`
       (fullText) => ({
         signals: parseSignals(fullText),
         inferredType,
+        journalCue: parseJournalCue(fullText),
       })
     )
   } catch (err) {

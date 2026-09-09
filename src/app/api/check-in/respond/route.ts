@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
-import { SIGNALS_REVISION_SPEC, hasSignals, parseSignals } from '@/lib/check-in-prompt'
+import { SIGNALS_REVISION_SPEC, JOURNAL_CUE_SPEC, hasSignals, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
 import { modelForCheckIn } from '@/lib/check-in-routing'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
@@ -73,7 +73,9 @@ ${discernment}
 
 What you know about this person should quietly shape how you respond — which question you reach for, which angle you take, what you hold back. Let that knowledge inform the reflection without ever stating it directly.
 
-${SIGNALS_REVISION_SPEC}`
+${SIGNALS_REVISION_SPEC}
+
+${JOURNAL_CUE_SPEC}`
 
     return streamClaudeText(
       {
@@ -90,7 +92,10 @@ ${SIGNALS_REVISION_SPEC}`
       },
       // Only reported when the model actually returned a usable block, so a
       // malformed one leaves the reading from the previous turn standing.
-      (fullText) => (hasSignals(fullText) ? { signals: parseSignals(fullText) } : {})
+      (fullText) => ({
+        ...(hasSignals(fullText) ? { signals: parseSignals(fullText) } : {}),
+        journalCue: parseJournalCue(fullText),
+      })
     )
   } catch (err) {
     console.error('check-in respond error:', err)

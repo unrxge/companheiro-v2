@@ -7,12 +7,12 @@ import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
 import { useTheme } from '@/components/theme/theme-provider'
-import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
+import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
 import { Thread } from '@/components/conversation/thread'
-import { SignalCards, WeatherStrip } from '@/components/widgets'
+import { WeatherStrip } from '@/components/widgets'
 import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 
@@ -63,7 +63,6 @@ const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
   evening: 'Evening',
   moment: 'A moment',
 }
-const ALL_CHECK_IN_TYPES: CheckInType[] = ['morning', 'after_work', 'evening', 'moment']
 
 export default function CheckInPage() {
   const router = useRouter()
@@ -79,7 +78,6 @@ export default function CheckInPage() {
   const signalsEditedRef = useRef(false)
   const [inferredType, setInferredType] = useState<CheckInType | null>(null)
   const [confirmedType, setConfirmedType] = useState<CheckInType | null>(null)
-  const [showTypeCorrection, setShowTypeCorrection] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const checkInIdRef = useRef<string | null>(null)
@@ -93,6 +91,7 @@ export default function CheckInPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
+  const [showJournalButton, setShowJournalButton] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
@@ -227,8 +226,9 @@ export default function CheckInPage() {
         // Every turn re-reads the whole conversation, so a check-in that opened
         // flat and arrived somewhere real is logged as where it arrived. A
         // reading the person has corrected by hand always wins.
-        const meta = await streamAiMessage<{ signals?: Signals }>(res, ['<signals>'])
+        const meta = await streamAiMessage<{ signals?: Signals; journalCue?: boolean }>(res, ['<signals>', '<journal_cue>'])
         if (meta?.signals && !signalsEditedRef.current) setSignals(meta.signals)
+        if (meta?.journalCue) setShowJournalButton(true)
       } else {
         setInitialEntry(userText)
         const res = await fetch('/api/check-in/process', {
@@ -241,11 +241,12 @@ export default function CheckInPage() {
           const d = await res.json().catch(() => ({}))
           throw new Error(d.error ?? 'Processing failed')
         }
-        const meta = await streamAiMessage<{ signals: Signals; inferredType: CheckInType }>(res, ['<signals>'])
+        const meta = await streamAiMessage<{ signals: Signals; inferredType: CheckInType; journalCue?: boolean }>(res, ['<signals>', '<journal_cue>'])
         if (meta) {
           setSignals(meta.signals)
           setInferredType(meta.inferredType)
           setConfirmedType(meta.inferredType)
+          if (meta.journalCue) setShowJournalButton(true)
         }
       }
     } catch (err) {
@@ -376,7 +377,7 @@ export default function CheckInPage() {
     signalsEditedRef.current = false
     setInferredType(null)
     setConfirmedType(null)
-    setShowTypeCorrection(false)
+    setShowJournalButton(false)
     setInitialEntry('')
     setJournalPrompt('')
     setShowJournalPrompt(false)
@@ -569,58 +570,15 @@ export default function CheckInPage() {
               )}
             </Thread>
 
-            {/* Signals you can correct → Log → one contextual door */}
-            {hasAiResponded && signals && inferredType && (
-              <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-                <Card>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <Eyebrow>What I heard · tap to correct</Eyebrow>
-                    <AnimatePresence mode="wait">
-                      {!showTypeCorrection ? (
-                        <m.div key="detected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
-                            {confirmedType ? CHECK_IN_TYPE_LABELS[confirmedType] : ''}
-                          </span>
-                          <button onClick={() => setShowTypeCorrection(true)} style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                            Change
-                          </button>
-                        </m.div>
-                      ) : (
-                        <m.div key="picker" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {ALL_CHECK_IN_TYPES.map((type) => (
-                            <Pill key={type} hue="neutral" selected={confirmedType === type} onClick={() => { setConfirmedType(type); setShowTypeCorrection(false) }}>
-                              {CHECK_IN_TYPE_LABELS[type]}
-                            </Pill>
-                          ))}
-                        </m.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  <SignalCards
-                    signals={{ energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }}
-                    onChange={(next) => { signalsEditedRef.current = true; setSignals({ ...signals, ...next }) }}
-                  />
-
-                  <div style={{ marginTop: 16 }}>
-                    <Divider style={{ marginBottom: 14 }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
-                        {savedAt ? 'Saved. Nothing to press — keep going or leave it here.' : 'Saving…'}
-                      </p>
-                      <GhostButton size="sm" onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
-                        Journal prompt
-                      </GhostButton>
-                    </div>
-                    {/* Doors, not prompts. Nothing here pushes them anywhere —
-                        a conversation that went somewhere heavy should not be
-                        met with an invitation to go and be productive. */}
-                    <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-                      {signals.creative_readiness && <QuietButton href="/idea-lab">Take it to the Lab →</QuietButton>}
-                      <GhostButton onClick={() => router.push('/home')}>Home</GhostButton>
-                      <GhostButton onClick={resetAll}>New check-in</GhostButton>
-                    </div>
-                  </div>
-                </Card>
+            {/* Contextual doors — only surface when there is something real to offer */}
+            {hasAiResponded && !isProcessing && (showJournalButton || signals?.creative_readiness) && (
+              <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {showJournalButton && (
+                  <GhostButton size="sm" onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
+                    Journal prompt
+                  </GhostButton>
+                )}
+                {signals?.creative_readiness && <QuietButton href="/idea-lab">Take it to the Lab →</QuietButton>}
               </m.div>
             )}
 
