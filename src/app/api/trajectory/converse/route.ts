@@ -16,6 +16,11 @@ interface ConverseRequest {
   messages: Message[];
 }
 
+function truncate(text: string, max: number): string {
+  if (!text) return "";
+  return text.length > max ? text.slice(0, max).trimEnd() + "…" : text;
+}
+
 const SYSTEM_PROMPT = `You are Companheiro, sitting with someone at the altitude of their whole body of work — not one idea, but where all of it is heading.
 
 You hold two registers, and move between them based on what the person brings:
@@ -74,12 +79,18 @@ export async function POST(request: NextRequest) {
         .eq("user_id", userId)
         .is("superseded_at", null)
         .maybeSingle(),
+      // Was unbounded (every check-in from 14 days, full text, resent every
+      // turn) — for a daily voice user that's thousands of tokens on every
+      // message. Capped to the 8 most recent; each entry trimmed the same
+      // way companion-context.ts trims one, since the shape a check-in
+      // needs here is "what happened", not the full transcript.
       supabase
         .from("check_ins")
         .select("raw_entry, energy, inner_weather, arc_texture, created_at")
         .eq("user_id", userId)
         .gte("created_at", fourteenDaysAgo.toISOString())
-        .order("created_at", { ascending: true }),
+        .order("created_at", { ascending: false })
+        .limit(8),
       supabase
         .from("pieces")
         .select("title, arc, thematic_territory, stage")
@@ -134,10 +145,11 @@ export async function POST(request: NextRequest) {
     if (checkIns && checkIns.length > 0) {
       contextParts.push(
         "RECENT CHECK-INS:\n" +
-          checkIns
+          [...checkIns]
+            .reverse() // fetched newest-first for the limit; read chronologically
             .map(
               (c) =>
-                `[${formatDateAsRelative(c.created_at)}] Energy: ${c.energy}, Weather: ${c.inner_weather}, Arc: ${c.arc_texture}\nEntry: "${c.raw_entry}"`
+                `[${formatDateAsRelative(c.created_at)}] Energy: ${c.energy}, Weather: ${c.inner_weather}, Arc: ${c.arc_texture}\nEntry: "${truncate(c.raw_entry, 300)}"`
             )
             .join("\n\n")
       );
@@ -210,10 +222,25 @@ export async function POST(request: NextRequest) {
         ];
 
     return streamClaudeText(
+      'trajectory/converse',
       {
         model: MODELS.deep,
         max_tokens: 1024,
-        system: withLanguage(SYSTEM_PROMPT),
+        // SYSTEM_PROMPT is a module-level constant — fully static across
+        // every user and every turn — so it's cached outright. The messages
+        // array isn't: this route deliberately rebuilds and re-prepends a
+        // fresh "everything to read from" context block on every turn (so
+        // check-ins/pieces/echoes stay current mid-conversation), which
+        // means the prefix ahead of the real history changes turn to turn
+        // and a message-level cache breakpoint here would never hit — the
+        // real saving on this route is the check-in cap above, not caching.
+        system: [
+          {
+            type: "text",
+            text: withLanguage(SYSTEM_PROMPT),
+            cache_control: { type: "ephemeral", ttl: "1h" },
+          },
+        ],
         messages: claudeMessages,
       },
       (fullText) => {

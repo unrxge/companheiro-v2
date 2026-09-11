@@ -1,5 +1,6 @@
 import { anthropic } from './anthropic'
 import { MODELS } from './models'
+import { logUsage } from './usage-log'
 
 export interface PoeticTitleInput {
   one_sentence: string
@@ -37,6 +38,8 @@ Rules:
         },
       ],
     })
+
+    logUsage('lib/generate-poetic-title', response.model, response.usage)
 
     const textContent = response.content.find((block) => block.type === 'text')
     if (!textContent || textContent.type !== 'text') return input.one_sentence

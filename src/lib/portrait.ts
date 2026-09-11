@@ -1,5 +1,6 @@
 import { anthropic } from './anthropic'
 import { MODELS } from './models'
+import { logUsage } from './usage-log'
 import type { AuthedContext } from './supabase/route'
 
 const ACTIVE_ENTRY_CAP = 15
@@ -128,8 +129,15 @@ export async function distillPortrait(
         ? existing.map((e) => `[${e.id}] (${e.kind}) ${e.statement}`).join('\n')
         : '(none yet — this is early material)'
 
+    // Upgraded from the fast model: this is the one place a wrong entry
+    // repeats itself into every future conversation, and its own prompt
+    // already says a wrong or premature entry is worse than none — the
+    // judgement that guards against that (distinguishing what moved someone
+    // from what merely pleased them, never writing a verdict about their
+    // character) is exactly what the smaller model does less reliably. It
+    // runs at most a few times per session, so the cost difference is cents.
     const response = await anthropic.messages.create({
-      model: MODELS.fast,
+      model: MODELS.deep,
       max_tokens: 500,
       system: DISTILL_SYSTEM_PROMPT,
       messages: [
@@ -139,6 +147,8 @@ export async function distillPortrait(
         },
       ],
     })
+
+    logUsage('lib/portrait:distill', response.model, response.usage, { source })
 
     const textContent = response.content.find((b) => b.type === 'text')
     if (!textContent || textContent.type !== 'text') return

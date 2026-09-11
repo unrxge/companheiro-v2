@@ -11,6 +11,11 @@ interface ContextOptions {
   checkInDays?: number
   // Max check-ins (default 5, most recent first)
   checkInLimit?: number
+  // The check-in currently being written, if any — since check-ins save
+  // themselves turn by turn, without this the conversation in progress shows
+  // up in its own context as "a recent check-in", read back to the model
+  // twice and pushing a genuinely past check-in out of the recall window.
+  excludeCheckInId?: string | null
 }
 
 // Builds the compact brief the companion carries into every conversation:
@@ -21,12 +26,19 @@ export async function buildCompanionContext(
   { supabase, user }: AuthedContext,
   options: ContextOptions = {}
 ): Promise<string> {
-  const { checkInDays = 7, checkInLimit = 5 } = options
+  const { checkInDays = 7, checkInLimit = 5, excludeCheckInId = null } = options
 
   const since = new Date()
   since.setDate(since.getDate() - checkInDays)
 
   try {
+    let checkInQuery = supabase
+      .from('check_ins')
+      .select('raw_entry, full_conversation, energy, inner_weather, arc_texture, created_at')
+      .eq('user_id', user.id)
+      .gte('created_at', since.toISOString())
+    if (excludeCheckInId) checkInQuery = checkInQuery.neq('id', excludeCheckInId)
+
     const [
       { data: checkIns },
       { data: trajectory },
@@ -34,13 +46,7 @@ export async function buildCompanionContext(
       { data: postPubLogs },
       portrait,
     ] = await Promise.all([
-      supabase
-        .from('check_ins')
-        .select('raw_entry, full_conversation, energy, inner_weather, arc_texture, created_at')
-        .eq('user_id', user.id)
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(checkInLimit),
+      checkInQuery.order('created_at', { ascending: false }).limit(checkInLimit),
       supabase
         .from('trajectories')
         .select('statement, created_at')

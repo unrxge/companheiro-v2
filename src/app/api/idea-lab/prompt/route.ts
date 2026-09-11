@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { withLanguage } from "@/lib/language";
+import { logUsage } from "@/lib/usage-log";
 
 // Custom territory object sent from the frontend for user-defined themes.
 // rangeMap and facetSeeds are populated by the generate-map API when the
@@ -407,6 +408,8 @@ Return only the prompt text. No quotation marks, no preamble, no explanation.`;
       system: withLanguage(system),
       messages: [{ role: "user", content: userMessage }],
     });
+
+    logUsage("idea-lab/prompt", response.model, response.usage);
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

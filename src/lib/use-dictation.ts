@@ -27,6 +27,16 @@ function wordsUnchanged(raw: string, candidate: string): boolean {
   return strip(raw) === strip(candidate)
 }
 
+// How long to wait, after a "final" speech result, for more final results
+// before sending what's accumulated for punctuation. The Web Speech API
+// marks a segment final at every natural pause — for continuous, fluid
+// dictation that fires many finals in quick succession, and without this
+// each one was its own Claude call. Coalescing anything that arrives within
+// this window into one call cuts that dramatically while adding at most
+// ~2.5s of latency after the last word in a burst — and none at all when
+// recording actually stops, which always flushes immediately.
+const COALESCE_MS = 2500
+
 export function useDictation({ onAppend, getContext }: UseDictationOptions): UseDictationReturn {
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
@@ -34,6 +44,11 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const punctuationQueueRef = useRef<Promise<void>>(Promise.resolve())
+
+  // Finalized segments waiting to be sent as one punctuation call, and the
+  // timer that flushes them.
+  const pendingSegmentsRef = useRef<string[]>([])
+  const coalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep refs to callbacks so async closures always see the latest values.
   const onAppendRef = useRef(onAppend)
@@ -67,6 +82,23 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     })
   }
 
+  const flushPending = () => {
+    if (coalesceTimerRef.current) {
+      clearTimeout(coalesceTimerRef.current)
+      coalesceTimerRef.current = null
+    }
+    const segments = pendingSegmentsRef.current
+    if (segments.length === 0) return
+    pendingSegmentsRef.current = []
+    punctuateAndAppend(segments.join(' '))
+  }
+
+  const queueSegment = (raw: string) => {
+    pendingSegmentsRef.current.push(raw)
+    if (coalesceTimerRef.current) clearTimeout(coalesceTimerRef.current)
+    coalesceTimerRef.current = setTimeout(flushPending, COALESCE_MS)
+  }
+
   const clearInterim = () => {
     interimTextRef.current = ''
     setInterimText('')
@@ -74,8 +106,11 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
 
   const commitInterim = () => {
     const pending = interimTextRef.current.trim()
-    if (pending) punctuateAndAppend(pending)
+    if (pending) queueSegment(pending)
     clearInterim()
+    // Stopping is always an immediate, unambiguous flush point — never make
+    // someone wait out the coalescing window just because they hit stop.
+    flushPending()
   }
 
   const startRecording = () => {
@@ -95,7 +130,7 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript
         if (event.results[i].isFinal) {
-          punctuateAndAppend(transcript.trim())
+          queueSegment(transcript.trim())
           interimTextRef.current = ''
           setInterimText('')
         } else {
@@ -115,7 +150,7 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
 
   const stopRecording = () => {
     recognitionRef.current?.stop()
-    // onend fires → commitInterim
+    // onend fires → commitInterim → flushPending
   }
 
   const handleRecordToggle = () => {

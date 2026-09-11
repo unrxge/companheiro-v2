@@ -5,6 +5,7 @@ import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
+import { logUsage } from '@/lib/usage-log'
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { raw_entry, full_conversation } = await request.json()
+    const { raw_entry, full_conversation, check_in_id } = await request.json()
     const material = (full_conversation?.trim() || raw_entry?.trim()) as string | undefined
 
     if (!material) {
@@ -23,8 +24,11 @@ export async function POST(request: Request) {
     // Worth the tokens here specifically: this generates a question, and the
     // portrait is where what-kind-of-question-actually-reaches-them lives.
     // It is also a once-per-check-in call the person opts into, not a
-    // per-turn cost.
-    const companionContext = await buildCompanionContext(auth)
+    // per-turn cost. Excludes this same check-in from context — it's already
+    // in `material` above, no need to read it back a second time.
+    const companionContext = await buildCompanionContext(auth, {
+      excludeCheckInId: typeof check_in_id === 'string' ? check_in_id : null,
+    })
 
     const systemPrompt = `You are Companheiro, creating a journaling prompt — a companion invitation for someone to fully immerse themselves in what they've just explored, meant to guide them in navigating it.
 
@@ -57,6 +61,8 @@ Return ONLY the prompt itself. No preamble, no explanation. Brief — one to thr
         },
       ],
     })
+
+    logUsage('check-in/journal-prompt', response.model, response.usage)
 
     const prompt = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
 

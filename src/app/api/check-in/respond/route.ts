@@ -20,14 +20,19 @@ export async function POST(request: Request) {
     }
 
     // `energy` is the reading so far, sent by the client purely so routing can
-    // see that someone is running on empty. Absent is fine.
-    const { response, messages, energy } = await request.json()
+    // see that someone is running on empty. Absent is fine. `check_in_id` is
+    // the row this conversation is already autosaving to (F12) — excluded
+    // from companion context so the conversation doesn't get read back to
+    // itself as "a recent check-in".
+    const { response, messages, energy, check_in_id } = await request.json()
 
     if (!response?.trim()) {
       return NextResponse.json({ error: 'response is required' }, { status: 400 })
     }
 
-    const companionContext = await buildCompanionContext(auth)
+    const companionContext = await buildCompanionContext(auth, {
+      excludeCheckInId: typeof check_in_id === 'string' ? check_in_id : null,
+    })
 
     const history: Message[] = Array.isArray(messages)
       ? messages.filter(
@@ -78,6 +83,7 @@ ${SIGNALS_REVISION_SPEC}
 ${JOURNAL_CUE_SPEC}`
 
     return streamClaudeText(
+      'check-in/respond',
       {
         // This turn and the one before it — never the accumulated session, or
         // the escalation would latch on the first heavy word and never lift.

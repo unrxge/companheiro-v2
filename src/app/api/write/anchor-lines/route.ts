@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
+import { logUsage } from '@/lib/usage-log'
 
 // POST   -> add an anchor line. If no section_id given, AI places it into the
 //           best-fitting existing section.
@@ -55,6 +56,7 @@ Return the id only.`,
               },
             ],
           })
+          logUsage('write/anchor-lines', response.model, response.usage)
           const raw = response.content.find((b) => b.type === 'text')
           const guessed = raw && raw.type === 'text' ? raw.text.trim() : ''
           const match = sections.find((s) => guessed.includes(s.id))

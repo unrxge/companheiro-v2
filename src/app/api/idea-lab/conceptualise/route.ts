@@ -5,6 +5,8 @@ import { COMPANION_TONE } from "@/lib/companion-tone";
 import { MODELS } from "@/lib/models";
 import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
+import { cacheLastMessage } from "@/lib/prompt-cache";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
   role: "user" | "assistant";
@@ -104,24 +106,40 @@ export async function POST(request: NextRequest) {
       ? `\nTHE QUESTION THAT OPENED THIS:\n"${body.question}"\nThis is what the person was responding to when they started. Let it inform the shape of the conversation without quoting it back.`
       : '';
 
-    const systemPrompt = `You are Companheiro, developing an idea with a creative person.
+    // Stable across most of a conceptualise session — only companionContext
+    // and the intro ever change turn to turn, and companionContext is itself
+    // usually stable within one sitting (it's built from check-ins/pieces
+    // that don't change minute to minute). Cached; the phase prompt below is
+    // genuinely volatile (it changes as the phase advances) so it stays out.
+    const stableSystemBlock = `You are Companheiro, developing an idea with a creative person.
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + "\n\n" : ""}${PHASE_PROMPTS[nextPhase]}${questionContext}
+${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this phase's work is genuinely done — the person has answered the phase's question with something real, not just acknowledged it — end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit it on the first turn of a phase.`;
 
-PHASE COMPLETION: when this phase's work is genuinely done — the person has answered the phase's question with something real, not just acknowledged it — end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit it on the first turn of a phase.`;
+    const volatileSystemBlock = `${PHASE_PROMPTS[nextPhase]}${questionContext}`;
 
-    const claudeMessages: Message[] =
+    // body.messages already includes the fresh user turn just typed (the
+    // client appends it before calling this route) — cache everything up to
+    // but not including it, so the newest, never-reused turn isn't marked.
+    const claudeMessages: MessageParam[] =
       body.messages.length > 0
-        ? body.messages
+        ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
         : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
 
     return streamClaudeText(
+      'idea-lab/conceptualise',
       {
-        model: MODELS.deep,
+        model: nextPhase <= 2 ? MODELS.fast : MODELS.deep,
         max_tokens: 400,
-        system: withLanguage(systemPrompt),
+        system: [
+          {
+            type: "text",
+            text: withLanguage(stableSystemBlock),
+            cache_control: { type: "ephemeral", ttl: "1h" },
+          },
+          { type: "text", text: volatileSystemBlock },
+        ],
         messages: claudeMessages,
       },
       (fullText) => ({

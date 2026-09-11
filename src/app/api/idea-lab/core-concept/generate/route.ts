@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
 import { withLanguage } from "@/lib/language";
 import { getUserTerritories, territoryPromptList } from "@/lib/territories-server";
+import { logUsage } from "@/lib/usage-log";
 
 interface ConversationMessage {
   role: "user" | "assistant";
@@ -133,10 +134,17 @@ Return as JSON:
       userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate format goals and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
     }
 
+    // Phases 1-3 distil the conversation down to a sentence or two of real
+    // judgement (the core idea, the conviction, the underlying truth) —
+    // worth the deep model. Phase 4 is pure formatting: turning an already-
+    // confirmed conviction into bullet lists, extraction with no craft call
+    // to make, so it runs on the fast model like the rest of that tier.
+    const phaseModel = body.phase === 4 ? MODELS.fast : MODELS.deep;
+
     let response;
     try {
       response = await anthropic.messages.create({
-        model: MODELS.deep,
+        model: phaseModel,
         max_tokens: 4000,
         system: withLanguage(systemPrompt),
         messages: [
@@ -150,6 +158,8 @@ Return as JSON:
       console.error("Claude API error:", apiError);
       throw apiError;
     }
+
+    logUsage("idea-lab/core-concept/generate", response.model, response.usage, { phase: body.phase });
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
+import { logUsage } from '@/lib/usage-log'
 
 interface GenerateMapResponse {
   rangeMap: string
@@ -38,8 +39,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateM
       return NextResponse.json({ error: 'Invalid label' }, { status: 400 })
     }
 
+    // Same call onboarding already makes on the fast model for a person's
+    // first territories (lib/onboarding PUT) — adding a custom territory
+    // later in Idea Lab is the identical job and should cost the same.
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: MODELS.fast,
       max_tokens: 1200,
       system: SYSTEM,
       messages: [{
@@ -47,6 +51,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateM
         content: `Generate a range map and facet seeds for the territory: "${label.trim()}"`,
       }],
     })
+
+    logUsage('idea-lab/territories/generate-map', response.model, response.usage)
 
     const text = response.content.find((b) => b.type === 'text')?.text ?? ''
 

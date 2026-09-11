@@ -217,7 +217,12 @@ export default function CheckInPage() {
         const res = await fetch('/api/check-in/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: userText, messages: priorHistory, energy: signals?.energy ?? null }),
+          body: JSON.stringify({
+            response: userText,
+            messages: priorHistory,
+            energy: signals?.energy ?? null,
+            check_in_id: checkInIdRef.current,
+          }),
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
@@ -265,7 +270,11 @@ export default function CheckInPage() {
       const res = await fetch('/api/check-in/journal-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_entry: initialEntry, full_conversation: fullConversationText() }),
+        body: JSON.stringify({
+          raw_entry: initialEntry,
+          full_conversation: fullConversationText(),
+          check_in_id: checkInIdRef.current,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate prompt')

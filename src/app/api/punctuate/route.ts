@@ -3,6 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
+import { logUsage } from '@/lib/usage-log'
 
 export async function POST(request: Request) {
   try {
@@ -32,6 +33,8 @@ STRICT RULES:
         },
       ],
     })
+
+    logUsage('punctuate', response.model, response.usage)
 
     const result =
       response.content[0].type === 'text' ? response.content[0].text.trim() : text

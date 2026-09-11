@@ -48,9 +48,16 @@ function readsDelicate(text: string): boolean {
 }
 
 /** A message long enough to be someone actually saying something. */
-const SUBSTANTIAL_CHARS = 120
+// Was 120 (≈20 words) — that's an ordinary reflective sentence, not the
+// "two turns of real depth" this branch is meant to catch, so it was
+// escalating most real conversations to the deep model by turn two. Raised
+// to ≈70 words per turn.
+const SUBSTANTIAL_CHARS = 400
 /** An opening entry dense enough that misreading it is the real risk. */
-const DENSE_ENTRY_CHARS = 500
+// Was 500 (≈40s of speech) — raised to ≈1200 so a normal-length spoken
+// opening doesn't trip it; this is meant for someone arriving with a lot in
+// one go, not an ordinary check-in.
+const DENSE_ENTRY_CHARS = 1200
 
 export interface RoutingInput {
   /** What they just wrote, this turn only. */
@@ -80,20 +87,28 @@ export function modelForCheckIn({ currentText, previousText = '', energy = null 
   // The decay window: this turn and the one before it, nothing older.
   const recent = `${previousText}\n${current}`
 
+  const decide = (model: string, reason: string): string => {
+    // Visibility into a decision nobody could previously see happening —
+    // usage-log.ts is the console-log-as-usage-report convention this app
+    // uses until there's real Admin API access.
+    console.log('[usage] check-in-routing', JSON.stringify({ model, reason }))
+    return model
+  }
+
   // Delicate material anywhere in the window. Decays one turn after the
   // subject actually changes, rather than persisting for the whole session.
-  if (readsDelicate(recent)) return MODELS.deep
+  if (readsDelicate(recent)) return decide(MODELS.deep, 'delicate')
   // Someone came with a lot in one go. Misreading that is the failure mode.
-  if (current.length > DENSE_ENTRY_CHARS) return MODELS.deep
+  if (current.length > DENSE_ENTRY_CHARS) return decide(MODELS.deep, 'dense_entry')
   // Still in deep water right now — both of the last two turns carried real
   // weight. Being far into a conversation is not itself the trigger; being in
   // a substantial exchange is, and that condition can stop being true.
   if (current.length >= SUBSTANTIAL_CHARS && previousText.trim().length >= SUBSTANTIAL_CHARS) {
-    return MODELS.deep
+    return decide(MODELS.deep, 'two_substantial_turns')
   }
   // Depleted is the state most often mishandled by a single stern register.
   // Re-read every turn, so it lifts as they do.
-  if (energy === 'low') return MODELS.deep
+  if (energy === 'low') return decide(MODELS.deep, 'low_energy')
 
-  return MODELS.fast
+  return decide(MODELS.fast, 'ordinary')
 }

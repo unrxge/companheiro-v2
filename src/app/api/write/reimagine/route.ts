@@ -43,7 +43,7 @@ ${piece.conviction_statement ? `Conviction to preserve: ${piece.conviction_state
 
 Output only the reimagined piece.`
 
-    return streamClaudeText({
+    return streamClaudeText('write/reimagine', {
       model: MODELS.deep,
       max_tokens: 2000,
       system: withLanguage(systemPrompt),

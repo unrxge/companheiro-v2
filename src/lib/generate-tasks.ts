@@ -1,5 +1,6 @@
 import { anthropic } from './anthropic'
 import { MODELS } from './models'
+import { logUsage } from './usage-log'
 
 export interface CoreConcept {
   one_sentence: string
@@ -55,6 +56,8 @@ Return as JSON:
         },
       ],
     })
+
+    logUsage('lib/generate-tasks', response.model, response.usage)
 
     const textContent = response.content.find((block) => block.type === 'text')
     if (!textContent || textContent.type !== 'text') return []

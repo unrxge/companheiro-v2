@@ -22,7 +22,7 @@ test('ordinary short check-in stays on the fast model', () => {
 })
 
 test('a dense opening entry earns the deep model', () => {
-  assert.equal(tier({ currentText: chars(600) }), 'deep')
+  assert.equal(tier({ currentText: chars(1300) }), 'deep')
 })
 
 test('delicate material escalates immediately, even when brief', () => {
@@ -36,11 +36,21 @@ test('delicate material is caught in other languages too', () => {
 })
 
 test('two substantial turns in a row means deep water right now', () => {
-  assert.equal(tier({ currentText: chars(200), previousText: chars(200) }), 'deep')
+  assert.equal(tier({ currentText: chars(450), previousText: chars(450) }), 'deep')
 })
 
 test('one substantial turn after a throwaway one does not escalate', () => {
-  assert.equal(tier({ currentText: chars(200), previousText: 'ok' }), 'fast')
+  assert.equal(tier({ currentText: chars(450), previousText: 'ok' }), 'fast')
+})
+
+// Regression guard for the actual cost bug: at the old 120-char threshold an
+// ordinary reflective reply (≈30 words) counted as "substantial", so most
+// real two-turn exchanges escalated to the deep model by turn two. This is
+// what a genuinely ordinary check-in reply looks like — it must stay fast.
+test('an ordinary reflective reply, even two turns running, stays fast', () => {
+  const ordinary =
+    'work was fine today, nothing dramatic, just tired by the end of it and glad to be sitting down'
+  assert.equal(tier({ currentText: ordinary, previousText: ordinary }), 'fast')
 })
 
 test('depletion escalates regardless of how little they wrote', () => {

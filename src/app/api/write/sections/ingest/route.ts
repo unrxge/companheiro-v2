@@ -3,6 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { requireUser, AuthedContext } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
+import { logUsage } from '@/lib/usage-log'
 
 // Discerns whether the user's brought text is a full draft or loose fragments,
 // then either distributes the draft across the emotional-journey sections
@@ -36,8 +37,10 @@ async function seedSections(
   pieceId: string,
   piece: { title: string | null; emotional_journey: string | null; conviction_statement: string | null; core_truth: string | null }
 ) {
+  // Same extraction job as write/sections/seed — a short skeleton from a
+  // journey the writer already confirmed, no craft judgement involved.
   const response = await anthropic.messages.create({
-    model: MODELS.deep,
+    model: MODELS.fast,
     max_tokens: 900,
     system: withLanguage(`You are Companheiro, turning a piece's intended emotional journey into a section skeleton the writer will draft into.
 
@@ -58,6 +61,8 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
       },
     ],
   })
+
+  logUsage('write/sections/ingest:seed', response.model, response.usage)
 
   const textBlock = response.content.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') throw new Error('Failed to generate section skeleton')
@@ -124,36 +129,45 @@ export async function POST(req: NextRequest) {
 
     if (isFullDraft(draft)) {
       // Full draft path — distribute prose across emotional-journey sections.
+      // The model is only ever asked WHICH SECTION each paragraph belongs
+      // to (by number), never to retype the draft — every paragraph that
+      // lands in the database is the writer's own original substring, never
+      // a model-echoed copy of it. Output shrinks from a full retyped draft
+      // (thousands of tokens) to a small id-per-paragraph map.
       const sectionList = sections
         .map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion || 'n/a'})`)
         .join('\n')
 
-      const distResponse = await anthropic.messages.create({
-        model: MODELS.deep,
-        max_tokens: 4000,
-        system: withLanguage(`You are Companheiro, placing a writer's existing draft into the emotional journey sections of their piece.
+      const paragraphs: string[] = (draft as string)
+        .split(/\n{2,}/)
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0)
 
-The writer's words are sacred — do not change, rephrase, summarise, or rewrite any of them. Only distribute what is already written into the sections where it belongs emotionally.
+      const distResponse = await anthropic.messages.create({
+        model: MODELS.fast,
+        max_tokens: 500,
+        system: withLanguage(`You place a writer's existing paragraphs into the emotional journey sections of their piece. The writer's words are sacred — you are only choosing WHICH SECTION each paragraph belongs to, never rewriting, summarising, or reordering anything.
 
 Rules:
-- Assign each paragraph or passage to the section whose emotional beat it most closely serves.
+- Assign each numbered paragraph to the section id whose emotional beat it most closely serves.
 - A section may receive multiple paragraphs, or none at all.
-- Preserve exact wording, line breaks, and punctuation.
-- If a passage genuinely fits no section well, place it in the emotionally closest one.
+- If a paragraph genuinely fits no section well, assign it to the emotionally closest one.
+- Every paragraph number must appear exactly once.
 
-Return ONLY JSON: { "sections": [ { "id": "...", "content": "..." }, ... ] }
-Include every section id in the response, even those receiving empty content.`),
+Return ONLY JSON: { "placements": { "0": "section_id", "1": "section_id", ... } }`),
         messages: [
           {
             role: 'user',
             content: `Sections (in reading order):
 ${sectionList}
 
-Draft to distribute:
-${draft}`,
+Paragraphs to place (each may be truncated for length — place by its gist, not its full wording):
+${paragraphs.map((p: string, i: number) => `${i}: "${p.length > 300 ? p.slice(0, 300) + '…' : p}"`).join('\n')}`,
           },
         ],
       })
+
+      logUsage('write/sections/ingest:distribute', distResponse.model, distResponse.usage)
 
       const distBlock = distResponse.content.find((b) => b.type === 'text')
       if (!distBlock || distBlock.type !== 'text') {
@@ -161,14 +175,27 @@ ${draft}`,
       }
 
       const distCleaned = distBlock.text.replace(/```json\n?|\n?```/g, '').trim()
-      const distParsed = JSON.parse(distCleaned) as { sections?: Array<{ id: string; content: string }> }
-      const assignments = distParsed.sections || []
+      const distParsed = JSON.parse(distCleaned) as { placements?: Record<string, string> }
+      const placements = distParsed.placements || {}
 
-      // Apply content to DB and to the sections list in one pass
+      // Group paragraphs by assigned section, in original order — only the
+      // model's OWN section-index choices are used, never its text, so this
+      // reconstructs each section from verbatim, untouched original prose.
+      const validIds = new Set(sections.map((s) => s.id))
+      const bySection = new Map<string, string[]>()
+      paragraphs.forEach((p: string, i: number) => {
+        const placed = placements[String(i)]
+        const target = placed && validIds.has(placed) ? placed : sections[0]?.id
+        if (!target) return
+        const list = bySection.get(target) || []
+        list.push(p)
+        bySection.set(target, list)
+      })
+
       const finalSections = await Promise.all(
         sections.map(async (s) => {
-          const assigned = assignments.find((a) => a.id === s.id)
-          const newContent = assigned?.content ?? s.content
+          const assignedParagraphs = bySection.get(s.id)
+          const newContent = assignedParagraphs ? assignedParagraphs.join('\n\n') : s.content
           if (newContent !== s.content) {
             await supabase
               .from('piece_sections')
@@ -207,6 +234,7 @@ ${sections.map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion
               },
             ],
           })
+          logUsage('write/sections/ingest:place-lines', placeResponse.model, placeResponse.usage)
           const placeBlock = placeResponse.content.find((b) => b.type === 'text')
           if (placeBlock && placeBlock.type === 'text') {
             const placeCleaned = placeBlock.text.replace(/```json\n?|\n?```/g, '').trim()

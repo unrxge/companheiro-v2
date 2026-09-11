@@ -3,6 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
+import { logUsage } from '@/lib/usage-log'
 
 // Derives an editable section skeleton for a piece from its Core Concept's
 // emotional_journey (each beat -> one section, with a loose suggestion +
@@ -37,8 +38,12 @@ export async function POST(request: NextRequest) {
 
     if (!piece) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
 
+    // This is extraction/formatting from a journey the writer already
+    // confirmed (3-6 short beats, no craft judgement being made) — the same
+    // job the fast model already does for the analogous seed inside
+    // write/sections/ingest.
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: MODELS.fast,
       max_tokens: 900,
       system: withLanguage(`You are Companheiro, turning a piece's intended emotional journey into a section skeleton the writer will draft into.
 
@@ -61,6 +66,8 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
         },
       ],
     })
+
+    logUsage('write/sections/seed', response.model, response.usage)
 
     const textContent = response.content.find((b) => b.type === 'text')
     if (!textContent || textContent.type !== 'text') {

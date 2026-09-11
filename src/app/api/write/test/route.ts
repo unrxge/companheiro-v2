@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/supabase/route'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
+import { logUsage } from '@/lib/usage-log'
 
 interface CoverageItem {
   item: string
@@ -148,6 +149,8 @@ Test it.`,
         },
       ],
     })
+
+    logUsage('write/test', response.model, response.usage)
 
     const textContent = response.content.find((b) => b.type === 'text')
     if (!textContent || textContent.type !== 'text') {

@@ -68,6 +68,7 @@ ${JOURNAL_CUE_SPEC}`
     const inferredType = inferCheckInType(transcript, localHour)
 
     return streamClaudeText(
+      'check-in/process',
       {
         // First turn has no reading yet, so this routes on the entry itself:
         // delicate material or a long, dense one earns the deeper model.

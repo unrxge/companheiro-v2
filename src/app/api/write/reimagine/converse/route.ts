@@ -68,6 +68,7 @@ Only include these when genuinely earned — never on the first turn, never spec
       : body.messages
 
     return streamClaudeText(
+      'write/reimagine/converse',
       {
         model: MODELS.deep,
         max_tokens: 600,

@@ -3,6 +3,7 @@ import { anthropic } from "@/lib/anthropic";
 import { MODELS } from "@/lib/models";
 import { createRouteClient } from "@/lib/supabase/route";
 import { withLanguage } from "@/lib/language";
+import { logUsage } from "@/lib/usage-log";
 
 interface TranslateRequest {
   piece_id: string;
@@ -76,6 +77,8 @@ Reinterpret this into a short-form video script.`,
         },
       ],
     });
+
+    logUsage("write/translate", response.model, response.usage);
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

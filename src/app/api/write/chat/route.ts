@@ -7,6 +7,7 @@ import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
 import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
+import { cacheLastMessage } from "@/lib/prompt-cache";
 
 interface ActiveSection {
   id: string;
@@ -152,7 +153,17 @@ ${
           ? "This section is LOCKED. Discuss it if asked, but do not propose any changes to it."
           : "No section is focused, so do not propose edits — talk through the piece.";
 
-    const systemPrompt = `You are Companheiro, sitting beside a writer while they work on a piece. ${assistantMode === "coach" ? "In this session they have chosen coach mode — your role is to help them find their own words through questions and reflection, never by writing prose for them." : "You help them think, unstick sections, sharpen angles, challenge ideas, and give concrete examples. You are a companion, not a ghostwriter — the prose stays theirs."}
+    const modeIntro =
+      assistantMode === "coach"
+        ? "In this session they have chosen coach mode — your role is to help them find their own words through questions and reflection, never by writing prose for them."
+        : "You help them think, unstick sections, sharpen angles, challenge ideas, and give concrete examples. You are a companion, not a ghostwriter — the prose stays theirs.";
+
+    // Stable across an entire writing session — this string is usually
+    // byte-identical from one chat turn to the next, since it only changes
+    // when the piece's own fields or its preceding sections actually change.
+    // Cached at the 1h TTL (prompt-cache.ts) so pausing to think between
+    // messages doesn't mean rebuilding and rebilling all of this every turn.
+    const stableSystemBlock = `You are Companheiro, sitting beside a writer while they work on a piece.
 
 ${COMPANION_TONE}
 
@@ -160,7 +171,7 @@ ${PROSE_STANDARD}
 
 ${STORY_STRUCTURE}
 
-${companionContext ? companionContext + "\n\n" : ""}${echoes ? echoes + "\n\n" : ""}THE PIECE:
+${companionContext ? companionContext + "\n\n" : ""}THE PIECE:
 Title: ${pieceData.title || "(untitled)"}
 ${pieceData.writing_ethos ? `Their ethos for it: ${pieceData.writing_ethos}\n` : ""}Conviction: ${pieceData.conviction_statement || "(not provided)"}
 Emotional Journey: ${pieceData.emotional_journey || "(not provided)"}
@@ -168,10 +179,6 @@ Core Truth: ${pieceData.core_truth || "(not provided)"}
 Goals: ${pieceData.substack_goals || "(not provided)"}
 
 ${precedingBlock}
-
-${sectionBlock}
-
-${editInstructions}
 
 RESPONSE DISCIPLINE:
 - Match response length and complexity to what was actually asked. A question about one line gets a focused reply about that line — not an essay. A small thing deserves a small answer.
@@ -187,12 +194,23 @@ DELIVERING CRITIQUE — you are beside the writer, not above them:
 VOICE — who you are in this back-and-forth: a peer, not a service. Confident and direct, on the same intellectual footing as the person you're talking to — never talking down, never hedging into blandness, never performing enthusiasm or reassurance. Say what you actually think. Disagree when you actually disagree. Credibility comes from having a real point of view, not from being agreeable.
 Let some of how you look at things carry a Rick Rubin-ish quality: less "here's the technique," more "here's what's actually true underneath this" — treat the work as already inside them, waiting to be noticed rather than constructed; be comfortable with silence, with a short answer, with pointing at essence instead of mechanics; trust a small true thing over a big impressive one. This is a texture, not a script — never announce it, never quote him, never turn into a caricature of it. It shows up as restraint and clarity, not as mysticism.`;
 
+    // Volatile: changes every turn — the live section/selection, archive
+    // recall keyed to this specific message, and the mode/edit rules that
+    // can flip mid-session (write-lock expiring, a highlight changing). Kept
+    // out of the cached block above so none of this ever busts the cache.
+    const volatileSystemBlock = `${modeIntro}
+
+${echoes ? echoes + "\n\n" : ""}${sectionBlock}
+
+${editInstructions}`;
+
     const messages = [
-      ...body.conversation_history,
+      ...cacheLastMessage(body.conversation_history),
       { role: "user" as const, content: body.message },
     ];
 
     return streamClaudeText(
+      'write/chat',
       {
         model: MODELS.deep,
         // The RESPONSE DISCIPLINE section of the prompt already asks Claude to
@@ -206,7 +224,14 @@ Let some of how you look at things carry a Rick Rubin-ish quality: less "here's 
         // the same prompt — a cap that was never in reach on 4.6 started
         // getting hit the same day, on prompts no denser than before.
         max_tokens: 8192,
-        system: withLanguage(systemPrompt),
+        system: [
+          {
+            type: "text",
+            text: withLanguage(stableSystemBlock),
+            cache_control: { type: "ephemeral", ttl: "1h" },
+          },
+          { type: "text", text: volatileSystemBlock },
+        ],
         messages,
       },
       (fullText) => {

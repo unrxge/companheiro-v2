@@ -387,24 +387,33 @@ function WriteContent() {
   // Fires periodically during a long session, and on any way the session
   // ends, so nothing depends on the writer reaching a "done" state.
   const WRITE_DISTILL_BATCH = 8
-  const flushChatDistillation = useCallback((allMessages: ChatMessage[], force = false) => {
-    const pending = allMessages.slice(distilledUpToRef.current)
-    if (pending.length === 0) return
-    if (!force && pending.length < WRITE_DISTILL_BATCH) return
-    distilledUpToRef.current = allMessages.length
-    fetch('/api/write/distill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: pending }),
-      keepalive: true,
-    }).catch((err) => console.error('Failed to distill writing chat:', err))
-  }, [])
+  // A tab switch isn't "leaving" — people alt-tab constantly while writing —
+  // so hiding shouldn't force a distill call over a single pending message
+  // the way actually leaving the page does. It still flushes early-ish
+  // (half the normal batch) so material doesn't sit unread for a whole
+  // session if someone works with the tab backgrounded for a while.
+  const WRITE_DISTILL_HIDDEN_MIN = 4
+  const flushChatDistillation = useCallback(
+    (allMessages: ChatMessage[], force = false, minBatch = WRITE_DISTILL_BATCH) => {
+      const pending = allMessages.slice(distilledUpToRef.current)
+      if (pending.length === 0) return
+      if (!force && pending.length < minBatch) return
+      distilledUpToRef.current = allMessages.length
+      fetch('/api/write/distill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: pending }),
+        keepalive: true,
+      }).catch((err) => console.error('Failed to distill writing chat:', err))
+    },
+    []
+  )
 
   useEffect(() => {
     const onHidden = () => {
       if (document.visibilityState === 'hidden') {
         flushSections()
-        flushChatDistillation(chatMessagesRef.current, true)
+        flushChatDistillation(chatMessagesRef.current, false, WRITE_DISTILL_HIDDEN_MIN)
       }
     }
     document.addEventListener('visibilitychange', onHidden)

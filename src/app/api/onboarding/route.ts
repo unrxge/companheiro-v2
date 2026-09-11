@@ -6,6 +6,7 @@ import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
 import { streamClaudeText } from '@/lib/streaming'
 import { customKey, type CustomSlot } from '@/lib/territories'
+import { logUsage } from '@/lib/usage-log'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     const turn = Math.min(3, Math.max(1, userTurns))
     const system = `${OPENING}\n\n${COMPANION_TONE}\n\nYou are now on turn ${turn} of 3.`
     return streamClaudeText(
+      'onboarding',
       { model: MODELS.deep, max_tokens: 400, system: withLanguage(system), messages: history },
       (full) => ({ turn, labels: turn === 3 ? extractLabels(full) : [] })
     )
@@ -97,6 +99,7 @@ export async function PUT(request: NextRequest) {
             system: MAP_SYSTEM,
             messages: [{ role: 'user', content: `Generate a range map and facet seeds for the territory: "${label}"` }],
           })
+          logUsage('onboarding:territory-map', res.model, res.usage)
           const text = res.content.find((b) => b.type === 'text')?.text ?? ''
           const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim())
           if (typeof parsed.rangeMap === 'string' && Array.isArray(parsed.facetSeeds)) {

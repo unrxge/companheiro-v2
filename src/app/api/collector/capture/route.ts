@@ -3,6 +3,7 @@ import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resource
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
 import { MODELS } from "@/lib/models";
+import { logUsage } from "@/lib/usage-log";
 import { analyzeLink, type LinkContent } from "@/lib/link-analysis";
 import { withLanguage } from "@/lib/language";
 import { getUserTerritories, territoryKeyUnion, territoryPromptList } from "@/lib/territories-server";
@@ -125,6 +126,8 @@ Format your response as JSON:
       system: withLanguage(systemPrompt),
       messages: [{ role: "user", content: userContent }],
     });
+
+    logUsage("collector/capture", response.model, response.usage);
 
     // Parse response
     const textContent = response.content.find((block) => block.type === "text");
