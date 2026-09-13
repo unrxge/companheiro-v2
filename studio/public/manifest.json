@@ -1,0 +1,14 @@
+{
+  "name": "Companheiro studio",
+  "short_name": "Studio",
+  "description": "Projects you make, projects you direct.",
+  "start_url": "/shelf",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#0d0c0b",
+  "background_color": "#0d0c0b",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "32x32", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
