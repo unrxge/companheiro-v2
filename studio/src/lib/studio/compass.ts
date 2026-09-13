@@ -2,54 +2,14 @@
 // Nothing becomes active without one of the person's verbs; talk only proposes.
 
 import type { AuthedContext } from '@/lib/supabase/route'
-import {
-  DRIFT_DAYS_DECAY, PENDING_CAP, RELATIVE_DAYS_DECAY,
-  type CompassDecideRequest, type CompassEntry, type CompassKind,
-} from '@/lib/studio/types'
+import { PENDING_CAP, type CompassDecideRequest, type CompassEntry } from '@/lib/studio/types'
 import { badRequest, conflict, fromDbError, isString, normaliseCompass, notFound, nowIso } from '@/lib/studio/db'
+import { splitCompass, type CompassSplit } from '@/lib/studio/compass-split'
 
-const DAY_MS = 24 * 60 * 60 * 1000
+// re-exported so server callers keep one import; client code must reach for
+// '@/lib/studio/compass-split' directly (this module is server-only).
+export { decayDaysFor, isFaded, splitCompass, type CompassSplit } from '@/lib/studio/compass-split'
 
-/** Days without reinforcement before an active entry fades (D-058). */
-export function decayDaysFor(kind: CompassKind): number {
-  return kind === 'drift' ? DRIFT_DAYS_DECAY : RELATIVE_DAYS_DECAY
-}
-
-/** True when an ACTIVE entry has gone unreinforced past its decay window. */
-export function isFaded(entry: Pick<CompassEntry, 'kind' | 'status' | 'last_reinforced_at'>, now: Date = new Date()): boolean {
-  if (entry.status !== 'active') return false
-  const last = new Date(entry.last_reinforced_at).getTime()
-  if (!Number.isFinite(last)) return false
-  return now.getTime() - last > decayDaysFor(entry.kind) * DAY_MS
-}
-
-export interface CompassSplit {
-  /** active and still fresh: what the sorter, the catch and the drawer's main sections see */
-  active: CompassEntry[]
-  /** active but decayed: listed under `faded`; reinforcement brings them back */
-  faded: CompassEntry[]
-  pending: CompassEntry[]
-  dormant: CompassEntry[]
-  /** active, kind commitment, unresolved (asked about, fresh or faded alike) */
-  openCommitments: CompassEntry[]
-}
-
-/** Pure split so the drawer (D) and context (G) agree without a second fetch. */
-export function splitCompass(entries: CompassEntry[], now: Date = new Date()): CompassSplit {
-  const out: CompassSplit = { active: [], faded: [], pending: [], dormant: [], openCommitments: [] }
-  for (const e of entries) {
-    if (e.status === 'pending') out.pending.push(e)
-    else if (e.status === 'dormant') out.dormant.push(e)
-    else if (e.status === 'active') {
-      if (e.kind === 'commitment' && !e.resolution) out.openCommitments.push(e)
-      if (isFaded(e, now)) out.faded.push(e)
-      else out.active.push(e)
-    }
-  }
-  return out
-}
-
-/** Every non-rejected entry of a project, split by status and decay. */
 export async function getActiveCompass(auth: AuthedContext, projectId: string, now: Date = new Date()): Promise<CompassSplit> {
   const { data, error } = await auth.supabase
     .from('studio_compass_entries')

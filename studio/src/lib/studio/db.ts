@@ -342,7 +342,9 @@ export async function shelfProjects(auth: AuthedContext): Promise<ShelfProject[]
 // ── route wrapper ───────────────────────────────────────────────────────────
 
 /** requireUser() first, then the body; HttpError → its status, anything else → 500 { error: 'internal' }. */
-export async function withAuth(fn: (auth: AuthedContext) => Promise<NextResponse>): Promise<NextResponse> {
+export async function withAuth<R extends Response = NextResponse>(
+  fn: (auth: AuthedContext) => Promise<R>,
+): Promise<R | NextResponse> {
   try {
     const auth = await requireUser()
     if (!auth) return unauthorized()

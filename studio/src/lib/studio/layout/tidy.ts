@@ -124,7 +124,17 @@ export function tidy(
   const movableIds = new Set(movable.map((b) => b.id))
 
   // ── compose the movable set around everything fixed; concept + since ride along as reference rects ──
-  const obstacles = fixed.map(rectOf)
+  // Every live block that tidy will NOT move has to be an obstacle, not just the
+  // ones `isFixed` names: a heading or a divider has region 'none', so it is
+  // neither movable nor fixed, and leaving it out of both lists let tidy lay
+  // blocks straight on top of it.
+  // (the updates being stacked away are excluded: they are leaving the surface,
+  // so treating them as obstacles would push the rest down around blocks that
+  // will not be there — and make a second tidy move everything again)
+  const stackedAway = new Set(stack.ids)
+  const obstacles = live
+    .filter((b) => !movableIds.has(b.id) && !stackedAway.has(b.id))
+    .map(rectOf)
   const reference = live.filter((b) => (b.type === 'concept' || b.type === 'since') && !movableIds.has(b.id))
   const placements = compose({
     blocks: [...movable, ...reference],

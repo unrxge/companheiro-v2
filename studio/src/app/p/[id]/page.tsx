@@ -6,8 +6,8 @@
 // read-only gate (D-060); mounts <CanvasPage> or <PhoneStage>. Loading and error
 // states sit in the shell.
 //
-// LANE B: replace the local isPhone()/usePhoneMode() (not exported: a page module may only export Next symbols) with the exports of
-// lib/studio/engine/phone.ts once it exists (same rule, re-evaluated on resize).
+// The phone rule itself lives in lib/studio/engine/phone.ts; the hook stays here
+// because a page module may only export Next's own symbols.
 
 import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -19,15 +19,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import type { ProjectBundle } from '@/lib/studio/types'
 import { CanvasPage, CanvasProvider } from '@/components/canvas/canvas-page'
 import { PhoneStage } from '@/components/phone/phone-stage'
-
-/** D-039: `innerWidth < 720 || (coarse pointer && innerWidth < 740)`; iPads (≥ 744) stay in builder mode. */
-function isPhone(): boolean {
-  if (typeof window === 'undefined') return false
-  const w = window.innerWidth
-  if (w < 720) return true
-  const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
-  return coarse && w < 740
-}
+import { isPhone } from '@/lib/studio/engine/phone'
 
 /** null until mounted (so the first paint never flashes the wrong shell). */
 function usePhoneMode(): boolean | null {

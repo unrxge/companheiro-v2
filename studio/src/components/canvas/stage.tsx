@@ -1,53 +1,91 @@
 'use client'
 
-// studio/src/components/canvas/stage.tsx — STUB (lane A, 11.1). Lane B replaces
-// this file with 5.0 (wheel/pointer binding, refs Map, overlay mount, culling,
-// measure). The exported name and props stay: `Stage({ interactive })`; `phone`
-// is optional and only tells renderers they are on a phone.
+// studio/src/components/canvas/stage.tsx — the infinite surface (5.0).
 //
-// What the stub does: the stage div with the screen-space grid background
-// (D-009), the world at the stored viewport transform, the links layer (D's
-// stub), and every renderable block positioned statically through the block
-// registry (FallbackBlock for unregistered types) inside BlockShell. No pointer
-// handling.
+// Three layers, and the split between them is the whole performance story:
+//   data-world   scaled, translated: the blocks and the links live in world px
+//   data-overlay unscaled: selection, guides, marquee — 1 px stays 1 px
+//   data-stage   the clipping window, with the dot grid drawn in SCREEN space
+//
+// Pan and zoom write `transform` straight onto data-world every frame and tell
+// the store once per animation frame; culling means only what is near the view
+// is mounted at all. The canvas is unbounded: there is no scroll container and
+// no content size, just an affine transform over an infinite plane.
 
-import { memo, useRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { alpha, type Theme, type Tokens } from '@/lib/design-tokens'
-import { geometry, grid, zIndex } from '@/lib/studio/canvas-tokens'
-import { useBlock, useCanvasStore, useIsEditing, useIsSelected, useRenderOrderIds, useViewport } from '@/lib/studio/hooks'
-import { registry } from '@/lib/studio/registry'
+import { type Theme, type Tokens } from '@/lib/design-tokens'
+import { geometry, zIndex } from '@/lib/studio/canvas-tokens'
+import { useCanvasStore, useStore, useViewport } from '@/lib/studio/hooks'
+import { viewRectFor, visibleIds } from '@/lib/studio/engine/culling'
+import { gridBackground } from '@/lib/studio/engine/viewport'
 import type { Viewport } from '@/lib/studio/types'
-import { BlockShell } from '@/components/canvas/blocks/block-shell'
-import { FallbackBlock } from '@/components/canvas/blocks/fallback-block'
-import { getRegistration } from '@/components/canvas/blocks/registry'
+import { BlockView } from '@/components/canvas/block-view'
 import { LinksLayer, type LinksApi } from '@/components/canvas/links/links-layer'
+import { Overlay } from '@/components/canvas/overlay'
+import { useCanvasEngine } from '@/components/canvas/engine-context'
 
-/** Screen-space dot grid (D-009): step by k, 1 px dots, alpha fades out below k 0.5. */
-export function gridBackground(v: Viewport, theme: Theme, on: boolean, t: Tokens): CSSProperties {
-  if (!on) return {}
-  const step = grid.step(v.k)
-  const size = step * v.k
-  const a = grid.dotAlpha[theme] * grid.fade(v.k)
-  if (a <= 0 || size < 2) return {}
-  const mod = (n: number, m: number) => ((n % m) + m) % m
-  const r = grid.dotRadiusPx
-  return {
-    backgroundImage: `radial-gradient(circle, ${alpha(t.textPrimary, a)} ${r}px, transparent ${r + 0.5}px)`,
-    backgroundSize: `${size}px ${size}px`,
-    backgroundPosition: `${mod(v.tx, size)}px ${mod(v.ty, size)}px`,
-  }
-}
+/** Kept as an export because the chrome's mini-map and tests both use it. */
+export { gridBackground }
 
 export function Stage({ interactive, phone = false }: { interactive: boolean; phone?: boolean }) {
   const { t, theme } = useTheme()
+  const store = useStore()
+  const engine = useCanvasEngine()
   const v = useViewport()
   const gridOn = useCanvasStore((s) => s.project.settings.grid)
-  const ids = useRenderOrderIds()
-  const linksRef = useRef<LinksApi>(null)
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const worldRef = useRef<HTMLDivElement | null>(null)
+  const linksRef = useRef<LinksApi | null>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+
+  // ── which blocks are worth mounting (D-010) ──────────────────────────────
+  const renderIds = useCanvasStore(
+    () => {
+      const live = store.renderOrder()
+      if (size.w === 0) return live.map((b) => b.id)
+      const ids = new Set(visibleIds(live, viewRectFor(store.get().viewport, size.w, size.h)))
+      return live.filter((b) => ids.has(b.id)).map((b) => b.id)
+    },
+    (a, b) => a.length === b.length && a.every((x, i) => x === b[i]),
+  )
+
+  // ── hand the engine its DOM (it owns the listeners, not React) ───────────
+  useEffect(() => {
+    if (!engine) return
+    engine.attach({
+      stageEl: stageRef.current,
+      worldEl: worldRef.current,
+      links: linksRef.current,
+      size: () => {
+        const r = stageRef.current?.getBoundingClientRect()
+        return { w: r?.width ?? 0, h: r?.height ?? 0 }
+      },
+    })
+    return () => engine.detach()
+  }, [engine])
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect()
+      setSize({ w: r.width, h: r.height })
+    })
+    ro.observe(el)
+    const r = el.getBoundingClientRect()
+    setSize({ w: r.width, h: r.height })
+    return () => ro.disconnect()
+  }, [])
+
+  const refs = engine?.refs ?? EMPTY_REFS
+  const viewportGetter = useCallback((): Viewport => engine?.machine.viewport() ?? store.get().viewport, [engine, store])
+
+  const grid = useMemo(() => gridBackground(v, theme as Theme, gridOn, t as Tokens), [v, theme, gridOn, t])
 
   return (
     <div
+      ref={stageRef}
       data-stage
       data-interactive={interactive ? 'true' : 'false'}
       style={{
@@ -59,10 +97,11 @@ export function Stage({ interactive, phone = false }: { interactive: boolean; ph
         borderRadius: `${geometry.stageRadiusTop}px ${geometry.stageRadiusTop}px 0 0`,
         zIndex: zIndex.world,
         transition: 'background-color 0.3s ease',
-        ...gridBackground(v, theme, gridOn, t),
+        ...grid,
       }}
     >
       <div
+        ref={worldRef}
         data-world
         style={{
           position: 'absolute',
@@ -74,49 +113,20 @@ export function Stage({ interactive, phone = false }: { interactive: boolean; ph
       >
         <LinksLayer ref={linksRef} />
         <div data-blocks>
-          {ids.map((id) => (
-            <BlockViewFallback key={id} id={id} phone={phone} />
+          {renderIds.map((id) => (
+            <BlockView key={id} id={id} phone={phone} refs={refs} measurer={engine?.measurer ?? null} />
           ))}
         </div>
       </div>
-      <svg
-        data-overlay
-        aria-hidden
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: zIndex.overlay }}
+      <Overlay
+        ref={(node) => { if (engine) engine.setOverlay(node) }}
+        store={store}
+        viewport={viewportGetter}
+        vw={() => size.w}
+        vh={() => size.h}
       />
     </div>
   )
 }
 
-/** Static positioned wrapper; lane B's BlockView (memoised, measured, ref-registered) replaces it. */
-const BlockViewFallback = memo(function BlockViewFallback({ id, phone }: { id: string; phone: boolean }) {
-  const block = useBlock(id)
-  const selected = useIsSelected(id)
-  const editing = useIsEditing(id)
-  if (!block || block.deleted_at) return null
-  const spec = registry[block.type]
-  const Renderer = getRegistration(block.type)?.Renderer ?? FallbackBlock
-  return (
-    <div
-      data-block-id={id}
-      data-type={block.type}
-      data-locked={block.locked ? 'true' : undefined}
-      data-struck={block.struck_at ? 'true' : undefined}
-      data-unplaced={block.arrival_state === 'unplaced' ? 'true' : undefined}
-      data-selected={selected ? 'true' : undefined}
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        transform: `translate3d(${block.x}px, ${block.y}px, 0)`,
-        width: block.w,
-        height: spec.autoHeight ? 'auto' : block.h,
-        contain: 'layout style',
-      }}
-    >
-      <BlockShell block={block} selected={selected} editing={editing} phone={phone}>
-        <Renderer block={block} editing={editing} selected={selected} phone={phone} />
-      </BlockShell>
-    </div>
-  )
-})
+const EMPTY_REFS = new Map<string, HTMLElement>()

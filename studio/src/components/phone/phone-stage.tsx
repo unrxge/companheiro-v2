@@ -1,24 +1,26 @@
 'use client'
 
-// studio/src/components/phone/phone-stage.tsx — STUB (lane A, 11.1). Lane B
-// replaces the body with 5.13 (one-finger pan, pinch, tap → BlockSheet, the
-// phone initial viewport). The exported signature stays: `PhoneStage()`. It reads
-// the store from StoreContext (the project page wraps it in CanvasProvider).
+// studio/src/components/phone/phone-stage.tsx — the canvas on a phone (5.13,
+// D-040). The SAME Stage, with `interactive = false`: the pointer machine then
+// registers only panning and pinching, so one finger pans, two zoom, and
+// nothing can be moved, resized or created. Tapping a block opens it as a sheet
+// instead of selecting it, because reading is not arranging.
 //
-// Stub behaviour: the same Stage with interactive = false, the since line fixed
-// at the top, G's TalkBar fixed at the bottom, and fit(all) with k ≥ 0.35 once
-// on mount (D-004).
+// Talk still works here — talk is not a canvas edit, and a phone is where most
+// talking happens. Blocks it produces wait at the edge for the next desk
+// session.
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { shell } from '@/lib/design-tokens'
 import { canvasType, geometry, glass, line, zIndex } from '@/lib/studio/canvas-tokens'
 import { useSince, useStore } from '@/lib/studio/hooks'
 import { sinceSentence } from '@/lib/studio/since'
-import { fitViewport } from '@/components/canvas/actions'
+import { fit } from '@/lib/studio/engine/viewport'
 import { ChromeStyles } from '@/components/canvas/chrome/panel'
 import { Stage } from '@/components/canvas/stage'
 import { TalkBar } from '@/components/talk/talk-bar'
+import { BlockSheet } from '@/components/phone/block-sheet'
 
 const PHONE_K_MIN = 0.35
 
@@ -27,12 +29,13 @@ export function PhoneStage() {
   const store = useStore()
   const since = useSince()
   const rootRef = useRef<HTMLDivElement>(null)
+  const [sheetId, setSheetId] = useState<string | null>(null)
 
   useEffect(() => {
     const el = rootRef.current
     const bbox = store.bboxAll()
     if (!el || !bbox) return
-    const v = fitViewport(bbox, el.clientWidth, el.clientHeight - geometry.topBarH)
+    const v = fit(bbox, el.clientWidth, el.clientHeight - geometry.topBarH)
     const k = Math.max(PHONE_K_MIN, v.k)
     // When the floor lifts k above the true fit, centring would cut both edges: keep the left edge (the concept) in view.
     const clamped = k > v.k
@@ -44,6 +47,20 @@ export function PhoneStage() {
       }
       s.chip = k < 0.3
     })
+  }, [store])
+
+  /**
+   * A tap is a click that did not pan. The machine has already swallowed the
+   * drag, so anything that still reaches here with a block under it is a tap.
+   */
+  const onClick = useCallback((e: React.MouseEvent) => {
+    if (!(e.target instanceof Element)) return
+    const el = e.target.closest('[data-block-id]')
+    const id = el?.getAttribute('data-block-id')
+    if (!id) return
+    const block = store.get().blocks.get(id)
+    if (!block || block.type === 'since') return
+    setSheetId(id)
   }, [store])
 
   const firstOpen = !since.last_said && since.arrived_since === 0 && since.waiting === 0
@@ -78,8 +95,11 @@ export function PhoneStage() {
           {lines[0] ?? 'first time here'}
         </span>
       </div>
-      <Stage interactive={false} phone />
+      <div onClick={onClick} style={{ position: 'absolute', inset: 0 }}>
+        <Stage interactive={false} phone />
+      </div>
       <TalkBar />
+      {sheetId && <BlockSheet id={sheetId} onClose={() => setSheetId(null)} />}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { tidy, type TidyResult } from '@/lib/studio/layout/tidy'
 import type { AnyBlock, Rect } from '@/lib/studio/types'
-import { block, project, resetSeq, at, PROJECT, USER, applied } from './factory'
+import { block, project, resetSeq, at, PROJECT, USER, applied, intersects } from './factory'
 
 beforeEach(resetSeq)
 
@@ -150,7 +150,7 @@ test('tidy: idempotent — tidy(tidy(x)) has no moves and no stacking', () => {
     const first = run(blocks, everything)
     const once = applyTidy(blocks, first, everything)
     const second = run(once, everything)
-    assert.equal(second.moves.size, 0, `${name}: second tidy moved ${[...second.moves.keys()].join(', ')}`)
+    assert.equal(second.moves.size, 0, `${name}: second tidy moved ${[...second.moves.entries()].map(([id,m])=>id+' '+JSON.stringify(m)).join(' | ')}`)
     assert.equal(second.stack.ids.length, 0, `${name}: second tidy stacked again`)
     assert.equal(second.stack.newTimeline, null, `${name}: second tidy made another timeline`)
   }
@@ -166,4 +166,30 @@ test('tidy: measured heights are used and an h-only difference counts as a move'
   const r1 = run(settled, false, heights)
   assert.ok(r1.moves.has(note.id))
   assert.equal(r1.moves.get(note.id)!.to.h, note.h + 80)
+})
+
+test('tidy avoids blocks it cannot move (a heading has region none)', () => {
+  resetSeq()
+  const concept = block('concept', { x: 80, y: 80, w: 1008, h: 80 })
+  const since = block('since', { x: 80, y: 248, w: 1008, h: 48 })
+  // a heading is never moved by tidy; it must still be avoided
+  const heading = block('heading', { x: 80, y: 568, w: 384, h: 48 })
+  const notes = [
+    block('note', { x: 0, y: 0, w: 320, h: 80 }),
+    block('note', { x: 0, y: 0, w: 320, h: 80 }),
+    block('note', { x: 0, y: 0, w: 320, h: 80 }),
+    block('reference', { x: 0, y: 0, w: 320, h: 80 }),
+  ]
+  const blocks = [concept, since, heading, ...notes]
+  const result = tidy({ blocks, heights: new Map(), projectId: 'p', userId: 'u' }, { everything: false })
+
+  assert.equal(result.moves.has(heading.id), false, 'the heading stays where it was put')
+  const headingRect = { x: heading.x, y: heading.y, w: heading.w, h: heading.h }
+  for (const [id, { to }] of result.moves) {
+    assert.equal(
+      intersects(to, headingRect),
+      false,
+      `${id} was laid on top of the heading at ${JSON.stringify(to)}`,
+    )
+  }
 })
