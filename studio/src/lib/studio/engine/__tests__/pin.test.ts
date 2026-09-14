@@ -10,6 +10,7 @@ function storeWith(blocks: AnyBlock[]) {
   const bundle: ProjectBundle = {
     project: {
       id: 'p-1', user_id: 'u-1', title: 't', status: 'active',
+      intent: '', rules: [],
       resting_until: null, completed_at: null, completion_note: null,
       viewport: { tx: 0, ty: 0, k: 1 },
       settings: { snap: true, grid: true, sizes: false },

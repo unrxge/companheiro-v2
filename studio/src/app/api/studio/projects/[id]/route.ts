@@ -1,6 +1,7 @@
 // GET /api/studio/projects/:id — the bundle · PATCH — project fields · DELETE — cascade
 
 import { NextResponse, type NextRequest } from 'next/server'
+import { normaliseRules } from '@/lib/studio/nodes-db'
 import {
   badRequest, bumpCanvasVersion, fromDbError, isFiniteNumber, isRecord, isString, loadBundle, noContent,
   notFound, readJson, requireProject, withAuth,
@@ -51,6 +52,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.completion_note !== undefined) {
       if (body.completion_note !== null && !isString(body.completion_note)) throw badRequest('completion_note must be text')
       patch.completion_note = body.completion_note === null ? null : body.completion_note.trim().slice(0, 500)
+      bump = true
+    }
+    if (body.intent !== undefined) {
+      if (!isString(body.intent)) throw badRequest('intent must be text')
+      patch.intent = body.intent.slice(0, 4000)
+      bump = true
+    }
+    if (body.rules !== undefined) {
+      patch.rules = normaliseRules(body.rules)
       bump = true
     }
     if (body.viewport !== undefined) patch.viewport = parseViewport(body.viewport)

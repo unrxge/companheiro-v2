@@ -17,6 +17,10 @@ export interface Project {
   id: string
   user_id: string
   title: string
+  /** What the whole project is for. The outermost altitude's intention. */
+  intent: string
+  /** Project-level rules, in force over every part. Shape: node-types.Rule[]. */
+  rules: unknown[]
   status: ProjectStatus
   resting_until: string | null
   completed_at: string | null
