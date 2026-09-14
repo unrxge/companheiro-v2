@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
-import { useRouter } from 'next/navigation'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
@@ -65,7 +64,6 @@ const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
 }
 
 export default function CheckInPage() {
-  const router = useRouter()
   const { t } = useTheme()
 
   const [inputMode, setInputMode] = useState<'mic' | 'keyboard' | null>(null)

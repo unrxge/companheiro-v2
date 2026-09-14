@@ -9,7 +9,6 @@ import { useTerritories } from '@/hooks/useTerritories'
 import { PageShell, PageHeader, Container } from '@/components/shell/page-shell'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { IconButton } from '@/components/ui/icon-button'
-import { ModalDialog } from '@/components/ui/modal-dialog'
 import { StageRibbon } from '@/components/widgets'
 import { arcHue, journeyStepFromStage, shell, toneHue, type Arc } from '@/lib/design-tokens'
 

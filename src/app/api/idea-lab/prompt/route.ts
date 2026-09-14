@@ -27,10 +27,6 @@ interface PromptRequest {
   previousPrompt?: string;
 }
 
-function resolveTerritoryKey(t: TerritoryInput): string {
-  return typeof t === 'string' ? t : t.key
-}
-
 function resolveTerritoryLabel(t: TerritoryInput): string {
   if (typeof t === 'string') return TERRITORY_LABELS[t] || t
   return t.label
