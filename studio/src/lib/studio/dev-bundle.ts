@@ -70,6 +70,7 @@ export function devBundle(): ProjectBundle {
   return {
     project: {
       id: PROJECT, user_id: USER, title: "my father's kitchen", status: 'active',
+      intent: '', rules: [],
       resting_until: null, completed_at: null, completion_note: null,
       viewport: { tx: 80, ty: 80, k: 1 },
       settings: { snap: true, grid: true, sizes: false },

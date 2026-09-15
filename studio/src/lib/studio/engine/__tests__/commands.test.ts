@@ -15,6 +15,7 @@ function storeWith(blocks: AnyBlock[], links: Link[] = []): CanvasStore {
   const bundle: ProjectBundle = {
     project: {
       id: 'p-1', user_id: 'u-1', title: 'a project', status: 'active',
+      intent: '', rules: [],
       resting_until: null, completed_at: null, completion_note: null,
       viewport: { tx: 80, ty: 80, k: 1 },
       settings: { snap: true, grid: true, sizes: false },
