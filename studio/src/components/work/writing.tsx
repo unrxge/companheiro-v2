@@ -18,7 +18,7 @@ import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { SectionEditor, SectionToolbar } from '@/components/writing/section-editor'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
-import type { Rule, RuleCheck, Thread, TreeNode } from '@/lib/studio/node-types'
+import type { Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { RuleList } from '@/components/work/rules'
 import { InlineField, Label, ThreadChips } from '@/components/work/bits'
 
@@ -29,11 +29,11 @@ export function Writing({
   parent,
   threads,
   inheritedRules,
-  checks,
   onEdit,
   onRunCheck,
   onOpenThread,
   onFinished,
+  onRemove,
   checking,
   disabled = false,
 }: {
@@ -41,12 +41,12 @@ export function Writing({
   parent: TreeNode | null
   threads: Thread[]
   inheritedRules: Array<{ rule: Rule; from: string }>
-  checks: RuleCheck[]
-  onEdit: (patch: Partial<TreeNode>) => void
+  onEdit: (patch: Partial<TreeNode>) => void | Promise<void>
   onRunCheck: () => void
   onOpenThread: (id: string) => void
   /** Called when the part is finished — climbs back out to what it belongs to. */
   onFinished?: () => void
+  onRemove?: () => void
   checking: boolean
   disabled?: boolean
 }) {
@@ -55,6 +55,9 @@ export function Writing({
   const [, bump] = useState(0)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pending = useRef<string | null>(null)
+  // The cleanup below runs once, so it must not close over a stale onEdit.
+  const latestEdit = useRef(onEdit)
+  latestEdit.current = onEdit
 
   // Autosave on a pause, never on a keystroke.
   const onChange = useCallback((html: string) => {
@@ -66,22 +69,30 @@ export function Writing({
     }, SAVE_AFTER_MS)
   }, [onEdit])
 
+  // Save whatever is still pending when the part is left. Without this,
+  // navigating within the autosave window silently lost the last edit.
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current)
-  }, [])
-
-  const flush = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current)
     if (pending.current !== null) {
-      onEdit({ body: pending.current })
+      void latestEdit.current({ body: pending.current })
       pending.current = null
     }
+  }, [])
+
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current)
+    if (pending.current === null) return
+    const html = pending.current
+    pending.current = null
+    await onEdit({ body: html })
   }, [onEdit])
 
-  const markDrafted = () => {
-    flush()
-    onEdit({ status: node.status === 'drafted' ? 'open' : 'drafted' })
-    if (node.status !== 'drafted') onRunCheck()
+  // The check reads the saved copy, so the save has to land first.
+  const markDrafted = async () => {
+    await flush()
+    const wasDrafted = node.status === 'drafted'
+    await onEdit({ status: wasDrafted ? 'open' : 'drafted' })
+    if (!wasDrafted) onRunCheck()
   }
 
   return (
@@ -142,7 +153,7 @@ export function Writing({
         </div>
         {!disabled && <SectionToolbar editor={editor} />}
         <div
-          onBlur={flush}
+          onBlur={() => void flush()}
           style={{
             background: t.cardBg, borderRadius: radius.widget,
             border: `1px solid ${alpha(t.textPrimary, 0.1)}`,
@@ -161,16 +172,16 @@ export function Writing({
         </div>
         {!disabled && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <QuietButton size="sm" onClick={markDrafted}>
+            <QuietButton size="sm" onClick={() => void markDrafted()}>
               {node.status === 'drafted' ? 'back to open' : 'mark drafted'}
             </QuietButton>
-            <GhostButton size="sm" onClick={() => { flush(); onRunCheck() }} disabled={checking}>
+            <GhostButton size="sm" onClick={() => void flush().then(onRunCheck)} disabled={checking}>
               {checking ? 'reading…' : 'check against the rules'}
             </GhostButton>
             {node.status === 'drafted' && (
               <GhostButton
                 size="sm"
-                onClick={() => { flush(); onEdit({ status: 'done' }); onFinished?.() }}
+                onClick={() => void flush().then(() => onEdit({ status: 'done' })).then(() => onFinished?.())}
               >
                 done
               </GhostButton>
@@ -178,6 +189,21 @@ export function Writing({
           </div>
         )}
       </div>
+
+      {!disabled && onRemove && (
+        <div style={{ display: 'flex' }}>
+          <button
+            type="button"
+            onClick={onRemove}
+            style={{
+              ...canvasType.chip, color: t.textMuted, background: 'none',
+              border: 'none', padding: 0, cursor: 'pointer',
+            }}
+          >
+            delete this part
+          </button>
+        </div>
+      )}
 
       {/* its own rules */}
       <div

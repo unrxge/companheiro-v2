@@ -42,7 +42,7 @@ export function RuleList({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 640 }}>
       <Label>rules</Label>
 
       {inherited.length > 0 && (
@@ -64,7 +64,7 @@ export function RuleList({
 
       {live.length === 0 && inherited.length === 0 && (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
-          none yet. a rule is something you can be caught breaking — “every part ends on a question”,
+          None yet. A rule is something you can be caught breaking — “every part ends on a question”,
           “the chorus never says the title”.
         </p>
       )}
@@ -74,7 +74,7 @@ export function RuleList({
           {live.map((rule) => (
             <li key={rule.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <span aria-hidden style={{ ...canvasType.small, color: t.ember, lineHeight: '22px' }}>·</span>
-              <div style={{ flex: '1 1 auto', maxWidth: 520 }}>
+              <div style={{ flex: '1 1 auto', minWidth: 0 }}>
                 <InlineField
                   ariaLabel="rule"
                   value={rule.text}

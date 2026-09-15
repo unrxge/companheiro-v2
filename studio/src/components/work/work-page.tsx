@@ -8,17 +8,18 @@
 // when the work asks for them. The interface is learned once and the only
 // thing that changes between altitudes is granularity.
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius } from '@/lib/design-tokens'
+import { alpha } from '@/lib/design-tokens'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
 import { work as workApi } from '@/lib/studio/work-api'
-import { findNode, flatten, pathTo, rulesInForce } from '@/lib/studio/tree'
+import { appearancesOf, findNode, flatten, pathTo, rulesInForce } from '@/lib/studio/tree'
 import { Grid } from '@/components/work/grid'
 import { Storyline, FlowRead } from '@/components/work/storyline'
 import { Writing } from '@/components/work/writing'
@@ -34,6 +35,7 @@ export type Focus =
 export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus }) {
   const { t } = useTheme()
   const router = useRouter()
+  const confirm = useConfirm()
   const { state, project, tree, roots, api, saving, tagFor } = useWork(projectId)
   const [view, setView] = useState<'parts' | 'flow'>('parts')
   const [checking, setChecking] = useState(false)
@@ -51,6 +53,33 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
   const readOnly = project?.status !== 'active'
 
+  const appearancesFor = useCallback(
+    (threadId: string) => appearancesOf(roots, threadId),
+    [roots],
+  )
+
+  /** Removing a part takes everything under it, so it is always confirmed and
+   *  it always says what else goes. */
+  const removeNode = useCallback(async (target: TreeNode) => {
+    const inside = flatten(target.children).length
+    const ok = await confirm({
+      title: `Delete “${target.title || 'this part'}”?`,
+      body: inside > 0
+        ? `Everything inside it goes too — ${inside} ${inside === 1 ? 'part' : 'parts'}. This cannot be undone.`
+        : 'This cannot be undone.',
+      confirmLabel: 'delete',
+      danger: true,
+    })
+    if (!ok) return
+    const up = pathTo(roots, target.id)
+    const above = up.length > 1 ? up[up.length - 2] : null
+    await api.removeNode(target.id)
+    if (focus.kind === 'node' && focus.id === target.id) {
+      if (above) goNode(above.id)
+      else goProject()
+    }
+  }, [api, confirm, focus, goNode, goProject, roots])
+
   const openChecks = useMemo(
     () => (node ? tree.open_checks.filter((c) => c.node_id === node.id) : tree.open_checks),
     [tree.open_checks, node],
@@ -65,6 +94,9 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
       ...all.map(({ rule, source }) => ({ rule, from: source.title || 'above' })),
     ]
   }, [node, roots, project])
+
+  const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
+  useEffect(() => { setCheckNote(null) }, [focusKey])
 
   const runCheck = useCallback(async (nodeId: string) => {
     setChecking(true)
@@ -151,7 +183,7 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
         <PageHeader eyebrow="studio" title="it did not open" size="md" />
         <Container padding={32}>
           <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
-            {state.status === 'error' ? state.message : 'the project is missing'}
+            {state.status === 'error' ? state.message : 'The project is missing.'}
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <QuietButton onClick={() => void api.reload()}>try again</QuietButton>
@@ -177,11 +209,20 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
   return (
     <PageShell dock={false} mood="neutral">
       <PageHeader
-        eyebrow={saving ? 'saving…' : 'studio'}
+        eyebrow="studio"
         title={headerTitle}
         size="md"
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span
+              aria-live="polite"
+              style={{
+                ...canvasType.chip, color: t.textMuted,
+                opacity: saving ? 1 : 0, transition: 'opacity 160ms ease',
+              }}
+            >
+              saving…
+            </span>
             {focus.kind === 'node' && node && node.children.length > 0 && (
               <GhostButton size="sm" onClick={() => setView(view === 'parts' ? 'flow' : 'parts')}>
                 {view === 'parts' ? 'read it through' : 'back to the parts'}
@@ -262,8 +303,10 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
                 pieces={roots}
                 threads={tree.threads}
                 tagFor={tagFor}
+                appearancesFor={appearancesFor}
                 onOpenPiece={goNode}
                 onOpenThread={goThread}
+                onOpenNode={goNode}
                 onToggle={(nodeId, threadId, on) => {
                   if (on) void api.tag(nodeId, threadId)
                   else void api.untag(nodeId, threadId)
@@ -287,18 +330,18 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
                   parent={parent}
                   threads={tree.threads}
                   inheritedRules={inherited}
-                  checks={openChecks}
                   checking={checking}
                   disabled={readOnly}
                   onEdit={(patch) => void api.editNode(node.id, patch)}
                   onRunCheck={() => void runCheck(node.id)}
                   onOpenThread={goThread}
                   onFinished={() => (parent ? goNode(parent.id) : goProject())}
+                  onRemove={() => void removeNode(node)}
                 />
                 {!readOnly && (
                   <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, paddingTop: 16 }}>
                     <p style={{ ...canvasType.small, color: t.textMuted, margin: '0 0 10px' }}>
-                      if this needs a beginning, a middle and an end of its own, give it parts.
+                      If this needs a beginning, a middle and an end of its own, give it parts.
                     </p>
                     <PrimaryButton size="sm" onClick={() => void breakIntoParts(node)}>
                       break it into parts
@@ -322,6 +365,8 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
                     onReorder={(ids) => void api.reorder(node.id, ids)}
                     onEditBeat={(id, beat) => void api.editNode(id, { beat })}
                     onAdd={(afterId) => void api.addNode(node.id, afterId)}
+                    onOpenThread={goThread}
+                    onRemove={(part) => void removeNode(part)}
                     disabled={readOnly}
                   />
                 ) : (
@@ -344,11 +389,10 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
           {focus.kind === 'thread' && thread && (
             <ThreadRead
               thread={thread}
-              appearances={flatten(roots)
-                .filter((n) => n.threads.includes(thread.id))
-                .map((n) => ({ node: n, trail: pathTo(roots, n.id).map((s) => s.title || 'untitled') }))}
+              appearances={appearancesFor(thread.id)}
               tagFor={tagFor}
               onOpen={goNode}
+              onUntag={(nodeId) => void api.untag(nodeId, thread.id)}
               onEditThread={(patch) => void api.editThread(thread.id, patch)}
               disabled={readOnly}
             />

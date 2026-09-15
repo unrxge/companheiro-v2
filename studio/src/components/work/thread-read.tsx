@@ -11,7 +11,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
 import { htmlToPlainText } from '@/lib/rich-text'
-import type { Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
+import type { Appearance, Thread, ThreadTag } from '@/lib/studio/node-types'
 import { InlineField, Label, hueOf } from '@/components/work/bits'
 import { RuleList } from '@/components/work/rules'
 
@@ -20,14 +20,16 @@ export function ThreadRead({
   appearances,
   tagFor,
   onOpen,
+  onUntag,
   onEditThread,
   disabled = false,
 }: {
   thread: Thread
   /** Every node carrying this thread, in reading order, with its trail. */
-  appearances: Array<{ node: TreeNode; trail: string[] }>
+  appearances: Appearance[]
   tagFor: (nodeId: string, threadId: string) => ThreadTag | undefined
   onOpen: (nodeId: string) => void
+  onUntag?: (nodeId: string) => void
   onEditThread: (patch: Partial<Thread>) => void
   disabled?: boolean
 }) {
@@ -68,7 +70,7 @@ export function ThreadRead({
 
       {appearances.length === 0 ? (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
-          this thread is not in any part yet. mark it on the grid and it will read through here.
+          This thread is not in any part yet. Mark it on a piece and it will read through here.
         </p>
       ) : (
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -83,16 +85,31 @@ export function ThreadRead({
                   paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 8,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => onOpen(node.id)}
-                  style={{
-                    ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',
-                    padding: 0, textAlign: 'left', cursor: 'pointer',
-                  }}
-                >
-                  {trail.join(' / ') || 'untitled'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(node.id)}
+                    style={{
+                      ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',
+                      padding: 0, textAlign: 'left', cursor: 'pointer', flex: 1,
+                    }}
+                  >
+                    {trail.join(' / ') || 'untitled'}
+                  </button>
+                  {!disabled && onUntag && (
+                    <button
+                      type="button"
+                      aria-label="take this part off the thread"
+                      onClick={() => onUntag(node.id)}
+                      style={{
+                        ...canvasType.chip, color: t.textMuted, background: 'none',
+                        border: 'none', padding: 0, cursor: 'pointer',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
                 {note && (
                   <p
                     style={{
@@ -108,7 +125,7 @@ export function ThreadRead({
                     <p key={i} style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>{para}</p>
                   ))
                 ) : (
-                  <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>nothing written here yet.</p>
+                  <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>Nothing written here yet.</p>
                 )}
               </li>
             )

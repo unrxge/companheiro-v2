@@ -14,7 +14,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
-import { extentOf, storylineShares } from '@/lib/studio/tree'
+import { extentOf, storylineShares, sumExtent } from '@/lib/studio/tree'
 import { htmlToPlainText } from '@/lib/rich-text'
 import { InlineField, Label, ThreadChips } from '@/components/work/bits'
 
@@ -25,6 +25,8 @@ export function Storyline({
   onReorder,
   onEditBeat,
   onAdd,
+  onOpenThread,
+  onRemove,
   disabled = false,
 }: {
   parts: TreeNode[]
@@ -33,6 +35,8 @@ export function Storyline({
   onReorder: (ids: string[]) => void
   onEditBeat: (id: string, beat: string) => void
   onAdd: (afterId: string | null) => void
+  onOpenThread?: (id: string) => void
+  onRemove?: (part: TreeNode) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -56,12 +60,23 @@ export function Storyline({
     onReorder(ids)
   }
 
+  /** Dragging is not the only way to reorder: a keyboard, a trackpad tap, or
+   *  a narrow screen all need the arrows. */
+  const move = (id: string, delta: number) => {
+    const ids = [...order.current]
+    const from = ids.indexOf(id)
+    const to = from + delta
+    if (from === -1 || to < 0 || to >= ids.length) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    onReorder(ids)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         <Label>the parts, in order</Label>
         <span style={{ ...canvasType.meta, color: t.textMuted }}>
-          {parts.length} {parts.length === 1 ? 'part' : 'parts'} · {extentOf({ children: parts } as TreeNode)} words
+          {parts.length} {parts.length === 1 ? 'part' : 'parts'} · {sumExtent(parts)} words
         </span>
       </div>
 
@@ -123,9 +138,9 @@ export function Storyline({
                 </span>
               )}
 
-              <ThreadChips threadIds={part.threads} threads={threads} size="xs" />
+              <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />
 
-              <div style={{ marginTop: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ marginTop: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 {part.stands_whole && (
                   <span style={{ ...canvasType.chip, color: t.violet }}>stands whole</span>
                 )}
@@ -135,6 +150,31 @@ export function Storyline({
                   </span>
                 )}
               </div>
+
+              {!disabled && (
+                <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginTop: 2 }}>
+                  <MiniButton
+                    label="move this part earlier"
+                    glyph="←"
+                    disabled={i === 0}
+                    onClick={() => move(part.id, -1)}
+                  />
+                  <MiniButton
+                    label="move this part later"
+                    glyph="→"
+                    disabled={i === parts.length - 1}
+                    onClick={() => move(part.id, 1)}
+                  />
+                  {onRemove && (
+                    <MiniButton
+                      label="delete this part"
+                      glyph="✕"
+                      onClick={() => onRemove(part)}
+                      style={{ marginLeft: 'auto' }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
@@ -213,7 +253,7 @@ export function FlowRead({ parts }: { parts: TreeNode[] }) {
   )
 
   if (pieces.length === 0) {
-    return <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>nothing written yet.</p>
+    return <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>Nothing written yet.</p>
   }
 
   return (
@@ -229,5 +269,39 @@ export function FlowRead({ parts }: { parts: TreeNode[] }) {
         </section>
       ))}
     </div>
+  )
+}
+
+/** The small square actions on a block: move, move, delete. */
+function MiniButton({
+  label, glyph, onClick, disabled = false, style,
+}: {
+  label: string
+  glyph: string
+  onClick: () => void
+  disabled?: boolean
+  style?: React.CSSProperties
+}) {
+  const { t } = useTheme()
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        ...canvasType.chip, lineHeight: '18px',
+        width: 20, height: 20, padding: 0,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, border: `1px solid ${alpha(t.textPrimary, disabled ? 0.06 : 0.14)}`,
+        background: 'transparent',
+        color: disabled ? alpha(t.textPrimary, 0.2) : t.textMuted,
+        cursor: disabled ? 'default' : 'pointer',
+        ...style,
+      }}
+    >
+      {glyph}
+    </button>
   )
 }

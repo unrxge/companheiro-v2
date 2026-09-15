@@ -14,7 +14,7 @@ import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha } from '@/lib/design-tokens'
 import type { Rule, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
-import { buildTree, findNode, flatten, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
+import { appearancesOf, buildTree, findNode, flatten, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
 import { Grid } from '@/components/work/grid'
 import { FlowRead, Storyline } from '@/components/work/storyline'
 import { Writing } from '@/components/work/writing'
@@ -122,6 +122,24 @@ export default function DevWorkPage() {
   const thread = focus.kind === 'thread' ? threads.find((x) => x.id === focus.id) ?? null : null
   const trail = useMemo(() => (current ? pathTo(roots, current.id) : []), [roots, current])
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
+
+  const appearancesFor = useCallback((threadId: string) => appearancesOf(roots, threadId), [roots])
+
+  const removeNode = useCallback((id: string) => {
+    setNodes((prev) => {
+      const doomed = new Set([id])
+      let grew = true
+      while (grew) {
+        grew = false
+        for (const n of prev) {
+          if (n.parent_id && doomed.has(n.parent_id) && !doomed.has(n.id)) { doomed.add(n.id); grew = true }
+        }
+      }
+      return prev.filter((n) => !doomed.has(n.id))
+    })
+    setTags((prev) => prev.filter((x) => x.node_id !== id))
+    setFocus({ kind: 'project' })
+  }, [])
 
   const tagFor = useCallback(
     (nodeId: string, threadId: string) => tags.find((x) => x.node_id === nodeId && x.thread_id === threadId),
@@ -237,8 +255,10 @@ export default function DevWorkPage() {
                 pieces={roots}
                 threads={threads}
                 tagFor={tagFor}
+                appearancesFor={appearancesFor}
                 onOpenPiece={(id) => setFocus({ kind: 'node', id })}
                 onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                onOpenNode={(id) => setFocus({ kind: 'node', id })}
                 onToggle={(nodeId, threadId, on) =>
                   setTags((prev) =>
                     on
@@ -283,15 +303,16 @@ export default function DevWorkPage() {
                   parent={parent}
                   threads={threads}
                   inheritedRules={inherited}
-                  checks={[]}
                   checking={false}
                   onEdit={(patch) => editNode(current.id, patch)}
                   onRunCheck={() => undefined}
                   onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                  onFinished={() => setFocus(parent ? { kind: 'node', id: parent.id } : { kind: 'project' })}
+                  onRemove={() => removeNode(current.id)}
                 />
                 <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, paddingTop: 16 }}>
                   <p style={{ ...canvasType.small, color: t.textMuted, margin: '0 0 10px' }}>
-                    if this needs a beginning, a middle and an end of its own, give it parts.
+                    If this needs a beginning, a middle and an end of its own, give it parts.
                   </p>
                   <PrimaryButton size="sm" onClick={() => addNode(current.id)}>break it into parts</PrimaryButton>
                 </div>
@@ -331,6 +352,8 @@ export default function DevWorkPage() {
                     onReorder={reorder}
                     onEditBeat={(id, beat) => editNode(id, { beat })}
                     onAdd={(afterId) => addNode(current.id, afterId)}
+                    onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                    onRemove={(part) => removeNode(part.id)}
                   />
                 ) : (
                   <FlowRead parts={flatten(current.children).filter((n) => n.children.length === 0)} />
@@ -342,11 +365,12 @@ export default function DevWorkPage() {
           {focus.kind === 'thread' && thread && (
             <ThreadRead
               thread={thread}
-              appearances={flatten(roots)
-                .filter((n) => n.threads.includes(thread.id))
-                .map((n) => ({ node: n, trail: pathTo(roots, n.id).map((s) => s.title || 'untitled') }))}
+              appearances={appearancesFor(thread.id)}
               tagFor={tagFor}
               onOpen={(id) => setFocus({ kind: 'node', id })}
+              onUntag={(nodeId) =>
+                setTags((prev) => prev.filter((x) => !(x.node_id === nodeId && x.thread_id === thread.id)))
+              }
               onEditThread={(patch) =>
                 setThreads((prev) => prev.map((x) => (x.id === thread.id ? { ...x, ...patch } : x)))
               }

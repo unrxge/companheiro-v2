@@ -139,3 +139,14 @@ export interface TreeNode extends WorkNode {
   /** thread ids, in thread order */
   threads: string[]
 }
+
+/** One place a thread shows up, with the trail down to it. */
+export interface Appearance {
+  node: TreeNode
+  /** Titles from the top-level piece down to this node. */
+  trail: string[]
+  /** The top-level piece this sits under. */
+  rootId: string
+  /** The thread is marked on this node itself, not inferred. */
+  direct: boolean
+}

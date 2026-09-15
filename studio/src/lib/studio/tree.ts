@@ -1,7 +1,7 @@
 // studio/src/lib/studio/tree.ts — pure helpers over the node tree.
 // No React, no fetch: everything here is testable on its own.
 
-import type { Rule, ThreadTag, TreeNode, WorkNode } from '@/lib/studio/node-types'
+import type { Appearance, Rule, ThreadTag, TreeNode, WorkNode } from '@/lib/studio/node-types'
 
 /** Builds the tree from flat rows. Orphans (parent deleted mid-flight) are
  *  lifted to the top rather than dropped, so nothing ever disappears. */
@@ -138,8 +138,25 @@ export function newRule(text: string): Rule {
   }
 }
 
-/** Does the project need the altitude above a single piece yet?
- *  Depth appears because the work demanded it, never because the app asked. */
-export function showsProjectAltitude(roots: TreeNode[], threadCount: number): boolean {
-  return roots.length > 1 || threadCount > 0
+
+/** Every place a thread shows up, in reading order, with the trail down to it. */
+export function appearancesOf(roots: TreeNode[], threadId: string): Appearance[] {
+  const out: Appearance[] = []
+  const walk = (list: TreeNode[], trail: string[], rootId: string | null) => {
+    for (const n of list) {
+      const here = [...trail, n.title || 'untitled']
+      const root = rootId ?? n.id
+      if (n.threads.includes(threadId)) {
+        out.push({ node: n, trail: here, rootId: root, direct: true })
+      }
+      walk(n.children, here, root)
+    }
+  }
+  walk(roots, [], null)
+  return out
+}
+
+/** Words under a list of nodes — the storyline header's total. */
+export function sumExtent(nodes: TreeNode[]): number {
+  return nodes.reduce((sum, n) => sum + extentOf(n), 0)
 }
