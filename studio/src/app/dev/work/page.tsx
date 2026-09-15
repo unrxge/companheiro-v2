@@ -10,17 +10,18 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
-import { GhostButton } from '@/components/ui/buttons'
+
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius } from '@/lib/design-tokens'
+import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Rule, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
 import { appearancesOf, buildTree, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
-import { Pieces } from '@/components/work/pieces'
+import { Board, type BoardActions } from '@/components/work/board'
 import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
-import { ThreadSpines } from '@/components/work/thread-spine'
 import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
+import { CanvasStage, StageHeader } from '@/components/surface/stage'
+import { Level } from '@/components/surface/travel'
 import { RuleList } from '@/components/work/rules'
 import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/work/bits'
 
@@ -197,20 +198,168 @@ export default function DevWorkPage() {
   const setScopeRules = (rules: Rule[]) => (scopeNode ? editNode(scopeNode.id, { rules }) : setProjectRules(rules))
   const setScopeIntent = (intent: string) => (scopeNode ? editNode(scopeNode.id, { intent }) : setProjectIntent(intent))
 
-  const title =
-    focus.kind === 'thread' ? thread?.name || 'a thread'
-    : focus.kind === 'node' ? current?.title || 'untitled'
-    : 'nine nights'
+  const addThread = useCallback((onNode: string) => {
+    const id = uid()
+    setThreads((prev) => [...prev, {
+      id, user_id: 'dev', project_id: 'dev', position: prev.length,
+      name: '', intent: '', rules: [],
+      hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
+      created_at: NOW, updated_at: NOW,
+    }])
+    setTags((prev) => [...prev, { node_id: onNode, thread_id: id, note: '' }])
+    return Promise.resolve(id as string | null)
+  }, [])
+
+  const boardActions: BoardActions = useMemo(() => ({
+    openPiece: (id) => setFocus({ kind: 'node', id }),
+    addPiece: () => addNode(null),
+    removePiece: (piece) => removeNode(piece.id),
+    renamePiece: (id, title) => editNode(id, { title }),
+    reorder,
+    addThread,
+    editThread: (id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
+    removeThread: (id) => {
+      setThreads((prev) => prev.filter((x) => x.id !== id))
+      setTags((prev) => prev.filter((x) => x.thread_id !== id))
+    },
+    tag: (nodeId, threadId, note = '') => setTags((prev) => [
+      ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
+      { node_id: nodeId, thread_id: threadId, note },
+    ]),
+    untag: (nodeId, threadId) => setTags((prev) => prev.filter(
+      (x) => !(x.node_id === nodeId && x.thread_id === threadId),
+    )),
+    makeConstraint: (th) => {
+      const words = [th.intent.trim() || th.name.trim(), ...th.rules.filter((r) => !r.retired_at).map((r) => r.text)]
+      setProjectRules((prev) => [...prev, ...words.filter(Boolean).map(newRule)])
+      setThreads((prev) => prev.filter((x) => x.id !== th.id))
+      setTags((prev) => prev.filter((x) => x.thread_id !== th.id))
+    },
+    readThread: (id) => setFocus({ kind: 'thread', id }),
+  }), [addNode, addThread, editNode, removeNode, reorder])
+
+  const drawer = (
+    <Drawer
+      open={rail !== null}
+      title={RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''}
+      onClose={() => setRail(null)}
+    >
+      {rail === 'intent' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <InlineField
+            ariaLabel="what this is for"
+            value={scopeIntent}
+            placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is for…'}
+            multiline
+            onCommit={setScopeIntent}
+            style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+          />
+          {scopeNode && parent && (
+            <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+              {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
+              <InlineField
+                ariaLabel="the beat this part carries"
+                value={scopeNode.beat}
+                placeholder="what it has to do here…"
+                multiline
+                onCommit={(beat) => editNode(scopeNode.id, { beat })}
+                style={{ ...canvasType.small, color: t.textPrimary }}
+              />
+            </div>
+          )}
+          {scopeNode && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={scopeNode.stands_whole}
+                onChange={(e) => editNode(scopeNode.id, { stands_whole: e.target.checked })}
+              />
+              <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
+                stands whole on its own
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+
+      {rail === 'rules' && (
+        <RuleList rules={scopeRules} inherited={scopeNode ? inherited : []} onChange={setScopeRules} />
+      )}
+
+      {rail === 'companion' && (
+        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
+          The companion needs a real project to talk about. Open one from the shelf to try it.
+        </p>
+      )}
+    </Drawer>
+  )
+
+  // ── level 2: the board ────────────────────────────────────────────────────
+  if (focus.kind === 'project') {
+    return (
+      <Level>
+        <CanvasStage
+          header={
+            <StageHeader
+              title="nine nights"
+              reveal={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <InlineField
+                    ariaLabel="what this project is for"
+                    value={projectIntent}
+                    placeholder="say what the whole project is for…"
+                    multiline
+                    onCommit={setProjectIntent}
+                    style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+                  />
+                  <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+                        <path d="M5 4h14v16H5z" />
+                        <line x1="8.5" y1="9" x2="15.5" y2="9" />
+                        <line x1="8.5" y1="13" x2="15.5" y2="13" />
+                        <line x1="8.5" y1="17" x2="12" y2="17" />
+                      </svg>
+                      <span style={{ ...canvasType.chip }}>
+                        {projectRules.filter((r) => !r.retired_at).length || 'no'} rules in force
+                      </span>
+                    </div>
+                    <RuleList rules={projectRules} inherited={[]} onChange={setProjectRules} />
+                  </div>
+                  <p style={{ ...canvasType.chip, color: t.textMuted, margin: 0 }}>
+                    dev · in memory, no database
+                  </p>
+                </div>
+              }
+            />
+          }
+        >
+          <Board
+            pieces={roots}
+            threads={threads}
+            tagFor={tagFor}
+            appearancesFor={appearancesFor}
+            actions={boardActions}
+          />
+        </CanvasStage>
+      </Level>
+    )
+  }
+
+  // ── level 1: the writing ──────────────────────────────────────────────────
+  const title = focus.kind === 'thread' ? thread?.name || 'a thread' : current?.title || 'untitled'
 
   return (
-    <PageShell dock={false} mood="neutral">
-      <PageHeader
-        eyebrow="dev · in memory, no database"
-        title={title}
-        size="md"
-        actions={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {focus.kind === 'node' && current && (
+    <Level>
+      <PageShell dock={false} mood="neutral">
+        <PageHeader
+          eyebrow={null}
+          title={title}
+          size="md"
+          back={() => setFocus({ kind: 'project' })}
+          actions={
+            focus.kind === 'node' && current ? (
               <div
                 role="group"
                 aria-label="how to look at this"
@@ -233,189 +382,84 @@ export default function DevWorkPage() {
                   </button>
                 ))}
               </div>
-            )}
-            {focus.kind !== 'project' && (
-              <GhostButton size="sm" onClick={() => setFocus({ kind: 'project' })}>the whole project</GhostButton>
-            )}
-          </div>
-        }
-      />
-
-      <Container
-        padding={26}
-        style={{
-          paddingRight: rail && roomBeside ? 478 : 70,
-          transition: 'padding-right 200ms ease',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <Trail
-            steps={focus.kind === 'node' ? trail : []}
-            onGo={(id) => setFocus({ kind: 'node', id })}
-            projectTitle="nine nights"
-            onGoProject={() => setFocus({ kind: 'project' })}
-          />
-
-          {focus.kind === 'project' && (
-            <Pieces
-              pieces={roots}
-              threads={threads}
-              onOpen={(id) => setFocus({ kind: 'node', id })}
-              onAdd={() => addNode(null)}
-              onRemove={(piece) => removeNode(piece.id)}
-              onReorder={reorder}
-              onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-            />
-          )}
-
-          {focus.kind === 'project' && (
-            <ThreadSpines
-              threads={threads}
-              pieces={roots}
-              appearancesFor={appearancesFor}
-              tagFor={tagFor}
-              onOpenNode={(id) => setFocus({ kind: 'node', id })}
-              onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-              onToggle={(nodeId, threadId, on) =>
-                setTags((prev) =>
-                  on
-                    ? [...prev, { node_id: nodeId, thread_id: threadId, note: '' }]
-                    : prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-                )
-              }
-              onEditNote={(nodeId, threadId, note) =>
-                setTags((prev) => [
-                  ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-                  { node_id: nodeId, thread_id: threadId, note },
-                ])
-              }
-              onEditThread={(id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))}
-              onAddThread={() =>
-                setThreads((prev) => [
-                  ...prev,
-                  {
-                    id: uid(), user_id: 'dev', project_id: 'dev', position: prev.length,
-                    name: '', intent: '', rules: [],
-                    hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
-                    created_at: NOW, updated_at: NOW,
-                  },
-                ])
-              }
-              onRemoveThread={(id) => {
-                setThreads((prev) => prev.filter((x) => x.id !== id))
-                setTags((prev) => prev.filter((x) => x.thread_id !== id))
-              }}
-            />
-          )}
-
-          {focus.kind === 'node' && current && (
-            view === 'map' ? (
-              current.children.length > 0 ? (
-                <Storyline
-                  parts={current.children}
-                  threads={threads}
-                  onOpen={(id) => setFocus({ kind: 'node', id })}
-                  onReorder={reorder}
-                  onEditBeat={(id, beat) => editNode(id, { beat })}
-                  onAdd={(afterId) => addNode(current.id, afterId)}
-                  onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                  onRemove={(part) => removeNode(part.id)}
-                />
-              ) : (
-                <Empty line="Nothing to map yet — this part has no parts of its own." />
-              )
             ) : (
-              <Studio
-                node={current}
-                threads={threads}
-                flow={view === 'flow'}
-                onEdit={editNode}
-                onAdd={(afterId) => addNode(current.id, afterId)}
-                onRemove={(part) => removeNode(part.id)}
-                onOpenPart={(id) => setFocus({ kind: 'node', id })}
-                onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-              />
+              <span style={{ ...canvasType.chip, color: shell.muted }}>dev</span>
             )
-          )}
+          }
+        />
 
-          {focus.kind === 'thread' && thread && (
-            <ThreadRead
-              thread={thread}
-              appearances={appearancesFor(thread.id)}
-              tagFor={tagFor}
-              onOpen={(id) => setFocus({ kind: 'node', id })}
-              onUntag={(nodeId) =>
-                setTags((prev) => prev.filter((x) => !(x.node_id === nodeId && x.thread_id === thread.id)))
-              }
-              onEditThread={(patch) =>
-                setThreads((prev) => prev.map((x) => (x.id === thread.id ? { ...x, ...patch } : x)))
-              }
+        <Container
+          padding={26}
+          style={{
+            paddingRight: rail && roomBeside ? 478 : 70,
+            transition: 'padding-right 200ms ease',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <Trail
+              steps={focus.kind === 'node' ? trail : []}
+              onGo={(id) => setFocus({ kind: 'node', id })}
+              projectTitle="nine nights"
+              onGoProject={() => setFocus({ kind: 'project' })}
             />
-          )}
-        </div>
-      </Container>
 
-      <Rail
-        open={rail}
-        onOpen={setRail}
-        hidden={focus.kind === 'thread'}
-        counts={{ rules: scopeRules.filter((r) => !r.retired_at).length }}
-      />
-
-      <Drawer
-        open={rail !== null}
-        title={RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''}
-        onClose={() => setRail(null)}
-      >
-        {rail === 'intent' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <InlineField
-              ariaLabel="what this is for"
-              value={scopeIntent}
-              placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is for…'}
-              multiline
-              onCommit={setScopeIntent}
-              style={{ ...canvasType.conceptBody, color: t.textPrimary }}
-            />
-            {scopeNode && parent && (
-              <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
-                {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
-                <InlineField
-                  ariaLabel="the beat this part carries"
-                  value={scopeNode.beat}
-                  placeholder="what it has to do here…"
-                  multiline
-                  onCommit={(beat) => editNode(scopeNode.id, { beat })}
-                  style={{ ...canvasType.small, color: t.textPrimary }}
+            {focus.kind === 'node' && current && (
+              view === 'map' ? (
+                current.children.length > 0 ? (
+                  <Storyline
+                    parts={current.children}
+                    threads={threads}
+                    onOpen={(id) => setFocus({ kind: 'node', id })}
+                    onReorder={reorder}
+                    onEditBeat={(id, beat) => editNode(id, { beat })}
+                    onAdd={(afterId) => addNode(current.id, afterId)}
+                    onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                    onRemove={(part) => removeNode(part.id)}
+                  />
+                ) : (
+                  <Empty line="Nothing to map yet — this part has no parts of its own." />
+                )
+              ) : (
+                <Studio
+                  node={current}
+                  threads={threads}
+                  flow={view === 'flow'}
+                  onEdit={editNode}
+                  onAdd={(afterId) => addNode(current.id, afterId)}
+                  onRemove={(part) => removeNode(part.id)}
+                  onOpenPart={(id) => setFocus({ kind: 'node', id })}
+                  onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                  onFinished={() => setFocus({ kind: 'project' })}
                 />
-              </div>
+              )
             )}
-            {scopeNode && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={scopeNode.stands_whole}
-                  onChange={(e) => editNode(scopeNode.id, { stands_whole: e.target.checked })}
-                />
-                <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
-                  stands whole on its own
-                </span>
-              </label>
+            {focus.kind === 'node' && !current && <Empty line="That part is gone." />}
+
+            {focus.kind === 'thread' && thread && (
+              <ThreadRead
+                thread={thread}
+                appearances={appearancesFor(thread.id)}
+                tagFor={tagFor}
+                onOpen={(id) => setFocus({ kind: 'node', id })}
+                onUntag={(nodeId) =>
+                  setTags((prev) => prev.filter((x) => !(x.node_id === nodeId && x.thread_id === thread.id)))
+                }
+                onEditThread={(patch) =>
+                  setThreads((prev) => prev.map((x) => (x.id === thread.id ? { ...x, ...patch } : x)))
+                }
+              />
             )}
           </div>
-        )}
+        </Container>
 
-        {rail === 'rules' && (
-          <RuleList rules={scopeRules} inherited={scopeNode ? inherited : []} onChange={setScopeRules} />
-        )}
-
-        {rail === 'companion' && (
-          <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
-            The companion needs a real project to talk about. Open one from the shelf to try it.
-          </p>
-        )}
-      </Drawer>
-    </PageShell>
+        <Rail
+          open={rail}
+          onOpen={setRail}
+          hidden={focus.kind === 'thread'}
+          counts={{ rules: scopeRules.filter((r) => !r.retired_at).length }}
+        />
+        {drawer}
+      </PageShell>
+    </Level>
   )
 }

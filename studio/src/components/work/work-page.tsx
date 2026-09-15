@@ -1,12 +1,14 @@
 'use client'
 
-// studio/src/components/work/work-page.tsx — the whole work, at whatever
-// altitude you are standing.
+// studio/src/components/work/work-page.tsx — levels 2 and 1 of one project.
 //
-// The middle of the page is the work and only the work: the pieces, the parts,
-// the words. Everything about the vision — what this is for, the rules, the
-// threads, the companion — sits on the rail at the right and opens over the
-// top, because it must never take space from where the making happens.
+//   level 2  the board    a canvas: the pieces across it, the threads beneath
+//   level 1  the writing  a page: one piece, its parts, and nothing else
+//
+// They are deliberately different surfaces. Vision is spatial and wants room
+// to be moved around in; writing is linear and wants to be left alone. So the
+// board is a bounded canvas with everything on glass over it, and the writing
+// is a quiet column with its tools on the rail, out of the way.
 //
 // Depth is never presented. A project opens as its pieces; parts appear inside
 // a piece when the work asks for them; nothing here is hard-coded to a depth.
@@ -17,16 +19,18 @@ import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { CanvasStage, StageHeader, StageIcon } from '@/components/surface/stage'
+import { Level, useTravel } from '@/components/surface/travel'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius } from '@/lib/design-tokens'
+import { alpha, radius, shell } from '@/lib/design-tokens'
+import { LEVELS } from '@/lib/studio/levels'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
-import { appearancesOf, findNode, pathTo, rulesInForce } from '@/lib/studio/tree'
-import { Pieces } from '@/components/work/pieces'
+import { appearancesOf, findNode, newRule, pathTo, rulesInForce } from '@/lib/studio/tree'
+import { Board, type BoardActions } from '@/components/work/board'
 import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
-import { ThreadSpines } from '@/components/work/thread-spine'
 import { Companion } from '@/components/work/companion'
 import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { CheckCard, RuleList } from '@/components/work/rules'
@@ -40,8 +44,17 @@ export type Focus =
 type View = 'write' | 'map' | 'flow'
 
 export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus }) {
+  return (
+    <Level>
+      <Work projectId={projectId} focus={focus} />
+    </Level>
+  )
+}
+
+function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const { t } = useTheme()
   const router = useRouter()
+  const go = useTravel()
   const confirm = useConfirm()
   const { state, project, tree, roots, api, saving, tagFor } = useWork(projectId)
   const [view, setView] = useState<View>('write')
@@ -50,9 +63,14 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
   const [checkNote, setCheckNote] = useState<string | null>(null)
   const roomBeside = useRoomBeside()
 
-  const goNode = useCallback((id: string) => router.push(`/p/${projectId}/n/${id}`), [projectId, router])
+  const goNode = useCallback((id: string, from?: HTMLElement | null) => {
+    go(`/p/${projectId}/n/${id}`, 'in', from)
+  }, [go, projectId])
   const goThread = useCallback((id: string) => router.push(`/p/${projectId}/thread/${id}`), [projectId, router])
-  const goProject = useCallback(() => router.push(`/p/${projectId}`), [projectId, router])
+  const goProject = useCallback((from?: HTMLElement | null) => {
+    go(`/p/${projectId}`, 'out', from)
+  }, [go, projectId])
+  const goShelf = useCallback((from?: HTMLElement | null) => go('/shelf', 'out', from), [go])
 
   const node = focus.kind === 'node' ? findNode(roots, focus.id) : null
   const thread: Thread | null =
@@ -87,6 +105,7 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     await fetch(`/api/studio/projects/${projectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(patch),
     })
     await api.reload()
@@ -158,18 +177,50 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     }
   }, [api])
 
+  /**
+   * A thread that reaches every piece has stopped being a thread. Its words
+   * become a rule on the project — where they get teeth — and the thread and
+   * all its marks come off the board.
+   */
+  const makeConstraint = useCallback(async (th: Thread) => {
+    const words = [th.intent.trim() || th.name.trim(), ...th.rules.filter((r) => !r.retired_at).map((r) => r.text)]
+    const additions = words.filter(Boolean).map(newRule)
+    if (additions.length) await setProjectField({ rules: [...projectRules, ...additions] })
+    await api.removeThread(th.id)
+  }, [api, projectRules, setProjectField])
+
+  const boardActions: BoardActions = useMemo(() => ({
+    openPiece: (id, from) => goNode(id, from),
+    addPiece: () => void api.addNode(null),
+    removePiece: (piece) => void removeNode(piece),
+    renamePiece: (id, title) => void api.editNode(id, { title }),
+    reorder: (ids) => void api.reorderRoots(ids),
+    addThread: async (onNode) => {
+      const th = await api.addThread()
+      if (!th) return null
+      await api.tag(onNode, th.id)
+      return th.id
+    },
+    editThread: (id, patch) => void api.editThread(id, patch),
+    removeThread: (id) => void api.removeThread(id),
+    tag: (nodeId, threadId, note) => void api.tag(nodeId, threadId, note),
+    untag: (nodeId, threadId) => void api.untag(nodeId, threadId),
+    makeConstraint: (th) => void makeConstraint(th),
+    readThread: goThread,
+  }), [api, goNode, goThread, makeConstraint, removeNode])
+
   // ── loading and error ─────────────────────────────────────────────────────
   if (state.status === 'loading') {
     return (
-      <PageShell dock={false} mood="neutral">
-        <PageHeader eyebrow="studio" title="opening…" size="md" />
-      </PageShell>
+      <CanvasStage header={<StageHeader title="opening…" onUp={goShelf} upLabel={`back to ${LEVELS.shelf.name}`} />}>
+        <span />
+      </CanvasStage>
     )
   }
   if (state.status === 'error' || !project) {
     return (
       <PageShell dock={false} mood="neutral">
-        <PageHeader eyebrow="studio" title="it did not open" size="md" />
+        <PageHeader eyebrow={null} title="it did not open" size="md" />
         <Container padding={32}>
           <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
             {state.status === 'error' ? state.message : 'The project is missing.'}
@@ -182,11 +233,6 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
       </PageShell>
     )
   }
-
-  const headerTitle =
-    focus.kind === 'thread' ? thread?.name || 'a thread'
-    : focus.kind === 'node' ? node?.title || 'untitled'
-    : project.title
 
   // What the rail is standing over: a part, or the whole project.
   const scopeNode = focus.kind === 'node' ? node : null
@@ -204,27 +250,220 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
   }
 
   const railTitle = RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''
+  const savingMark = saving ? 'saving…' : null
+
+  const checks = openChecks.length > 0 && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {openChecks.map((check) => (
+        <CheckCard
+          key={check.id}
+          check={check}
+          onResolve={(outcome, note) => resolve(check.id, outcome, note)}
+          onAmend={(text) => void amendRule(check.id, text)}
+        />
+      ))}
+    </div>
+  )
+
+  const companionDrawer = (
+    <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
+      {rail === 'intent' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <InlineField
+            ariaLabel="what this is for"
+            value={scopeIntent}
+            placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is, and what it has to do…'}
+            multiline
+            disabled={readOnly}
+            onCommit={setScopeIntent}
+            style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+          />
+
+          {scopeNode && parent && (parent.intent || parent.title) && (
+            <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+              {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
+              <InlineField
+                ariaLabel="the beat this part carries"
+                value={scopeNode.beat}
+                placeholder="what it has to do here…"
+                multiline
+                disabled={readOnly}
+                onCommit={(beat) => void api.editNode(scopeNode.id, { beat })}
+                style={{ ...canvasType.small, color: t.textPrimary }}
+              />
+            </div>
+          )}
+
+          {scopeNode && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: readOnly ? 'default' : 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={scopeNode.stands_whole}
+                disabled={readOnly}
+                onChange={(e) => void api.editNode(scopeNode.id, { stands_whole: e.target.checked })}
+              />
+              <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
+                stands whole on its own
+              </span>
+            </label>
+          )}
+
+          {scopeNode && !readOnly && (
+            <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} disabled={checking}>
+                {checking ? 'reading…' : 'check it against the rules'}
+              </GhostButton>
+              <button
+                type="button"
+                onClick={() => void removeNode(scopeNode)}
+                style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+              >
+                delete this part
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {rail === 'rules' && (
+        <RuleList
+          rules={scopeRules}
+          inherited={scopeNode ? inherited : []}
+          disabled={readOnly}
+          onChange={setScopeRules}
+        />
+      )}
+
+      {rail === 'companion' && (
+        <Companion
+          projectId={projectId}
+          nodeId={scopeNode?.id ?? null}
+          scope={scopeNode ? (scopeNode.title || 'this part') : 'the whole project'}
+          disabled={readOnly}
+        />
+      )}
+    </Drawer>
+  )
+
+  // ── level 2: the board ────────────────────────────────────────────────────
+  if (focus.kind === 'project') {
+    return (
+      <>
+        <CanvasStage
+          header={
+            <StageHeader
+              title={project.title}
+              onUp={(el) => goShelf(el)}
+              upLabel={`back to ${LEVELS.shelf.name}`}
+              status={savingMark}
+              actions={
+                <StageIcon
+                  label="talk this through"
+                  pressed={rail === 'companion'}
+                  onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))}
+                >
+                  <path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" />
+                </StageIcon>
+              }
+              reveal={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <InlineField
+                    ariaLabel="what this project is for"
+                    value={project.intent ?? ''}
+                    placeholder="say what the whole project is, and what it has to do…"
+                    multiline
+                    disabled={readOnly}
+                    onCommit={(intent) => void setProjectField({ intent })}
+                    style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+                  />
+                  <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+                        <path d="M5 4h14v16H5z" />
+                        <line x1="8.5" y1="9" x2="15.5" y2="9" />
+                        <line x1="8.5" y1="13" x2="15.5" y2="13" />
+                        <line x1="8.5" y1="17" x2="12" y2="17" />
+                      </svg>
+                      <span style={{ ...canvasType.chip }}>
+                        {projectRules.filter((r) => !r.retired_at).length || 'no'} rules in force
+                      </span>
+                    </div>
+                    <RuleList
+                      rules={projectRules}
+                      inherited={[]}
+                      disabled={readOnly}
+                      onChange={(rules) => void setProjectField({ rules })}
+                    />
+                  </div>
+                  {checks}
+                </div>
+              }
+            />
+          }
+        >
+          {roots.length === 0 ? (
+            <div
+              style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, textAlign: 'center',
+              }}
+            >
+              <p style={{ ...canvasType.small, color: shell.muted, margin: 0, maxWidth: 380 }}>
+                Nothing here yet. A piece is one whole thing — a film, a chapter, a song, an essay.
+              </p>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => void api.addNode(null)}
+                  style={{
+                    ...canvasType.small, fontSize: 13, padding: '10px 16px', borderRadius: radius.field,
+                    border: 'none', background: shell.text, color: shell.ink, cursor: 'pointer',
+                  }}
+                >
+                  the first piece
+                </button>
+              )}
+            </div>
+          ) : (
+            <Board
+              pieces={roots}
+              threads={tree.threads}
+              tagFor={tagFor}
+              appearancesFor={appearancesFor}
+              actions={boardActions}
+              disabled={readOnly}
+            />
+          )}
+        </CanvasStage>
+        {companionDrawer}
+      </>
+    )
+  }
+
+  // ── level 1: the writing (and the filtered read of one thread) ────────────
+  const headerTitle =
+    focus.kind === 'thread' ? thread?.name || 'a thread'
+    : node?.title || 'untitled'
 
   return (
     <PageShell dock={false} mood="neutral">
       <PageHeader
-        eyebrow="studio"
+        eyebrow={null}
         title={headerTitle}
         size="md"
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span
               aria-live="polite"
-              style={{ ...canvasType.chip, color: t.textMuted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
+              style={{ ...canvasType.chip, color: shell.muted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
             >
               saving…
             </span>
-            {focus.kind === 'node' && node && (
-              <ViewSwitch view={view} onChange={setView} />
-            )}
-            <GhostButton size="sm" onClick={() => router.push('/shelf')}>the shelf</GhostButton>
+            {focus.kind === 'node' && node && <ViewSwitch view={view} onChange={setView} />}
           </div>
         }
+        back={() => goProject()}
       />
 
       <Container
@@ -237,67 +476,21 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <Trail
             steps={focus.kind === 'node' ? trail : []}
-            onGo={goNode}
+            onGo={(id) => goNode(id)}
             projectTitle={project.title}
-            onGoProject={goProject}
+            onGoProject={() => goProject()}
           />
 
-          {openChecks.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {openChecks.map((check) => (
-                <CheckCard
-                  key={check.id}
-                  check={check}
-                  onResolve={(outcome, note) => resolve(check.id, outcome, note)}
-                  onAmend={(text) => void amendRule(check.id, text)}
-                />
-              ))}
-            </div>
-          )}
+          {checks}
           {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
 
-          {/* ── the project: its pieces ───────────────────────────────────── */}
-          {focus.kind === 'project' && (
-            <Pieces
-              pieces={roots}
-              threads={tree.threads}
-              onOpen={goNode}
-              onAdd={() => void api.addNode(null)}
-              onRemove={(piece) => void removeNode(piece)}
-              onReorder={(ids) => void api.reorderRoots(ids)}
-              onOpenThread={goThread}
-              disabled={readOnly}
-            />
-          )}
-
-          {focus.kind === 'project' && (
-            <ThreadSpines
-              threads={tree.threads}
-              pieces={roots}
-              appearancesFor={appearancesFor}
-              tagFor={tagFor}
-              onOpenNode={goNode}
-              onOpenThread={goThread}
-              onToggle={(nodeId, threadId, on) => {
-                if (on) void api.tag(nodeId, threadId)
-                else void api.untag(nodeId, threadId)
-              }}
-              onEditNote={(nodeId, threadId, note) => void api.tag(nodeId, threadId, note)}
-              onEditThread={(id, patch) => void api.editThread(id, patch)}
-              onAddThread={() => void api.addThread()}
-              onRemoveThread={(id) => void api.removeThread(id)}
-              disabled={readOnly}
-            />
-          )}
-
-          {/* ── a piece: the writing, or the map of it ────────────────────── */}
           {focus.kind === 'node' && node && (
             view === 'map' ? (
               node.children.length > 0 ? (
                 <Storyline
                   parts={node.children}
                   threads={tree.threads}
-                  onOpen={goNode}
+                  onOpen={(id) => goNode(id)}
                   onReorder={(ids) => void api.reorder(node.id, ids)}
                   onEditBeat={(id, beat) => void api.editNode(id, { beat })}
                   onAdd={(afterId) => void api.addNode(node.id, afterId)}
@@ -320,21 +513,21 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
                     : void breakIntoParts(node)
                 }
                 onRemove={(part) => void removeNode(part)}
-                onOpenPart={goNode}
+                onOpenPart={(id) => goNode(id)}
                 onOpenThread={goThread}
+                onFinished={() => goProject()}
                 disabled={readOnly}
               />
             )
           )}
           {focus.kind === 'node' && !node && <Empty line="That part is gone." />}
 
-          {/* ── one thread, read through ─────────────────────────────────── */}
           {focus.kind === 'thread' && thread && (
             <ThreadRead
               thread={thread}
               appearances={appearancesFor(thread.id)}
               tagFor={tagFor}
-              onOpen={goNode}
+              onOpen={(id) => goNode(id)}
               onUntag={(nodeId) => void api.untag(nodeId, thread.id)}
               onEditThread={(patch) => void api.editThread(thread.id, patch)}
               disabled={readOnly}
@@ -344,92 +537,13 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
         </div>
       </Container>
 
-      {/* ── the rail, and what it opens ─────────────────────────────────── */}
       <Rail
         open={rail}
         onOpen={setRail}
         hidden={focus.kind === 'thread'}
         counts={{ rules: liveRuleCount }}
       />
-
-      <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
-        {rail === 'intent' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <InlineField
-              ariaLabel="what this is for"
-              value={scopeIntent}
-              placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is, and what it has to do…'}
-              multiline
-              disabled={readOnly}
-              onCommit={setScopeIntent}
-              style={{ ...canvasType.conceptBody, color: t.textPrimary }}
-            />
-
-            {scopeNode && parent && (parent.intent || parent.title) && (
-              <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
-                {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
-                <InlineField
-                  ariaLabel="the beat this part carries"
-                  value={scopeNode.beat}
-                  placeholder="what it has to do here…"
-                  multiline
-                  disabled={readOnly}
-                  onCommit={(beat) => void api.editNode(scopeNode.id, { beat })}
-                  style={{ ...canvasType.small, color: t.textPrimary }}
-                />
-              </div>
-            )}
-
-            {scopeNode && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: readOnly ? 'default' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={scopeNode.stands_whole}
-                  disabled={readOnly}
-                  onChange={(e) => void api.editNode(scopeNode.id, { stands_whole: e.target.checked })}
-                />
-                <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
-                  stands whole on its own
-                </span>
-              </label>
-            )}
-
-            {scopeNode && !readOnly && (
-              <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} disabled={checking}>
-                  {checking ? 'reading…' : 'check it against the rules'}
-                </GhostButton>
-                <button
-                  type="button"
-                  onClick={() => void removeNode(scopeNode)}
-                  style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-                >
-                  delete this part
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {rail === 'rules' && (
-          <RuleList
-            rules={scopeRules}
-            inherited={scopeNode ? inherited : []}
-            disabled={readOnly}
-            onChange={setScopeRules}
-          />
-        )}
-
-        {rail === 'companion' && (
-          <Companion
-            projectId={projectId}
-            nodeId={scopeNode?.id ?? null}
-            scope={scopeNode ? (scopeNode.title || 'this part') : 'the whole project'}
-            disabled={readOnly}
-          />
-        )}
-      </Drawer>
+      {companionDrawer}
     </PageShell>
   )
 }

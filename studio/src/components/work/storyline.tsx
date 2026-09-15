@@ -16,7 +16,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
 import { extentOf, storylineShares, sumExtent } from '@/lib/studio/tree'
 import { htmlToPlainText } from '@/lib/rich-text'
-import { InlineField, Label, ThreadChips } from '@/components/work/bits'
+import { InlineField, ThreadChips } from '@/components/work/bits'
 
 export function Storyline({
   parts,
@@ -73,8 +73,7 @@ export function Storyline({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <Label>the parts, in order</Label>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end' }}>
         <span style={{ ...canvasType.meta, color: t.textMuted }}>
           {parts.length} {parts.length === 1 ? 'part' : 'parts'} · {sumExtent(parts)} words
         </span>
@@ -197,7 +196,6 @@ export function Storyline({
       {/* the beat each part is meant to hit */}
       {parts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Label>the journey</Label>
           <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <div
               aria-hidden

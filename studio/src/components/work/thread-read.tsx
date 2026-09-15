@@ -12,7 +12,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
 import { htmlToPlainText } from '@/lib/rich-text'
 import type { Appearance, Thread, ThreadTag } from '@/lib/studio/node-types'
-import { InlineField, Label, hueOf } from '@/components/work/bits'
+import { InlineField, hueOf } from '@/components/work/bits'
 import { RuleList } from '@/components/work/rules'
 
 export function ThreadRead({
@@ -48,7 +48,6 @@ export function ThreadRead({
           style={{ ...canvasType.headingLg, color: colour }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Label>what this thread is for</Label>
           <InlineField
             ariaLabel="what this thread is for"
             value={thread.intent}
@@ -61,8 +60,7 @@ export function ThreadRead({
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <Label>read through</Label>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end' }}>
         <span style={{ ...canvasType.meta, color: t.textMuted }}>
           {appearances.length} {appearances.length === 1 ? 'appearance' : 'appearances'}
         </span>

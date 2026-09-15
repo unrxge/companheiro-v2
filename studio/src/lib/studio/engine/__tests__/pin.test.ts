@@ -13,6 +13,8 @@ function storeWith(blocks: AnyBlock[]) {
       intent: '', rules: [],
       resting_until: null, completed_at: null, completion_note: null,
       viewport: { tx: 0, ty: 0, k: 1 },
+    shelf_x: null,
+    shelf_y: null,
       settings: { snap: true, grid: true, sizes: false },
       auto_layout: false, composed_at: null, canvas_version: 1,
       last_opened_at: at(0), opened_before_at: at(0), created_at: at(0), updated_at: at(0),

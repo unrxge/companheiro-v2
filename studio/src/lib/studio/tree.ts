@@ -160,3 +160,30 @@ export function appearancesOf(roots: TreeNode[], threadId: string): Appearance[]
 export function sumExtent(nodes: TreeNode[]): number {
   return nodes.reduce((sum, n) => sum + extentOf(n), 0)
 }
+
+/** Tiptap HTML → readable plain text. Block ends become paragraph breaks so a
+ *  preview does not run two sentences together. */
+export function plainText(html: string): string {
+  return html
+    .replace(/<\/(p|h[1-6]|li|blockquote|pre)>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&(?:quot|#34);/g, '"')
+    .replace(/&(?:#39|apos|rsquo);/g, '’')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/** What a piece looks like from the board: the words themselves, in reading
+ *  order, from however deep they live. Never a summary — the person's own
+ *  opening is the only honest preview of what they have. */
+export function previewOf(node: TreeNode, max = 1200): string {
+  const text = leavesOf(node).map((n) => plainText(n.body)).filter(Boolean).join('\n\n')
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}

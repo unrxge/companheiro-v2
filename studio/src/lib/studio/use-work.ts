@@ -26,7 +26,13 @@ export function useWork(projectId: string) {
   const [saving, setSaving] = useState(0)
   const alive = useRef(true)
 
-  useEffect(() => () => { alive.current = false }, [])
+  // Set on the way in as well as the way out: React remounts this in dev, and
+  // a ref that is only ever turned off stays off, which silently swallows
+  // every load that follows and leaves the page saying "opening…" forever.
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false }
+  }, [])
 
   const load = useCallback(async () => {
     setState({ status: 'loading' })

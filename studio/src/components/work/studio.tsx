@@ -31,6 +31,7 @@ export function Studio({
   onRemove,
   onOpenPart,
   onOpenThread,
+  onFinished,
   disabled = false,
 }: {
   node: TreeNode
@@ -41,6 +42,8 @@ export function Studio({
   onRemove: (part: TreeNode) => void
   onOpenPart: (id: string) => void
   onOpenThread: (id: string) => void
+  /** Called when the whole piece is marked done — the way back out. */
+  onFinished?: () => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -82,6 +85,21 @@ export function Studio({
       if (next !== undefined) void latestEdit.current(id, { body: next })
     }, SAVE_AFTER_MS)
   }, [])
+
+  /** Marking done is reversible and never locks anything. Finishing the whole
+   *  piece is also the way out of it: everything typed lands first, then the
+   *  mark, then the climb back to the board. */
+  const finish = useCallback(async (part: TreeNode) => {
+    const reopening = part.status === 'done'
+    if (timers.current[part.id]) { clearTimeout(timers.current[part.id]); delete timers.current[part.id] }
+    const typed = pending.current[part.id]
+    if (typed !== undefined) {
+      delete pending.current[part.id]
+      await latestEdit.current(part.id, { body: typed })
+    }
+    await latestEdit.current(part.id, { status: reopening ? 'open' : 'done' })
+    if (!reopening && !sectioned && onFinished) onFinished()
+  }, [onFinished, sectioned])
 
   const flushOne = useCallback((id: string) => {
     if (timers.current[id]) { clearTimeout(timers.current[id]); delete timers.current[id] }
@@ -148,9 +166,13 @@ export function Studio({
                 {!disabled && (
                   <>
                     <HeaderAction
-                      label={part.status === 'done' ? 'this part is done — reopen it' : 'mark this part done'}
+                      label={
+                        part.status === 'done'
+                          ? 'this is done — reopen it'
+                          : sectioned ? 'mark this part done' : 'mark it done and go back out'
+                      }
                       tone={part.status === 'done' ? t.verdant : t.textMuted}
-                      onClick={() => void onEdit(part.id, { status: part.status === 'done' ? 'open' : 'done' })}
+                      onClick={() => void finish(part)}
                     >
                       {part.status === 'done' ? 'done' : 'mark done'}
                     </HeaderAction>

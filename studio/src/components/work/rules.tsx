@@ -16,7 +16,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import type { CheckOutcome, Rule, RuleCheck } from '@/lib/studio/node-types'
 import { newRule } from '@/lib/studio/tree'
-import { InlineField, Label } from '@/components/work/bits'
+import { InlineField } from '@/components/work/bits'
 
 export function RuleList({
   rules,
@@ -43,8 +43,6 @@ export function RuleList({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 640 }}>
-      <Label>rules</Label>
-
       {inherited.length > 0 && (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {inherited.map(({ rule, from }) => (

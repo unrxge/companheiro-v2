@@ -90,11 +90,23 @@ export function InlineField({
 
   useEffect(() => { if (!focused) setDraft(value) }, [value, focused])
 
+  // Re-measured on every width change too: a box sized once at mount is the
+  // wrong height the moment the panel it lives in is narrower than it was.
   useEffect(() => {
     const el = box.current
     if (!el || !multiline) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 460)}px`
+    const fit = () => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 460)}px`
+    }
+    fit()
+    // The parent, never the box itself: fitting changes the box's own height,
+    // and an observer watching that would keep waking itself up.
+    const parent = el.parentElement
+    if (!parent) return
+    const ro = new ResizeObserver(fit)
+    ro.observe(parent)
+    return () => ro.disconnect()
   }, [draft, multiline])
 
   const commit = () => {

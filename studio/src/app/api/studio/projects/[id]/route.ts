@@ -64,6 +64,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       bump = true
     }
     if (body.viewport !== undefined) patch.viewport = parseViewport(body.viewport)
+    // Where it lies on the desk. Never bumps the canvas version: moving a
+    // project on the shelf changes nothing about the work inside it.
+    for (const axis of ['shelf_x', 'shelf_y'] as const) {
+      if (body[axis] === undefined) continue
+      if (body[axis] === null) { patch[axis] = null; continue }
+      if (!isFiniteNumber(body[axis])) throw badRequest(`${axis} must be a number or null`)
+      patch[axis] = Math.round(body[axis] as number)
+    }
     if (body.settings !== undefined) {
       if (!isRecord(body.settings)) throw badRequest('settings must be an object')
       const next = { ...project.settings }

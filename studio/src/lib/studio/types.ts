@@ -26,6 +26,9 @@ export interface Project {
   completed_at: string | null
   completion_note: string | null
   viewport: Viewport
+  /** Where it lies on the desk (level 3). null until a hand moves it. */
+  shelf_x: number | null
+  shelf_y: number | null
   settings: ProjectSettings
   auto_layout: boolean
   composed_at: string | null
@@ -292,6 +295,8 @@ export interface PatchProjectRequest {
   status?: ProjectStatus
   completion_note?: string
   viewport?: Viewport
+  shelf_x?: number | null
+  shelf_y?: number | null
   settings?: Partial<ProjectSettings>
   auto_layout?: boolean
   composed_at?: string
