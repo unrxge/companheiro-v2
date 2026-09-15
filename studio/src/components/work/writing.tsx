@@ -33,6 +33,7 @@ export function Writing({
   onEdit,
   onRunCheck,
   onOpenThread,
+  onFinished,
   checking,
   disabled = false,
 }: {
@@ -44,6 +45,8 @@ export function Writing({
   onEdit: (patch: Partial<TreeNode>) => void
   onRunCheck: () => void
   onOpenThread: (id: string) => void
+  /** Called when the part is finished — climbs back out to what it belongs to. */
+  onFinished?: () => void
   checking: boolean
   disabled?: boolean
 }) {
@@ -165,17 +168,16 @@ export function Writing({
               {checking ? 'reading…' : 'check against the rules'}
             </GhostButton>
             {node.status === 'drafted' && (
-              <GhostButton size="sm" onClick={() => onEdit({ status: 'done' })}>done</GhostButton>
+              <GhostButton
+                size="sm"
+                onClick={() => { flush(); onEdit({ status: 'done' }); onFinished?.() }}
+              >
+                done
+              </GhostButton>
             )}
           </div>
         )}
       </div>
-
-      {checks.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Label>{checks.length === 1 ? 'one thing' : `${checks.length} things`} to answer</Label>
-        </div>
-      )}
 
       {/* its own rules */}
       <div

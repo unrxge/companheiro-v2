@@ -18,7 +18,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
 import { work as workApi } from '@/lib/studio/work-api'
-import { findNode, flatten, pathTo, rulesInForce, showsProjectAltitude } from '@/lib/studio/tree'
+import { findNode, flatten, pathTo, rulesInForce } from '@/lib/studio/tree'
 import { Grid } from '@/components/work/grid'
 import { Storyline, FlowRead } from '@/components/work/storyline'
 import { Writing } from '@/components/work/writing'
@@ -109,6 +109,25 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     [api],
   )
 
+  /** Breaking something open must never hide what is already written: the
+   *  words move into the first part, so the parent becomes a container for
+   *  them rather than a place they vanish from. */
+  const breakIntoParts = useCallback(async (target: TreeNode) => {
+    const hasWords = target.body.trim().length > 0
+    const first = await api.addNode(target.id)
+    if (!first) return
+    if (hasWords) {
+      await api.editNode(first.id, {
+        title: target.title || '',
+        body: target.body,
+        beat: target.beat,
+        status: target.status,
+      })
+      await api.editNode(target.id, { body: '', status: 'open' })
+    }
+    goNode(first.id)
+  }, [api, goNode])
+
   const setProjectField = useCallback(async (patch: { intent?: string; rules?: Rule[] }) => {
     await fetch(`/api/studio/projects/${projectId}`, {
       method: 'PATCH',
@@ -143,13 +162,12 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     )
   }
 
-  // ── progressive disclosure ────────────────────────────────────────────────
-  // One piece and no threads: there is no altitude above worth showing, so the
-  // project opens straight into the work.
-  const showGrid = showsProjectAltitude(roots, tree.threads.length)
-  if (focus.kind === 'project' && !showGrid && roots.length === 1) {
-    return <RedirectInto onMount={() => goNode(roots[0].id)} />
-  }
+  // Progressive disclosure is about what the project page SHOWS, never about
+  // where it sends you. An earlier version opened a single-piece project
+  // straight into the work, which made the project altitude unreachable: the
+  // way back out landed here and bounced you in again, with no way to add a
+  // second piece or a thread. The page always stands still now, and the grid
+  // simply stays quiet until there is something to put in it.
 
   const headerTitle =
     focus.kind === 'thread' ? thread?.name || 'a thread'
@@ -176,15 +194,13 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
 
       <Container padding={28}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {/* where you are */}
-          {focus.kind !== 'project' && (
-            <Trail
-              steps={focus.kind === 'node' ? trail : []}
-              onGo={goNode}
-              projectTitle={project.title}
-              onGoProject={goProject}
-            />
-          )}
+          {/* where you are — always, so there is always a step back */}
+          <Trail
+            steps={focus.kind === 'node' ? trail : []}
+            onGo={goNode}
+            projectTitle={project.title}
+            onGoProject={goProject}
+          />
 
           {/* collisions waiting for an answer */}
           {openChecks.length > 0 && (
@@ -277,13 +293,14 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
                   onEdit={(patch) => void api.editNode(node.id, patch)}
                   onRunCheck={() => void runCheck(node.id)}
                   onOpenThread={goThread}
+                  onFinished={() => (parent ? goNode(parent.id) : goProject())}
                 />
                 {!readOnly && (
                   <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, paddingTop: 16 }}>
                     <p style={{ ...canvasType.small, color: t.textMuted, margin: '0 0 10px' }}>
                       if this needs a beginning, a middle and an end of its own, give it parts.
                     </p>
-                    <PrimaryButton size="sm" onClick={() => void api.addNode(node.id)}>
+                    <PrimaryButton size="sm" onClick={() => void breakIntoParts(node)}>
                       break it into parts
                     </PrimaryButton>
                   </div>
@@ -419,18 +436,5 @@ function NodeHead({
         </div>
       )}
     </div>
-  )
-}
-
-function RedirectInto({ onMount }: { onMount: () => void }) {
-  const { t } = useTheme()
-  useMemo(() => { queueMicrotask(onMount) }, [onMount])
-  return (
-    <PageShell dock={false} mood="neutral">
-      <PageHeader eyebrow="studio" title="opening…" size="md" />
-      <Container padding={32}>
-        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>opening the work…</p>
-      </Container>
-    </PageShell>
   )
 }
