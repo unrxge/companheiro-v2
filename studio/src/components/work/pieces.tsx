@@ -1,8 +1,8 @@
 'use client'
 
-// studio/src/components/work/pieces.tsx — the project's own column: its pieces,
-// in reading order, and nothing else. What each piece is for, the rules over it,
-// the threads running across them and the companion all live on the rail.
+// studio/src/components/work/pieces.tsx — the pieces, across, in reading order.
+// Horizontal because that is what a sequence is; the threads that run behind
+// them hang below, in the same workspace.
 
 import { useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -72,7 +72,7 @@ export function Pieces({
         </p>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, alignItems: 'stretch' }}>
         {pieces.map((piece, i) => {
           const dragging = dragId === piece.id
           const over = overId === piece.id && dragId !== piece.id
@@ -85,18 +85,17 @@ export function Pieces({
               onDragOver={(e) => { e.preventDefault(); setOverId(piece.id) }}
               onDrop={(e) => { e.preventDefault(); drop(piece.id) }}
               style={{
-                display: 'flex', alignItems: 'flex-start', gap: 14,
+                width: 244, flexShrink: 0,
+                display: 'flex', flexDirection: 'column', gap: 8,
                 background: t.cardBg, borderRadius: radius.widget, padding: '14px 16px',
                 border: `1px solid ${over ? t.tide : alpha(t.textPrimary, 0.1)}`,
-                boxShadow: over ? `inset 3px 0 0 ${t.tide}` : 'none',
+                boxShadow: over ? `inset 0 3px 0 ${t.tide}` : 'none',
                 opacity: dragging ? 0.4 : 1,
                 cursor: disabled ? 'default' : 'grab',
                 transition: 'border-color 120ms ease',
               }}
             >
-              <span style={{ ...canvasType.chip, color: t.textMuted, paddingTop: 4, width: 16, flexShrink: 0 }}>
-                {i + 1}
-              </span>
+              <span style={{ ...canvasType.chip, color: t.textMuted }}>{i + 1}</span>
 
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <button
@@ -123,41 +122,43 @@ export function Pieces({
               </div>
 
               {!disabled && (
-                <div style={{ display: 'flex', gap: 2, flexShrink: 0, paddingTop: 2 }}>
-                  <Mini label="move this piece earlier" glyph="↑" disabled={i === 0} onClick={() => move(piece.id, -1)} />
-                  <Mini label="move this piece later" glyph="↓" disabled={i === pieces.length - 1} onClick={() => move(piece.id, 1)} />
-                  <Mini label="delete this piece" glyph="✕" onClick={() => onRemove(piece)} />
+                <div style={{ display: 'flex', gap: 2, marginTop: 'auto', paddingTop: 4 }}>
+                  <Mini label="move this piece earlier" glyph="←" disabled={i === 0} onClick={() => move(piece.id, -1)} />
+                  <Mini label="move this piece later" glyph="→" disabled={i === pieces.length - 1} onClick={() => move(piece.id, 1)} />
+                  <Mini label="delete this piece" glyph="✕" onClick={() => onRemove(piece)} style={{ marginLeft: 'auto' }} />
                 </div>
               )}
             </div>
           )
         })}
-      </div>
 
-      {!disabled && (
-        <button
-          type="button"
-          onClick={onAdd}
-          style={{
-            ...canvasType.small, color: t.textMuted, cursor: 'pointer', textAlign: 'left',
-            background: 'transparent', border: `1px dashed ${alpha(t.textPrimary, 0.2)}`,
-            borderRadius: radius.widget, padding: '12px 16px',
-          }}
-        >
-          + piece
-        </button>
-      )}
+        {!disabled && (
+          <button
+            type="button"
+            onClick={onAdd}
+            style={{
+              ...canvasType.small, color: t.textMuted, cursor: 'pointer',
+              width: 112, flexShrink: 0,
+              background: 'transparent', border: `1px dashed ${alpha(t.textPrimary, 0.2)}`,
+              borderRadius: radius.widget, padding: '14px 16px',
+            }}
+          >
+            + piece
+          </button>
+        )}
+      </div>
     </div>
   )
 }
 
 function Mini({
-  label, glyph, onClick, disabled = false,
+  label, glyph, onClick, disabled = false, style,
 }: {
   label: string
   glyph: string
   onClick: () => void
   disabled?: boolean
+  style?: React.CSSProperties
 }) {
   const { t } = useTheme()
   return (
@@ -174,6 +175,7 @@ function Mini({
         background: 'transparent',
         color: disabled ? alpha(t.textPrimary, 0.2) : t.textMuted,
         cursor: disabled ? 'default' : 'pointer',
+        ...style,
       }}
     >
       {glyph}

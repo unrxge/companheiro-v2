@@ -268,6 +268,46 @@ export default function DevWorkPage() {
             />
           )}
 
+          {focus.kind === 'project' && (
+            <ThreadSpines
+              threads={threads}
+              pieces={roots}
+              appearancesFor={appearancesFor}
+              tagFor={tagFor}
+              onOpenNode={(id) => setFocus({ kind: 'node', id })}
+              onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+              onToggle={(nodeId, threadId, on) =>
+                setTags((prev) =>
+                  on
+                    ? [...prev, { node_id: nodeId, thread_id: threadId, note: '' }]
+                    : prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
+                )
+              }
+              onEditNote={(nodeId, threadId, note) =>
+                setTags((prev) => [
+                  ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
+                  { node_id: nodeId, thread_id: threadId, note },
+                ])
+              }
+              onEditThread={(id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))}
+              onAddThread={() =>
+                setThreads((prev) => [
+                  ...prev,
+                  {
+                    id: uid(), user_id: 'dev', project_id: 'dev', position: prev.length,
+                    name: '', intent: '', rules: [],
+                    hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
+                    created_at: NOW, updated_at: NOW,
+                  },
+                ])
+              }
+              onRemoveThread={(id) => {
+                setThreads((prev) => prev.filter((x) => x.id !== id))
+                setTags((prev) => prev.filter((x) => x.thread_id !== id))
+              }}
+            />
+          )}
+
           {focus.kind === 'node' && current && (
             view === 'map' ? (
               current.children.length > 0 ? (
@@ -319,7 +359,7 @@ export default function DevWorkPage() {
         open={rail}
         onOpen={setRail}
         hidden={focus.kind === 'thread'}
-        counts={{ rules: scopeRules.filter((r) => !r.retired_at).length, threads: threads.length }}
+        counts={{ rules: scopeRules.filter((r) => !r.retired_at).length }}
       />
 
       <Drawer
@@ -368,46 +408,6 @@ export default function DevWorkPage() {
 
         {rail === 'rules' && (
           <RuleList rules={scopeRules} inherited={scopeNode ? inherited : []} onChange={setScopeRules} />
-        )}
-
-        {rail === 'threads' && (
-          <ThreadSpines
-            threads={threads}
-            pieces={roots}
-            appearancesFor={appearancesFor}
-            tagFor={tagFor}
-            onOpenNode={(id) => setFocus({ kind: 'node', id })}
-            onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-            onToggle={(nodeId, threadId, on) =>
-              setTags((prev) =>
-                on
-                  ? [...prev, { node_id: nodeId, thread_id: threadId, note: '' }]
-                  : prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-              )
-            }
-            onEditNote={(nodeId, threadId, note) =>
-              setTags((prev) => [
-                ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-                { node_id: nodeId, thread_id: threadId, note },
-              ])
-            }
-            onEditThread={(id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))}
-            onAddThread={() =>
-              setThreads((prev) => [
-                ...prev,
-                {
-                  id: uid(), user_id: 'dev', project_id: 'dev', position: prev.length,
-                  name: '', intent: '', rules: [],
-                  hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
-                  created_at: NOW, updated_at: NOW,
-                },
-              ])
-            }
-            onRemoveThread={(id) => {
-              setThreads((prev) => prev.filter((x) => x.id !== id))
-              setTags((prev) => prev.filter((x) => x.thread_id !== id))
-            }}
-          />
         )}
 
         {rail === 'companion' && (

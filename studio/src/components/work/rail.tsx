@@ -2,9 +2,9 @@
 
 // studio/src/components/work/rail.tsx — the right rail and the drawer behind it.
 //
-// Everything about the vision lives here: what the thing is for, the rules, the
-// threads, the companion. None of it belongs in the middle of the page, which
-// is where the work is made. Same rail at every altitude, so it is learned once.
+// What the thing is for, the rules that can catch you, and the companion.
+// The threads are NOT here: what runs across the work belongs beside the work,
+// where it can be seen while looking at it. Same rail at every altitude.
 //
 // Follows the tool rail in the main app: circular icons pinned to the right
 // edge, a panel that opens beside them, one open at a time.
@@ -14,7 +14,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
-export type RailKey = 'intent' | 'rules' | 'threads' | 'companion'
+export type RailKey = 'intent' | 'rules' | 'companion'
 
 const icon = (path: ReactNode) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
@@ -25,7 +25,6 @@ const icon = (path: ReactNode) => (
 export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
   { key: 'intent', label: 'what this is for', icon: icon(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /></>) },
   { key: 'rules', label: 'the rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
-  { key: 'threads', label: 'what runs across it', icon: icon(<><line x1="7" y1="3" x2="7" y2="21" /><path d="M7 8h6a3 3 0 0 1 3 3" /><path d="M7 15h5a3 3 0 0 0 3-3" /></>) },
   { key: 'companion', label: 'talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },
 ]
 

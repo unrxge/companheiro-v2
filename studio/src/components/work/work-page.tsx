@@ -270,6 +270,26 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
             />
           )}
 
+          {focus.kind === 'project' && (
+            <ThreadSpines
+              threads={tree.threads}
+              pieces={roots}
+              appearancesFor={appearancesFor}
+              tagFor={tagFor}
+              onOpenNode={goNode}
+              onOpenThread={goThread}
+              onToggle={(nodeId, threadId, on) => {
+                if (on) void api.tag(nodeId, threadId)
+                else void api.untag(nodeId, threadId)
+              }}
+              onEditNote={(nodeId, threadId, note) => void api.tag(nodeId, threadId, note)}
+              onEditThread={(id, patch) => void api.editThread(id, patch)}
+              onAddThread={() => void api.addThread()}
+              onRemoveThread={(id) => void api.removeThread(id)}
+              disabled={readOnly}
+            />
+          )}
+
           {/* ── a piece: the writing, or the map of it ────────────────────── */}
           {focus.kind === 'node' && node && (
             view === 'map' ? (
@@ -329,7 +349,7 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
         open={rail}
         onOpen={setRail}
         hidden={focus.kind === 'thread'}
-        counts={{ rules: liveRuleCount, threads: tree.threads.length }}
+        counts={{ rules: liveRuleCount }}
       />
 
       <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
@@ -398,26 +418,6 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
             inherited={scopeNode ? inherited : []}
             disabled={readOnly}
             onChange={setScopeRules}
-          />
-        )}
-
-        {rail === 'threads' && (
-          <ThreadSpines
-            threads={tree.threads}
-            pieces={roots}
-            appearancesFor={appearancesFor}
-            tagFor={tagFor}
-            onOpenNode={goNode}
-            onOpenThread={goThread}
-            onToggle={(nodeId, threadId, on) => {
-              if (on) void api.tag(nodeId, threadId)
-              else void api.untag(nodeId, threadId)
-            }}
-            onEditNote={(nodeId, threadId, note) => void api.tag(nodeId, threadId, note)}
-            onEditThread={(id, patch) => void api.editThread(id, patch)}
-            onAddThread={() => void api.addThread()}
-            onRemoveThread={(id) => void api.removeThread(id)}
-            disabled={readOnly}
           />
         )}
 

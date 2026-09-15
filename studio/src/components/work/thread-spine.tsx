@@ -7,11 +7,11 @@
 // branch off it, the thread has gone quiet, and that is the failure nobody
 // catches until it is too late.
 //
-// It lives in the drawer, so vertical is also simply the right shape.
+// The spines sit in the workspace beneath the pieces, side by side, so what
+// runs behind the work is visible while you look at the work.
 
 import { useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { GhostButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
@@ -52,7 +52,14 @@ export function ThreadSpines({
   const { t } = useTheme()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <Label>what runs across them</Label>
+        <span style={{ ...canvasType.meta, color: t.textMuted }}>
+          {threads.length} {threads.length === 1 ? 'thread' : 'threads'}
+        </span>
+      </div>
+
       {threads.length === 0 && (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
           No threads yet. A thread is something that runs across the whole work — a person&rsquo;s
@@ -60,26 +67,40 @@ export function ThreadSpines({
         </p>
       )}
 
-      {threads.map((thread) => (
-        <Spine
-          key={thread.id}
-          thread={thread}
-          pieces={pieces}
-          appearances={appearancesFor(thread.id)}
-          tagFor={tagFor}
-          onOpenNode={onOpenNode}
-          onOpenThread={onOpenThread}
-          onToggle={onToggle}
-          onEditNote={onEditNote}
-          onEditThread={onEditThread}
-          onRemoveThread={onRemoveThread}
-          disabled={disabled}
-        />
-      ))}
+      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 6, alignItems: 'flex-start' }}>
+        {threads.map((thread) => (
+          <div key={thread.id} style={{ width: 300, flexShrink: 0 }}>
+            <Spine
+              thread={thread}
+              pieces={pieces}
+              appearances={appearancesFor(thread.id)}
+              tagFor={tagFor}
+              onOpenNode={onOpenNode}
+              onOpenThread={onOpenThread}
+              onToggle={onToggle}
+              onEditNote={onEditNote}
+              onEditThread={onEditThread}
+              onRemoveThread={onRemoveThread}
+              disabled={disabled}
+            />
+          </div>
+        ))}
 
-      {!disabled && (
-        <GhostButton size="sm" onClick={onAddThread}>+ thread</GhostButton>
-      )}
+        {!disabled && (
+          <button
+            type="button"
+            onClick={onAddThread}
+            style={{
+              ...canvasType.small, color: t.textMuted, cursor: 'pointer',
+              width: 128, flexShrink: 0, background: 'transparent',
+              border: `1px dashed ${alpha(t.textPrimary, 0.2)}`,
+              borderRadius: radius.widget, padding: '14px 16px',
+            }}
+          >
+            + thread
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -148,6 +169,20 @@ function Spine({
               style={{ ...canvasType.title, color: colour }}
             />
           </div>
+          {!disabled && (
+            <button
+              type="button"
+              aria-label={`delete the thread ${thread.name || 'untitled'}`}
+              title="delete this thread"
+              onClick={() => void remove()}
+              style={{
+                ...canvasType.chip, color: t.textMuted, background: 'none',
+                border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0,
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
         <div style={{ paddingLeft: TRUNK + BRANCH }}>
           <InlineField
@@ -306,13 +341,6 @@ function Spine({
                   style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
                   read it through
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void remove()}
-                  style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                >
-                  remove
                 </button>
               </div>
             )}

@@ -101,7 +101,6 @@ export function Studio({
 
       {parts.map((part, i) => {
         const isFocused = focused === part.id
-        const locked = part.status === 'done'
         return (
           <article
             key={part.id}
@@ -117,7 +116,7 @@ export function Studio({
                   }
             }
           >
-            {sectioned && !flow && (
+            {!flow && (
               <header
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
@@ -126,12 +125,14 @@ export function Studio({
                   background: t.cardBgInner,
                 }}
               >
-                <span style={{ ...canvasType.chip, color: t.textMuted, flexShrink: 0 }}>{i + 1}</span>
+                {sectioned && (
+                  <span style={{ ...canvasType.chip, color: t.textMuted, flexShrink: 0 }}>{i + 1}</span>
+                )}
                 <div style={{ flex: 1, minWidth: 90 }}>
                   <InlineField
                     ariaLabel="the name of this part"
                     value={part.title}
-                    placeholder="untitled part"
+                    placeholder={sectioned ? 'untitled part' : 'untitled'}
                     disabled={disabled}
                     onCommit={(title) => void onEdit(part.id, { title })}
                     style={{ ...canvasType.label, color: t.textSecondary, letterSpacing: '0.08em' }}
@@ -147,16 +148,20 @@ export function Studio({
                 {!disabled && (
                   <>
                     <HeaderAction
-                      label={locked ? 'unlock this part' : 'lock this part'}
-                      tone={locked ? t.verdant : t.textMuted}
-                      onClick={() => void onEdit(part.id, { status: locked ? 'open' : 'done' })}
+                      label={part.status === 'done' ? 'this part is done — reopen it' : 'mark this part done'}
+                      tone={part.status === 'done' ? t.verdant : t.textMuted}
+                      onClick={() => void onEdit(part.id, { status: part.status === 'done' ? 'open' : 'done' })}
                     >
-                      {locked ? 'locked' : 'lock'}
+                      {part.status === 'done' ? 'done' : 'mark done'}
                     </HeaderAction>
-                    <HeaderAction label="open this part on its own" onClick={() => onOpenPart(part.id)}>
-                      open
-                    </HeaderAction>
-                    <HeaderAction label="delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
+                    {sectioned && (
+                      <HeaderAction label="open this part on its own" onClick={() => onOpenPart(part.id)}>
+                        open
+                      </HeaderAction>
+                    )}
+                    {sectioned && (
+                      <HeaderAction label="delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
+                    )}
                   </>
                 )}
               </header>
@@ -165,9 +170,9 @@ export function Studio({
             <div style={{ padding: flow ? 0 : '10px 16px 14px', fontSize: 17 }}>
               <SectionEditor
                 content={part.body}
-                editable={!disabled && !locked}
+                editable={!disabled}
                 placeholder={i === 0 ? 'write…' : ''}
-                onChange={(html) => { if (!locked) change(part.id, html) }}
+                onChange={(html) => change(part.id, html)}
                 onFocus={() => setFocused(part.id)}
                 onBlur={() => flushOne(part.id)}
                 onReady={(editor) => { editors.current[part.id] = editor }}
