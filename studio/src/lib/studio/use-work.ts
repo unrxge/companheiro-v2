@@ -127,6 +127,17 @@ export function useWork(projectId: string) {
       await guard(() => work.reorder(parentId, ids))
     },
 
+    reorderRoots: async (ids: string[]) => {
+      setTree((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => {
+          const at = ids.indexOf(n.id)
+          return at === -1 || n.parent_id !== null ? n : { ...n, position: at }
+        }),
+      }))
+      await guard(() => work.reorderRoots(projectId, ids))
+    },
+
     addThread: async () => {
       const res = await guard(() => work.createThread(projectId, {}))
       if (!res) return null

@@ -196,3 +196,17 @@ export function Empty({ line }: { line: string }) {
   const { t } = useTheme()
   return <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{line}</p>
 }
+
+/** True when the window is wide enough to hold the work and an open drawer
+ *  side by side. Below it the drawer simply covers the page, which is the
+ *  right answer on a narrow screen. */
+export function useRoomBeside(min = 1180): boolean {
+  const [room, setRoom] = useState(false)
+  useEffect(() => {
+    const check = () => setRoom(window.innerWidth >= min)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [min])
+  return room
+}

@@ -38,6 +38,8 @@ export const work = {
   deleteNode: (nodeId: string) => call<void>('DELETE', `/nodes/${nodeId}`),
   reorder: (parentId: string, ids: string[]) =>
     call<{ nodes: WorkNode[] }>('POST', `/nodes/${parentId}/reorder`, { ids }),
+  reorderRoots: (projectId: string, ids: string[]) =>
+    call<{ nodes: WorkNode[] }>('POST', `/projects/${projectId}/nodes/reorder`, { ids }),
 
   createThread: (projectId: string, body: CreateThreadRequest) =>
     call<{ thread: Thread }>('POST', `/projects/${projectId}/threads`, body),

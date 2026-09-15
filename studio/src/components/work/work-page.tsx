@@ -3,44 +3,52 @@
 // studio/src/components/work/work-page.tsx — the whole work, at whatever
 // altitude you are standing.
 //
-// Depth is never presented. A project opens as one piece; the altitude above
-// appears when a second piece or a thread exists; parts appear inside a piece
-// when the work asks for them. The interface is learned once and the only
-// thing that changes between altitudes is granularity.
+// The middle of the page is the work and only the work: the pieces, the parts,
+// the words. Everything about the vision — what this is for, the rules, the
+// threads, the companion — sits on the rail at the right and opens over the
+// top, because it must never take space from where the making happens.
+//
+// Depth is never presented. A project opens as its pieces; parts appear inside
+// a piece when the work asks for them; nothing here is hard-coded to a depth.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
-import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons'
+import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha } from '@/lib/design-tokens'
+import { alpha, radius } from '@/lib/design-tokens'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
-import { work as workApi } from '@/lib/studio/work-api'
-import { appearancesOf, findNode, flatten, pathTo, rulesInForce } from '@/lib/studio/tree'
-import { Grid } from '@/components/work/grid'
-import { Storyline, FlowRead } from '@/components/work/storyline'
-import { Writing } from '@/components/work/writing'
+import { appearancesOf, findNode, pathTo, rulesInForce } from '@/lib/studio/tree'
+import { Pieces } from '@/components/work/pieces'
+import { Storyline } from '@/components/work/storyline'
+import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
+import { ThreadSpines } from '@/components/work/thread-spine'
+import { Companion } from '@/components/work/companion'
+import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { CheckCard, RuleList } from '@/components/work/rules'
-import { Empty, InlineField, Label, Trail } from '@/components/work/bits'
+import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/work/bits'
 
 export type Focus =
   | { kind: 'project' }
   | { kind: 'node'; id: string }
   | { kind: 'thread'; id: string }
 
+type View = 'write' | 'map' | 'flow'
+
 export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus }) {
   const { t } = useTheme()
   const router = useRouter()
   const confirm = useConfirm()
   const { state, project, tree, roots, api, saving, tagFor } = useWork(projectId)
-  const [view, setView] = useState<'parts' | 'flow'>('parts')
+  const [view, setView] = useState<View>('write')
+  const [rail, setRail] = useState<RailKey | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
-  const [showProjectRules, setShowProjectRules] = useState(false)
+  const roomBeside = useRoomBeside()
 
   const goNode = useCallback((id: string) => router.push(`/p/${projectId}/n/${id}`), [projectId, router])
   const goThread = useCallback((id: string) => router.push(`/p/${projectId}/thread/${id}`), [projectId, router])
@@ -53,15 +61,72 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
   const readOnly = project?.status !== 'active'
 
-  const appearancesFor = useCallback(
-    (threadId: string) => appearancesOf(roots, threadId),
-    [roots],
+  const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
+  useEffect(() => { setCheckNote(null) }, [focusKey])
+
+  const appearancesFor = useCallback((threadId: string) => appearancesOf(roots, threadId), [roots])
+
+  const openChecks = useMemo(
+    () => (node ? tree.open_checks.filter((c) => c.node_id === node.id) : tree.open_checks),
+    [tree.open_checks, node],
   )
 
-  /** Removing a part takes everything under it, so it is always confirmed and
-   *  it always says what else goes. */
+  const projectRules = useMemo(
+    () => ((project?.rules ?? []) as Rule[]).filter((r) => r && typeof r.id === 'string'),
+    [project],
+  )
+
+  const inherited = useMemo(() => {
+    const live = projectRules.filter((r) => !r.retired_at).map((rule) => ({ rule, from: 'the project' }))
+    if (!node) return live
+    const above = rulesInForce(roots, node.id).filter((r) => r.inherited)
+    return [...live, ...above.map(({ rule, source }) => ({ rule, from: source.title || 'above' }))]
+  }, [node, roots, projectRules])
+
+  const setProjectField = useCallback(async (patch: { intent?: string; rules?: Rule[] }) => {
+    await fetch(`/api/studio/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    await api.reload()
+  }, [api, projectId])
+
+  const runCheck = useCallback(async (nodeId: string) => {
+    setChecking(true)
+    setCheckNote(null)
+    const res = await api.runCheck(nodeId)
+    setChecking(false)
+    if (res.checks.length === 0) setCheckNote(res.reason ?? 'Nothing collided.')
+    else setRail(null)
+  }, [api])
+
+  /** Amending retires the old wording wherever it lives and puts the new one in
+   *  its place. This is the only way a rule changes after a collision. */
+  const amendRule = useCallback(async (checkId: string, newText: string) => {
+    const check = tree.open_checks.find((c) => c.id === checkId)
+    if (!check) return
+    const swap = (rules: Rule[]) => rules.map((r) => (r.id === check.rule_id ? { ...r, text: newText } : r))
+    if (check.source_thread_id) {
+      const th = tree.threads.find((x) => x.id === check.source_thread_id)
+      if (th) await api.editThread(th.id, { rules: swap(th.rules) })
+      return
+    }
+    if (check.source_node_id) {
+      const owner = findNode(roots, check.source_node_id)
+      if (owner) { await api.editNode(owner.id, { rules: swap(owner.rules) }); return }
+    }
+    await setProjectField({ rules: swap(projectRules) })
+  }, [api, projectRules, roots, setProjectField, tree.open_checks, tree.threads])
+
+  const resolve = useCallback(
+    (checkId: string, outcome: CheckOutcome, note?: string) => void api.resolveCheck(checkId, outcome, note),
+    [api],
+  )
+
+  /** Removing a part takes everything under it, so it always says what else goes. */
   const removeNode = useCallback(async (target: TreeNode) => {
-    const inside = flatten(target.children).length
+    const inside = target.children.length
     const ok = await confirm({
       title: `Delete “${target.title || 'this part'}”?`,
       body: inside > 0
@@ -80,94 +145,18 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     }
   }, [api, confirm, focus, goNode, goProject, roots])
 
-  const openChecks = useMemo(
-    () => (node ? tree.open_checks.filter((c) => c.node_id === node.id) : tree.open_checks),
-    [tree.open_checks, node],
-  )
-
-  const inherited = useMemo(() => {
-    if (!node) return []
-    const all = rulesInForce(roots, node.id).filter((r) => r.inherited)
-    const projectRules = ((project?.rules ?? []) as Rule[]).filter((r) => r && !r.retired_at)
-    return [
-      ...projectRules.map((rule) => ({ rule, from: 'the project' })),
-      ...all.map(({ rule, source }) => ({ rule, from: source.title || 'above' })),
-    ]
-  }, [node, roots, project])
-
-  const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
-  useEffect(() => { setCheckNote(null) }, [focusKey])
-
-  const runCheck = useCallback(async (nodeId: string) => {
-    setChecking(true)
-    setCheckNote(null)
-    const res = await api.runCheck(nodeId)
-    setChecking(false)
-    if (res.checks.length === 0) setCheckNote(res.reason ?? 'nothing collided')
-  }, [api])
-
-  /** Amending retires the old wording wherever it lives and puts the new one
-   *  in its place. This is the only way a rule changes after a collision. */
-  const amendRule = useCallback(async (checkId: string, newText: string) => {
-    const check = tree.open_checks.find((c) => c.id === checkId)
-    if (!check) return
-    const swap = (rules: Rule[]) =>
-      rules.map((r) =>
-        r.id === check.rule_id ? { ...r, text: newText } : r,
-      )
-    if (check.source_thread_id) {
-      const th = tree.threads.find((x) => x.id === check.source_thread_id)
-      if (th) await api.editThread(th.id, { rules: swap(th.rules) })
-      return
-    }
-    if (check.source_node_id) {
-      const owner = findNode(roots, check.source_node_id)
-      if (owner) { await api.editNode(owner.id, { rules: swap(owner.rules) }); return }
-    }
-    if (project) {
-      const next = swap((project.rules ?? []) as Rule[])
-      await workApi.tree(projectId).catch(() => null)
-      await fetch(`/api/studio/projects/${projectId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: next }),
-      })
-      await api.reload()
-    }
-  }, [api, project, projectId, roots, tree.open_checks, tree.threads])
-
-  const resolve = useCallback(
-    (checkId: string, outcome: CheckOutcome, note?: string) => void api.resolveCheck(checkId, outcome, note),
-    [api],
-  )
-
-  /** Breaking something open must never hide what is already written: the
-   *  words move into the first part, so the parent becomes a container for
-   *  them rather than a place they vanish from. */
+  /** Breaking something open must never hide what is already written. */
   const breakIntoParts = useCallback(async (target: TreeNode) => {
     const hasWords = target.body.trim().length > 0
     const first = await api.addNode(target.id)
     if (!first) return
     if (hasWords) {
       await api.editNode(first.id, {
-        title: target.title || '',
-        body: target.body,
-        beat: target.beat,
-        status: target.status,
+        title: target.title || '', body: target.body, beat: target.beat, status: target.status,
       })
       await api.editNode(target.id, { body: '', status: 'open' })
     }
-    goNode(first.id)
-  }, [api, goNode])
-
-  const setProjectField = useCallback(async (patch: { intent?: string; rules?: Rule[] }) => {
-    await fetch(`/api/studio/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-    await api.reload()
-  }, [api, projectId])
+  }, [api])
 
   // ── loading and error ─────────────────────────────────────────────────────
   if (state.status === 'loading') {
@@ -194,17 +183,27 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
     )
   }
 
-  // Progressive disclosure is about what the project page SHOWS, never about
-  // where it sends you. An earlier version opened a single-piece project
-  // straight into the work, which made the project altitude unreachable: the
-  // way back out landed here and bounced you in again, with no way to add a
-  // second piece or a thread. The page always stands still now, and the grid
-  // simply stays quiet until there is something to put in it.
-
   const headerTitle =
     focus.kind === 'thread' ? thread?.name || 'a thread'
     : focus.kind === 'node' ? node?.title || 'untitled'
     : project.title
+
+  // What the rail is standing over: a part, or the whole project.
+  const scopeNode = focus.kind === 'node' ? node : null
+  const scopeRules = scopeNode ? scopeNode.rules : projectRules
+  const scopeIntent = scopeNode ? scopeNode.intent : (project.intent ?? '')
+  const liveRuleCount = scopeRules.filter((r) => !r.retired_at).length
+
+  const setScopeRules = (rules: Rule[]) => {
+    if (scopeNode) void api.editNode(scopeNode.id, { rules })
+    else void setProjectField({ rules })
+  }
+  const setScopeIntent = (intent: string) => {
+    if (scopeNode) void api.editNode(scopeNode.id, { intent })
+    else void setProjectField({ intent })
+  }
+
+  const railTitle = RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''
 
   return (
     <PageShell dock={false} mood="neutral">
@@ -216,26 +215,26 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span
               aria-live="polite"
-              style={{
-                ...canvasType.chip, color: t.textMuted,
-                opacity: saving ? 1 : 0, transition: 'opacity 160ms ease',
-              }}
+              style={{ ...canvasType.chip, color: t.textMuted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
             >
               saving…
             </span>
-            {focus.kind === 'node' && node && node.children.length > 0 && (
-              <GhostButton size="sm" onClick={() => setView(view === 'parts' ? 'flow' : 'parts')}>
-                {view === 'parts' ? 'read it through' : 'back to the parts'}
-              </GhostButton>
+            {focus.kind === 'node' && node && (
+              <ViewSwitch view={view} onChange={setView} />
             )}
             <GhostButton size="sm" onClick={() => router.push('/shelf')}>the shelf</GhostButton>
           </div>
         }
       />
 
-      <Container padding={28}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {/* where you are — always, so there is always a step back */}
+      <Container
+        padding={26}
+        style={{
+          paddingRight: rail && roomBeside ? 478 : 70,
+          transition: 'padding-right 200ms ease',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <Trail
             steps={focus.kind === 'node' ? trail : []}
             onGo={goNode}
@@ -243,7 +242,6 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
             onGoProject={goProject}
           />
 
-          {/* collisions waiting for an answer */}
           {openChecks.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {openChecks.map((check) => (
@@ -256,134 +254,59 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
               ))}
             </div>
           )}
-          {checkNote && (
-            <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>
+          {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
+
+          {/* ── the project: its pieces ───────────────────────────────────── */}
+          {focus.kind === 'project' && (
+            <Pieces
+              pieces={roots}
+              threads={tree.threads}
+              onOpen={goNode}
+              onAdd={() => void api.addNode(null)}
+              onRemove={(piece) => void removeNode(piece)}
+              onReorder={(ids) => void api.reorderRoots(ids)}
+              onOpenThread={goThread}
+              disabled={readOnly}
+            />
           )}
 
-          {/* ── the project altitude ─────────────────────────────────────── */}
-          {focus.kind === 'project' && (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <Label>what the whole thing is for</Label>
-                <InlineField
-                  ariaLabel="what the whole project is for"
-                  value={project.intent ?? ''}
-                  placeholder="say what this project is, and what it has to do…"
-                  multiline
+          {/* ── a piece: the writing, or the map of it ────────────────────── */}
+          {focus.kind === 'node' && node && (
+            view === 'map' ? (
+              node.children.length > 0 ? (
+                <Storyline
+                  parts={node.children}
+                  threads={tree.threads}
+                  onOpen={goNode}
+                  onReorder={(ids) => void api.reorder(node.id, ids)}
+                  onEditBeat={(id, beat) => void api.editNode(id, { beat })}
+                  onAdd={(afterId) => void api.addNode(node.id, afterId)}
+                  onOpenThread={goThread}
+                  onRemove={(part) => void removeNode(part)}
                   disabled={readOnly}
-                  onCommit={(intent) => void setProjectField({ intent })}
-                  style={{ ...canvasType.conceptBody, color: t.textSecondary }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowProjectRules((s) => !s)}
-                  style={{
-                    ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',
-                    padding: 0, alignSelf: 'flex-start', cursor: 'pointer',
-                  }}
-                >
-                  {showProjectRules ? 'hide the rules' : `rules (${((project.rules ?? []) as Rule[]).filter((r) => r && !r.retired_at).length})`}
-                </button>
-                {showProjectRules && (
-                  <div
-                    style={{
-                      borderLeft: `2px solid ${alpha(t.ember, 0.4)}`, paddingLeft: 12, marginTop: 4,
-                    }}
-                  >
-                    <RuleList
-                      rules={((project.rules ?? []) as Rule[]) ?? []}
-                      disabled={readOnly}
-                      onChange={(rules) => void setProjectField({ rules })}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <Grid
-                pieces={roots}
+              ) : (
+                <Empty line="Nothing to map yet — this part has no parts of its own." />
+              )
+            ) : (
+              <Studio
+                node={node}
                 threads={tree.threads}
-                tagFor={tagFor}
-                appearancesFor={appearancesFor}
-                onOpenPiece={goNode}
+                flow={view === 'flow'}
+                onEdit={(id, patch) => api.editNode(id, patch)}
+                onAdd={(afterId) =>
+                  node.children.length > 0
+                    ? void api.addNode(node.id, afterId)
+                    : void breakIntoParts(node)
+                }
+                onRemove={(part) => void removeNode(part)}
+                onOpenPart={goNode}
                 onOpenThread={goThread}
-                onOpenNode={goNode}
-                onToggle={(nodeId, threadId, on) => {
-                  if (on) void api.tag(nodeId, threadId)
-                  else void api.untag(nodeId, threadId)
-                }}
-                onEditNote={(nodeId, threadId, note) => void api.tag(nodeId, threadId, note)}
-                onAddPiece={() => void api.addNode(null)}
-                onAddThread={() => void api.addThread()}
-                onEditThread={(id, patch) => void api.editThread(id, patch)}
-                onRemoveThread={(id) => void api.removeThread(id)}
                 disabled={readOnly}
               />
-            </>
-          )}
-
-          {/* ── a part of the work ───────────────────────────────────────── */}
-          {focus.kind === 'node' && node && (
-            node.children.length === 0 ? (
-              <>
-                <Writing
-                  node={node}
-                  parent={parent}
-                  threads={tree.threads}
-                  inheritedRules={inherited}
-                  checking={checking}
-                  disabled={readOnly}
-                  onEdit={(patch) => void api.editNode(node.id, patch)}
-                  onRunCheck={() => void runCheck(node.id)}
-                  onOpenThread={goThread}
-                  onFinished={() => (parent ? goNode(parent.id) : goProject())}
-                  onRemove={() => void removeNode(node)}
-                />
-                {!readOnly && (
-                  <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, paddingTop: 16 }}>
-                    <p style={{ ...canvasType.small, color: t.textMuted, margin: '0 0 10px' }}>
-                      If this needs a beginning, a middle and an end of its own, give it parts.
-                    </p>
-                    <PrimaryButton size="sm" onClick={() => void breakIntoParts(node)}>
-                      break it into parts
-                    </PrimaryButton>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <NodeHead
-                  node={node}
-                  readOnly={readOnly}
-                  onEdit={(patch) => void api.editNode(node.id, patch)}
-                  inherited={inherited}
-                />
-                {view === 'parts' ? (
-                  <Storyline
-                    parts={node.children}
-                    threads={tree.threads}
-                    onOpen={goNode}
-                    onReorder={(ids) => void api.reorder(node.id, ids)}
-                    onEditBeat={(id, beat) => void api.editNode(id, { beat })}
-                    onAdd={(afterId) => void api.addNode(node.id, afterId)}
-                    onOpenThread={goThread}
-                    onRemove={(part) => void removeNode(part)}
-                    disabled={readOnly}
-                  />
-                ) : (
-                  <FlowRead parts={flatten(node.children).filter((n) => n.children.length === 0)} />
-                )}
-                {!readOnly && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <GhostButton size="sm" onClick={() => void runCheck(node.id)} disabled={checking}>
-                      {checking ? 'reading…' : 'check the whole thing against the rules'}
-                    </GhostButton>
-                  </div>
-                )}
-              </>
             )
           )}
-
-          {focus.kind === 'node' && !node && <Empty line="that part is gone." />}
+          {focus.kind === 'node' && !node && <Empty line="That part is gone." />}
 
           {/* ── one thread, read through ─────────────────────────────────── */}
           {focus.kind === 'thread' && thread && (
@@ -397,88 +320,153 @@ export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus
               disabled={readOnly}
             />
           )}
-          {focus.kind === 'thread' && !thread && <Empty line="that thread is gone." />}
-
-          {/* the first piece */}
-          {focus.kind === 'project' && roots.length === 0 && !readOnly && (
-            <PrimaryButton size="sm" onClick={() => void api.addNode(null)}>
-              start the first piece
-            </PrimaryButton>
-          )}
+          {focus.kind === 'thread' && !thread && <Empty line="That thread is gone." />}
         </div>
       </Container>
+
+      {/* ── the rail, and what it opens ─────────────────────────────────── */}
+      <Rail
+        open={rail}
+        onOpen={setRail}
+        hidden={focus.kind === 'thread'}
+        counts={{ rules: liveRuleCount, threads: tree.threads.length }}
+      />
+
+      <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
+        {rail === 'intent' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <InlineField
+              ariaLabel="what this is for"
+              value={scopeIntent}
+              placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is, and what it has to do…'}
+              multiline
+              disabled={readOnly}
+              onCommit={setScopeIntent}
+              style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+            />
+
+            {scopeNode && parent && (parent.intent || parent.title) && (
+              <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+                {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
+                <InlineField
+                  ariaLabel="the beat this part carries"
+                  value={scopeNode.beat}
+                  placeholder="what it has to do here…"
+                  multiline
+                  disabled={readOnly}
+                  onCommit={(beat) => void api.editNode(scopeNode.id, { beat })}
+                  style={{ ...canvasType.small, color: t.textPrimary }}
+                />
+              </div>
+            )}
+
+            {scopeNode && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: readOnly ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={scopeNode.stands_whole}
+                  disabled={readOnly}
+                  onChange={(e) => void api.editNode(scopeNode.id, { stands_whole: e.target.checked })}
+                />
+                <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
+                  stands whole on its own
+                </span>
+              </label>
+            )}
+
+            {scopeNode && !readOnly && (
+              <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} disabled={checking}>
+                  {checking ? 'reading…' : 'check it against the rules'}
+                </GhostButton>
+                <button
+                  type="button"
+                  onClick={() => void removeNode(scopeNode)}
+                  style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                >
+                  delete this part
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {rail === 'rules' && (
+          <RuleList
+            rules={scopeRules}
+            inherited={scopeNode ? inherited : []}
+            disabled={readOnly}
+            onChange={setScopeRules}
+          />
+        )}
+
+        {rail === 'threads' && (
+          <ThreadSpines
+            threads={tree.threads}
+            pieces={roots}
+            appearancesFor={appearancesFor}
+            tagFor={tagFor}
+            onOpenNode={goNode}
+            onOpenThread={goThread}
+            onToggle={(nodeId, threadId, on) => {
+              if (on) void api.tag(nodeId, threadId)
+              else void api.untag(nodeId, threadId)
+            }}
+            onEditNote={(nodeId, threadId, note) => void api.tag(nodeId, threadId, note)}
+            onEditThread={(id, patch) => void api.editThread(id, patch)}
+            onAddThread={() => void api.addThread()}
+            onRemoveThread={(id) => void api.removeThread(id)}
+            disabled={readOnly}
+          />
+        )}
+
+        {rail === 'companion' && (
+          <Companion
+            projectId={projectId}
+            nodeId={scopeNode?.id ?? null}
+            scope={scopeNode ? (scopeNode.title || 'this part') : 'the whole project'}
+            disabled={readOnly}
+          />
+        )}
+      </Drawer>
     </PageShell>
   )
 }
 
-/** Title, what it is for, whether it stands whole, and its own rules. */
-function NodeHead({
-  node,
-  readOnly,
-  onEdit,
-  inherited,
-}: {
-  node: TreeNode
-  readOnly: boolean
-  onEdit: (patch: Partial<TreeNode>) => void
-  inherited: Array<{ rule: Rule; from: string }>
-}) {
+/** write · map · flow, the three ways to look at a piece. */
+function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const { t } = useTheme()
-  const [openRules, setOpenRules] = useState(false)
-  const live = node.rules.filter((r) => !r.retired_at).length
-
+  const options: Array<{ key: View; label: string }> = [
+    { key: 'write', label: 'write' },
+    { key: 'map', label: 'map' },
+    { key: 'flow', label: 'flow' },
+  ]
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <InlineField
-        ariaLabel="the title of this part"
-        value={node.title}
-        placeholder="untitled"
-        disabled={readOnly}
-        onCommit={(title) => onEdit({ title })}
-        style={{ ...canvasType.headingLg, color: t.textPrimary }}
-      />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <Label>what this is for</Label>
-        <InlineField
-          ariaLabel="what this is for"
-          value={node.intent}
-          placeholder="say what it has to do…"
-          multiline
-          disabled={readOnly}
-          onCommit={(intent) => onEdit({ intent })}
-          style={{ ...canvasType.body, color: t.textSecondary }}
-        />
-      </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: readOnly ? 'default' : 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={node.stands_whole}
-            disabled={readOnly}
-            onChange={(e) => onEdit({ stands_whole: e.target.checked })}
-          />
-          <span style={{ ...canvasType.chip, color: node.stands_whole ? t.violet : t.textMuted }}>
-            stands whole on its own
-          </span>
-        </label>
+    <div
+      role="group"
+      aria-label="how to look at this"
+      style={{
+        display: 'inline-flex', padding: 2, gap: 2,
+        background: alpha(t.textPrimary, 0.06), borderRadius: radius.field,
+      }}
+    >
+      {options.map((o) => (
         <button
+          key={o.key}
           type="button"
-          onClick={() => setOpenRules((s) => !s)}
-          style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          aria-pressed={view === o.key}
+          onClick={() => onChange(o.key)}
+          style={{
+            ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
+            border: 'none', cursor: 'pointer',
+            background: view === o.key ? t.cardBg : 'transparent',
+            color: view === o.key ? t.textPrimary : t.textMuted,
+          }}
         >
-          {openRules ? 'hide the rules' : `rules (${live})`}
+          {o.label}
         </button>
-      </div>
-      {openRules && (
-        <div style={{ borderLeft: `2px solid ${alpha(t.ember, 0.4)}`, paddingLeft: 12 }}>
-          <RuleList
-            rules={node.rules}
-            inherited={inherited}
-            disabled={readOnly}
-            onChange={(rules) => onEdit({ rules })}
-          />
-        </div>
-      )}
+      ))}
     </div>
   )
 }

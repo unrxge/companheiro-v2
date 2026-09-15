@@ -10,17 +10,19 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
-import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
+import { GhostButton } from '@/components/ui/buttons'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha } from '@/lib/design-tokens'
+import { alpha, radius } from '@/lib/design-tokens'
 import type { Rule, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
-import { appearancesOf, buildTree, findNode, flatten, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
-import { Grid } from '@/components/work/grid'
-import { FlowRead, Storyline } from '@/components/work/storyline'
-import { Writing } from '@/components/work/writing'
+import { appearancesOf, buildTree, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
+import { Pieces } from '@/components/work/pieces'
+import { Storyline } from '@/components/work/storyline'
+import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
+import { ThreadSpines } from '@/components/work/thread-spine'
+import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { RuleList } from '@/components/work/rules'
-import { InlineField, Label, Trail } from '@/components/work/bits'
+import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/work/bits'
 
 const NOW = '2026-09-14T09:00:00.000Z'
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`)
@@ -114,8 +116,9 @@ export default function DevWorkPage() {
     newRule('every film ends on an image, not a line'),
   ])
   const [focus, setFocus] = useState<Focus>({ kind: 'project' })
-  const [view, setView] = useState<'parts' | 'flow'>('parts')
-  const [showRules, setShowRules] = useState(false)
+  const [view, setView] = useState<'write' | 'map' | 'flow'>('write')
+  const [rail, setRail] = useState<RailKey | null>(null)
+  const roomBeside = useRoomBeside()
 
   const roots = useMemo(() => buildTree(nodes, tags, threads.map((x) => x.id)), [nodes, tags, threads])
   const current = focus.kind === 'node' ? findNode(roots, focus.id) : null
@@ -187,6 +190,13 @@ export default function DevWorkPage() {
     ]
   }, [current, roots, projectRules])
 
+
+  const scopeNode = focus.kind === 'node' ? current : null
+  const scopeRules = scopeNode ? scopeNode.rules : projectRules
+  const scopeIntent = scopeNode ? scopeNode.intent : projectIntent
+  const setScopeRules = (rules: Rule[]) => (scopeNode ? editNode(scopeNode.id, { rules }) : setProjectRules(rules))
+  const setScopeIntent = (intent: string) => (scopeNode ? editNode(scopeNode.id, { intent }) : setProjectIntent(intent))
+
   const title =
     focus.kind === 'thread' ? thread?.name || 'a thread'
     : focus.kind === 'node' ? current?.title || 'untitled'
@@ -199,11 +209,30 @@ export default function DevWorkPage() {
         title={title}
         size="md"
         actions={
-          <div style={{ display: 'flex', gap: 8 }}>
-            {focus.kind === 'node' && current && current.children.length > 0 && (
-              <GhostButton size="sm" onClick={() => setView(view === 'parts' ? 'flow' : 'parts')}>
-                {view === 'parts' ? 'read it through' : 'back to the parts'}
-              </GhostButton>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {focus.kind === 'node' && current && (
+              <div
+                role="group"
+                aria-label="how to look at this"
+                style={{ display: 'inline-flex', padding: 2, gap: 2, background: alpha(t.textPrimary, 0.06), borderRadius: radius.field }}
+              >
+                {(['write', 'map', 'flow'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                    style={{
+                      ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
+                      border: 'none', cursor: 'pointer',
+                      background: view === v ? t.cardBg : 'transparent',
+                      color: view === v ? t.textPrimary : t.textMuted,
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
             )}
             {focus.kind !== 'project' && (
               <GhostButton size="sm" onClick={() => setFocus({ kind: 'project' })}>the whole project</GhostButton>
@@ -212,153 +241,60 @@ export default function DevWorkPage() {
         }
       />
 
-      <Container padding={28}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {focus.kind !== 'project' && (
-            <Trail
-              steps={focus.kind === 'node' ? trail : []}
-              onGo={(id) => setFocus({ kind: 'node', id })}
-              projectTitle="nine nights"
-              onGoProject={() => setFocus({ kind: 'project' })}
+      <Container
+        padding={26}
+        style={{
+          paddingRight: rail && roomBeside ? 478 : 70,
+          transition: 'padding-right 200ms ease',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Trail
+            steps={focus.kind === 'node' ? trail : []}
+            onGo={(id) => setFocus({ kind: 'node', id })}
+            projectTitle="nine nights"
+            onGoProject={() => setFocus({ kind: 'project' })}
+          />
+
+          {focus.kind === 'project' && (
+            <Pieces
+              pieces={roots}
+              threads={threads}
+              onOpen={(id) => setFocus({ kind: 'node', id })}
+              onAdd={() => addNode(null)}
+              onRemove={(piece) => removeNode(piece.id)}
+              onReorder={reorder}
+              onOpenThread={(id) => setFocus({ kind: 'thread', id })}
             />
           )}
 
-          {focus.kind === 'project' && (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <Label>what the whole thing is for</Label>
-                <InlineField
-                  ariaLabel="what the whole project is for"
-                  value={projectIntent}
-                  multiline
-                  onCommit={setProjectIntent}
-                  style={{ ...canvasType.conceptBody, color: t.textSecondary }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRules((s) => !s)}
-                  style={{
-                    ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',
-                    padding: 0, alignSelf: 'flex-start', cursor: 'pointer',
-                  }}
-                >
-                  {showRules ? 'hide the rules' : `rules (${projectRules.filter((r) => !r.retired_at).length})`}
-                </button>
-                {showRules && (
-                  <div style={{ borderLeft: `2px solid ${alpha(t.ember, 0.4)}`, paddingLeft: 12, marginTop: 4 }}>
-                    <RuleList rules={projectRules} onChange={setProjectRules} />
-                  </div>
-                )}
-              </div>
-
-              <Grid
-                pieces={roots}
-                threads={threads}
-                tagFor={tagFor}
-                appearancesFor={appearancesFor}
-                onOpenPiece={(id) => setFocus({ kind: 'node', id })}
-                onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                onOpenNode={(id) => setFocus({ kind: 'node', id })}
-                onToggle={(nodeId, threadId, on) =>
-                  setTags((prev) =>
-                    on
-                      ? [...prev, { node_id: nodeId, thread_id: threadId, note: '' }]
-                      : prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-                  )
-                }
-                onEditNote={(nodeId, threadId, note) =>
-                  setTags((prev) => [
-                    ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
-                    { node_id: nodeId, thread_id: threadId, note },
-                  ])
-                }
-                onAddPiece={() => addNode(null)}
-                onAddThread={() =>
-                  setThreads((prev) => [
-                    ...prev,
-                    {
-                      id: uid(), user_id: 'dev', project_id: 'dev', position: prev.length,
-                      name: '', intent: '', rules: [],
-                      hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
-                      created_at: NOW, updated_at: NOW,
-                    },
-                  ])
-                }
-                onEditThread={(id, patch) =>
-                  setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))
-                }
-                onRemoveThread={(id) => {
-                  setThreads((prev) => prev.filter((x) => x.id !== id))
-                  setTags((prev) => prev.filter((x) => x.thread_id !== id))
-                }}
-              />
-            </>
-          )}
-
           {focus.kind === 'node' && current && (
-            current.children.length === 0 ? (
-              <>
-                <Writing
-                  node={current}
-                  parent={parent}
+            view === 'map' ? (
+              current.children.length > 0 ? (
+                <Storyline
+                  parts={current.children}
                   threads={threads}
-                  inheritedRules={inherited}
-                  checking={false}
-                  onEdit={(patch) => editNode(current.id, patch)}
-                  onRunCheck={() => undefined}
+                  onOpen={(id) => setFocus({ kind: 'node', id })}
+                  onReorder={reorder}
+                  onEditBeat={(id, beat) => editNode(id, { beat })}
+                  onAdd={(afterId) => addNode(current.id, afterId)}
                   onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                  onFinished={() => setFocus(parent ? { kind: 'node', id: parent.id } : { kind: 'project' })}
-                  onRemove={() => removeNode(current.id)}
+                  onRemove={(part) => removeNode(part.id)}
                 />
-                <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, paddingTop: 16 }}>
-                  <p style={{ ...canvasType.small, color: t.textMuted, margin: '0 0 10px' }}>
-                    If this needs a beginning, a middle and an end of its own, give it parts.
-                  </p>
-                  <PrimaryButton size="sm" onClick={() => addNode(current.id)}>break it into parts</PrimaryButton>
-                </div>
-              </>
+              ) : (
+                <Empty line="Nothing to map yet — this part has no parts of its own." />
+              )
             ) : (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <InlineField
-                    ariaLabel="the title of this part"
-                    value={current.title}
-                    placeholder="untitled"
-                    onCommit={(title) => editNode(current.id, { title })}
-                    style={{ ...canvasType.headingLg, color: t.textPrimary }}
-                  />
-                  <Label>what this is for</Label>
-                  <InlineField
-                    ariaLabel="what this is for"
-                    value={current.intent}
-                    placeholder="say what it has to do…"
-                    multiline
-                    onCommit={(intent) => editNode(current.id, { intent })}
-                    style={{ ...canvasType.body, color: t.textSecondary }}
-                  />
-                  <div style={{ borderLeft: `2px solid ${alpha(t.ember, 0.4)}`, paddingLeft: 12 }}>
-                    <RuleList
-                      rules={current.rules}
-                      inherited={inherited}
-                      onChange={(rules) => editNode(current.id, { rules })}
-                    />
-                  </div>
-                </div>
-                {view === 'parts' ? (
-                  <Storyline
-                    parts={current.children}
-                    threads={threads}
-                    onOpen={(id) => setFocus({ kind: 'node', id })}
-                    onReorder={reorder}
-                    onEditBeat={(id, beat) => editNode(id, { beat })}
-                    onAdd={(afterId) => addNode(current.id, afterId)}
-                    onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                    onRemove={(part) => removeNode(part.id)}
-                  />
-                ) : (
-                  <FlowRead parts={flatten(current.children).filter((n) => n.children.length === 0)} />
-                )}
-              </>
+              <Studio
+                node={current}
+                threads={threads}
+                flow={view === 'flow'}
+                onEdit={editNode}
+                onAdd={(afterId) => addNode(current.id, afterId)}
+                onRemove={(part) => removeNode(part.id)}
+                onOpenPart={(id) => setFocus({ kind: 'node', id })}
+                onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+              />
             )
           )}
 
@@ -378,6 +314,108 @@ export default function DevWorkPage() {
           )}
         </div>
       </Container>
+
+      <Rail
+        open={rail}
+        onOpen={setRail}
+        hidden={focus.kind === 'thread'}
+        counts={{ rules: scopeRules.filter((r) => !r.retired_at).length, threads: threads.length }}
+      />
+
+      <Drawer
+        open={rail !== null}
+        title={RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''}
+        onClose={() => setRail(null)}
+      >
+        {rail === 'intent' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <InlineField
+              ariaLabel="what this is for"
+              value={scopeIntent}
+              placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is for…'}
+              multiline
+              onCommit={setScopeIntent}
+              style={{ ...canvasType.conceptBody, color: t.textPrimary }}
+            />
+            {scopeNode && parent && (
+              <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+                {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
+                <InlineField
+                  ariaLabel="the beat this part carries"
+                  value={scopeNode.beat}
+                  placeholder="what it has to do here…"
+                  multiline
+                  onCommit={(beat) => editNode(scopeNode.id, { beat })}
+                  style={{ ...canvasType.small, color: t.textPrimary }}
+                />
+              </div>
+            )}
+            {scopeNode && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={scopeNode.stands_whole}
+                  onChange={(e) => editNode(scopeNode.id, { stands_whole: e.target.checked })}
+                />
+                <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
+                  stands whole on its own
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {rail === 'rules' && (
+          <RuleList rules={scopeRules} inherited={scopeNode ? inherited : []} onChange={setScopeRules} />
+        )}
+
+        {rail === 'threads' && (
+          <ThreadSpines
+            threads={threads}
+            pieces={roots}
+            appearancesFor={appearancesFor}
+            tagFor={tagFor}
+            onOpenNode={(id) => setFocus({ kind: 'node', id })}
+            onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+            onToggle={(nodeId, threadId, on) =>
+              setTags((prev) =>
+                on
+                  ? [...prev, { node_id: nodeId, thread_id: threadId, note: '' }]
+                  : prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
+              )
+            }
+            onEditNote={(nodeId, threadId, note) =>
+              setTags((prev) => [
+                ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
+                { node_id: nodeId, thread_id: threadId, note },
+              ])
+            }
+            onEditThread={(id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))}
+            onAddThread={() =>
+              setThreads((prev) => [
+                ...prev,
+                {
+                  id: uid(), user_id: 'dev', project_id: 'dev', position: prev.length,
+                  name: '', intent: '', rules: [],
+                  hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
+                  created_at: NOW, updated_at: NOW,
+                },
+              ])
+            }
+            onRemoveThread={(id) => {
+              setThreads((prev) => prev.filter((x) => x.id !== id))
+              setTags((prev) => prev.filter((x) => x.thread_id !== id))
+            }}
+          />
+        )}
+
+        {rail === 'companion' && (
+          <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
+            The companion needs a real project to talk about. Open one from the shelf to try it.
+          </p>
+        )}
+      </Drawer>
     </PageShell>
   )
 }
