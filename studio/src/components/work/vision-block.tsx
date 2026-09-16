@@ -22,19 +22,27 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { Rule } from '@/lib/studio/node-types'
 
-// Wide on purpose, and wider than most screens will show at once: this is a
-// canvas the person is meant to pan and scroll through, not a page laid out
-// to fit a viewport, so the vision reads as two columns side by side —
-// what it's for, and what can catch it — rather than one long, narrow one.
-export const VISION_W = 880
 export const VISION_TITLE_H = 60
 export const VISION_COLLAPSED_H = VISION_TITLE_H
 export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 340
+
+/**
+ * Wide on purpose — the vision reads as two columns side by side, what it's
+ * for and what can catch it, rather than one long, narrow one — but tied to
+ * the width of the piece cards it sits above, not a constant of its own.
+ * Fixed at 880 regardless of screen, it dwarfed a lane of narrower cards on
+ * anything but a wide window; scaled off cardW, the two grow and shrink
+ * together and the whole board keeps one sense of scale.
+ */
+export function visionWidth(cardW: number): number {
+  return Math.round(Math.min(880, Math.max(560, cardW * 1.5)))
+}
 
 const TITLE_STYLE = { ...canvasType.anchor, fontSize: 32, lineHeight: 1.15 } as const
 
 export function VisionBlock({
   title,
+  width,
   intent,
   rules,
   expanded,
@@ -45,6 +53,8 @@ export function VisionBlock({
   disabled,
 }: {
   title: string
+  /** From visionWidth(cardW) — kept in proportion with the cards below it. */
+  width: number
   intent: string
   rules: Rule[]
   expanded: boolean
@@ -69,7 +79,7 @@ export function VisionBlock({
   }
 
   return (
-    <div style={{ maxWidth: VISION_W, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ maxWidth: width, display: 'flex', flexDirection: 'column' }}>
       {/* the title itself: never boxed, sized to its own words, always the
          most prominent thing here — a heading until you click it. */}
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: VISION_TITLE_H, maxWidth: '100%' }}>
@@ -131,7 +141,7 @@ export function VisionBlock({
         <div
           data-hold
           style={{
-            marginTop: 8, width: VISION_W, maxHeight: 340, overflowY: 'auto',
+            marginTop: 8, width, maxHeight: 340, overflowY: 'auto',
             background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow,
             padding: '26px 30px', boxSizing: 'border-box',
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36,

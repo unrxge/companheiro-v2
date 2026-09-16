@@ -20,7 +20,7 @@ import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/surface/sur
 import { PieceCard } from '@/components/work/piece-card'
 import { ThreadCard } from '@/components/work/thread-card'
 import { CheckCard } from '@/components/work/rules'
-import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, VISION_W } from '@/components/work/vision-block'
+import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from '@/components/work/vision-block'
 import { hueOf } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
@@ -116,6 +116,9 @@ export function Board({
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
   const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
+  // Kept in proportion with the piece cards, not a width of its own — a
+  // fixed one dwarfed a lane of narrower cards on anything but a wide window.
+  const visionW = visionWidth(cardW)
 
   const visionH = visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H
   const visionMoved = project.vision_x !== null || project.vision_y !== null
@@ -204,7 +207,7 @@ export function Board({
     w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
     w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + GAP + HUB_H)
-    w = growWorld(w, visionAt.x, visionAt.y, VISION_W, visionH)
+    w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (checks.length > 0) {
       w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (NOTICE_W + NOTICE_GAP), NOTICE_H)
     }
@@ -218,7 +221,7 @@ export function Board({
     }
     return w
   }, [
-    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, checks.length,
+    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, checks.length,
     cardX, cardTop, addColW, addPieceH, addHelpH,
   ])
 
@@ -299,8 +302,8 @@ export function Board({
   /** Back to 100%, looking at the title — the one spot on the board that is
    *  never empty, so "fit to screen" always has somewhere real to land. */
   const fitToScreen = useCallback(() => {
-    canvas.glideTo({ x: visionAt.x + VISION_W / 2, y: visionAt.y + visionH / 2 }, 1)
-  }, [canvas, visionAt, visionH])
+    canvas.glideTo({ x: visionAt.x + visionW / 2, y: visionAt.y + visionH / 2 }, 1)
+  }, [canvas, visionAt, visionW, visionH])
 
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
@@ -408,6 +411,7 @@ export function Board({
         >
           <VisionBlock
             title={project.title}
+            width={visionW}
             intent={project.intent}
             rules={project.rules}
             expanded={visionOpen}
