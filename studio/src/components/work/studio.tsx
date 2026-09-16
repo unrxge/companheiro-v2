@@ -13,11 +13,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { SectionEditor, SectionToolbar } from '@/components/writing/section-editor'
+import { SectionEditor, SectionToolbar, type SectionSelection } from '@/components/writing/section-editor'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
+import { plainTextToHtml } from '@/lib/rich-text'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
+import type { ProposedEdit } from '@/components/work/companion'
 import { InlineField, ThreadChips } from '@/components/work/bits'
+import { GhostButton, QuietButton } from '@/components/ui/buttons'
 
 const SAVE_AFTER_MS = 900
 
@@ -32,6 +35,13 @@ export function Studio({
   onOpenPart,
   onOpenThread,
   onFinished,
+  /** Bubbles the live text selection up, so the companion can offer to
+   *  focus a suggestion on exactly what's highlighted. */
+  onSelectionChange,
+  /** A proposal the companion produced, handed back down to be materialised
+   *  as a pending edit. Cleared by calling onProposalHandled once consumed. */
+  proposal,
+  onProposalHandled,
   disabled = false,
 }: {
   node: TreeNode
@@ -44,6 +54,9 @@ export function Studio({
   onOpenThread: (id: string) => void
   /** Called when the whole piece is marked done — the way back out. */
   onFinished?: () => void
+  onSelectionChange?: (selection: { nodeId: string; text: string } | null) => void
+  proposal?: ProposedEdit | null
+  onProposalHandled?: () => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -57,6 +70,88 @@ export function Studio({
   const pending = useRef<Record<string, string>>({})
   const latestEdit = useRef(onEdit)
   latestEdit.current = onEdit
+
+  // The live selection, kept by exact range (not just text) so a proposal
+  // that comes back for it can be spliced into precisely the right spot —
+  // and re-checked against the anchor text before it lands, in case the
+  // passage changed underneath it while the companion was thinking.
+  const selection = useRef<(SectionSelection & { partId: string }) | null>(null)
+  const [pendingWhole, setPendingWhole] = useState<{ partId: string; content: string } | null>(null)
+  const [pendingInline, setPendingInline] = useState<{ partId: string; range: { from: number; to: number }; originalText: string } | null>(null)
+
+  const handleSelection = useCallback((partId: string, sel: SectionSelection | null) => {
+    selection.current = sel ? { ...sel, partId } : null
+    onSelectionChange?.(sel ? { nodeId: partId, text: sel.text } : null)
+  }, [onSelectionChange])
+
+  // Materialises a proposal the moment it arrives: an anchored one is spliced
+  // directly into the document, wrapped in a highlight mark; a whole-part
+  // rewrite has nowhere in the text to anchor to, so it shows as a preview
+  // card instead. Either way nothing is persisted until Approve runs.
+  useEffect(() => {
+    if (!proposal) return
+    const editor = editors.current[proposal.node_id]
+    if (editor && proposal.anchor_text && selection.current?.partId === proposal.node_id) {
+      const { from, to } = selection.current
+      const currentText = editor.state.doc.textBetween(from, to, '\n\n').trim()
+      if (currentText === proposal.anchor_text.trim()) {
+        editor.chain().focus().insertContentAt({ from, to }, { type: 'text', text: proposal.content, marks: [{ type: 'pendingEdit' }] }).run()
+        setPendingInline({ partId: proposal.node_id, range: { from, to: from + proposal.content.length }, originalText: currentText })
+        bump((n) => n + 1)
+      } else {
+        // The highlighted passage changed since the request was sent —
+        // refuse to guess where a fragment-only edit belongs.
+        console.error('Highlighted passage changed since the request was sent; declining to show the proposal inline')
+      }
+    } else if (editor) {
+      setPendingWhole({ partId: proposal.node_id, content: proposal.content })
+    }
+    onProposalHandled?.()
+    // Only the proposal identity should re-trigger this — re-running it on
+    // every selection/editor churn would re-materialise a stale proposal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposal])
+
+  const persist = useCallback((id: string, html: string) => {
+    void latestEdit.current(id, { body: html })
+  }, [])
+
+  const approveInline = useCallback(() => {
+    if (!pendingInline) return
+    const { partId, range } = pendingInline
+    const editor = editors.current[partId]
+    if (!editor) return
+    editor.chain().focus().setTextSelection(range).unsetMark('pendingEdit').run()
+    const html = editor.getHTML()
+    setPendingInline(null)
+    persist(partId, html)
+  }, [pendingInline, persist])
+
+  const rejectInline = useCallback(() => {
+    if (!pendingInline) return
+    const { partId, range, originalText } = pendingInline
+    const editor = editors.current[partId]
+    if (!editor) return
+    // A plain-text insertion bordering a marked span inherits that mark by
+    // default (ProseMirror's stored-marks behaviour) — explicitly clearing
+    // it on the restored range is what actually removes the highlight.
+    const restoredEnd = range.from + originalText.length
+    editor.chain().focus().insertContentAt(range, originalText).setTextSelection({ from: range.from, to: restoredEnd }).unsetMark('pendingEdit').run()
+    const html = editor.getHTML()
+    setPendingInline(null)
+    persist(partId, html)
+  }, [pendingInline, persist])
+
+  const approveWhole = useCallback(() => {
+    if (!pendingWhole) return
+    const { partId, content } = pendingWhole
+    const editor = editors.current[partId]
+    if (!editor) return
+    editor.chain().focus().setContent(plainTextToHtml(content), false).run()
+    const html = editor.getHTML()
+    setPendingWhole(null)
+    persist(partId, html)
+  }, [pendingWhole, persist])
 
   const flushAll = useCallback(() => {
     for (const [id, html] of Object.entries(pending.current)) {
@@ -199,9 +294,33 @@ export function Studio({
                 onBlur={() => flushOne(part.id)}
                 onReady={(editor) => { editors.current[part.id] = editor }}
                 onTransaction={() => bump((n) => n + 1)}
+                onSelectionChange={(sel) => handleSelection(part.id, sel)}
                 textColor={t.textPrimary}
                 className={flow ? 'flow-section' : undefined}
               />
+              {pendingInline?.partId === part.id && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+                  <span style={{ ...canvasType.chip, color: t.tide }}>a suggested rewrite is highlighted above</span>
+                  <QuietButton size="sm" onClick={approveInline}>approve</QuietButton>
+                  <GhostButton size="sm" onClick={rejectInline}>reject</GhostButton>
+                </div>
+              )}
+              {pendingWhole?.partId === part.id && (
+                <div
+                  style={{
+                    marginTop: 10, padding: 14, borderRadius: radius.widget,
+                    background: alpha(t.tide, 0.07), border: `1px solid ${alpha(t.tide, 0.3)}`,
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                  }}
+                >
+                  <span style={{ ...canvasType.chip, color: t.tide }}>a suggested rewrite of this whole part</span>
+                  <p style={{ ...canvasType.body, color: t.textSecondary, margin: 0, whiteSpace: 'pre-wrap' }}>{pendingWhole.content}</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <QuietButton size="sm" onClick={approveWhole}>approve</QuietButton>
+                    <GhostButton size="sm" onClick={() => setPendingWhole(null)}>reject</GhostButton>
+                  </div>
+                </div>
+              )}
             </div>
           </article>
         )

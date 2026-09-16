@@ -31,7 +31,8 @@ import { Board, type BoardActions } from '@/components/work/board'
 import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
-import { Companion } from '@/components/work/companion'
+import { Companion, type ProposedEdit } from '@/components/work/companion'
+import { LockModal } from '@/components/work/lock-modal'
 import { CompanionLauncher, Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { CheckCard, RuleList } from '@/components/work/rules'
 import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/work/bits'
@@ -62,6 +63,49 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
   const roomBeside = useRoomBeside()
+
+  // The write-lock: shared with the main app (same user_settings row), so a
+  // lock started there holds here too. Refetched occasionally rather than
+  // trusted for the whole session, since it can change from outside this tab.
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null)
+  const [lockModalOpen, setLockModalOpen] = useState(false)
+  const [locking, setLocking] = useState(false)
+  const refreshLock = useCallback(() => {
+    fetch('/api/studio/assistant-lock', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { lockedUntil: null }))
+      .then((d: { lockedUntil: string | null }) => setLockedUntil(d.lockedUntil))
+      .catch(() => {})
+  }, [])
+  useEffect(() => {
+    refreshLock()
+    const id = setInterval(refreshLock, 60_000)
+    return () => clearInterval(id)
+  }, [refreshLock])
+  const confirmLock = useCallback(async (minutes: number) => {
+    if (minutes <= 0) return
+    setLocking(true)
+    try {
+      const res = await fetch('/api/studio/assistant-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ minutes }),
+      })
+      const data: { success: boolean; lockedUntil?: string } = await res.json()
+      if (data.success && data.lockedUntil) {
+        setLockedUntil(data.lockedUntil)
+        setLockModalOpen(false)
+      }
+    } finally {
+      setLocking(false)
+    }
+  }, [])
+
+  // What's highlighted right now in the piece being written, and any
+  // rewrite the companion has proposed for it — the thread connecting
+  // Studio (which owns the editors) and Companion (which owns the request).
+  const [selection, setSelection] = useState<{ nodeId: string; text: string } | null>(null)
+  const [proposal, setProposal] = useState<ProposedEdit | null>(null)
 
   const goNode = useCallback((id: string, from?: HTMLElement | null) => {
     go(`/p/${projectId}/n/${id}`, 'in', from)
@@ -266,6 +310,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   )
 
   const companionDrawer = (
+    <>
     <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
       {rail === 'intent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -340,10 +385,23 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           projectId={projectId}
           nodeId={scopeNode?.id ?? null}
           scope={scopeNode ? (scopeNode.title || 'this part') : 'the whole project'}
+          canSuggest={!!scopeNode}
+          selection={scopeNode && selection?.nodeId === scopeNode.id ? selection : null}
+          onClearSelection={() => setSelection(null)}
+          lockedUntil={lockedUntil}
+          onRequestLock={() => setLockModalOpen(true)}
+          onProposedEdit={setProposal}
           disabled={readOnly}
         />
       )}
     </Drawer>
+    <LockModal
+      open={lockModalOpen}
+      busy={locking}
+      onClose={() => setLockModalOpen(false)}
+      onConfirm={(minutes) => void confirmLock(minutes)}
+    />
+    </>
   )
 
   // ── level 2: the board ────────────────────────────────────────────────────
@@ -464,6 +522,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                 onOpenPart={(id) => goNode(id)}
                 onOpenThread={goThread}
                 onFinished={() => goProject()}
+                onSelectionChange={setSelection}
+                proposal={proposal}
+                onProposalHandled={() => setProposal(null)}
                 disabled={readOnly}
               />
             )
