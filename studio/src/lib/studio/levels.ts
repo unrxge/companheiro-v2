@@ -10,9 +10,9 @@
 // Only the writing is a page. The other two are canvases with edges.
 
 export const LEVELS = {
-  writing: { n: 1, key: 'writing', name: 'the writing' },
-  board: { n: 2, key: 'board', name: 'the board' },
-  shelf: { n: 3, key: 'shelf', name: 'the shelf' },
+  writing: { n: 1, key: 'writing', name: 'The Writing' },
+  board: { n: 2, key: 'board', name: 'The Board' },
+  shelf: { n: 3, key: 'shelf', name: 'The Shelf' },
 } as const
 
 export type LevelKey = keyof typeof LEVELS

@@ -142,7 +142,7 @@ export function Desk({
     <Surface
       canvas={canvas}
       innerRef={ref}
-      ariaLabel="the shelf — every project, where you left it"
+      ariaLabel="The shelf — every project, where you left it"
       chrome={
         <>
           <ZoomPill canvas={canvas} />
@@ -197,7 +197,7 @@ function Folder({
       data-hold
       role="button"
       tabIndex={0}
-      aria-label={project.title || 'untitled project'}
+      aria-label={project.title || 'Untitled project'}
       onPointerDown={onPointerDown}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -239,7 +239,7 @@ function Folder({
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}
         >
-          {project.title || 'untitled project'}
+          {project.title || 'Untitled project'}
         </h3>
 
         {excerpt && (
@@ -269,8 +269,8 @@ function EmptySlot({ at, onClick }: { at: Point; onClick: () => void }) {
     <button
       data-hold
       type="button"
-      aria-label="start a new project"
-      title="start a new project"
+      aria-label="Start a new project"
+      title="Start a new project"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -289,11 +289,11 @@ function EmptySlot({ at, onClick }: { at: Point; onClick: () => void }) {
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
       <span style={{ position: 'absolute', clip: 'rect(0 0 0 0)', width: 1, height: 1, overflow: 'hidden' }}>
-        new project
+        New project
       </span>
       {hover && (
         <span style={{ ...canvasType.chip, position: 'absolute', bottom: 14, color: shell.muted }}>
-          new project
+          New project
         </span>
       )}
     </button>
@@ -306,13 +306,13 @@ function DeskTools({ onNew, onTidy }: { onNew: () => void; onTidy: (() => void) 
   return (
     <div data-hold style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 6, display: 'flex', gap: 8 }}>
       {onTidy && (
-        <Tool label="straighten the desk" onClick={onTidy}>
+        <Tool label="Straighten the desk" onClick={onTidy}>
           <line x1="4" y1="7" x2="20" y2="7" />
           <line x1="4" y1="12" x2="20" y2="12" />
           <line x1="4" y1="17" x2="14" y2="17" />
         </Tool>
       )}
-      <Tool label="start a new project" onClick={onNew} strong>
+      <Tool label="Start a new project" onClick={onNew} strong>
         <line x1="12" y1="5" x2="12" y2="19" />
         <line x1="5" y1="12" x2="19" y2="12" />
       </Tool>

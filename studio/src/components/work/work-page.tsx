@@ -187,7 +187,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       body: inside > 0
         ? `Everything inside it goes too — ${inside} ${inside === 1 ? 'part' : 'parts'}. This cannot be undone.`
         : 'This cannot be undone.',
-      confirmLabel: 'delete',
+      confirmLabel: 'Delete',
       danger: true,
     })
     if (!ok) return
@@ -256,7 +256,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   // ── loading and error ─────────────────────────────────────────────────────
   if (state.status === 'loading') {
     return (
-      <CanvasStage header={<StageHeader title="opening…" onUp={goShelf} upLabel={`back to ${LEVELS.shelf.name}`} />}>
+      <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
         <span />
       </CanvasStage>
     )
@@ -264,14 +264,14 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   if (state.status === 'error' || !project) {
     return (
       <PageShell dock={false} mood="neutral">
-        <PageHeader eyebrow={null} title="it did not open" size="md" />
+        <PageHeader eyebrow={null} title="It did not open" size="md" />
         <Container padding={32}>
           <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
             {state.status === 'error' ? state.message : 'The project is missing.'}
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <QuietButton onClick={() => void api.reload()}>try again</QuietButton>
-            <GhostButton onClick={() => router.push('/shelf')}>back to the shelf</GhostButton>
+            <QuietButton onClick={() => void api.reload()}>Try again</QuietButton>
+            <GhostButton onClick={() => router.push('/shelf')}>Back to the shelf</GhostButton>
           </div>
         </Container>
       </PageShell>
@@ -294,7 +294,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   }
 
   const railTitle = RAIL_TOOLS.find((x) => x.key === rail)?.label ?? ''
-  const savingMark = saving ? 'saving…' : null
+  const savingMark = saving ? 'Saving…' : null
 
   const checks = openChecks.length > 0 && (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -315,9 +315,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       {rail === 'intent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <InlineField
-            ariaLabel="what this is for"
+            ariaLabel="What this is for"
             value={scopeIntent}
-            placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is, and what it has to do…'}
+            placeholder={scopeNode ? 'Say what this part has to do…' : 'Say what the whole project is, and what it has to do…'}
             multiline
             disabled={readOnly}
             onCommit={setScopeIntent}
@@ -326,12 +326,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
           {scopeNode && parent && (parent.intent || parent.title) && (
             <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+              <Label style={{ color: alpha(t.violet, 0.9) }}>It owes {parent.title || 'the part above'}</Label>
               {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
               <InlineField
-                ariaLabel="the beat this part carries"
+                ariaLabel="The beat this part carries"
                 value={scopeNode.beat}
-                placeholder="what it has to do here…"
+                placeholder="What it has to do here…"
                 multiline
                 disabled={readOnly}
                 onCommit={(beat) => void api.editNode(scopeNode.id, { beat })}
@@ -349,7 +349,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                 onChange={(e) => void api.editNode(scopeNode.id, { stands_whole: e.target.checked })}
               />
               <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
-                stands whole on its own
+                Stands whole on its own
               </span>
             </label>
           )}
@@ -357,14 +357,14 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           {scopeNode && !readOnly && (
             <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} disabled={checking}>
-                {checking ? 'reading…' : 'check it against the rules'}
+                {checking ? 'Reading…' : 'Check it against the rules'}
               </GhostButton>
               <button
                 type="button"
                 onClick={() => void removeNode(scopeNode)}
                 style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
               >
-                delete this part
+                Delete this part
               </button>
             </div>
           )}
@@ -414,7 +414,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           header={
             <StageHeader
               onUp={(el) => goShelf(el)}
-              upLabel={`back to ${LEVELS.shelf.name}`}
+              upLabel={`Back to ${LEVELS.shelf.name}`}
               status={savingMark}
             />
           }
@@ -451,8 +451,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
   // ── level 1: the writing (and the filtered read of one thread) ────────────
   const headerTitle =
-    focus.kind === 'thread' ? thread?.name || 'a thread'
-    : node?.title || 'untitled'
+    focus.kind === 'thread' ? thread?.name || 'A thread'
+    : node?.title || 'Untitled'
 
   return (
     <PageShell dock={false} mood="neutral">
@@ -466,7 +466,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               aria-live="polite"
               style={{ ...canvasType.chip, color: shell.muted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
             >
-              saving…
+              Saving…
             </span>
             {focus.kind === 'node' && node && <ViewSwitch view={view} onChange={setView} />}
           </div>
@@ -563,14 +563,14 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const { t } = useTheme()
   const options: Array<{ key: View; label: string }> = [
-    { key: 'write', label: 'write' },
-    { key: 'map', label: 'map' },
-    { key: 'flow', label: 'flow' },
+    { key: 'write', label: 'Write' },
+    { key: 'map', label: 'Map' },
+    { key: 'flow', label: 'Flow' },
   ]
   return (
     <div
       role="group"
-      aria-label="how to look at this"
+      aria-label="How to look at this"
       style={{
         display: 'inline-flex', padding: 2, gap: 2,
         background: alpha(t.textPrimary, 0.06), borderRadius: radius.field,

@@ -289,10 +289,10 @@ export function RecordingSettings({ block }: BlockSettingsProps<'recording'>) {
     if (!asset || busy) return
     if (!v && asset.transcript) {
       const ok = await confirm({
-        title: 'keep it as a reference?',
-        body: 'a reference is not listened to, so the transcript goes with it.',
-        confirmLabel: 'make it a reference',
-        cancelLabel: 'not now',
+        title: 'Keep it as a reference?',
+        body: 'A reference is not listened to, so the transcript goes with it.',
+        confirmLabel: 'Make it a reference',
+        cancelLabel: 'Not now',
       })
       if (!ok) return
     }

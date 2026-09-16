@@ -278,21 +278,21 @@ export default function DevWorkPage() {
       {rail === 'intent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <InlineField
-            ariaLabel="what this is for"
+            ariaLabel="What this is for"
             value={scopeIntent}
-            placeholder={scopeNode ? 'say what this part has to do…' : 'say what the whole project is for…'}
+            placeholder={scopeNode ? 'Say what this part has to do…' : 'Say what the whole project is for…'}
             multiline
             onCommit={setScopeIntent}
             style={{ ...canvasType.conceptBody, color: t.textPrimary }}
           />
           {scopeNode && parent && (
             <div style={{ borderLeft: `2px solid ${alpha(t.violet, 0.5)}`, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Label style={{ color: alpha(t.violet, 0.9) }}>it owes {parent.title || 'the part above'}</Label>
+              <Label style={{ color: alpha(t.violet, 0.9) }}>It owes {parent.title || 'the part above'}</Label>
               {parent.intent && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{parent.intent}</p>}
               <InlineField
-                ariaLabel="the beat this part carries"
+                ariaLabel="The beat this part carries"
                 value={scopeNode.beat}
-                placeholder="what it has to do here…"
+                placeholder="What it has to do here…"
                 multiline
                 onCommit={(beat) => editNode(scopeNode.id, { beat })}
                 style={{ ...canvasType.small, color: t.textPrimary }}
@@ -307,7 +307,7 @@ export default function DevWorkPage() {
                 onChange={(e) => editNode(scopeNode.id, { stands_whole: e.target.checked })}
               />
               <span style={{ ...canvasType.chip, color: scopeNode.stands_whole ? t.violet : t.textMuted }}>
-                stands whole on its own
+                Stands whole on its own
               </span>
             </label>
           )}
@@ -330,7 +330,7 @@ export default function DevWorkPage() {
   if (focus.kind === 'project') {
     return (
       <Level>
-        <CanvasStage mood="ember" intensity={0.6} header={<StageHeader status="dev · in memory" />}>
+        <CanvasStage mood="ember" intensity={0.6} header={<StageHeader status="Dev · in memory" />}>
           <Board
             project={{ title: projectTitle, intent: projectIntent, rules: projectRules, vision_x: vision.x, vision_y: vision.y }}
             pieces={roots}
@@ -355,7 +355,7 @@ export default function DevWorkPage() {
   }
 
   // ── level 1: the writing ──────────────────────────────────────────────────
-  const title = focus.kind === 'thread' ? thread?.name || 'a thread' : current?.title || 'untitled'
+  const title = focus.kind === 'thread' ? thread?.name || 'A thread' : current?.title || 'Untitled'
 
   return (
     <Level>
@@ -369,7 +369,7 @@ export default function DevWorkPage() {
             focus.kind === 'node' && current ? (
               <div
                 role="group"
-                aria-label="how to look at this"
+                aria-label="How to look at this"
                 style={{ display: 'inline-flex', padding: 2, gap: 2, background: alpha(t.textPrimary, 0.06), borderRadius: radius.field }}
               >
                 {(['write', 'map', 'flow'] as const).map((v) => (
@@ -380,7 +380,7 @@ export default function DevWorkPage() {
                     onClick={() => setView(v)}
                     style={{
                       ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
-                      border: 'none', cursor: 'pointer',
+                      border: 'none', cursor: 'pointer', textTransform: 'capitalize',
                       background: view === v ? t.cardBg : 'transparent',
                       color: view === v ? t.textPrimary : t.textMuted,
                     }}
@@ -390,7 +390,7 @@ export default function DevWorkPage() {
                 ))}
               </div>
             ) : (
-              <span style={{ ...canvasType.chip, color: shell.muted }}>dev</span>
+              <span style={{ ...canvasType.chip, color: shell.muted }}>Dev</span>
             )
           }
         />

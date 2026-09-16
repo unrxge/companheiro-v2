@@ -23,9 +23,9 @@ const icon = (path: ReactNode) => (
 )
 
 export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
-  { key: 'intent', label: 'what this is for', icon: icon(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /></>) },
-  { key: 'rules', label: 'the rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
-  { key: 'companion', label: 'talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },
+  { key: 'intent', label: 'What this is for', icon: icon(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /></>) },
+  { key: 'rules', label: 'The rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
+  { key: 'companion', label: 'Talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },
 ]
 
 export function Rail({
@@ -109,9 +109,9 @@ export function CompanionLauncher({
   return (
     <button
       type="button"
-      aria-label="talk through the vision"
+      aria-label="Talk through the vision"
       aria-pressed={active}
-      title="talk it through"
+      title="Talk it through"
       onClick={onClick}
       style={{
         position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)', zIndex: 40,
@@ -129,7 +129,7 @@ export function CompanionLauncher({
         <path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" />
       </svg>
       <span style={{ ...canvasType.label, textTransform: 'none', letterSpacing: 0, fontSize: 14, fontWeight: 600 }}>
-        talk about the vision
+        Talk about the vision
       </span>
     </button>
   )
@@ -178,7 +178,7 @@ export function Drawer({
         <span style={{ ...canvasType.label, color: t.textMuted }}>{title}</span>
         <button
           type="button"
-          aria-label="close this panel"
+          aria-label="Close this panel"
           onClick={onClose}
           style={{
             ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',

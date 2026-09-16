@@ -74,10 +74,10 @@ export function GridPanel({ actions }: { actions: CanvasActions }) {
 
   const tidyEverything = async () => {
     const ok = await confirm({
-      title: 'tidy everything?',
-      body: 'blocks you placed by hand will move too, and count as tidied afterwards. you can undo it.',
-      confirmLabel: 'tidy everything',
-      cancelLabel: 'leave it',
+      title: 'Tidy everything?',
+      body: 'Blocks you placed by hand will move too, and count as tidied afterwards. You can undo it.',
+      confirmLabel: 'Tidy everything',
+      cancelLabel: 'Leave it',
     })
     if (!ok) return
     setBusy(true)

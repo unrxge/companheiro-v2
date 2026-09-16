@@ -183,7 +183,7 @@ export function Companion({
           </p>
           <button
             type="button"
-            aria-label="talk about the whole part instead"
+            aria-label="Talk about the whole part instead"
             onClick={onClearSelection}
             style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}
           >
@@ -207,7 +207,7 @@ export function Companion({
         {lines.map((line) => (
           <div key={line.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ ...canvasType.chip, color: line.role === 'person' ? t.textMuted : t.violet }}>
-              {line.role === 'person' ? 'you' : 'companheiro'}
+              {line.role === 'person' ? 'You' : 'Companheiro'}
             </span>
             <p
               style={{
@@ -233,10 +233,10 @@ export function Companion({
         >
           <textarea
             ref={box}
-            aria-label="say something about the shape of this"
+            aria-label="Say something about the shape of this"
             value={draft + (dictation.interimText ? ` ${dictation.interimText}` : '')}
             rows={1}
-            placeholder={mode === 'write' ? 'ask for a suggestion…' : 'what are you turning over?'}
+            placeholder={mode === 'write' ? 'Ask for a suggestion…' : 'What are you turning over?'}
             onChange={(e) => { dictation.clearInterim(); setDraft(e.target.value) }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
@@ -263,7 +263,7 @@ export function Companion({
               color: busy || !draft.trim() ? t.textMuted : t.inverseText,
             }}
           >
-            {busy ? '…' : 'send'}
+            {busy ? '…' : 'Send'}
           </button>
         </div>
       )}
@@ -313,8 +313,8 @@ function ModeSwitch({
         type="button"
         onClick={() => { if (!locked) onRequestLock?.() }}
         disabled={locked}
-        aria-label={locked ? 'reflect-only lock active' : 'lock to reflect-only for a while'}
-        title={locked && lockedUntil ? `locked until ${new Date(lockedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'lock to reflect-only for a while'}
+        aria-label={locked ? 'Reflect-only lock active' : 'Lock to reflect-only for a while'}
+        title={locked && lockedUntil ? `Locked until ${new Date(lockedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Lock to reflect-only for a while'}
         style={{
           width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
           border: `1px solid ${locked ? t.violet : alpha(t.textPrimary, 0.16)}`,

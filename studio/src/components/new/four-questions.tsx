@@ -106,7 +106,7 @@ export function FourQuestions({
           clearInterim()
           setAnswer(index, v)
         }}
-        placeholder="in your words"
+        placeholder="In your words"
         ariaLabel={FOUR_QUESTIONS[index]}
         voice
         minRows={4}
@@ -127,16 +127,16 @@ export function FourQuestions({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <MicButton recording={isRecording} onToggle={toggleRecording} disabled={busy} size={44} />
-          <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'listening' : 'type or speak'}</span>
+          <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'Listening' : 'Type or speak'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {index > 0 && (
             <GhostButton onClick={() => go(index - 1)} disabled={busy}>
-              back
+              Back
             </GhostButton>
           )}
-          <PrimaryButton onClick={advance} disabled={!canAdvance} loading={busy && last} loadingLabel="reading it">
-            {last ? 'read it' : 'next'}
+          <PrimaryButton onClick={advance} disabled={!canAdvance} loading={busy && last} loadingLabel="Reading it">
+            {last ? 'Read it' : 'Next'}
           </PrimaryButton>
         </div>
       </div>

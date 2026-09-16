@@ -107,10 +107,10 @@ export function ProjectPanel({ actions }: { actions: CanvasActions }) {
 
   const deleteProject = async () => {
     const ok = await confirm({
-      title: 'delete this project?',
-      body: 'everything on its canvas, its talk and its compass go with it. this cannot be undone.',
-      confirmLabel: 'delete the project',
-      cancelLabel: 'keep it',
+      title: 'Delete this project?',
+      body: 'Everything on its canvas, its talk and its compass go with it. This cannot be undone.',
+      confirmLabel: 'Delete the project',
+      cancelLabel: 'Keep it',
       danger: true,
     })
     if (!ok) return

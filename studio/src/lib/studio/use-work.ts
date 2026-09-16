@@ -49,9 +49,9 @@ export function useWork(projectId: string) {
         status: 'error',
         code,
         message:
-          code === 401 ? 'sign in again to open this'
-          : code === 404 ? 'nothing here — it may have been deleted'
-          : 'it did not open',
+          code === 401 ? 'Sign in again to open this'
+          : code === 404 ? 'Nothing here — it may have been deleted'
+          : 'It did not open',
       })
     }
   }, [projectId])

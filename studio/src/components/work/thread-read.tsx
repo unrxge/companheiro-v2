@@ -40,18 +40,18 @@ export function ThreadRead({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: widths.reading }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <InlineField
-          ariaLabel="thread name"
+          ariaLabel="Thread name"
           value={thread.name}
-          placeholder="untitled thread"
+          placeholder="Untitled thread"
           disabled={disabled}
           onCommit={(name) => onEditThread({ name })}
           style={{ ...canvasType.headingLg, color: colour }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <InlineField
-            ariaLabel="what this thread is for"
+            ariaLabel="What this thread is for"
             value={thread.intent}
-            placeholder="say what it has to do across the whole work…"
+            placeholder="Say what it has to do across the whole work…"
             multiline
             disabled={disabled}
             onCommit={(intent) => onEditThread({ intent })}
@@ -92,12 +92,12 @@ export function ThreadRead({
                       padding: 0, textAlign: 'left', cursor: 'pointer', flex: 1,
                     }}
                   >
-                    {trail.join(' / ') || 'untitled'}
+                    {trail.join(' / ') || 'Untitled'}
                   </button>
                   {!disabled && onUntag && (
                     <button
                       type="button"
-                      aria-label="take this part off the thread"
+                      aria-label="Take this part off the thread"
                       onClick={() => onUntag(node.id)}
                       style={{
                         ...canvasType.chip, color: t.textMuted, background: 'none',

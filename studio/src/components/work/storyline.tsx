@@ -110,7 +110,7 @@ export function Storyline({
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ ...canvasType.chip, color: t.textMuted }}>{i + 1}</span>
                 <span style={{ ...canvasType.chip, color: t.textMuted }}>
-                  {words > 0 ? `${words}w` : 'empty'}
+                  {words > 0 ? `${words}w` : 'Empty'}
                 </span>
               </div>
 
@@ -122,7 +122,7 @@ export function Storyline({
                   padding: 0, textAlign: 'left', cursor: 'pointer',
                 }}
               >
-                {part.title || 'untitled part'}
+                {part.title || 'Untitled part'}
               </button>
 
               {part.intent && (
@@ -141,10 +141,10 @@ export function Storyline({
 
               <div style={{ marginTop: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 {part.stands_whole && (
-                  <span style={{ ...canvasType.chip, color: t.violet }}>stands whole</span>
+                  <span style={{ ...canvasType.chip, color: t.violet }}>Stands whole</span>
                 )}
                 {part.status !== 'open' && (
-                  <span style={{ ...canvasType.chip, color: part.status === 'done' ? t.verdant : t.ochre }}>
+                  <span style={{ ...canvasType.chip, color: part.status === 'done' ? t.verdant : t.ochre, textTransform: 'capitalize' }}>
                     {part.status}
                   </span>
                 )}
@@ -153,20 +153,20 @@ export function Storyline({
               {!disabled && (
                 <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginTop: 2 }}>
                   <MiniButton
-                    label="move this part earlier"
+                    label="Move this part earlier"
                     glyph="←"
                     disabled={i === 0}
                     onClick={() => move(part.id, -1)}
                   />
                   <MiniButton
-                    label="move this part later"
+                    label="Move this part later"
                     glyph="→"
                     disabled={i === parts.length - 1}
                     onClick={() => move(part.id, 1)}
                   />
                   {onRemove && (
                     <MiniButton
-                      label="delete this part"
+                      label="Delete this part"
                       glyph="✕"
                       onClick={() => onRemove(part)}
                       style={{ marginLeft: 'auto' }}
@@ -188,7 +188,7 @@ export function Storyline({
               color: t.textMuted, cursor: 'pointer', ...canvasType.small, padding: 12,
             }}
           >
-            + part
+            + Part
           </button>
         )}
       </div>
@@ -221,10 +221,10 @@ export function Storyline({
                   }}
                 />
                 <InlineField
-                  ariaLabel={`the beat for ${part.title || 'this part'}`}
+                  ariaLabel={`The beat for ${part.title || 'this part'}`}
                   value={part.beat}
                   disabled={disabled}
-                  placeholder="what it has to do here…"
+                  placeholder="What it has to do here…"
                   onCommit={(next) => onEditBeat(part.id, next)}
                   multiline
                   style={{ ...canvasType.small, color: t.textSecondary }}

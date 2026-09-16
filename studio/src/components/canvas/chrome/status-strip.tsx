@@ -26,14 +26,16 @@ export function canWake(p: Pick<Project, 'status' | 'resting_until'>, now: Date 
 
 export const COMPLETED: ReadonlySet<ProjectStatus> = new Set<ProjectStatus>(['finished', 'kept', 'abandoned'])
 
-/** The status pill text: `active`, `resting · 9 days left`, `finished`, `kept`, `abandoned`. */
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** The status pill text: `Active`, `Resting · 9 days left`, `Finished`, `Kept`, `Abandoned`. */
 export function statusLabel(p: Pick<Project, 'status' | 'resting_until'>, now: Date = new Date()): string {
   if (p.status === 'resting') {
     const left = restingDaysLeft(p, now)
-    if (left === null) return 'resting'
-    return left <= 0 ? 'resting · can wake' : `resting · ${left} ${left === 1 ? 'day' : 'days'} left`
+    if (left === null) return 'Resting'
+    return left <= 0 ? 'Resting · can wake' : `Resting · ${left} ${left === 1 ? 'day' : 'days'} left`
   }
-  return p.status
+  return cap(p.status)
 }
 
 /** The strip's sentence; null for an active project. */
@@ -41,7 +43,7 @@ export function readOnlyLine(p: Pick<Project, 'status' | 'resting_until' | 'comp
   if (p.status === 'active') return null
   if (p.status === 'resting') return `${statusLabel(p, now)} · you can read and talk`
   const note = p.completion_note?.trim()
-  return note ? `${p.status} — “${note}”` : `${p.status} · you can read and talk`
+  return note ? `${cap(p.status)} — “${note}”` : `${cap(p.status)} · you can read and talk`
 }
 
 export function StatusStrip() {

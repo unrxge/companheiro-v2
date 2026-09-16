@@ -39,7 +39,7 @@ export function LockModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="lock the companion to reflect-only"
+        aria-label="Lock the companion to reflect-only"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 380, padding: 24, borderRadius: radius.card,
@@ -54,13 +54,13 @@ export function LockModal({
           setting. It cannot be shortened or cleared early; that restriction is the entire point.
         </p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 18 }}>
-          <NumberField label="hours" value={hours} max={12} onChange={setHours} />
-          <NumberField label="minutes" value={minutes} max={55} step={5} onChange={setMinutes} />
+          <NumberField label="Hours" value={hours} max={12} onChange={setHours} />
+          <NumberField label="Minutes" value={minutes} max={55} step={5} onChange={setMinutes} />
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
-          <GhostButton size="sm" onClick={onClose}>never mind</GhostButton>
+          <GhostButton size="sm" onClick={onClose}>Never mind</GhostButton>
           <PrimaryButton size="sm" onClick={() => onConfirm(total)} disabled={busy || total <= 0}>
-            {busy ? 'locking…' : `lock for ${hours ? `${hours}h ` : ''}${minutes}m`}
+            {busy ? 'Locking…' : `Lock for ${hours ? `${hours}h ` : ''}${minutes}m`}
           </PrimaryButton>
         </div>
       </div>

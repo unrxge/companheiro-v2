@@ -69,7 +69,7 @@ export function ThreadCard({
       body: on.size > 0
         ? `It comes off ${on.size} ${on.size === 1 ? 'piece' : 'pieces'}. The writing is untouched.`
         : 'This cannot be undone.',
-      confirmLabel: 'delete',
+      confirmLabel: 'Delete',
       danger: true,
     })
     setBusy(false)
@@ -88,7 +88,7 @@ export function ThreadCard({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={thread.name || 'a thread'}
+        aria-label={thread.name || 'A thread'}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 460, maxHeight: '82vh', overflowY: 'auto',
@@ -100,9 +100,9 @@ export function ThreadCard({
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <InlineField
-              ariaLabel="the name of this thread"
+              ariaLabel="The name of this thread"
               value={thread.name}
-              placeholder="name it — the thing you keep having to remember"
+              placeholder="Name it — the thing you keep having to remember"
               disabled={disabled}
               onCommit={(name) => onEdit({ name })}
               style={{ ...canvasType.headingMd, fontSize: 20, color: t.textPrimary }}
@@ -110,7 +110,7 @@ export function ThreadCard({
           </div>
           <button
             type="button"
-            aria-label="close"
+            aria-label="Close"
             onClick={onClose}
             style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
           >
@@ -120,9 +120,9 @@ export function ThreadCard({
 
         <div style={{ marginTop: 14 }}>
           <InlineField
-            ariaLabel="what this thread is for"
+            ariaLabel="What this thread is for"
             value={thread.intent}
-            placeholder="what is it holding? an anchor line, a constraint, something you must not forget…"
+            placeholder="What is it holding? An anchor line, a constraint, something you must not forget…"
             multiline
             disabled={disabled}
             onCommit={(intent) => onEdit({ intent })}
@@ -139,8 +139,8 @@ export function ThreadCard({
                 <button
                   key={h}
                   type="button"
-                  aria-label={h}
-                  title={h}
+                  aria-label={h.charAt(0).toUpperCase() + h.slice(1)}
+                  title={h.charAt(0).toUpperCase() + h.slice(1)}
                   aria-pressed={picked}
                   onClick={() => onEdit({ hue: h })}
                   style={{
@@ -185,11 +185,11 @@ export function ThreadCard({
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}
                     >
-                      {piece.title || 'untitled piece'}
+                      {piece.title || 'Untitled piece'}
                     </span>
                     {here && !own && (
                       <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', flexShrink: 0 }}>
-                        inside
+                        Inside
                       </span>
                     )}
                   </label>
@@ -219,7 +219,7 @@ export function ThreadCard({
                 color: t.textSecondary, cursor: 'pointer',
               }}
             >
-              read it through
+              Read it through
             </button>
           )}
           {!disabled && (
@@ -232,7 +232,7 @@ export function ThreadCard({
               padding: 0, marginLeft: 'auto', cursor: 'pointer', textAlign: 'left',
             }}
           >
-            delete this thread
+            Delete this thread
           </button>
           )}
         </div>
@@ -257,9 +257,9 @@ function NoteField({
 
   return (
     <input
-      aria-label="what it does here"
+      aria-label="What it does here"
       value={draft}
-      placeholder="say what it does here…"
+      placeholder="Say what it does here…"
       disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}

@@ -22,13 +22,13 @@ type Way = 'brief' | 'questions'
 type Step = { kind: 'input' } | { kind: 'review'; draft: DraftConceptResponse }
 
 const WAYS: Array<{ id: Way; label: string }> = [
-  { id: 'brief', label: 'from a brief' },
-  { id: 'questions', label: 'four questions' },
+  { id: 'brief', label: 'From a brief' },
+  { id: 'questions', label: 'Four questions' },
 ]
 
 function errorLine(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
-    if (e.status === 401) return 'sign in again'
+    if (e.status === 401) return 'Sign in again'
     if (e.status === 400) return e.message
   }
   return fallback
@@ -52,7 +52,7 @@ export function NewProjectFlow() {
       const draft = await api.projects.draftConcept(way === 'brief' ? { mode: 'brief', brief } : { mode: 'questions', answers })
       setStep({ kind: 'review', draft })
     } catch (e) {
-      setError(errorLine(e, 'the draft did not arrive · try again'))
+      setError(errorLine(e, 'The draft did not arrive · try again'))
     } finally {
       setBusy(false)
     }
@@ -65,7 +65,7 @@ export function NewProjectFlow() {
       const { bundle } = await api.projects.create(req)
       router.push(`/p/${bundle.project.id}`)
     } catch (e) {
-      setError(errorLine(e, 'the project was not made · try again'))
+      setError(errorLine(e, 'The project was not made · try again'))
       setBusy(false)
     }
   }
@@ -83,7 +83,7 @@ export function NewProjectFlow() {
         <AnimatePresence mode="wait" initial={false}>
           {step.kind === 'input' ? (
             <m.div key="input" {...fade} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div role="tablist" aria-label="two ways in" style={{ display: 'flex', gap: 20 }}>
+              <div role="tablist" aria-label="Two ways in" style={{ display: 'flex', gap: 20 }}>
                 {WAYS.map((w) => {
                   const active = w.id === way
                   return (

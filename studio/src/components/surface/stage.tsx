@@ -74,7 +74,7 @@ export function StageHeader({
         }}
       >
         {onUp && (
-          <StageIcon label={upLabel ?? 'back out a level'} onClick={(el) => onUp(el)}>
+          <StageIcon label={upLabel ?? 'Back out a level'} onClick={(el) => onUp(el)}>
             <path d="M15 5l-7 7 7 7" />
           </StageIcon>
         )}
@@ -87,7 +87,7 @@ export function StageHeader({
 
         {reveal && (
           <StageIcon
-            label={open ? 'hide what this is for' : 'what this is for'}
+            label={open ? 'Hide what this is for' : 'What this is for'}
             onClick={() => setOpen((v) => !v)}
             pressed={open}
             rotates

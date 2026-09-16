@@ -44,7 +44,7 @@ export function ConceptReview({
   const make = () => {
     if (!canMake) return
     onMake({
-      title: title.trim() || 'untitled project',
+      title: title.trim() || 'Untitled project',
       concept: { body: body.trim(), constraints: constraints.map((c) => c.trim()).filter(Boolean) },
       anchors: anchors.filter((a) => a.checked && a.text.trim()).map((a) => a.text.trim()),
       references: references.map((r) => ({ url: r.url.trim(), title: r.title.trim(), note: r.note.trim() })).filter((r) => r.url),
@@ -58,28 +58,28 @@ export function ConceptReview({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
       <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>
-        a first definition, drafted from your words. change anything; nothing exists until you make the project.
+        A first definition, drafted from your words. Change anything; nothing exists until you make the project.
       </p>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {label('title')}
+        {label('Title')}
         <TextField
           value={title}
           onChange={setTitle}
-          placeholder="a name for it"
-          ariaLabel="project title"
+          placeholder="A name for it"
+          ariaLabel="Project title"
           disabled={busy}
           style={{ ...canvasType.conceptTitle, padding: '10px 14px' }}
         />
       </section>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {label('concept')}
+        {label('Concept')}
         <TextArea
           value={body}
           onChange={setBody}
-          placeholder="what it is, in your words"
-          ariaLabel="concept"
+          placeholder="What it is, in your words"
+          ariaLabel="Concept"
           voice
           minRows={4}
           maxHeight={640}
@@ -88,23 +88,23 @@ export function ConceptReview({
       </section>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {label('constraints')}
-        {constraints.length === 0 && <div style={{ ...canvasType.small, color: t.textMuted }}>none stated · add one if there is one</div>}
+        {label('Constraints')}
+        {constraints.length === 0 && <div style={{ ...canvasType.small, color: t.textMuted }}>None stated · add one if there is one</div>}
         {constraints.map((c, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <TextField
               value={c}
               onChange={(v) => setConstraints((prev) => prev.map((x, j) => (j === i ? v : x)))}
-              placeholder="a limit, a rule, a scope"
-              ariaLabel={`constraint ${i + 1}`}
+              placeholder="A limit, a rule, a scope"
+              ariaLabel={`Constraint ${i + 1}`}
               disabled={busy}
             />
             <button
               type="button"
               onClick={() => setConstraints((prev) => prev.filter((_, j) => j !== i))}
               disabled={busy}
-              aria-label="remove this constraint"
-              title="remove"
+              aria-label="Remove this constraint"
+              title="Remove"
               className="studio-icon"
               style={iconButton(t.textSecondary)}
             >
@@ -118,17 +118,17 @@ export function ConceptReview({
           disabled={busy}
           style={textButton(t.textPrimary)}
         >
-          add a line
+          Add a line
         </button>
       </section>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {label('anchor lines')}
+        {label('Anchor lines')}
         {anchors.length === 0 ? (
-          <div style={{ ...canvasType.small, color: t.textMuted }}>nothing you said stood out as a line to keep · you can make one later from an update</div>
+          <div style={{ ...canvasType.small, color: t.textMuted }}>Nothing you said stood out as a line to keep · you can make one later from an update</div>
         ) : (
           <>
-            <div style={{ ...canvasType.small, color: t.textSecondary }}>your own words, kept large on the canvas. untick any that should not be.</div>
+            <div style={{ ...canvasType.small, color: t.textSecondary }}>Your own words, kept large on the canvas. Untick any that should not be.</div>
             {anchors.map((a, i) => (
               <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: busy ? 'default' : 'pointer' }}>
                 <input
@@ -147,8 +147,8 @@ export function ConceptReview({
 
       {references.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {label('references')}
-          <div style={{ ...canvasType.small, color: t.textSecondary }}>the links you pasted. the page is never opened; only your words around it are read.</div>
+          {label('References')}
+          <div style={{ ...canvasType.small, color: t.textSecondary }}>The links you pasted. The page is never opened; only your words around it are read.</div>
           {references.map((r, i) => (
             <div
               key={i}
@@ -158,8 +158,8 @@ export function ConceptReview({
               <TextField
                 value={r.title}
                 onChange={(v) => setReferences((prev) => prev.map((x, j) => (j === i ? { ...x, title: v } : x)))}
-                placeholder="a title for it"
-                ariaLabel={`title for ${r.url}`}
+                placeholder="A title for it"
+                ariaLabel={`Title for ${r.url}`}
                 disabled={busy}
               />
               {r.note && <div style={{ ...canvasType.small, color: t.textSecondary }}>{r.note}</div>}
@@ -169,7 +169,7 @@ export function ConceptReview({
                 disabled={busy}
                 style={{ ...textButton(t.textSecondary), alignSelf: 'flex-start' }}
               >
-                leave it out
+                Leave it out
               </button>
             </div>
           ))}
@@ -177,16 +177,16 @@ export function ConceptReview({
       )}
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {label('the compass will ask you to confirm these')}
+        {label('The compass will ask you to confirm these')}
         {draft.compass_seed.length === 0 ? (
-          <div style={{ ...canvasType.small, color: t.textMuted }}>nothing yet · it fills from what you say in talk</div>
+          <div style={{ ...canvasType.small, color: t.textMuted }}>Nothing yet · it fills from what you say in talk</div>
         ) : (
           <div style={{ backgroundColor: t.cardBg, borderRadius: radii.block, padding: '4px 16px' }}>
             {draft.compass_seed.map((c, i) => (
               <div key={i}>
                 {i > 0 && hairline}
                 <div style={{ display: 'grid', gridTemplateColumns: '112px 1fr', gap: 12, padding: '12px 0', alignItems: 'baseline' }}>
-                  <span style={{ ...canvasType.label, color: t.textMuted }}>{c.kind === 'refusal' ? 'refusal' : 'non-negotiable'}</span>
+                  <span style={{ ...canvasType.label, color: t.textMuted }}>{c.kind === 'refusal' ? 'Refusal' : 'Non-negotiable'}</span>
                   <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={{ ...canvasType.small, color: t.textPrimary }}>{c.statement}</span>
                     <span style={{ ...canvasType.meta, color: t.textMuted }}>“{c.quote}”</span>
@@ -202,10 +202,10 @@ export function ConceptReview({
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 4 }}>
         <GhostButton onClick={onBack} disabled={busy}>
-          back to your words
+          Back to your words
         </GhostButton>
-        <PrimaryButton onClick={make} disabled={!canMake} loading={busy} loadingLabel="making it">
-          make the project
+        <PrimaryButton onClick={make} disabled={!canMake} loading={busy} loadingLabel="Making it">
+          Make the project
         </PrimaryButton>
       </div>
     </div>

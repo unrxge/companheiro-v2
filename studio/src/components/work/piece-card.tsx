@@ -87,7 +87,7 @@ export function PieceCard({
         {renaming ? (
           <input
             ref={field}
-            aria-label="the name of this piece"
+            aria-label="The name of this piece"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
@@ -110,7 +110,7 @@ export function PieceCard({
               maxHeight: '2.36em',
             }}
           >
-            {node.title || 'untitled'}
+            {node.title || 'Untitled'}
           </h2>
         )}
 
@@ -122,16 +122,16 @@ export function PieceCard({
               transition: 'opacity 140ms ease',
             }}
           >
-            <Act label="rename this piece" onClick={() => setRenaming(true)}>
+            <Act label="Rename this piece" onClick={() => setRenaming(true)}>
               <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" />
             </Act>
-            <Act label="move it earlier" onClick={() => onMove(-1)} off={first}>
+            <Act label="Move it earlier" onClick={() => onMove(-1)} off={first}>
               <path d="M15 5l-7 7 7 7" />
             </Act>
-            <Act label="move it later" onClick={() => onMove(1)} off={last}>
+            <Act label="Move it later" onClick={() => onMove(1)} off={last}>
               <path d="M9 5l7 7-7 7" />
             </Act>
-            <Act label="delete this piece" onClick={onRemove}>
+            <Act label="Delete this piece" onClick={onRemove}>
               <path d="M6 6l12 12M18 6L6 18" />
             </Act>
           </div>
@@ -156,7 +156,7 @@ export function PieceCard({
       {/* ── the words, going on past the edge of the card ───────────────── */}
       <button
         type="button"
-        aria-label={`open ${node.title || 'this piece'}`}
+        aria-label={`Open ${node.title || 'this piece'}`}
         onClick={() => onOpen(card.current)}
         style={{
           flex: 1, minHeight: 0, position: 'relative', width: '100%',
@@ -190,9 +190,9 @@ export function PieceCard({
         <span>{words}w</span>
         {node.children.length > 0 && <span>{node.children.length} parts</span>}
         {node.stands_whole && (
-          <span title="this claims to stand whole on its own" style={{ color: t.violet }}>whole</span>
+          <span title="This claims to stand whole on its own" style={{ color: t.violet }}>Whole</span>
         )}
-        {node.status === 'done' && <span style={{ color: t.verdant }}>done</span>}
+        {node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
       </div>
     </div>
   )

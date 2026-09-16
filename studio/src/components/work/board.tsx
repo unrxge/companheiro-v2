@@ -348,7 +348,7 @@ export function Board({
       <Surface
         canvas={canvas}
         innerRef={ref}
-        ariaLabel="the board — the pieces of this project and the threads under them"
+        ariaLabel="The board — the pieces of this project and the threads under them"
         chrome={
           <>
             <ZoomPill
@@ -478,7 +478,7 @@ export function Board({
                 <button
                   data-hold
                   type="button"
-                  aria-label={`run ${armedThread?.name || 'this thread'} through ${piece.title || 'this piece'}`}
+                  aria-label={`Run ${armedThread?.name || 'this thread'} through ${piece.title || 'this piece'}`}
                   onClick={() => connectTo(piece)}
                   style={{
                     position: 'absolute', inset: 0, borderRadius: radius.card,
@@ -535,8 +535,8 @@ export function Board({
               <button
                 data-hold
                 type="button"
-                aria-label="add a piece to this project"
-                title="add a piece"
+                aria-label="Add a piece to this project"
+                title="Add a piece"
                 onClick={actions.addPiece}
                 style={{
                   width: '100%', height: addPieceH,
@@ -562,8 +562,8 @@ export function Board({
               <button
                 data-hold
                 type="button"
-                aria-label="add a thread to this project"
-                title="add a thread"
+                aria-label="Add a thread to this project"
+                title="Add a thread"
                 onClick={() => void addNewThread()}
                 style={{
                   width: '100%', height: '100%', boxSizing: 'border-box',
@@ -619,8 +619,8 @@ function RearrangeButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      aria-label="rearrange everything neatly"
-      title="rearrange everything neatly"
+      aria-label="Rearrange everything neatly"
+      title="Rearrange everything neatly"
       onClick={onClick}
       style={{
         width: 30, height: 30, borderRadius: 999, padding: 0, cursor: 'pointer',
@@ -691,16 +691,16 @@ function Hub({
             textTransform: 'none', letterSpacing: 0, fontSize: 13, fontWeight: 600,
           }}
         >
-          {thread.name || 'untitled thread'}
+          {thread.name || 'Untitled thread'}
         </button>
         {!disabled && (
           <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed ? 1 : 0, transition: 'opacity 140ms ease' }}>
-            <HubAct label={armed ? 'stop connecting' : 'connect it to another piece'} tone={armed ? colour : t.textMuted} onClick={onConnect}>
+            <HubAct label={armed ? 'Stop connecting' : 'Connect it to another piece'} tone={armed ? colour : t.textMuted} onClick={onConnect}>
               <circle cx="6" cy="12" r="2.6" />
               <circle cx="18" cy="12" r="2.6" />
               <line x1="8.6" y1="12" x2="15.4" y2="12" />
             </HubAct>
-            <HubAct label="delete this thread" tone={t.textMuted} onClick={onRemove}>
+            <HubAct label="Delete this thread" tone={t.textMuted} onClick={onRemove}>
               <path d="M6 6l12 12M18 6L6 18" />
             </HubAct>
           </div>
@@ -714,7 +714,7 @@ function Hub({
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}
       >
-        {thread.intent || 'what does it hold across the work?'}
+        {thread.intent || 'What does it hold across the work?'}
       </p>
       <span style={{ ...canvasType.chip, color: t.textMuted, marginTop: 'auto' }}>
         {liveRules || 'no'} {liveRules === 1 ? 'rule' : 'rules'}
@@ -797,7 +797,7 @@ function ConnectBanner({ thread, onCancel }: { thread: Thread; onCancel: () => v
     >
       <i aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: colour }} />
       <span style={{ ...canvasType.small, fontSize: 12.5, color: shell.text }}>
-        pick the piece <strong style={{ color: colour, fontWeight: 600 }}>{thread.name || 'this thread'}</strong> runs through next
+        Pick the piece <strong style={{ color: colour, fontWeight: 600 }}>{thread.name || 'this thread'}</strong> runs through next
       </span>
       <button
         type="button"
@@ -853,9 +853,9 @@ function EverywhereDialog({
           As a constraint it is checked at every boundary, instead of being drawn under every piece.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
-          <Choice onClick={onCancel} quiet>leave it</Choice>
-          <Choice onClick={onAnyway} quiet>connect it anyway</Choice>
-          <Choice onClick={onConstraint}>make it a constraint</Choice>
+          <Choice onClick={onCancel} quiet>Leave it</Choice>
+          <Choice onClick={onAnyway} quiet>Connect it anyway</Choice>
+          <Choice onClick={onConstraint}>Make it a constraint</Choice>
         </div>
       </div>
     </div>

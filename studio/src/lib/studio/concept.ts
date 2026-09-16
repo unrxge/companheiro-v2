@@ -267,10 +267,10 @@ export function validateDraft(raw: unknown, source: string): DraftConceptRespons
 
 /** The four questions, verbatim from the brief (10.2). */
 export const FOUR_QUESTIONS = [
-  'what is it?',
-  'who is it for, and what should it do to them?',
-  'what will you not do in it?',
-  'what must it keep, whatever happens?',
+  'What is it?',
+  'Who is it for, and what should it do to them?',
+  'What will you not do in it?',
+  'What must it keep, whatever happens?',
 ] as const
 
 /** The person's input as one text, for verbatim checks and the prompt. */

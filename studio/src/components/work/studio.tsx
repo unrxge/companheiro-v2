@@ -243,9 +243,9 @@ export function Studio({
                 )}
                 <div style={{ flex: 1, minWidth: 90 }}>
                   <InlineField
-                    ariaLabel="the name of this part"
+                    ariaLabel="The name of this part"
                     value={part.title}
-                    placeholder={sectioned ? 'untitled part' : 'untitled'}
+                    placeholder={sectioned ? 'Untitled part' : 'Untitled'}
                     disabled={disabled}
                     onCommit={(title) => void onEdit(part.id, { title })}
                     style={{ ...canvasType.label, color: t.textSecondary, letterSpacing: '0.08em' }}
@@ -263,21 +263,21 @@ export function Studio({
                     <HeaderAction
                       label={
                         part.status === 'done'
-                          ? 'this is done — reopen it'
-                          : sectioned ? 'mark this part done' : 'mark it done and go back out'
+                          ? 'This is done — reopen it'
+                          : sectioned ? 'Mark this part done' : 'Mark it done and go back out'
                       }
                       tone={part.status === 'done' ? t.verdant : t.textMuted}
                       onClick={() => void finish(part)}
                     >
-                      {part.status === 'done' ? 'done' : 'mark done'}
+                      {part.status === 'done' ? 'Done' : 'Mark done'}
                     </HeaderAction>
                     {sectioned && (
-                      <HeaderAction label="open this part on its own" onClick={() => onOpenPart(part.id)}>
-                        open
+                      <HeaderAction label="Open this part on its own" onClick={() => onOpenPart(part.id)}>
+                        Open
                       </HeaderAction>
                     )}
                     {sectioned && (
-                      <HeaderAction label="delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
+                      <HeaderAction label="Delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
                     )}
                   </>
                 )}
@@ -288,7 +288,7 @@ export function Studio({
               <SectionEditor
                 content={part.body}
                 editable={!disabled}
-                placeholder={i === 0 ? 'write…' : ''}
+                placeholder={i === 0 ? 'Write…' : ''}
                 onChange={(html) => change(part.id, html)}
                 onFocus={() => setFocused(part.id)}
                 onBlur={() => flushOne(part.id)}
@@ -300,9 +300,9 @@ export function Studio({
               />
               {pendingInline?.partId === part.id && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-                  <span style={{ ...canvasType.chip, color: t.tide }}>a suggested rewrite is highlighted above</span>
-                  <QuietButton size="sm" onClick={approveInline}>approve</QuietButton>
-                  <GhostButton size="sm" onClick={rejectInline}>reject</GhostButton>
+                  <span style={{ ...canvasType.chip, color: t.tide }}>A suggested rewrite is highlighted above</span>
+                  <QuietButton size="sm" onClick={approveInline}>Approve</QuietButton>
+                  <GhostButton size="sm" onClick={rejectInline}>Reject</GhostButton>
                 </div>
               )}
               {pendingWhole?.partId === part.id && (
@@ -313,11 +313,11 @@ export function Studio({
                     display: 'flex', flexDirection: 'column', gap: 10,
                   }}
                 >
-                  <span style={{ ...canvasType.chip, color: t.tide }}>a suggested rewrite of this whole part</span>
+                  <span style={{ ...canvasType.chip, color: t.tide }}>A suggested rewrite of this whole part</span>
                   <p style={{ ...canvasType.body, color: t.textSecondary, margin: 0, whiteSpace: 'pre-wrap' }}>{pendingWhole.content}</p>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <QuietButton size="sm" onClick={approveWhole}>approve</QuietButton>
-                    <GhostButton size="sm" onClick={() => setPendingWhole(null)}>reject</GhostButton>
+                    <QuietButton size="sm" onClick={approveWhole}>Approve</QuietButton>
+                    <GhostButton size="sm" onClick={() => setPendingWhole(null)}>Reject</GhostButton>
                   </div>
                 </div>
               )}
@@ -336,7 +336,7 @@ export function Studio({
             borderRadius: radius.widget, padding: '12px 14px', textAlign: 'left',
           }}
         >
-          {sectioned ? '+ another part' : '+ break this into parts'}
+          {sectioned ? '+ Another part' : '+ Break this into parts'}
         </button>
       )}
     </div>

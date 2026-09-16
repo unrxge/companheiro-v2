@@ -30,7 +30,7 @@ export function Trail({
   const { t } = useTheme()
   return (
     <nav
-      aria-label="where you are"
+      aria-label="Where you are"
       style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, minHeight: 20 }}
     >
       <button
@@ -41,7 +41,7 @@ export function Trail({
           padding: 0, cursor: 'pointer',
         }}
       >
-        {projectTitle || 'the project'}
+        {projectTitle || 'The project'}
       </button>
       {steps.map((step, i) => (
         <span key={step.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -57,7 +57,7 @@ export function Trail({
               cursor: i === steps.length - 1 ? 'default' : 'pointer',
             }}
           >
-            {step.title || 'untitled'}
+            {step.title || 'Untitled'}
           </button>
         </span>
       ))}
@@ -177,7 +177,7 @@ export function ThreadChips({
             key={id}
             type="button"
             onClick={onOpen ? () => onOpen(id) : undefined}
-            title={thread.name || 'a thread'}
+            title={thread.name || 'A thread'}
             style={{
               ...canvasType.chip,
               fontSize: size === 'xs' ? 9 : 10,
@@ -190,7 +190,7 @@ export function ThreadChips({
               maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}
           >
-            {thread.name || 'untitled thread'}
+            {thread.name || 'Untitled thread'}
           </button>
         )
       })}
@@ -198,7 +198,7 @@ export function ThreadChips({
   )
 }
 
-/** Small monospace eyebrow used all over the work views. */
+/** Small eyebrow used all over the work views. */
 export function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   const { t } = useTheme()
   return <div style={{ ...canvasType.label, color: t.textMuted, ...style }}>{children}</div>

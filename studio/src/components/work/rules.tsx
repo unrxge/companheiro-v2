@@ -74,7 +74,7 @@ export function RuleList({
               <span aria-hidden style={{ ...canvasType.small, color: t.ember, lineHeight: '22px' }}>·</span>
               <div style={{ flex: '1 1 auto', minWidth: 0 }}>
                 <InlineField
-                  ariaLabel="rule"
+                  ariaLabel="Rule"
                   value={rule.text}
                   disabled={disabled}
                   onCommit={(text) =>
@@ -86,7 +86,7 @@ export function RuleList({
               {!disabled && (
                 <button
                   type="button"
-                  aria-label="retire this rule"
+                  aria-label="Retire this rule"
                   onClick={() =>
                     onChange(rules.map((r) => (r.id === rule.id ? { ...r, retired_at: new Date().toISOString() } : r)))
                   }
@@ -96,7 +96,7 @@ export function RuleList({
                     flexShrink: 0, alignSelf: 'baseline',
                   }}
                 >
-                  retire
+                  Retire
                 </button>
               )}
             </li>
@@ -107,9 +107,9 @@ export function RuleList({
       {!disabled && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
-            aria-label="a new rule"
+            aria-label="A new rule"
             value={adding}
-            placeholder="add a rule…"
+            placeholder="Add a rule…"
             onChange={(e) => setAdding(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') add() }}
             style={{
@@ -118,7 +118,7 @@ export function RuleList({
               borderRadius: radius.field, padding: '6px 10px', outline: 'none',
             }}
           />
-          <GhostButton size="sm" onClick={add} disabled={!adding.trim()}>add</GhostButton>
+          <GhostButton size="sm" onClick={add} disabled={!adding.trim()}>Add</GhostButton>
         </div>
       )}
     </div>
@@ -150,13 +150,13 @@ export function CheckCard({
         display: 'flex', flexDirection: 'column', gap: 10,
       }}
     >
-      <div style={{ ...canvasType.chip, color: t.ochre }}>your rule: {check.rule_text}</div>
+      <div style={{ ...canvasType.chip, color: t.ochre }}>Your rule: {check.rule_text}</div>
       <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>{check.question}</p>
 
       {amending ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input
-            aria-label="the rule, reworded"
+            aria-label="The rule, reworded"
             value={text}
             onChange={(e) => setText(e.target.value)}
             style={{
@@ -171,17 +171,17 @@ export function CheckCard({
               onClick={() => { onAmend(text.trim()); onResolve('amended', text.trim()) }}
               disabled={!text.trim()}
             >
-              change the rule
+              Change the rule
             </QuietButton>
-            <GhostButton size="sm" onClick={() => setAmending(false)}>never mind</GhostButton>
+            <GhostButton size="sm" onClick={() => setAmending(false)}>Never mind</GhostButton>
           </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <QuietButton size="sm" onClick={() => onResolve('fixed')}>i&rsquo;ll fix it</QuietButton>
-          <GhostButton size="sm" onClick={() => setAmending(true)}>the rule was wrong</GhostButton>
-          <GhostButton size="sm" onClick={() => onResolve('meant_it')}>i meant it</GhostButton>
-          <GhostButton size="sm" onClick={() => onResolve('dismissed')}>not now</GhostButton>
+          <QuietButton size="sm" onClick={() => onResolve('fixed')}>I&rsquo;ll fix it</QuietButton>
+          <GhostButton size="sm" onClick={() => setAmending(true)}>The rule was wrong</GhostButton>
+          <GhostButton size="sm" onClick={() => onResolve('meant_it')}>I meant it</GhostButton>
+          <GhostButton size="sm" onClick={() => onResolve('dismissed')}>Not now</GhostButton>
         </div>
       )}
     </div>

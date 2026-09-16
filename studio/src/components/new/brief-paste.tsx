@@ -49,8 +49,8 @@ export function BriefPaste({
           clearInterim()
           onChange(v)
         }}
-        placeholder="paste a brief, a note to yourself, anything"
-        ariaLabel="a brief"
+        placeholder="Paste a brief, a note to yourself, anything"
+        ariaLabel="A brief"
         voice
         minRows={8}
         maxHeight={640}
@@ -70,10 +70,10 @@ export function BriefPaste({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={busy} size={44} />
-          <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'listening' : 'type or speak'}</span>
+          <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'Listening' : 'Type or speak'}</span>
         </div>
-        <PrimaryButton onClick={onRead} disabled={!canRead} loading={busy} loadingLabel="reading it">
-          read it
+        <PrimaryButton onClick={onRead} disabled={!canRead} loading={busy} loadingLabel="Reading it">
+          Read it
         </PrimaryButton>
       </div>
     </div>

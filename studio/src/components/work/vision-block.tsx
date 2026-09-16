@@ -86,7 +86,7 @@ export function VisionBlock({
         {renaming ? (
           <input
             ref={inputRef}
-            aria-label="the project's title"
+            aria-label="The project's title"
             value={draft}
             size={Math.max(draft.length, 8)}
             onChange={(e) => setDraft(e.target.value)}
@@ -100,7 +100,7 @@ export function VisionBlock({
         ) : (
           <h1
             onClick={() => !disabled && setRenaming(true)}
-            title={disabled ? undefined : 'rename the project'}
+            title={disabled ? undefined : 'Rename the project'}
             style={{
               // Never t.textPrimary: this row sits directly on the shell,
               // which is always dark, in both states — a card only ever
@@ -110,12 +110,12 @@ export function VisionBlock({
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}
           >
-            {title || 'untitled project'}
+            {title || 'Untitled project'}
           </h1>
         )}
         <button
           type="button"
-          aria-label={expanded ? 'hide what this is for' : 'what this is for, and the rules that catch you'}
+          aria-label={expanded ? 'Hide what this is for' : 'What this is for, and the rules that catch you'}
           aria-expanded={expanded}
           onClick={onToggle}
           style={{
@@ -152,12 +152,12 @@ export function VisionBlock({
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
                 <circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" />
               </svg>
-              <span style={{ ...canvasType.chip }}>what this is for</span>
+              <span style={{ ...canvasType.chip }}>What this is for</span>
             </div>
             <InlineField
-              ariaLabel="what this project is for"
+              ariaLabel="What this project is for"
               value={intent}
-              placeholder="say what the whole project is, and what it has to do…"
+              placeholder="Say what the whole project is, and what it has to do…"
               multiline
               disabled={disabled}
               onCommit={onEditIntent}
