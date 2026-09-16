@@ -101,8 +101,6 @@ export function StageHeader({
             {status}
           </span>
         )}
-
-        <ThemeToggleButton theme={theme} onToggle={toggle} />
       </div>
 
       <AnimatePresence initial={false}>
@@ -126,6 +124,12 @@ export function StageHeader({
           </m.div>
         )}
       </AnimatePresence>
+
+      {/* Its own corner, not sharing the identity pill on the left — a
+         constant a person's eye learns once and finds anywhere. */}
+      <div data-hold style={{ position: 'absolute', top: 14, right: 16, pointerEvents: 'auto' }}>
+        <ThemeToggleButton theme={theme} onToggle={toggle} />
+      </div>
     </div>
   )
 }

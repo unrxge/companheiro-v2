@@ -292,22 +292,18 @@ export function ZoomPill({
       <PillButton label="further out" onClick={() => canvas.setZoom(canvas.zoom - ZOOM.step)}>
         <line x1="6" y1="12" x2="18" y2="12" />
       </PillButton>
-      <button
-        type="button"
-        onClick={onHome}
-        aria-label="back to the start"
-        title={onHome ? 'back to the start' : `${at}%`}
-        style={{
-          ...PILL_TEXT, cursor: onHome ? 'pointer' : 'default',
-          background: 'none', border: 'none', padding: '0 6px', minWidth: 40,
-        }}
-      >
+      <span aria-label={`${at}%`} title={`${at}%`} style={{ ...PILL_TEXT, padding: '0 6px', minWidth: 40, textAlign: 'center' }}>
         {at}%
-      </button>
+      </span>
       <PillButton label="closer in" onClick={() => canvas.setZoom(canvas.zoom + ZOOM.step)}>
         <line x1="6" y1="12" x2="18" y2="12" />
         <line x1="12" y1="6" x2="12" y2="18" />
       </PillButton>
+      {onHome && (
+        <PillButton label="fit to screen — back to 100%" onClick={onHome}>
+          <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+        </PillButton>
+      )}
       {after && (
         <>
           <div aria-hidden style={{ width: 1, alignSelf: 'stretch', margin: '2px 1px', background: shell.line }} />

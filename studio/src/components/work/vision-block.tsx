@@ -22,12 +22,16 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { Rule } from '@/lib/studio/node-types'
 
-export const VISION_W = 560
-export const VISION_TITLE_H = 56
+// Wide on purpose, and wider than most screens will show at once: this is a
+// canvas the person is meant to pan and scroll through, not a page laid out
+// to fit a viewport, so the vision reads as two columns side by side —
+// what it's for, and what can catch it — rather than one long, narrow one.
+export const VISION_W = 880
+export const VISION_TITLE_H = 60
 export const VISION_COLLAPSED_H = VISION_TITLE_H
-export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 300
+export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 340
 
-const TITLE_STYLE = { ...canvasType.anchor, fontSize: 30, lineHeight: 1.15 } as const
+const TITLE_STYLE = { ...canvasType.anchor, fontSize: 32, lineHeight: 1.15 } as const
 
 export function VisionBlock({
   title,
@@ -121,26 +125,36 @@ export function VisionBlock({
         </button>
       </div>
 
-      {/* the vision and the rules: boxed, and only ever here when asked for */}
+      {/* the vision and the rules: boxed, and only ever here when asked for.
+         Two columns, not one long one — the width is here to be used. */}
       {expanded && (
         <div
           data-hold
           style={{
-            marginTop: 8, width: VISION_W, maxHeight: 300, overflowY: 'auto',
+            marginTop: 8, width: VISION_W, maxHeight: 340, overflowY: 'auto',
             background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow,
-            padding: '20px 24px', boxSizing: 'border-box',
+            padding: '26px 30px', boxSizing: 'border-box',
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36,
           }}
         >
-          <InlineField
-            ariaLabel="what this project is for"
-            value={intent}
-            placeholder="say what the whole project is, and what it has to do…"
-            multiline
-            disabled={disabled}
-            onCommit={onEditIntent}
-            style={{ ...canvasType.conceptBody, fontSize: 15, color: t.textSecondary }}
-          />
-          <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, marginTop: 16, paddingTop: 16 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+                <circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              <span style={{ ...canvasType.chip, fontFamily: fonts.mono }}>what this is for</span>
+            </div>
+            <InlineField
+              ariaLabel="what this project is for"
+              value={intent}
+              placeholder="say what the whole project is, and what it has to do…"
+              multiline
+              disabled={disabled}
+              onCommit={onEditIntent}
+              style={{ ...canvasType.conceptBody, fontSize: 15, color: t.textSecondary }}
+            />
+          </div>
+          <div style={{ borderLeft: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingLeft: 36 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
                 <path d="M5 4h14v16H5z" />

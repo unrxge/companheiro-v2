@@ -19,7 +19,7 @@ import { Board, type BoardActions } from '@/components/work/board'
 import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
-import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
+import { CompanionLauncher, Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { CanvasStage, StageHeader } from '@/components/surface/stage'
 import { Level } from '@/components/surface/travel'
 import { RuleList } from '@/components/work/rules'
@@ -347,7 +347,9 @@ export default function DevWorkPage() {
             appearancesFor={appearancesFor}
             actions={boardActions}
           />
+          <CompanionLauncher active={rail === 'companion'} onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))} />
         </CanvasStage>
+        {drawer}
       </Level>
     )
   }

@@ -36,9 +36,9 @@ const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
-const NOTICE_W = 420
-const NOTICE_GAP = 20
-const NOTICE_H = 150    // wider than tall on purpose — a card this wide fits
+const NOTICE_W = 560
+const NOTICE_GAP = 24
+const NOTICE_H = 130    // wider than tall on purpose — a card this wide fits
                          // its own buttons on one row instead of stacking them
 
 export interface BoardProject {
@@ -125,6 +125,13 @@ export function Board({
   // Drag it away and the lane is free to rise back to its usual place.
   const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + noticesH + GAP)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
+  // The "add a piece" spot gives up some of its own height so a matching
+  // "add a thread" card — the same size as a real one — can sit right
+  // underneath it: one fixed column for adding to the board, instead of a
+  // box that has to go looking for wherever the threads currently are.
+  const addColW = Math.min(cardW, 260)
+  const addPieceH = Math.max(140, cardH - GAP - HUB_H)
+  const addHelpH = pieces.length === 0 ? 54 : 0
 
   /** Where a piece sits: hand-placed from before this became fixed, or in
    *  its reading-order lane. Pieces are no longer dragged — the "add a
@@ -196,6 +203,7 @@ export function Board({
     let w = { w: frame.w || 0, h: frame.h || 0 }
     w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
+    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + GAP + HUB_H)
     w = growWorld(w, visionAt.x, visionAt.y, VISION_W, visionH)
     if (checks.length > 0) {
       w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (NOTICE_W + NOTICE_GAP), NOTICE_H)
@@ -209,7 +217,10 @@ export function Board({
       w = growWorld(w, at.x, at.y, HUB_W, HUB_H)
     }
     return w
-  }, [frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, checks.length])
+  }, [
+    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, checks.length,
+    cardX, cardTop, addColW, addPieceH, addHelpH,
+  ])
 
   const canvas = useCanvas(ref, frame, world)
 
@@ -285,6 +296,12 @@ export function Board({
    *  pieces, the vision block back to the corner. */
   const rearrange = useCallback(() => actions.tidyBoard(), [actions])
 
+  /** Back to 100%, looking at the title — the one spot on the board that is
+   *  never empty, so "fit to screen" always has somewhere real to land. */
+  const fitToScreen = useCallback(() => {
+    canvas.glideTo({ x: visionAt.x + VISION_W / 2, y: visionAt.y + visionH / 2 }, 1)
+  }, [canvas, visionAt, visionH])
+
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
    *  glass. */
@@ -333,12 +350,8 @@ export function Board({
           <>
             <ZoomPill
               canvas={canvas}
-              after={!disabled && (
-                <>
-                  <RearrangeButton onClick={rearrange} />
-                  <AddThreadButton onClick={() => void addNewThread()} />
-                </>
-              )}
+              onHome={fitToScreen}
+              after={!disabled && <RearrangeButton onClick={rearrange} />}
             />
             {arming && armedThread && (
               <ConnectBanner thread={armedThread} onCancel={() => setArming(null)} />
@@ -508,34 +521,61 @@ export function Board({
           )
         })}
 
-        {/* one more piece */}
+        {/* one more piece, and — the same size and style as a real thread
+           card — one more thread right beneath it: the one spot on the
+           board for adding to it, fixed in place regardless of what the
+           threads or the title are currently doing. */}
         {!disabled && (
-          <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: Math.min(cardW, 260) }}>
-            <button
-              data-hold
-              type="button"
-              aria-label="add a piece to this project"
-              title="add a piece"
-              onClick={actions.addPiece}
-              style={{
-                width: '100%', height: cardH,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'transparent', cursor: 'pointer',
-                border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
-                color: shell.muted,
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
-            {pieces.length === 0 && (
-              <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center' }}>
-                A piece is one whole thing — a film, a chapter, a song, an essay.
-              </p>
-            )}
-          </div>
+          <>
+            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: addColW }}>
+              <button
+                data-hold
+                type="button"
+                aria-label="add a piece to this project"
+                title="add a piece"
+                onClick={actions.addPiece}
+                style={{
+                  width: '100%', height: addPieceH,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', cursor: 'pointer',
+                  border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
+                  color: shell.muted,
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+              {pieces.length === 0 && (
+                <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center', height: addHelpH - 14, boxSizing: 'border-box' }}>
+                  A piece is one whole thing — a film, a chapter, a song, an essay.
+                </p>
+              )}
+            </div>
+
+            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop + addPieceH + addHelpH + GAP, width: HUB_W, height: HUB_H }}>
+              <button
+                data-hold
+                type="button"
+                aria-label="add a thread to this project"
+                title="add a thread"
+                onClick={() => void addNewThread()}
+                style={{
+                  width: '100%', height: '100%', boxSizing: 'border-box',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent', cursor: 'pointer',
+                  border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.widget,
+                  color: shell.muted,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+          </>
         )}
       </Surface>
 
@@ -589,27 +629,6 @@ function RearrangeButton({ onClick }: { onClick: () => void }) {
         <rect x="13" y="4" width="7" height="7" rx="1.5" />
         <rect x="4" y="13" width="7" height="7" rx="1.5" />
         <rect x="13" y="13" width="7" height="7" rx="1.5" />
-      </svg>
-    </button>
-  )
-}
-
-function AddThreadButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label="add a thread to this project"
-      title="add a thread"
-      onClick={onClick}
-      style={{
-        width: 26, height: 26, borderRadius: 999, padding: 0, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'transparent', border: 'none', color: shell.muted,
-      }}
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     </button>
   )

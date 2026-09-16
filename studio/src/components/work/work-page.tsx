@@ -19,7 +19,7 @@ import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { CanvasStage, StageHeader, StageIcon } from '@/components/surface/stage'
+import { CanvasStage, StageHeader } from '@/components/surface/stage'
 import { Level, useTravel } from '@/components/surface/travel'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
@@ -32,7 +32,7 @@ import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
 import { Companion } from '@/components/work/companion'
-import { Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
+import { CompanionLauncher, Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
 import { CheckCard, RuleList } from '@/components/work/rules'
 import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/work/bits'
 
@@ -356,15 +356,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               onUp={(el) => goShelf(el)}
               upLabel={`back to ${LEVELS.shelf.name}`}
               status={savingMark}
-              actions={
-                <StageIcon
-                  label="talk this through"
-                  pressed={rail === 'companion'}
-                  onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))}
-                >
-                  <path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" />
-                </StageIcon>
-              }
             />
           }
         >
@@ -385,6 +376,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             appearancesFor={appearancesFor}
             actions={boardActions}
             disabled={readOnly}
+          />
+          {/* Bottom and centred, not a small icon in a corner pill — this is
+             the invitation to talk the vision through, not an afterthought. */}
+          <CompanionLauncher
+            active={rail === 'companion'}
+            onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))}
           />
         </CanvasStage>
         {companionDrawer}
