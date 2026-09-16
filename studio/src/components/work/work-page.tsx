@@ -101,7 +101,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     return [...live, ...above.map(({ rule, source }) => ({ rule, from: source.title || 'above' }))]
   }, [node, roots, projectRules])
 
-  const setProjectField = useCallback(async (patch: { intent?: string; rules?: Rule[] }) => {
+  const setProjectField = useCallback(async (patch: {
+    title?: string; intent?: string; rules?: Rule[]; vision_x?: number | null; vision_y?: number | null
+  }) => {
     await fetch(`/api/studio/projects/${projectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -195,14 +197,27 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
+    movePiece: (id, at) => void api.editNode(id, { board_x: at?.x ?? null, board_y: at?.y ?? null }),
     addThread: () => api.addThread(),
     editThread: (id, patch) => void api.editThread(id, patch),
     removeThread: (id) => void api.removeThread(id),
+    moveThread: (id, at) => void api.editThread(id, { board_x: at?.x ?? null, board_y: at?.y ?? null }),
     tag: (nodeId, threadId, note) => void api.tag(nodeId, threadId, note),
     untag: (nodeId, threadId) => void api.untag(nodeId, threadId),
     makeConstraint: (th) => void makeConstraint(th),
     readThread: goThread,
-  }), [api, goNode, goThread, makeConstraint, removeNode])
+    renameProject: (title) => void setProjectField({ title }),
+    editProjectIntent: (intent) => void setProjectField({ intent }),
+    editProjectRules: (rules) => void setProjectField({ rules }),
+    moveVision: (at) => void setProjectField({ vision_x: at?.x ?? null, vision_y: at?.y ?? null }),
+    /** Clears every hand placement at once: every piece, every thread's hub,
+     *  and the vision block all fall back to their auto positions. */
+    tidyBoard: () => {
+      for (const piece of roots) void api.editNode(piece.id, { board_x: null, board_y: null })
+      for (const th of tree.threads) void api.editThread(th.id, { board_x: null, board_y: null })
+      void setProjectField({ vision_x: null, vision_y: null })
+    },
+  }), [api, goNode, goThread, makeConstraint, removeNode, roots, setProjectField, tree.threads])
 
   // ── loading and error ─────────────────────────────────────────────────────
   if (state.status === 'loading') {
@@ -348,7 +363,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         <CanvasStage
           header={
             <StageHeader
-              title={project.title}
               onUp={(el) => goShelf(el)}
               upLabel={`back to ${LEVELS.shelf.name}`}
               status={savingMark}
@@ -361,75 +375,29 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                   <path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" />
                 </StageIcon>
               }
-              reveal={
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <InlineField
-                    ariaLabel="what this project is for"
-                    value={project.intent ?? ''}
-                    placeholder="say what the whole project is, and what it has to do…"
-                    multiline
-                    disabled={readOnly}
-                    onCommit={(intent) => void setProjectField({ intent })}
-                    style={{ ...canvasType.conceptBody, color: t.textPrimary }}
-                  />
-                  <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-                        <path d="M5 4h14v16H5z" />
-                        <line x1="8.5" y1="9" x2="15.5" y2="9" />
-                        <line x1="8.5" y1="13" x2="15.5" y2="13" />
-                        <line x1="8.5" y1="17" x2="12" y2="17" />
-                      </svg>
-                      <span style={{ ...canvasType.chip }}>
-                        {projectRules.filter((r) => !r.retired_at).length || 'no'} rules in force
-                      </span>
-                    </div>
-                    <RuleList
-                      rules={projectRules}
-                      inherited={[]}
-                      disabled={readOnly}
-                      onChange={(rules) => void setProjectField({ rules })}
-                    />
-                  </div>
-                  {checks}
-                </div>
-              }
             />
           }
         >
-          {roots.length === 0 ? (
-            <div
-              style={{
-                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, textAlign: 'center',
-              }}
-            >
-              <p style={{ ...canvasType.small, color: shell.muted, margin: 0, maxWidth: 380 }}>
-                Nothing here yet. A piece is one whole thing — a film, a chapter, a song, an essay.
-              </p>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => void api.addNode(null)}
-                  style={{
-                    ...canvasType.small, fontSize: 13, padding: '10px 16px', borderRadius: radius.field,
-                    border: 'none', background: shell.text, color: shell.ink, cursor: 'pointer',
-                  }}
-                >
-                  the first piece
-                </button>
-              )}
+          {checks && (
+            <div style={{ position: 'absolute', top: 74, left: '50%', transform: 'translateX(-50%)', zIndex: 8, width: 'min(440px, calc(100vw - 32px))' }}>
+              {checks}
             </div>
-          ) : (
-            <Board
-              pieces={roots}
-              threads={tree.threads}
-              tagFor={tagFor}
-              appearancesFor={appearancesFor}
-              actions={boardActions}
-              disabled={readOnly}
-            />
           )}
+          <Board
+            project={{
+              title: project.title,
+              intent: project.intent ?? '',
+              rules: projectRules,
+              vision_x: project.vision_x,
+              vision_y: project.vision_y,
+            }}
+            pieces={roots}
+            threads={tree.threads}
+            tagFor={tagFor}
+            appearancesFor={appearancesFor}
+            actions={boardActions}
+            disabled={readOnly}
+          />
         </CanvasStage>
         {companionDrawer}
       </>

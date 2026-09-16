@@ -98,7 +98,7 @@ export function useWork(projectId: string) {
       await guard(() => work.patchNode(id, {
         title: patch.title, intent: patch.intent, beat: patch.beat,
         stands_whole: patch.stands_whole, body: patch.body, status: patch.status,
-        rules: patch.rules,
+        rules: patch.rules, board_x: patch.board_x, board_y: patch.board_y,
       }))
     },
 
@@ -155,6 +155,7 @@ export function useWork(projectId: string) {
       setTree((prev) => ({ ...prev, threads: prev.threads.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
       await guard(() => work.patchThread(id, {
         name: patch.name, intent: patch.intent, hue: patch.hue as ThreadHue, rules: patch.rules as Rule[],
+        board_x: patch.board_x, board_y: patch.board_y,
       }))
     },
 

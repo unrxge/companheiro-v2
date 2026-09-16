@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   MARGIN, ZOOM, centreOn, clampPan, clampToWorld, clampZoom, deskSlot, freeSlot, hashOf,
-  laneCardWidth, laneIndexAt, laneSlot, laneWorld, overlaps, packRow, tiltOf, toScreen, toWorld, zoomAbout,
+  growWorld, laneCardWidth, laneIndexAt, laneSlot, laneWorld, overlaps, packRow, smoothPath, tiltOf, toScreen, toWorld, zoomAbout,
 } from '@/lib/studio/surface'
 
 const frame = { w: 1200, h: 800 }
@@ -152,4 +152,32 @@ test('packRow handles preferred positions out of order', () => {
   const out = packRow([500, 0], 50)
   assert.ok(out[1] < out[0])
   assert.ok(out[0] - out[1] >= 50)
+})
+
+// ── smoothPath / growWorld ───────────────────────────────────────────────────
+
+test('smoothPath starts and ends exactly on the two points', () => {
+  const d = smoothPath({ x: 10, y: 20 }, { x: 200, y: 5 })
+  assert.ok(d.startsWith('M 10 20 C'))
+  assert.ok(d.endsWith('200 5'))
+})
+
+test('smoothPath bows along the vertical axis when the drop is taller than it is wide', () => {
+  const d = smoothPath({ x: 0, y: 0 }, { x: 10, y: 300 })
+  // control points share their x with an endpoint when bowing vertically
+  assert.match(d, /M 0 0 C 0 150 10 150 10 300/)
+})
+
+test('smoothPath bows along the horizontal axis when the reach is wider than it is tall', () => {
+  const d = smoothPath({ x: 0, y: 0 }, { x: 300, y: 10 })
+  assert.match(d, /M 0 0 C 150 0 150 10 300 10/)
+})
+
+test('growWorld only ever grows, never shrinks, a world', () => {
+  const w0 = { w: 100, h: 100 }
+  const w1 = growWorld(w0, 500, 500, 50, 50, 20)
+  assert.equal(w1.w, 570)
+  assert.equal(w1.h, 570)
+  const w2 = growWorld(w1, 0, 0, 10, 10, 20)
+  assert.deepEqual(w2, w1)
 })

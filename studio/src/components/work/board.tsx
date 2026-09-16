@@ -2,34 +2,47 @@
 
 // studio/src/components/work/board.tsx — level 2, the board.
 //
-// The pieces of one project, laid across a bounded canvas in reading order.
-// What runs across them is drawn underneath as a web: one block per thread,
-// with a line running from it to every piece it touches. A thread that
-// appears on three pieces is one block, not three copies of the same branch —
-// the repetition that used to sit under every card is gone.
+// Everything on it can be picked up and put down: the pieces, the threads'
+// hubs, and the project's own vision block. A piece or a hub with no hand
+// placement of its own sits in its reading-order lane or near the pieces it
+// touches — "rearrange" (next to the zoom control) puts everything back
+// there in one motion by clearing every hand placement at once.
 //
-// One rule has teeth here: a thread connected to every single piece is not a
-// thread any more, it is a constraint on the project, and the board says so
-// before it lets you finish the last connection.
+// What runs across the pieces is drawn underneath as a web: one block per
+// thread, with a line running to every piece it touches — never repeated
+// per card. A thread connected to every single piece is not a thread any
+// more, it is a constraint on the project, and the board says so before it
+// lets you finish the last connection.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/surface/surface'
 import { PieceCard } from '@/components/work/piece-card'
 import { ThreadCard } from '@/components/work/thread-card'
+import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, VISION_W } from '@/components/work/vision-block'
 import { hueOf } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
-import type { Appearance, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
-import { MARGIN, laneCardWidth, laneSlot, packRow } from '@/lib/studio/surface'
+import type { Appearance, Rule, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
+import {
+  MARGIN, growWorld, laneCardWidth, laneSlot, packRow, smoothPath, toWorld, type Point,
+} from '@/lib/studio/surface'
 
 const GAP = 44
-const CARD_TOP = 108
+const BASE_CARD_TOP = 108
 const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 208
 const HUB_H = 68
 const HUB_GAP = 30
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
+
+export interface BoardProject {
+  title: string
+  intent: string
+  rules: Rule[]
+  vision_x: number | null
+  vision_y: number | null
+}
 
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
@@ -37,20 +50,32 @@ export interface BoardActions {
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
+  movePiece: (id: string, at: Point | null) => void
   /** Makes a new, unattached thread. Opened straight away so it can be named
    *  and connected to its first pieces from the checklist. */
   addThread: () => Promise<Thread | null>
   editThread: (id: string, patch: Partial<Thread>) => void
   removeThread: (id: string) => void
+  moveThread: (id: string, at: Point | null) => void
   tag: (nodeId: string, threadId: string, note?: string) => void
   untag: (nodeId: string, threadId: string) => void
   /** The thread runs through everything; keep it as a rule on the project. */
   makeConstraint: (thread: Thread) => void
   /** Read every appearance of the thread in order, one level down. */
   readThread: (id: string) => void
+  renameProject: (title: string) => void
+  editProjectIntent: (intent: string) => void
+  editProjectRules: (rules: Rule[]) => void
+  moveVision: (at: Point | null) => void
+  /** Clears every hand placement at once: pieces, hubs, and the vision block
+   *  all return to their auto positions. */
+  tidyBoard: () => void
 }
 
+type Drag = { kind: 'piece' | 'hub' | 'vision'; id: string; at: Point }
+
 export function Board({
+  project,
   pieces,
   threads,
   tagFor,
@@ -58,6 +83,7 @@ export function Board({
   actions,
   disabled = false,
 }: {
+  project: BoardProject
   pieces: TreeNode[]
   threads: Thread[]
   tagFor: (nodeId: string, threadId: string) => ThreadTag | undefined
@@ -69,14 +95,27 @@ export function Board({
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
 
+  const [drag, setDrag] = useState<Drag | null>(null)
   const [arming, setArming] = useState<string | null>(null)
   const [asking, setAsking] = useState<{ thread: Thread; toId: string } | null>(null)
   const [openThread, setOpenThread] = useState<string | null>(null)
+  const [visionOpen, setVisionOpen] = useState(false)
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
   const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
+
+  const visionH = visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H
+  const visionMoved = project.vision_x !== null || project.vision_y !== null
+  // Pieces clear the vision block's default spot only while it is still
+  // sitting there — drag it away and the lane is free to sit higher again.
+  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + GAP)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
-  const cardCenterX = useCallback((i: number) => cardX(i) + cardW / 2, [cardX, cardW])
+
+  /** Where a piece actually is right now: hand-placed, mid-drag, or in lane. */
+  const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
+    if (drag?.kind === 'piece' && drag.id === piece.id) return drag.at
+    return { x: piece.board_x ?? cardX(i), y: piece.board_y ?? cardTop }
+  }, [drag, cardX, cardTop])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -102,36 +141,60 @@ export function Board({
     [threads, presence],
   )
 
-  /** Each hub sits near the average position of the pieces it touches, so the
-   *  web reads as threads reaching toward their pieces rather than a legend
-   *  with no relationship to what is on screen. packRow keeps them from
-   *  landing on top of one another when their pieces overlap. */
-  const hubX = useMemo(() => {
+  const webTop = cardTop + cardH + WEB_GAP
+
+  /** Each un-placed hub sits near the average position of the pieces it
+   *  touches, so the web reads as threads reaching toward their pieces
+   *  rather than a legend with no relationship to what is on screen.
+   *  packRow keeps them from landing on top of one another. */
+  const autoHubX = useMemo(() => {
     const preferred = hubs.map((th) => {
       const on = presence.get(th.id)?.roots ?? new Set<string>()
-      const xs = pieces.map((p, i) => (on.has(p.id) ? cardCenterX(i) : null)).filter((x): x is number => x !== null)
+      const xs = pieces
+        .map((p, i) => (on.has(p.id) ? pieceAt(p, i).x + cardW / 2 : null))
+        .filter((x): x is number => x !== null)
       return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : MARGIN + HUB_W / 2
     })
     const packed = packRow(preferred, HUB_W + HUB_GAP)
     const map = new Map<string, number>()
     hubs.forEach((th, i) => map.set(th.id, Math.max(MARGIN, packed[i] - HUB_W / 2)))
     return map
-  }, [hubs, presence, pieces, cardCenterX])
+  }, [hubs, presence, pieces, pieceAt, cardW])
 
-  const hubRight = hubs.length ? Math.max(...hubs.map((th) => (hubX.get(th.id) ?? 0) + HUB_W)) : MARGIN
-  const webTop = CARD_TOP + cardH + WEB_GAP
+  /** Where a thread's hub actually is right now. */
+  const hubAt = useCallback((th: Thread): Point => {
+    if (drag?.kind === 'hub' && drag.id === th.id) return drag.at
+    return { x: th.board_x ?? autoHubX.get(th.id) ?? MARGIN, y: th.board_y ?? webTop }
+  }, [drag, autoHubX, webTop])
 
-  const world = useMemo(() => ({
-    w: Math.max(frame.w || 0, MARGIN * 2 + (pieces.length + 1) * (cardW + GAP), hubRight + HUB_W + GAP + MARGIN),
-    h: Math.max(frame.h || 0, webTop + HUB_H + MARGIN),
-  }), [frame, pieces.length, cardW, hubRight, webTop])
+  const visionAt: Point = useMemo(
+    () => (drag?.kind === 'vision' ? drag.at : { x: project.vision_x ?? MARGIN, y: project.vision_y ?? MARGIN }),
+    [drag, project.vision_x, project.vision_y],
+  )
+
+  const hubRight = hubs.length ? Math.max(...hubs.map((th) => hubAt(th).x + HUB_W)) : MARGIN
+
+  const world = useMemo(() => {
+    let w = { w: frame.w || 0, h: frame.h || 0 }
+    w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
+    w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
+    w = growWorld(w, visionAt.x, visionAt.y, VISION_W, visionH)
+    for (const [i, piece] of pieces.entries()) {
+      const at = pieceAt(piece, i)
+      w = growWorld(w, at.x, at.y, cardW, cardH)
+    }
+    for (const th of hubs) {
+      const at = hubAt(th)
+      w = growWorld(w, at.x, at.y, HUB_W, HUB_H)
+    }
+    return w
+  }, [frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH])
 
   const canvas = useCanvas(ref, frame, world)
 
   /** Where each piece's connection points land along its own bottom edge —
-   *  one per thread touching it, ordered the same as the hubs across the
-   *  board, fanned out so two threads on one card do not draw on top of
-   *  each other. */
+   *  one per thread touching it, fanned out so two threads on one card do
+   *  not draw on top of each other. */
   const markersFor = useCallback((pieceId: string) => {
     const mine = hubs.filter((th) => presence.get(th.id)?.roots.has(pieceId))
     const n = mine.length
@@ -155,6 +218,52 @@ export function Board({
     actions.reorder(ids)
   }, [actions, pieces])
 
+  /** One drag gesture, for anything on the board. Persists the drop only
+   *  when the pointer actually travelled — a plain click never moves
+   *  anything, so every inner button keeps working exactly as it did. */
+  const beginDrag = useCallback((
+    kind: Drag['kind'], id: string, committed: Point, onDrop: (at: Point) => void,
+  ) => (e: React.PointerEvent) => {
+    if (disabled) return
+    const el = ref.current
+    if (!el || e.button !== 0) return
+    const box = el.getBoundingClientRect()
+    const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
+    const offset = { x: grab.x - committed.x, y: grab.y - committed.y }
+    let moved = false
+    let landed = committed
+    const target = e.currentTarget as HTMLElement
+    // Capture is deferred until real movement, not set here at the down
+    // event: capturing immediately redirects the click that follows a plain
+    // press-and-release to this wrapper (the nearest common ancestor of
+    // wherever the finger went down and up), so a rename or delete button
+    // inside the card would stop receiving its own clicks entirely.
+    const onMove = (ev: PointerEvent) => {
+      const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
+      landed = { x: Math.round(Math.max(0, now.x - offset.x)), y: Math.round(Math.max(0, now.y - offset.y)) }
+      if (!moved && (Math.abs(landed.x - committed.x) > 3 || Math.abs(landed.y - committed.y) > 3)) {
+        moved = true
+        target.setPointerCapture(ev.pointerId)
+      }
+      if (moved) setDrag({ kind, id, at: landed })
+    }
+    const onUp = (ev: PointerEvent) => {
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', onUp)
+      target.removeEventListener('pointercancel', onUp)
+      if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
+      setDrag(null)
+      if (moved) onDrop(landed)
+    }
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', onUp)
+    target.addEventListener('pointercancel', onUp)
+  }, [canvas.pan, canvas.zoom, disabled])
+
+  /** Every hand placement, gone at once: pieces to their lane, hubs to their
+   *  pieces, the vision block back to the corner. */
+  const rearrange = useCallback(() => actions.tidyBoard(), [actions])
+
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
    *  glass. */
@@ -163,17 +272,15 @@ export function Board({
     setArming(th.id)
     const on = presence.get(th.id)?.roots ?? new Set<string>()
     const open = pieces.map((p, i) => (on.has(p.id) ? -1 : i)).filter((i) => i >= 0)
-    const anchorX = hubX.get(th.id)
-    if (open.length === 0 || anchorX === undefined) return
-    const hubCenter = anchorX + HUB_W / 2
+    if (open.length === 0) return
+    const hubCenter = hubAt(th).x + HUB_W / 2
     const nearest = open.reduce(
-      (best, i) => (Math.abs(cardCenterX(i) - hubCenter) < Math.abs(cardCenterX(best) - hubCenter) ? i : best),
+      (best, i) => (Math.abs(pieceAt(pieces[i], i).x + cardW / 2 - hubCenter) < Math.abs(pieceAt(pieces[best], best).x + cardW / 2 - hubCenter) ? i : best),
       open[0],
     )
-    // Sideways only: the web must not jump up and down while you are aiming.
-    const holdY = (canvas.frame.h / 2 - canvas.pan.y) / canvas.zoom
-    canvas.glideTo({ x: cardCenterX(nearest), y: holdY })
-  }, [arming, canvas, cardCenterX, hubX, pieces, presence])
+    const at = pieceAt(pieces[nearest], nearest)
+    canvas.glideTo({ x: at.x + cardW / 2, y: at.y + cardH / 2 })
+  }, [arming, canvas, cardW, cardH, hubAt, pieceAt, pieces, presence])
 
   /** Finishing a connection. Everything about the "all but one" rule is here. */
   const connectTo = useCallback((piece: TreeNode) => {
@@ -203,7 +310,7 @@ export function Board({
         ariaLabel="the board — the pieces of this project and the threads under them"
         chrome={
           <>
-            <ZoomPill canvas={canvas} />
+            <ZoomPill canvas={canvas} after={!disabled && <RearrangeButton onClick={rearrange} />} />
             {arming && armedThread && (
               <ConnectBanner thread={armedThread} onCancel={() => setArming(null)} />
             )}
@@ -218,21 +325,22 @@ export function Board({
           aria-hidden
         >
           {hubs.map((th) => {
-            const hx = (hubX.get(th.id) ?? 0) + HUB_W / 2
-            const hy = webTop
+            const hb = hubAt(th)
+            const hx = hb.x + HUB_W / 2
+            const hy = hb.y
             const colour = hueOf(t, th.hue)
             const here = presence.get(th.id)!
             return pieces.map((piece, i) => {
               if (!here.roots.has(piece.id)) return null
               const marker = markersFor(piece.id).find((m) => m.thread.id === th.id)
-              const ex = cardCenterX(i) + (marker?.dx ?? 0)
-              const ey = CARD_TOP + cardH
-              const midY = (ey + hy) / 2
+              const p = pieceAt(piece, i)
+              const ex = p.x + cardW / 2 + (marker?.dx ?? 0)
+              const ey = p.y + cardH
               const deep = !here.direct.has(piece.id)
               return (
                 <path
                   key={`${th.id}-${piece.id}`}
-                  d={`M ${ex} ${ey} C ${ex} ${midY} ${hx} ${midY} ${hx} ${hy}`}
+                  d={smoothPath({ x: ex, y: ey }, { x: hx, y: hy })}
                   fill="none"
                   stroke={alpha(colour, deep ? 0.32 : 0.55)}
                   strokeWidth={1.5}
@@ -244,13 +352,36 @@ export function Board({
           })}
         </svg>
 
+        {/* the project's own title, vision and rules */}
+        <div
+          onPointerDown={beginDrag('vision', 'vision', visionAt, (at) => actions.moveVision(at))}
+          style={{ position: 'absolute', left: visionAt.x, top: visionAt.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none' }}
+        >
+          <VisionBlock
+            title={project.title}
+            intent={project.intent}
+            rules={project.rules}
+            expanded={visionOpen}
+            onToggle={() => setVisionOpen((v) => !v)}
+            onRename={actions.renameProject}
+            onEditIntent={actions.editProjectIntent}
+            onEditRules={actions.editProjectRules}
+            disabled={disabled}
+          />
+        </div>
+
         {/* the pieces */}
         {pieces.map((piece, i) => {
           const targeted = Boolean(armedOn && !armedOn.has(piece.id))
+          const at = pieceAt(piece, i)
           return (
             <div
               key={piece.id}
-              style={{ position: 'absolute', left: cardX(i), top: CARD_TOP, width: cardW, height: cardH }}
+              onPointerDown={beginDrag('piece', piece.id, at, (landed) => actions.movePiece(piece.id, landed))}
+              style={{
+                position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
+                cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+              }}
             >
               <PieceCard
                 node={piece}
@@ -294,21 +425,27 @@ export function Board({
         })}
 
         {/* the web's own blocks — one per thread, wherever it sits */}
-        {hubs.map((th) => (
-          <Hub
-            key={th.id}
-            thread={th}
-            left={hubX.get(th.id) ?? 0}
-            top={webTop}
-            count={presence.get(th.id)?.roots.size ?? 0}
-            total={pieces.length}
-            armed={arming === th.id}
-            disabled={disabled}
-            onOpen={() => setOpenThread(th.id)}
-            onConnect={() => arm(th)}
-            onRemove={() => actions.removeThread(th.id)}
-          />
-        ))}
+        {hubs.map((th) => {
+          const at = hubAt(th)
+          return (
+            <div
+              key={th.id}
+              onPointerDown={beginDrag('hub', th.id, at, (landed) => actions.moveThread(th.id, landed))}
+              style={{ position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none' }}
+            >
+              <Hub
+                thread={th}
+                count={presence.get(th.id)?.roots.size ?? 0}
+                total={pieces.length}
+                armed={arming === th.id}
+                disabled={disabled}
+                onOpen={() => setOpenThread(th.id)}
+                onConnect={() => arm(th)}
+                onRemove={() => actions.removeThread(th.id)}
+              />
+            </div>
+          )
+        })}
 
         {!disabled && (
           <button
@@ -334,26 +471,32 @@ export function Board({
 
         {/* one more piece */}
         {!disabled && (
-          <button
-            data-hold
-            type="button"
-            aria-label="add a piece to this project"
-            title="add a piece"
-            onClick={actions.addPiece}
-            style={{
-              position: 'absolute', left: cardX(pieces.length), top: CARD_TOP,
-              width: Math.min(cardW, 260), height: cardH,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'transparent', cursor: 'pointer',
-              border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
-              color: shell.muted,
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+          <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: Math.min(cardW, 260) }}>
+            <button
+              data-hold
+              type="button"
+              aria-label="add a piece to this project"
+              title="add a piece"
+              onClick={actions.addPiece}
+              style={{
+                width: '100%', height: cardH,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'transparent', cursor: 'pointer',
+                border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
+                color: shell.muted,
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            {pieces.length === 0 && (
+              <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center' }}>
+                A piece is one whole thing — a film, a chapter, a song, an essay.
+              </p>
+            )}
+          </div>
         )}
       </Surface>
 
@@ -387,14 +530,37 @@ export function Board({
   )
 }
 
+// ── the "rearrange" tool, beside the zoom control ───────────────────────────
+
+function RearrangeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="rearrange everything neatly"
+      title="rearrange everything neatly"
+      onClick={onClick}
+      style={{
+        width: 26, height: 26, borderRadius: 999, padding: 0, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent', border: 'none', color: shell.muted,
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="4" width="7" height="7" rx="1.5" />
+        <rect x="13" y="4" width="7" height="7" rx="1.5" />
+        <rect x="4" y="13" width="7" height="7" rx="1.5" />
+        <rect x="13" y="13" width="7" height="7" rx="1.5" />
+      </svg>
+    </button>
+  )
+}
+
 // ── the block that stands for one thread ────────────────────────────────────
 
 function Hub({
-  thread, left, top, count, total, armed, disabled, onOpen, onConnect, onRemove,
+  thread, count, total, armed, disabled, onOpen, onConnect, onRemove,
 }: {
   thread: Thread
-  left: number
-  top: number
   count: number
   total: number
   armed: boolean
@@ -414,7 +580,7 @@ function Hub({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        position: 'absolute', left, top, width: HUB_W, height: HUB_H, boxSizing: 'border-box',
+        width: HUB_W, height: HUB_H, boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
         background: t.cardBg, borderRadius: radius.widget,
         // Separate longhands, not the `border` shorthand plus a `borderLeft`
@@ -465,7 +631,7 @@ function HubAct({ label, tone, onClick, children }: { label: string; tone: strin
       type="button"
       aria-label={label}
       title={label}
-      onClick={onClick}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
       style={{
         width: 20, height: 20, borderRadius: 6, padding: 0, border: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -501,7 +667,8 @@ function Marker({
     <button
       data-hold
       type="button"
-      onClick={onOpen}
+      onClick={(e) => { e.stopPropagation(); onOpen() }}
+      onPointerDown={(e) => e.stopPropagation()}
       title={title}
       aria-label={title}
       style={{

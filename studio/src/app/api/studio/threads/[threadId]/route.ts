@@ -2,7 +2,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, noContent, readJson,
+  assertProjectWritable, badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
 import { THREAD_COLS, clampText, normaliseRules, normaliseThread, requireThread } from '@/lib/studio/nodes-db'
@@ -28,6 +28,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.hue !== undefined) {
       if (typeof body.hue !== 'string' || !HUES.includes(body.hue as ThreadHue)) throw badRequest('unknown hue')
       patch.hue = body.hue
+    }
+    // Where this thread's hub sits on the board.
+    for (const axis of ['board_x', 'board_y'] as const) {
+      if (body[axis] === undefined) continue
+      if (body[axis] === null) { patch[axis] = null; continue }
+      if (!isFiniteNumber(body[axis])) throw badRequest(`${axis} must be a number or null`)
+      patch[axis] = Math.round(body[axis] as number)
     }
     if (Object.keys(patch).length === 0) return NextResponse.json({ thread })
 

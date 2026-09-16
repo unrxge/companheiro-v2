@@ -29,6 +29,7 @@ function project(
     completed_at: null, completion_note: null,
     viewport: { tx: 0, ty: 0, k: 1 },
     shelf_x: shelf?.x ?? null, shelf_y: shelf?.y ?? null,
+    vision_x: null, vision_y: null,
     settings: { snap: true, grid: true, sizes: false },
     auto_layout: true, composed_at: null, canvas_version: 1,
     last_opened_at: NOW, opened_before_at: NOW, created_at: NOW, updated_at: NOW,

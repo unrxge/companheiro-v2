@@ -35,6 +35,9 @@ export interface WorkNode {
   body: string
   extent: number
   status: NodeStatus
+  /** Where a root-level piece sits on the board. null = its reading-order lane. */
+  board_x: number | null
+  board_y: number | null
   created_at: string
   updated_at: string
 }
@@ -48,6 +51,9 @@ export interface Thread {
   intent: string
   rules: Rule[]
   hue: ThreadHue
+  /** Where this thread's hub sits on the board. null = near the pieces it touches. */
+  board_x: number | null
+  board_y: number | null
   created_at: string
   updated_at: string
 }
@@ -101,6 +107,8 @@ export interface PatchNodeRequest {
   body?: string
   status?: NodeStatus
   rules?: Rule[]
+  board_x?: number | null
+  board_y?: number | null
 }
 
 export interface ReorderRequest {
@@ -119,6 +127,8 @@ export interface PatchThreadRequest {
   intent?: string
   hue?: ThreadHue
   rules?: Rule[]
+  board_x?: number | null
+  board_y?: number | null
 }
 
 export interface TagRequest {

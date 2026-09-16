@@ -4,7 +4,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, noContent, readJson,
+  assertProjectWritable, badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
 import { NODE_COLS, clampText, extentFor, normaliseNode, normaliseRules, requireNode } from '@/lib/studio/nodes-db'
@@ -39,6 +39,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         throw badRequest('status must be open, drafted or done')
       }
       patch.status = body.status
+    }
+    // Where this piece sits on the board. Never touches extent/status —
+    // dragging a card around says nothing about the writing inside it.
+    for (const axis of ['board_x', 'board_y'] as const) {
+      if (body[axis] === undefined) continue
+      if (body[axis] === null) { patch[axis] = null; continue }
+      if (!isFiniteNumber(body[axis])) throw badRequest(`${axis} must be a number or null`)
+      patch[axis] = Math.round(body[axis] as number)
     }
     if (Object.keys(patch).length === 0) return NextResponse.json({ node })
 

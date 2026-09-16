@@ -75,6 +75,8 @@ export function devBundle(): ProjectBundle {
       viewport: { tx: 80, ty: 80, k: 1 },
     shelf_x: null,
     shelf_y: null,
+    vision_x: null,
+    vision_y: null,
       settings: { snap: true, grid: true, sizes: false },
       auto_layout: false, composed_at: T0, canvas_version: 1,
       last_opened_at: new Date().toISOString(), opened_before_at: T0,

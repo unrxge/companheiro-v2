@@ -268,7 +268,15 @@ function fadeStyle(frame: Frame): React.CSSProperties {
 }
 
 /** − ⌾ + in the corner. The only chrome the canvas needs. */
-export function ZoomPill({ canvas, onHome }: { canvas: Canvas; onHome?: () => void }) {
+export function ZoomPill({
+  canvas, onHome, after,
+}: {
+  canvas: Canvas
+  onHome?: () => void
+  /** Extra tools sharing this same glass pill, after a thin divider — e.g.
+   *  the board's "rearrange everything" button. */
+  after?: ReactNode
+}) {
   const at = Math.round(canvas.zoom * 100)
   return (
     <div
@@ -300,6 +308,12 @@ export function ZoomPill({ canvas, onHome }: { canvas: Canvas; onHome?: () => vo
         <line x1="6" y1="12" x2="18" y2="12" />
         <line x1="12" y1="6" x2="12" y2="18" />
       </PillButton>
+      {after && (
+        <>
+          <div aria-hidden style={{ width: 1, alignSelf: 'stretch', margin: '2px 1px', background: shell.line }} />
+          {after}
+        </>
+      )}
     </div>
   )
 }

@@ -72,6 +72,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!isFiniteNumber(body[axis])) throw badRequest(`${axis} must be a number or null`)
       patch[axis] = Math.round(body[axis] as number)
     }
+    // Where the title + vision + rules block sits on the board. Same story:
+    // moving it is not a change to the work.
+    for (const axis of ['vision_x', 'vision_y'] as const) {
+      if (body[axis] === undefined) continue
+      if (body[axis] === null) { patch[axis] = null; continue }
+      if (!isFiniteNumber(body[axis])) throw badRequest(`${axis} must be a number or null`)
+      patch[axis] = Math.round(body[axis] as number)
+    }
     if (body.settings !== undefined) {
       if (!isRecord(body.settings)) throw badRequest('settings must be an object')
       const next = { ...project.settings }

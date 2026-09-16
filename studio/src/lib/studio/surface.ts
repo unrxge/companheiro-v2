@@ -191,3 +191,29 @@ export function packRow(preferred: number[], minGap: number): number[] {
   }
   return placed
 }
+
+// ── connecting one point to another, wherever they end up ──────────────────
+
+/**
+ * A cubic S-curve between two arbitrary points, for the board's web of
+ * threads. Free placement means a hub can end up anywhere relative to the
+ * piece it touches — above, beside, below — so the curve picks its control
+ * points along whichever axis separates the two points more, and always
+ * leaves cleanly in that direction from both ends.
+ */
+export function smoothPath(a: Point, b: Point): string {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  if (Math.abs(dy) >= Math.abs(dx)) {
+    const my = (a.y + b.y) / 2
+    return `M ${a.x} ${a.y} C ${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`
+  }
+  const mx = (a.x + b.x) / 2
+  return `M ${a.x} ${a.y} C ${mx} ${a.y} ${mx} ${b.y} ${b.x} ${b.y}`
+}
+
+/** Grows a world just enough to keep one more box (plus margin) inside it.
+ *  Free-dragged content can land anywhere, so the world has to follow it. */
+export function growWorld(world: World, x: number, y: number, w: number, h: number, margin = MARGIN): World {
+  return { w: Math.max(world.w, x + w + margin), h: Math.max(world.h, y + h + margin) }
+}

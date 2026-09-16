@@ -32,7 +32,16 @@ function node(partial: Partial<WorkNode> & { id: string }): WorkNode {
   return {
     user_id: 'dev', project_id: 'dev', parent_id: null, position: 0,
     title: '', intent: '', beat: '', stands_whole: false, rules: [],
-    body: '', extent: 0, status: 'open', created_at: NOW, updated_at: NOW,
+    body: '', extent: 0, status: 'open', board_x: null, board_y: null,
+    created_at: NOW, updated_at: NOW,
+    ...partial,
+  }
+}
+
+function makeThread(partial: Partial<Thread> & { id: string; name: string; hue: Thread['hue'] }): Thread {
+  return {
+    user_id: 'dev', project_id: 'dev', position: 0, intent: '', rules: [],
+    board_x: null, board_y: null, created_at: NOW, updated_at: NOW,
     ...partial,
   }
 }
@@ -77,19 +86,17 @@ const SEED_NODES: WorkNode[] = [
 ]
 
 const SEED_THREADS: Thread[] = [
-  {
-    id: 'th-rosa', user_id: 'dev', project_id: 'dev', position: 0, hue: 'ember',
+  makeThread({
+    id: 'th-rosa', position: 0, hue: 'ember',
     name: 'rosa, withheld',
     intent: 'She never explains herself. By the third film the audience should understand her completely without her having said a single direct thing.',
     rules: [newRule('she never answers the question she was asked')],
-    created_at: NOW, updated_at: NOW,
-  },
-  {
-    id: 'th-house', user_id: 'dev', project_id: 'dev', position: 1, hue: 'tide',
+  }),
+  makeThread({
+    id: 'th-house', position: 1, hue: 'tide',
     name: 'the house',
     intent: 'It moves from background to subject to absence across the three films.',
-    rules: [], created_at: NOW, updated_at: NOW,
-  },
+  }),
 ]
 
 const SEED_TAGS: ThreadTag[] = [
@@ -109,6 +116,7 @@ export default function DevWorkPage() {
   )
   const [threads, setThreads] = useState<Thread[]>(SEED_THREADS)
   const [tags, setTags] = useState<ThreadTag[]>(SEED_TAGS)
+  const [projectTitle, setProjectTitle] = useState('nine nights')
   const [projectIntent, setProjectIntent] = useState(
     'Three short films about a daughter and a mother, released a month apart. Each one has to stand on its own for someone who finds it first, and the three together have to say the thing none of them says alone.',
   )
@@ -116,6 +124,7 @@ export default function DevWorkPage() {
     newRule('no voiceover, ever'),
     newRule('every film ends on an image, not a line'),
   ])
+  const [vision, setVision] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
   const [focus, setFocus] = useState<Focus>({ kind: 'project' })
   const [view, setView] = useState<'write' | 'map' | 'flow'>('write')
   const [rail, setRail] = useState<RailKey | null>(null)
@@ -199,13 +208,11 @@ export default function DevWorkPage() {
   const setScopeIntent = (intent: string) => (scopeNode ? editNode(scopeNode.id, { intent }) : setProjectIntent(intent))
 
   const addThread = useCallback(() => {
-    const id = uid()
-    const fresh: Thread = {
-      id, user_id: 'dev', project_id: 'dev', position: threads.length,
-      name: '', intent: '', rules: [],
+    const fresh = makeThread({
+      id: uid(), position: threads.length,
       hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[threads.length % 5],
-      created_at: NOW, updated_at: NOW,
-    }
+      name: '',
+    })
     setThreads((prev) => [...prev, fresh])
     return Promise.resolve(fresh as Thread | null)
   }, [threads.length])
@@ -216,12 +223,16 @@ export default function DevWorkPage() {
     removePiece: (piece) => removeNode(piece.id),
     renamePiece: (id, title) => editNode(id, { title }),
     reorder,
+    movePiece: (id, at) => editNode(id, { board_x: at?.x ?? null, board_y: at?.y ?? null }),
     addThread,
     editThread: (id, patch) => setThreads((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
     removeThread: (id) => {
       setThreads((prev) => prev.filter((x) => x.id !== id))
       setTags((prev) => prev.filter((x) => x.thread_id !== id))
     },
+    moveThread: (id, at) => setThreads((prev) => prev.map((x) => (
+      x.id === id ? { ...x, board_x: at?.x ?? null, board_y: at?.y ?? null } : x
+    ))),
     tag: (nodeId, threadId, note = '') => setTags((prev) => [
       ...prev.filter((x) => !(x.node_id === nodeId && x.thread_id === threadId)),
       { node_id: nodeId, thread_id: threadId, note },
@@ -236,6 +247,15 @@ export default function DevWorkPage() {
       setTags((prev) => prev.filter((x) => x.thread_id !== th.id))
     },
     readThread: (id) => setFocus({ kind: 'thread', id }),
+    renameProject: setProjectTitle,
+    editProjectIntent: setProjectIntent,
+    editProjectRules: setProjectRules,
+    moveVision: (at) => setVision({ x: at?.x ?? null, y: at?.y ?? null }),
+    tidyBoard: () => {
+      setNodes((prev) => prev.map((n) => (n.parent_id === null ? { ...n, board_x: null, board_y: null } : n)))
+      setThreads((prev) => prev.map((x) => ({ ...x, board_x: null, board_y: null })))
+      setVision({ x: null, y: null })
+    },
   }), [addNode, addThread, editNode, removeNode, reorder])
 
   const drawer = (
@@ -299,43 +319,9 @@ export default function DevWorkPage() {
   if (focus.kind === 'project') {
     return (
       <Level>
-        <CanvasStage
-          header={
-            <StageHeader
-              title="nine nights"
-              reveal={
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <InlineField
-                    ariaLabel="what this project is for"
-                    value={projectIntent}
-                    placeholder="say what the whole project is for…"
-                    multiline
-                    onCommit={setProjectIntent}
-                    style={{ ...canvasType.conceptBody, color: t.textPrimary }}
-                  />
-                  <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-                        <path d="M5 4h14v16H5z" />
-                        <line x1="8.5" y1="9" x2="15.5" y2="9" />
-                        <line x1="8.5" y1="13" x2="15.5" y2="13" />
-                        <line x1="8.5" y1="17" x2="12" y2="17" />
-                      </svg>
-                      <span style={{ ...canvasType.chip }}>
-                        {projectRules.filter((r) => !r.retired_at).length || 'no'} rules in force
-                      </span>
-                    </div>
-                    <RuleList rules={projectRules} inherited={[]} onChange={setProjectRules} />
-                  </div>
-                  <p style={{ ...canvasType.chip, color: t.textMuted, margin: 0 }}>
-                    dev · in memory, no database
-                  </p>
-                </div>
-              }
-            />
-          }
-        >
+        <CanvasStage header={<StageHeader status="dev · in memory" />}>
           <Board
+            project={{ title: projectTitle, intent: projectIntent, rules: projectRules, vision_x: vision.x, vision_y: vision.y }}
             pieces={roots}
             threads={threads}
             tagFor={tagFor}

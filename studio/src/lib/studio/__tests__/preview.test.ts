@@ -6,7 +6,8 @@ import type { WorkNode } from '@/lib/studio/node-types'
 const NOW = '2026-09-15T00:00:00.000Z'
 const node = (p: Partial<WorkNode> & { id: string }): WorkNode => ({
   user_id: 'u', project_id: 'p', parent_id: null, position: 0, title: '', intent: '', beat: '',
-  stands_whole: false, rules: [], body: '', extent: 0, status: 'open', created_at: NOW, updated_at: NOW, ...p,
+  stands_whole: false, rules: [], body: '', extent: 0, status: 'open', board_x: null, board_y: null,
+  created_at: NOW, updated_at: NOW, ...p,
 })
 
 test('paragraphs do not run together', () => {

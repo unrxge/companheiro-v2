@@ -46,7 +46,8 @@ export function StageHeader({
   actions,
   status,
 }: {
-  title: ReactNode
+  /** Omit when the level's identity now lives on the canvas itself. */
+  title?: ReactNode
   onUp?: (el: HTMLElement | null) => void
   upLabel?: string
   reveal?: ReactNode
@@ -76,9 +77,11 @@ export function StageHeader({
           </StageIcon>
         )}
 
-        <div style={{ ...canvasType.headingMd, color: shell.text, minWidth: 0, padding: '0 2px', maxWidth: '42vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {title}
-        </div>
+        {title && (
+          <div style={{ ...canvasType.headingMd, color: shell.text, minWidth: 0, padding: '0 2px', maxWidth: '42vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {title}
+          </div>
+        )}
 
         {reveal && (
           <StageIcon

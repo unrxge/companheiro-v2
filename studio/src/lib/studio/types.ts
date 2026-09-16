@@ -29,6 +29,9 @@ export interface Project {
   /** Where it lies on the desk (level 3). null until a hand moves it. */
   shelf_x: number | null
   shelf_y: number | null
+  /** Where the title + vision + rules block sits on the board (level 2). */
+  vision_x: number | null
+  vision_y: number | null
   settings: ProjectSettings
   auto_layout: boolean
   composed_at: string | null
@@ -297,6 +300,8 @@ export interface PatchProjectRequest {
   viewport?: Viewport
   shelf_x?: number | null
   shelf_y?: number | null
+  vision_x?: number | null
+  vision_y?: number | null
   settings?: Partial<ProjectSettings>
   auto_layout?: boolean
   composed_at?: string

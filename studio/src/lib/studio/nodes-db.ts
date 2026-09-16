@@ -6,9 +6,9 @@ import type { Rule, Thread, TreePayload, WorkNode } from '@/lib/studio/node-type
 import { wordCount } from '@/lib/studio/tree'
 
 export const NODE_COLS =
-  'id, user_id, project_id, parent_id, position, title, intent, beat, stands_whole, rules, body, extent, status, created_at, updated_at'
+  'id, user_id, project_id, parent_id, position, title, intent, beat, stands_whole, rules, body, extent, status, board_x, board_y, created_at, updated_at'
 export const THREAD_COLS =
-  'id, user_id, project_id, position, name, intent, rules, hue, created_at, updated_at'
+  'id, user_id, project_id, position, name, intent, rules, hue, board_x, board_y, created_at, updated_at'
 
 const LIMITS = { title: 200, intent: 4000, beat: 500, body: 200_000, rule: 300, rules: 40 } as const
 
