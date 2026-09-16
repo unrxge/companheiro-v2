@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   MARGIN, ZOOM, centreOn, clampPan, clampToWorld, clampZoom, deskSlot, freeSlot, hashOf,
-  laneCardWidth, laneIndexAt, laneSlot, laneWorld, overlaps, tiltOf, toScreen, toWorld, zoomAbout,
+  laneCardWidth, laneIndexAt, laneSlot, laneWorld, overlaps, packRow, tiltOf, toScreen, toWorld, zoomAbout,
 } from '@/lib/studio/surface'
 
 const frame = { w: 1200, h: 800 }
@@ -134,4 +134,22 @@ test('the outward walk finds a slot even when the wanted one and its neighbours 
   const grid = Array.from({ length: 9 }, (_, i) => deskSlot(i, { ...spec, cols: 3 }))
   const landed = freeSlot(grid[4], grid, { ...spec, cols: 3 }, { w: 4000, h: 4000 })
   assert.ok(grid.every((g) => !overlaps(landed, g, spec.cardW, spec.cardH, 4)))
+})
+
+test('packRow keeps order and enforces minimum spacing', () => {
+  const out = packRow([100, 100, 100], 50)
+  assert.deepEqual(out, [100, 150, 200])
+})
+
+test('packRow leaves well-separated items at their preferred spot', () => {
+  const out = packRow([0, 500, 1000], 50)
+  assert.deepEqual(out, [0, 500, 1000])
+})
+
+test('packRow handles preferred positions out of order', () => {
+  // index 0 wants to sit right of index 1 — packRow orders by position, not
+  // by index, so the returned values still keep index 0 to the right.
+  const out = packRow([500, 0], 50)
+  assert.ok(out[1] < out[0])
+  assert.ok(out[0] - out[1] >= 50)
 })

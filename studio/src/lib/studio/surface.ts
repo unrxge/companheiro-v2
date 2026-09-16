@@ -168,3 +168,26 @@ export function laneIndexAt(pan: Point, k: number, frame: Frame, cardW: number, 
   const centre = toWorld({ x: frame.w / 2, y: 0 }, pan, k).x
   return Math.max(0, Math.round((centre - originX - cardW / 2) / (cardW + gap)))
 }
+
+/**
+ * Lays a row of same-size blocks out at their preferred centres, preserving
+ * relative order and enforcing a minimum spacing between them. Used to place
+ * the board's thread hubs near the pieces they connect to without stacking
+ * two hubs on top of each other.
+ *
+ * A short, stable substitute for a real force layout: sorts by preferred
+ * position, then sweeps left to right pushing each one just far enough past
+ * its predecessor. A long run of hubs wanting the same spot drifts rightward
+ * rather than overlapping — the right trade for a handful of threads.
+ */
+export function packRow(preferred: number[], minGap: number): number[] {
+  const order = preferred.map((_, i) => i).sort((a, b) => preferred[a] - preferred[b])
+  const placed = new Array<number>(preferred.length)
+  let last = -Infinity
+  for (const i of order) {
+    const x = Math.max(preferred[i], last + minGap)
+    placed[i] = x
+    last = x
+  }
+  return placed
+}

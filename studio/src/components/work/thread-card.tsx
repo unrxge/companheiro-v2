@@ -12,7 +12,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { InlineField, hueOf } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
-import type { Thread, ThreadHue, TreeNode } from '@/lib/studio/node-types'
+import type { Thread, ThreadHue, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 
 const HUES: ThreadHue[] = ['ember', 'verdant', 'violet', 'ochre', 'tide']
 
@@ -21,10 +21,12 @@ export function ThreadCard({
   pieces,
   on,
   direct,
+  tagFor,
   disabled,
   onClose,
   onEdit,
   onTag,
+  onNote,
   onUntag,
   onRemove,
   onRead,
@@ -35,10 +37,13 @@ export function ThreadCard({
   on: Set<string>
   /** Pieces it is marked on itself. */
   direct: Set<string>
+  tagFor: (nodeId: string, threadId: string) => ThreadTag | undefined
   disabled: boolean
   onClose: () => void
   onEdit: (patch: Partial<Thread>) => void
   onTag: (nodeId: string) => void
+  /** What this thread does at this particular piece. */
+  onNote: (nodeId: string, note: string) => void
   onUntag: (nodeId: string) => void
   onRemove: () => void
   /** Every appearance in reading order — the screenwriter's character pass. */
@@ -161,34 +166,43 @@ export function ThreadCard({
               const here = on.has(piece.id)
               const own = direct.has(piece.id)
               return (
-                <label
-                  key={piece.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8,
-                    cursor: disabled || (here && !own) ? 'default' : 'pointer',
-                    background: here ? alpha(colour, 0.07) : 'transparent',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={here}
-                    disabled={disabled || (here && !own)}
-                    onChange={(e) => (e.target.checked ? onTag(piece.id) : onUntag(piece.id))}
-                  />
-                  <span
+                <div key={piece.id} style={{ padding: '5px 8px', borderRadius: 8, background: here ? alpha(colour, 0.07) : 'transparent' }}>
+                  <label
                     style={{
-                      ...canvasType.small, color: here ? t.textPrimary : t.textMuted,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      cursor: disabled || (here && !own) ? 'default' : 'pointer',
                     }}
                   >
-                    {piece.title || 'untitled piece'}
-                  </span>
-                  {here && !own && (
-                    <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', flexShrink: 0 }}>
-                      inside
+                    <input
+                      type="checkbox"
+                      checked={here}
+                      disabled={disabled || (here && !own)}
+                      onChange={(e) => (e.target.checked ? onTag(piece.id) : onUntag(piece.id))}
+                    />
+                    <span
+                      style={{
+                        ...canvasType.small, color: here ? t.textPrimary : t.textMuted,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {piece.title || 'untitled piece'}
                     </span>
+                    {here && !own && (
+                      <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', flexShrink: 0 }}>
+                        inside
+                      </span>
+                    )}
+                  </label>
+                  {own && (
+                    <div style={{ paddingLeft: 26, marginTop: 2 }}>
+                      <NoteField
+                        note={tagFor(piece.id, thread.id)?.note ?? ''}
+                        disabled={disabled}
+                        onCommit={(note) => onNote(piece.id, note)}
+                      />
+                    </div>
                   )}
-                </label>
+                </div>
               )
             })}
           </div>
@@ -224,5 +238,41 @@ export function ThreadCard({
         </div>
       </div>
     </div>
+  )
+}
+
+/** What this thread does at one particular piece — an inline field that
+ *  commits on blur, the same pattern as every other quiet field in the app. */
+function NoteField({
+  note, disabled, onCommit,
+}: {
+  note: string
+  disabled: boolean
+  onCommit: (note: string) => void
+}) {
+  const { t } = useTheme()
+  const [draft, setDraft] = useState(note)
+  const [focused, setFocused] = useState(false)
+  useEffect(() => { if (!focused) setDraft(note) }, [note, focused])
+
+  return (
+    <input
+      aria-label="what it does here"
+      value={draft}
+      placeholder="say what it does here…"
+      disabled={disabled}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false)
+        if (draft.trim() !== note.trim()) onCommit(draft.trim())
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      style={{
+        ...canvasType.small, fontSize: 12, width: '100%',
+        color: note ? t.textSecondary : alpha(t.textPrimary, 0.35),
+        background: 'transparent', border: 'none', outline: 'none', padding: 0,
+      }}
+    />
   )
 }

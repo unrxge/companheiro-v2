@@ -2,14 +2,11 @@
 
 // studio/src/components/work/board.tsx — level 2, the board.
 //
-// The pieces of one project, laid across a bounded canvas in reading order,
-// and under each one its spine: a line dropping from the piece with a branch
-// for every thread hanging off it — the anchor lines, the constraints, the
-// things not to forget.
-//
-// A thread keeps the same row on every spine, so when it runs from one piece
-// to the next you see the line actually cross the gap, and where it stops you
-// see it stop. That gap is the whole reason this view exists.
+// The pieces of one project, laid across a bounded canvas in reading order.
+// What runs across them is drawn underneath as a web: one block per thread,
+// with a line running from it to every piece it touches. A thread that
+// appears on three pieces is one block, not three copies of the same branch —
+// the repetition that used to sit under every card is gone.
 //
 // One rule has teeth here: a thread connected to every single piece is not a
 // thread any more, it is a constraint on the project, and the board says so
@@ -24,16 +21,15 @@ import { hueOf } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Appearance, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
-import { MARGIN, laneCardWidth, laneSlot } from '@/lib/studio/surface'
+import { MARGIN, laneCardWidth, laneSlot, packRow } from '@/lib/studio/surface'
 
 const GAP = 44
 const CARD_TOP = 108
-const SPINE_GAP = 26
-const SPINE_HEAD = 20
-const ROW_H = 44
-const TRUNK_DX = 28
-const BRANCH = 22
-const SPINE_TAIL = 44
+const WEB_GAP = 46      // space between the cards and the web below them
+const HUB_W = 208
+const HUB_H = 68
+const HUB_GAP = 30
+const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
 
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
@@ -41,8 +37,9 @@ export interface BoardActions {
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
-  /** Makes one and hangs it here; returns its id so the board can open it. */
-  addThread: (onNode: string) => Promise<string | null>
+  /** Makes a new, unattached thread. Opened straight away so it can be named
+   *  and connected to its first pieces from the checklist. */
+  addThread: () => Promise<Thread | null>
   editThread: (id: string, patch: Partial<Thread>) => void
   removeThread: (id: string) => void
   tag: (nodeId: string, threadId: string, note?: string) => void
@@ -72,12 +69,14 @@ export function Board({
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
 
-  const [arming, setArming] = useState<{ threadId: string; fromId: string } | null>(null)
+  const [arming, setArming] = useState<string | null>(null)
   const [asking, setAsking] = useState<{ thread: Thread; toId: string } | null>(null)
   const [openThread, setOpenThread] = useState<string | null>(null)
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
   const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
+  const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
+  const cardCenterX = useCallback((i: number) => cardX(i) + cardW / 2, [cardX, cardW])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -95,27 +94,49 @@ export function Board({
     return map
   }, [threads, appearancesFor])
 
-  /** One row per thread that is actually on the board, in thread order, so a
-   *  thread sits at the same height above every piece it touches. */
-  const rows = useMemo(
+  /** The threads that actually have a hub — the ones with at least one piece.
+   *  A brand-new thread with nothing on it yet lives only in its own card,
+   *  reached through the "+ thread" button, until it has its first line. */
+  const hubs = useMemo(
     () => threads.filter((th) => (presence.get(th.id)?.roots.size ?? 0) > 0),
     [threads, presence],
   )
-  const rowOf = useMemo(() => new Map(rows.map((th, i) => [th.id, i])), [rows])
 
-  const spineH = SPINE_HEAD + rows.length * ROW_H + SPINE_TAIL
+  /** Each hub sits near the average position of the pieces it touches, so the
+   *  web reads as threads reaching toward their pieces rather than a legend
+   *  with no relationship to what is on screen. packRow keeps them from
+   *  landing on top of one another when their pieces overlap. */
+  const hubX = useMemo(() => {
+    const preferred = hubs.map((th) => {
+      const on = presence.get(th.id)?.roots ?? new Set<string>()
+      const xs = pieces.map((p, i) => (on.has(p.id) ? cardCenterX(i) : null)).filter((x): x is number => x !== null)
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : MARGIN + HUB_W / 2
+    })
+    const packed = packRow(preferred, HUB_W + HUB_GAP)
+    const map = new Map<string, number>()
+    hubs.forEach((th, i) => map.set(th.id, Math.max(MARGIN, packed[i] - HUB_W / 2)))
+    return map
+  }, [hubs, presence, pieces, cardCenterX])
+
+  const hubRight = hubs.length ? Math.max(...hubs.map((th) => (hubX.get(th.id) ?? 0) + HUB_W)) : MARGIN
+  const webTop = CARD_TOP + cardH + WEB_GAP
+
   const world = useMemo(() => ({
-    w: Math.max(frame.w || 0, MARGIN * 2 + (pieces.length + 1) * (cardW + GAP)),
-    h: Math.max(frame.h || 0, CARD_TOP + cardH + SPINE_GAP + spineH + MARGIN),
-  }), [frame, pieces.length, cardW, cardH, spineH])
+    w: Math.max(frame.w || 0, MARGIN * 2 + (pieces.length + 1) * (cardW + GAP), hubRight + HUB_W + GAP + MARGIN),
+    h: Math.max(frame.h || 0, webTop + HUB_H + MARGIN),
+  }), [frame, pieces.length, cardW, hubRight, webTop])
 
   const canvas = useCanvas(ref, frame, world)
 
-  const rowY = useCallback(
-    (threadId: string) => CARD_TOP + cardH + SPINE_GAP + SPINE_HEAD + (rowOf.get(threadId) ?? 0) * ROW_H + ROW_H / 2,
-    [cardH, rowOf],
-  )
-  const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
+  /** Where each piece's connection points land along its own bottom edge —
+   *  one per thread touching it, ordered the same as the hubs across the
+   *  board, fanned out so two threads on one card do not draw on top of
+   *  each other. */
+  const markersFor = useCallback((pieceId: string) => {
+    const mine = hubs.filter((th) => presence.get(th.id)?.roots.has(pieceId))
+    const n = mine.length
+    return mine.map((th, i) => ({ thread: th, dx: (i - (n - 1) / 2) * MARKER_SPACING }))
+  }, [hubs, presence])
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {
@@ -134,25 +155,30 @@ export function Board({
     actions.reorder(ids)
   }, [actions, pieces])
 
-  /** Arming a connection carries the view to the nearest piece that could take
-   *  it — otherwise the only thing you can click is off the side of the glass. */
-  const arm = useCallback((th: Thread, fromId: string) => {
-    if (arming?.threadId === th.id) { setArming(null); return }
-    setArming({ threadId: th.id, fromId })
+  /** Arming a connection carries the view toward the nearest piece that could
+   *  take it — otherwise the only thing you can click is off the side of the
+   *  glass. */
+  const arm = useCallback((th: Thread) => {
+    if (arming === th.id) { setArming(null); return }
+    setArming(th.id)
     const on = presence.get(th.id)?.roots ?? new Set<string>()
-    const here = pieces.findIndex((p) => p.id === fromId)
     const open = pieces.map((p, i) => (on.has(p.id) ? -1 : i)).filter((i) => i >= 0)
-    if (open.length === 0) return
-    const nearest = open.reduce((best, i) => (Math.abs(i - here) < Math.abs(best - here) ? i : best), open[0])
-    // Sideways only: the spines must not jump up and down while you are aiming.
+    const anchorX = hubX.get(th.id)
+    if (open.length === 0 || anchorX === undefined) return
+    const hubCenter = anchorX + HUB_W / 2
+    const nearest = open.reduce(
+      (best, i) => (Math.abs(cardCenterX(i) - hubCenter) < Math.abs(cardCenterX(best) - hubCenter) ? i : best),
+      open[0],
+    )
+    // Sideways only: the web must not jump up and down while you are aiming.
     const holdY = (canvas.frame.h / 2 - canvas.pan.y) / canvas.zoom
-    canvas.glideTo({ x: cardX(nearest) + cardW / 2, y: holdY })
-  }, [arming, canvas, cardW, cardX, pieces, presence])
+    canvas.glideTo({ x: cardCenterX(nearest), y: holdY })
+  }, [arming, canvas, cardCenterX, hubX, pieces, presence])
 
   /** Finishing a connection. Everything about the "all but one" rule is here. */
   const connectTo = useCallback((piece: TreeNode) => {
     if (!arming) return
-    const thread = threads.find((th) => th.id === arming.threadId)
+    const thread = threads.find((th) => th.id === arming)
     setArming(null)
     if (!thread) return
     const on = presence.get(thread.id)?.roots ?? new Set<string>()
@@ -161,7 +187,12 @@ export function Board({
     actions.tag(piece.id, thread.id)
   }, [actions, arming, pieces.length, presence, threads])
 
-  const armedThread = arming ? threads.find((th) => th.id === arming.threadId) ?? null : null
+  const addNewThread = useCallback(async () => {
+    const created = await actions.addThread()
+    if (created) setOpenThread(created.id)
+  }, [actions])
+
+  const armedThread = arming ? threads.find((th) => th.id === arming) ?? null : null
   const armedOn = armedThread ? presence.get(armedThread.id)?.roots ?? new Set<string>() : null
 
   return (
@@ -174,62 +205,38 @@ export function Board({
           <>
             <ZoomPill canvas={canvas} />
             {arming && armedThread && (
-              <ConnectBanner
-                thread={armedThread}
-                onCancel={() => setArming(null)}
-              />
+              <ConnectBanner thread={armedThread} onCancel={() => setArming(null)} />
             )}
           </>
         }
       >
-        {/* every line on the board, drawn once, under everything */}
+        {/* every line in the web, drawn once, under everything */}
         <svg
           width={world.w}
           height={world.h}
           style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}
           aria-hidden
         >
-          {pieces.map((piece, i) => {
-            const mine = rows.filter((th) => presence.get(th.id)?.roots.has(piece.id))
-            const x = cardX(i) + TRUNK_DX
-            const top = CARD_TOP + cardH + SPINE_GAP
-            const last = mine.length ? rowY(mine[mine.length - 1].id) : top + SPINE_HEAD
-            return (
-              <g key={piece.id}>
-                <line
-                  x1={x} y1={top} x2={x} y2={last + 16}
-                  stroke={alpha(t.textPrimary, 0.3)} strokeWidth={1.5} strokeLinecap="round"
-                />
-                {mine.map((th) => (
-                  <line
-                    key={th.id}
-                    x1={x} y1={rowY(th.id)} x2={x + BRANCH} y2={rowY(th.id)}
-                    stroke={alpha(hueOf(t, th.hue), 0.7)} strokeWidth={1.5} strokeLinecap="round"
-                  />
-                ))}
-              </g>
-            )
-          })}
-
-          {/* a thread crossing from one piece to the next */}
-          {rows.map((th) => {
-            const on = presence.get(th.id)?.roots ?? new Set<string>()
-            const at = pieces.map((p, i) => (on.has(p.id) ? i : -1)).filter((i) => i >= 0)
-            const y = rowY(th.id)
+          {hubs.map((th) => {
+            const hx = (hubX.get(th.id) ?? 0) + HUB_W / 2
+            const hy = webTop
             const colour = hueOf(t, th.hue)
-            return at.slice(0, -1).map((a, n) => {
-              const b = at[n + 1]
-              const x1 = cardX(a) + cardW - 18
-              const x2 = cardX(b) + TRUNK_DX
-              if (x2 <= x1) return null
-              const dip = Math.min(18, (x2 - x1) / 8)
+            const here = presence.get(th.id)!
+            return pieces.map((piece, i) => {
+              if (!here.roots.has(piece.id)) return null
+              const marker = markersFor(piece.id).find((m) => m.thread.id === th.id)
+              const ex = cardCenterX(i) + (marker?.dx ?? 0)
+              const ey = CARD_TOP + cardH
+              const midY = (ey + hy) / 2
+              const deep = !here.direct.has(piece.id)
               return (
                 <path
-                  key={`${th.id}-${a}-${b}`}
-                  d={`M ${x1} ${y} Q ${(x1 + x2) / 2} ${y + dip} ${x2} ${y}`}
+                  key={`${th.id}-${piece.id}`}
+                  d={`M ${ex} ${ey} C ${ex} ${midY} ${hx} ${midY} ${hx} ${hy}`}
                   fill="none"
-                  stroke={alpha(colour, 0.5)}
+                  stroke={alpha(colour, deep ? 0.32 : 0.55)}
                   strokeWidth={1.5}
+                  strokeDasharray={deep ? '1 5' : undefined}
                   strokeLinecap="round"
                 />
               )
@@ -271,48 +278,59 @@ export function Board({
                   }}
                 />
               )}
+              {/* the connection points along this card's own bottom edge */}
+              {markersFor(piece.id).map(({ thread, dx }) => (
+                <Marker
+                  key={thread.id}
+                  thread={thread}
+                  left={cardW / 2 + dx}
+                  note={tagFor(piece.id, thread.id)?.note ?? ''}
+                  deep={!presence.get(thread.id)!.direct.has(piece.id)}
+                  onOpen={() => setOpenThread(thread.id)}
+                />
+              ))}
             </div>
           )
         })}
 
-        {/* the spines: one row per thread, at the same height on every piece */}
-        {pieces.map((piece, i) => {
-          const mine = rows.filter((th) => presence.get(th.id)?.roots.has(piece.id))
-          const top = CARD_TOP + cardH + SPINE_GAP
-          const lastY = mine.length ? rowY(mine[mine.length - 1].id) : top + SPINE_HEAD
-          return (
-            <div key={`spine-${piece.id}`}>
-              {mine.map((th) => {
-                const here = presence.get(th.id)!
-                const tag = tagFor(piece.id, th.id)
-                return (
-                  <Branch
-                    key={th.id}
-                    thread={th}
-                    note={tag?.note ?? ''}
-                    deep={!here.direct.has(piece.id)}
-                    left={cardX(i) + TRUNK_DX + BRANCH + 8}
-                    top={rowY(th.id) - ROW_H / 2}
-                    width={cardW - TRUNK_DX - BRANCH - 28}
-                    armed={arming?.threadId === th.id}
-                    disabled={disabled}
-                    onOpen={() => setOpenThread(th.id)}
-                    onNote={(note) => actions.tag(piece.id, th.id, note)}
-                    onConnect={() => arm(th, piece.id)}
-                    onDetach={() => actions.untag(piece.id, th.id)}
-                  />
-                )
-              })}
-              {!disabled && (
-                <HangThread
-                  left={cardX(i) + TRUNK_DX - 11}
-                  top={lastY + (mine.length ? 22 : 4)}
-                  onClick={() => { void actions.addThread(piece.id).then((id) => { if (id) setOpenThread(id) }) }}
-                />
-              )}
-            </div>
-          )
-        })}
+        {/* the web's own blocks — one per thread, wherever it sits */}
+        {hubs.map((th) => (
+          <Hub
+            key={th.id}
+            thread={th}
+            left={hubX.get(th.id) ?? 0}
+            top={webTop}
+            count={presence.get(th.id)?.roots.size ?? 0}
+            total={pieces.length}
+            armed={arming === th.id}
+            disabled={disabled}
+            onOpen={() => setOpenThread(th.id)}
+            onConnect={() => arm(th)}
+            onRemove={() => actions.removeThread(th.id)}
+          />
+        ))}
+
+        {!disabled && (
+          <button
+            data-hold
+            type="button"
+            aria-label="add a thread to this project"
+            title="add a thread"
+            onClick={() => void addNewThread()}
+            style={{
+              position: 'absolute', left: hubRight + GAP, top: webTop, width: HUB_W, height: HUB_H,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', cursor: 'pointer',
+              border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.widget,
+              color: shell.muted,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        )}
 
         {/* one more piece */}
         {!disabled && (
@@ -345,10 +363,12 @@ export function Board({
           pieces={pieces}
           on={presence.get(openThread)?.roots ?? new Set()}
           direct={presence.get(openThread)?.direct ?? new Set()}
+          tagFor={tagFor}
           disabled={disabled}
           onClose={() => setOpenThread(null)}
           onEdit={(patch) => actions.editThread(openThread, patch)}
           onTag={(nodeId) => actions.tag(nodeId, openThread)}
+          onNote={(nodeId, note) => actions.tag(nodeId, openThread, note)}
           onUntag={(nodeId) => actions.untag(nodeId, openThread)}
           onRemove={() => { setOpenThread(null); actions.removeThread(openThread) }}
           onRead={() => { setOpenThread(null); actions.readThread(openThread) }}
@@ -367,36 +387,26 @@ export function Board({
   )
 }
 
-// ── one branch off one spine ────────────────────────────────────────────────
+// ── the block that stands for one thread ────────────────────────────────────
 
-function Branch({
-  thread, note, deep, left, top, width, armed, disabled, onOpen, onNote, onConnect, onDetach,
+function Hub({
+  thread, left, top, count, total, armed, disabled, onOpen, onConnect, onRemove,
 }: {
   thread: Thread
-  note: string
-  /** It is on something inside this piece, not on the piece itself. */
-  deep: boolean
   left: number
   top: number
-  width: number
+  count: number
+  total: number
   armed: boolean
   disabled: boolean
   onOpen: () => void
-  onNote: (note: string) => void
   onConnect: () => void
-  onDetach: () => void
+  onRemove: () => void
 }) {
   const { t } = useTheme()
   const colour = hueOf(t, thread.hue)
   const [hover, setHover] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(note)
-  useEffect(() => { if (!editing) setDraft(note) }, [note, editing])
-
-  const commit = () => {
-    setEditing(false)
-    if (draft.trim() !== note.trim()) onNote(draft.trim())
-  }
+  const ring = armed ? colour : alpha(t.textPrimary, hover ? 0.16 : 0.08)
 
   return (
     <div
@@ -404,85 +414,52 @@ function Branch({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        position: 'absolute', left, top, width, height: ROW_H,
-        display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
+        position: 'absolute', left, top, width: HUB_W, height: HUB_H, boxSizing: 'border-box',
+        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
+        background: t.cardBg, borderRadius: radius.widget,
+        // Separate longhands, not the `border` shorthand plus a `borderLeft`
+        // override — mixing the two triggers React's "conflicting style
+        // property" warning on every rerender.
+        borderStyle: 'solid', borderWidth: '1px 1px 1px 3px', borderColor: `${ring} ${ring} ${ring} ${colour}`,
+        boxShadow: armed ? `0 0 0 3px ${alpha(colour, 0.18)}, ${t.shadow}` : t.shadow,
+        transition: 'border-color 140ms ease, box-shadow 140ms ease',
       }}
     >
-      <i
-        aria-hidden
-        style={{
-          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-          background: deep ? 'transparent' : colour,
-          border: `1.5px solid ${colour}`,
-        }}
-      />
-      <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
         <button
           type="button"
           onClick={onOpen}
           title={thread.intent || 'open this thread'}
           style={{
-            ...canvasType.label, color: colour, background: 'none', border: 'none',
-            padding: 0, textAlign: 'left', cursor: 'pointer',
+            ...canvasType.label, color: t.textPrimary, background: 'none', border: 'none',
+            padding: 0, flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            textTransform: 'none', letterSpacing: 0, fontSize: 13, fontWeight: 600,
           }}
         >
           {thread.name || 'untitled thread'}
         </button>
-        {editing ? (
-          <input
-            autoFocus
-            aria-label={`what ${thread.name || 'this thread'} is doing here`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit()
-              if (e.key === 'Escape') { setDraft(note); setEditing(false) }
-            }}
-            style={{
-              ...canvasType.small, fontSize: 12, color: t.textPrimary, background: 'transparent',
-              border: 'none', outline: 'none', padding: 0, width: '100%',
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => setEditing(true)}
-            style={{
-              ...canvasType.small, fontSize: 12, color: note ? t.textSecondary : alpha(t.textPrimary, 0.3),
-              background: 'none', border: 'none', padding: 0, textAlign: 'left',
-              cursor: disabled ? 'default' : 'text',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}
-          >
-            {note || (deep ? 'inside this piece' : 'say what it does here…')}
-          </button>
+        {!disabled && (
+          <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed ? 1 : 0, transition: 'opacity 140ms ease' }}>
+            <HubAct label={armed ? 'stop connecting' : 'connect it to another piece'} tone={armed ? colour : t.textMuted} onClick={onConnect}>
+              <circle cx="6" cy="12" r="2.6" />
+              <circle cx="18" cy="12" r="2.6" />
+              <line x1="8.6" y1="12" x2="15.4" y2="12" />
+            </HubAct>
+            <HubAct label="delete this thread" tone={t.textMuted} onClick={onRemove}>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </HubAct>
+          </div>
         )}
       </div>
-
-      {!disabled && (
-        <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed ? 1 : 0, transition: 'opacity 140ms ease' }}>
-          <Nub
-            label={armed ? 'stop connecting' : 'run this thread through another piece'}
-            tone={armed ? colour : t.textMuted}
-            onClick={onConnect}
-          >
-            <circle cx="6" cy="12" r="2.6" />
-            <circle cx="18" cy="12" r="2.6" />
-            <line x1="8.6" y1="12" x2="15.4" y2="12" />
-          </Nub>
-          <Nub label="take it off this piece" tone={t.textMuted} onClick={onDetach}>
-            <path d="M7 7l10 10M17 7L7 17" />
-          </Nub>
-        </div>
-      )}
+      <span style={{ ...canvasType.chip, color: t.textMuted }}>
+        {count} of {total} {total === 1 ? 'piece' : 'pieces'}
+      </span>
     </div>
   )
 }
 
-function Nub({ label, tone, onClick, children }: { label: string; tone: string; onClick: () => void; children: React.ReactNode }) {
+function HubAct({ label, tone, onClick, children }: { label: string; tone: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -490,44 +467,50 @@ function Nub({ label, tone, onClick, children }: { label: string; tone: string; 
       title={label}
       onClick={onClick}
       style={{
-        width: 22, height: 22, borderRadius: 6, padding: 0, border: 'none',
+        width: 20, height: 20, borderRadius: 6, padding: 0, border: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'transparent', color: tone, cursor: 'pointer',
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
         {children}
       </svg>
     </button>
   )
 }
 
-function HangThread({ left, top, onClick }: { left: number; top: number; onClick: () => void }) {
+// ── where a thread's line touches down on a piece ───────────────────────────
+
+function Marker({
+  thread, left, note, deep, onOpen,
+}: {
+  thread: Thread
+  left: number
+  note: string
+  deep: boolean
+  onOpen: () => void
+}) {
   const { t } = useTheme()
-  const [hover, setHover] = useState(false)
+  const colour = hueOf(t, thread.hue)
+  const title = note
+    ? `${thread.name || 'a thread'}: ${note}`
+    : deep
+      ? `${thread.name || 'a thread'} — inside this piece`
+      : thread.name || 'a thread'
   return (
     <button
       data-hold
       type="button"
-      aria-label="hang a thread on this piece"
-      title="hang a thread on this piece"
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onClick={onOpen}
+      title={title}
+      aria-label={title}
       style={{
-        position: 'absolute', left, top, width: 22, height: 22, borderRadius: 999, padding: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-        border: `1px dashed ${alpha(t.textPrimary, hover ? 0.4 : 0.2)}`,
-        background: hover ? alpha(t.textPrimary, 0.06) : 'transparent',
-        color: hover ? t.textSecondary : t.textMuted,
-        transition: 'border-color 140ms ease, background 140ms ease',
+        position: 'absolute', left, bottom: -6, width: 12, height: 12, marginLeft: -6,
+        borderRadius: '50%', padding: 0, cursor: 'pointer',
+        background: deep ? t.cardBg : colour,
+        border: `1.5px solid ${colour}`,
       }}
-    >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </svg>
-    </button>
+    />
   )
 }
 

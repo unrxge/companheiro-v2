@@ -195,12 +195,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
-    addThread: async (onNode) => {
-      const th = await api.addThread()
-      if (!th) return null
-      await api.tag(onNode, th.id)
-      return th.id
-    },
+    addThread: () => api.addThread(),
     editThread: (id, patch) => void api.editThread(id, patch),
     removeThread: (id) => void api.removeThread(id),
     tag: (nodeId, threadId, note) => void api.tag(nodeId, threadId, note),

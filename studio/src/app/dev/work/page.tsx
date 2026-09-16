@@ -198,17 +198,17 @@ export default function DevWorkPage() {
   const setScopeRules = (rules: Rule[]) => (scopeNode ? editNode(scopeNode.id, { rules }) : setProjectRules(rules))
   const setScopeIntent = (intent: string) => (scopeNode ? editNode(scopeNode.id, { intent }) : setProjectIntent(intent))
 
-  const addThread = useCallback((onNode: string) => {
+  const addThread = useCallback(() => {
     const id = uid()
-    setThreads((prev) => [...prev, {
-      id, user_id: 'dev', project_id: 'dev', position: prev.length,
+    const fresh: Thread = {
+      id, user_id: 'dev', project_id: 'dev', position: threads.length,
       name: '', intent: '', rules: [],
-      hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[prev.length % 5],
+      hue: (['ember', 'verdant', 'violet', 'ochre', 'tide'] as const)[threads.length % 5],
       created_at: NOW, updated_at: NOW,
-    }])
-    setTags((prev) => [...prev, { node_id: onNode, thread_id: id, note: '' }])
-    return Promise.resolve(id as string | null)
-  }, [])
+    }
+    setThreads((prev) => [...prev, fresh])
+    return Promise.resolve(fresh as Thread | null)
+  }, [threads.length])
 
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id) => setFocus({ kind: 'node', id }),
