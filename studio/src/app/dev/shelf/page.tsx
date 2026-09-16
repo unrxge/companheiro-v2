@@ -56,7 +56,7 @@ export default function DevShelfPage() {
 
   return (
     <Level>
-      <CanvasStage header={<StageHeader title={LEVELS.shelf.name} status="dev" />}>
+      <CanvasStage mood="verdant" intensity={0.6} header={<StageHeader title={LEVELS.shelf.name} status="dev" />}>
         <Desk projects={projects} onNew={() => {}} onMove={move} />
       </CanvasStage>
     </Level>

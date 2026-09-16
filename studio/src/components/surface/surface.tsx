@@ -283,8 +283,8 @@ export function ZoomPill({
       data-hold
       style={{
         position: 'absolute', left: 16, bottom: 16, zIndex: 6,
-        display: 'flex', alignItems: 'center', gap: 2,
-        padding: 3, borderRadius: 999,
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: 5, borderRadius: 999,
         background: 'rgba(13,12,11,0.74)', backdropFilter: 'blur(18px) saturate(1.1)',
         border: `1px solid ${shell.line}`,
       }}
@@ -292,7 +292,7 @@ export function ZoomPill({
       <PillButton label="further out" onClick={() => canvas.setZoom(canvas.zoom - ZOOM.step)}>
         <line x1="6" y1="12" x2="18" y2="12" />
       </PillButton>
-      <span aria-label={`${at}%`} title={`${at}%`} style={{ ...PILL_TEXT, padding: '0 6px', minWidth: 40, textAlign: 'center' }}>
+      <span aria-label={`${at}%`} title={`${at}%`} style={{ ...PILL_TEXT, padding: '0 8px', minWidth: 44, textAlign: 'center' }}>
         {at}%
       </span>
       <PillButton label="closer in" onClick={() => canvas.setZoom(canvas.zoom + ZOOM.step)}>
@@ -306,7 +306,7 @@ export function ZoomPill({
       )}
       {after && (
         <>
-          <div aria-hidden style={{ width: 1, alignSelf: 'stretch', margin: '2px 1px', background: shell.line }} />
+          <div aria-hidden style={{ width: 1, alignSelf: 'stretch', margin: '3px 2px', background: shell.line }} />
           {after}
         </>
       )}
@@ -315,7 +315,7 @@ export function ZoomPill({
 }
 
 const PILL_TEXT: React.CSSProperties = {
-  fontFamily: fonts.mono,
+  fontFamily: fonts.ui,
   fontSize: 10, lineHeight: 1.2, color: shell.muted, fontVariantNumeric: 'tabular-nums',
 }
 
@@ -327,12 +327,12 @@ function PillButton({ label, onClick, children }: { label: string; onClick: () =
       title={label}
       onClick={onClick}
       style={{
-        width: 26, height: 26, borderRadius: 999, padding: 0, border: 'none',
+        width: 30, height: 30, borderRadius: 999, padding: 0, border: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'transparent', color: shell.muted, cursor: 'pointer',
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
         {children}
       </svg>
     </button>

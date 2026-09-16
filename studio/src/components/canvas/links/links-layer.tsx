@@ -297,7 +297,7 @@ export const LinksLayer = forwardRef<LinksApi, { children?: never }>(function Li
                     textAnchor="middle"
                     dominantBaseline="central"
                     fill={t.textSecondary}
-                    style={{ fontFamily: fonts.mono, fontSize: CHIP_FONT, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', userSelect: 'none' }}
+                    style={{ fontFamily: fonts.ui, fontSize: CHIP_FONT, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', userSelect: 'none' }}
                   >
                     {word}
                   </text>
@@ -323,7 +323,7 @@ export const LinksLayer = forwardRef<LinksApi, { children?: never }>(function Li
                       y={-X_R - 6}
                       textAnchor="middle"
                       fill={alpha(t.textPrimary, 0.7)}
-                      style={{ fontFamily: fonts.mono, fontSize: CHIP_FONT, letterSpacing: '0.08em', textTransform: 'uppercase', userSelect: 'none' }}
+                      style={{ fontFamily: fonts.ui, fontSize: CHIP_FONT, letterSpacing: '0.08em', textTransform: 'uppercase', userSelect: 'none' }}
                     >
                       {word}
                     </text>

@@ -623,12 +623,12 @@ function RearrangeButton({ onClick }: { onClick: () => void }) {
       title="rearrange everything neatly"
       onClick={onClick}
       style={{
-        width: 26, height: 26, borderRadius: 999, padding: 0, cursor: 'pointer',
+        width: 30, height: 30, borderRadius: 999, padding: 0, cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'transparent', border: 'none', color: shell.muted,
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
         <rect x="4" y="4" width="7" height="7" rx="1.5" />
         <rect x="13" y="4" width="7" height="7" rx="1.5" />
         <rect x="4" y="13" width="7" height="7" rx="1.5" />

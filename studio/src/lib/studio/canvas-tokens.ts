@@ -70,9 +70,13 @@ export const objectClass: Record<BlockType, ObjectClass> = {
 }
 
 export const canvasType = {
-  eyebrow:  { fontFamily: fonts.mono, fontWeight: 500, fontSize: 10, lineHeight: '16px', letterSpacing: '0.1em', textTransform: 'uppercase' as const },
-  meta:     { fontFamily: fonts.mono, fontWeight: 400, fontSize: 11, lineHeight: 1.4, fontVariantNumeric: 'tabular-nums' as const },
-  label:    { fontFamily: fonts.mono, fontWeight: 400, fontSize: 10, lineHeight: 1.2, letterSpacing: '0.08em', textTransform: 'uppercase' as const },
+  // Geist, the same as the main app — a mono face here read as a different
+  // product entirely wherever this touched a button or a label; tabular
+  // figures (meta's own reason for existing) don't require a monospace face,
+  // Geist keeps them stable under fontVariantNumeric on its own.
+  eyebrow:  { fontFamily: fonts.ui, fontWeight: 500, fontSize: 10, lineHeight: '16px', letterSpacing: '0.1em', textTransform: 'uppercase' as const },
+  meta:     { fontFamily: fonts.ui, fontWeight: 400, fontSize: 11, lineHeight: 1.4, fontVariantNumeric: 'tabular-nums' as const },
+  label:    { fontFamily: fonts.ui, fontWeight: 400, fontSize: 10, lineHeight: 1.2, letterSpacing: '0.08em', textTransform: 'uppercase' as const },
   body:     { fontFamily: fonts.ui, fontWeight: 400, fontSize: 15, lineHeight: 1.55 },
   small:    { fontFamily: fonts.ui, fontWeight: 400, fontSize: 13, lineHeight: 1.5 },
   words:    { fontFamily: fonts.ui, fontWeight: 500, fontSize: 16, lineHeight: 1.5, letterSpacing: '-0.01em' },   // the person's own words
@@ -82,7 +86,7 @@ export const canvasType = {
   anchor:   { fontFamily: fonts.display, fontWeight: 700, fontSize: 32, lineHeight: 1.1, letterSpacing: '-0.025em', textWrap: 'balance' as const },
   headingLg:{ fontFamily: fonts.display, fontWeight: 700, fontSize: 24, lineHeight: 1.15, letterSpacing: '-0.02em' },
   headingMd:{ fontFamily: fonts.ui, fontWeight: 600, fontSize: 18, lineHeight: 1.2, letterSpacing: '-0.015em' },
-  chip:     { fontFamily: fonts.mono, fontWeight: 400, fontSize: 10, lineHeight: 1.2 },
+  chip:     { fontFamily: fonts.ui, fontWeight: 400, fontSize: 10, lineHeight: 1.2 },
 } as const
 
 export const motionSpec = {

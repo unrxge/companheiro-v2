@@ -2,7 +2,7 @@
 
 // studio/src/components/talk/catch-line.tsx — the catch, after the reply (8.1,
 // D-056): the sentence in the companion's voice with an ember marker (ember is the
-// system's pencil, D-043) and two mono buttons, `that's right` · `that's wrong`.
+// system's pencil, D-043) and two small buttons, `that's right` · `that's wrong`.
 // Marking is final; the marked sentence then reads as a plain companion line.
 
 import { useState } from 'react'
@@ -41,7 +41,6 @@ export function CatchLine({ catch: row, onMarked }: { catch: Catch; onMarked?: (
       disabled={busy !== null}
       style={{
         ...canvasType.label,
-        fontFamily: fonts.mono,
         color: busy === value ? t.textMuted : t.textSecondary,
         background: 'transparent',
         border: `1px solid ${line.onPaper(t)}`,

@@ -409,6 +409,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     return (
       <>
         <CanvasStage
+          mood="ember"
+          intensity={0.6}
           header={
             <StageHeader
               onUp={(el) => goShelf(el)}

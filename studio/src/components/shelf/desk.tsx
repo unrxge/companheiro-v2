@@ -13,7 +13,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/surface/surface'
 import { useTravel } from '@/components/surface/travel'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
+import { alpha, radius, shell } from '@/lib/design-tokens'
 import { COMPLETED, statusLabel } from '@/components/canvas/chrome/status-strip'
 import type { ShelfProject } from '@/lib/studio/types'
 import {
@@ -292,7 +292,7 @@ function EmptySlot({ at, onClick }: { at: Point; onClick: () => void }) {
         new project
       </span>
       {hover && (
-        <span style={{ ...canvasType.chip, position: 'absolute', bottom: 14, color: shell.muted, fontFamily: fonts.mono }}>
+        <span style={{ ...canvasType.chip, position: 'absolute', bottom: 14, color: shell.muted }}>
           new project
         </span>
       )}
@@ -335,7 +335,7 @@ function Tool({
       title={label}
       onClick={onClick}
       style={{
-        width: 38, height: 38, borderRadius: 999, padding: 0, cursor: 'pointer',
+        width: 40, height: 40, borderRadius: 999, padding: 0, cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: `1px solid ${strong ? 'transparent' : shell.line}`,
         background: strong ? shell.text : 'rgba(13,12,11,0.74)',
@@ -343,7 +343,7 @@ function Tool({
         color: strong ? shell.ink : shell.muted,
       }}
     >
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
         {children}
       </svg>
     </button>

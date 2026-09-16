@@ -47,7 +47,7 @@ export function Rail({
     <div
       style={{
         position: 'fixed', right: 14, top: '50%', transform: 'translateY(-50%)',
-        zIndex: 40, display: 'flex', flexDirection: 'column', gap: 8,
+        zIndex: 40, display: 'flex', flexDirection: 'column', gap: 10,
       }}
     >
       {RAIL_TOOLS.map((tool) => {
@@ -63,7 +63,7 @@ export function Rail({
             onClick={() => onOpen(active ? null : tool.key)}
             style={{
               position: 'relative',
-              width: 38, height: 38, borderRadius: 999, padding: 0,
+              width: 40, height: 40, borderRadius: 999, padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
               border: `1px solid ${active ? t.textMuted : shell.line}`,
@@ -171,7 +171,7 @@ export function Drawer({
       <header
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          padding: '14px 16px', borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`,
+          padding: '18px 22px', borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`,
           flexShrink: 0,
         }}
       >
@@ -188,7 +188,7 @@ export function Drawer({
           ✕
         </button>
       </header>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>{children}</div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 20 }}>{children}</div>
     </aside>
   )
 }

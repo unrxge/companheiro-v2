@@ -13,20 +13,22 @@ import { Atmosphere } from '@/components/shell/atmosphere'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { fonts, shell, type Mood } from '@/lib/design-tokens'
+import { shell, type Mood } from '@/lib/design-tokens'
 
 export function CanvasStage({
   mood = 'neutral',
+  intensity = 0.55,
   header,
   children,
 }: {
   mood?: Mood
+  intensity?: number
   header?: ReactNode
   children: ReactNode
 }) {
   return (
     <div style={{ position: 'relative', height: '100dvh', overflow: 'hidden', background: shell.ink }}>
-      <Atmosphere mood={mood} intensity={0.55} />
+      <Atmosphere mood={mood} intensity={intensity} />
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{children}</div>
       {header && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 8 }}>{header}</div>}
     </div>
@@ -64,8 +66,8 @@ export function StageHeader({
         data-hold
         style={{
           pointerEvents: 'auto',
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 10px 8px 8px', borderRadius: 999,
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 16px 10px 10px', borderRadius: 999,
           background: 'rgba(13,12,11,0.72)', backdropFilter: 'blur(18px) saturate(1.1)',
           border: `1px solid ${shell.line}`,
           maxWidth: 'fit-content',
@@ -97,7 +99,7 @@ export function StageHeader({
         {actions}
 
         {status && (
-          <span aria-live="polite" style={{ ...canvasType.chip, color: shell.muted, fontFamily: fonts.mono, paddingRight: 4 }}>
+          <span aria-live="polite" style={{ ...canvasType.chip, color: shell.muted, paddingRight: 4 }}>
             {status}
           </span>
         )}
@@ -117,7 +119,7 @@ export function StageHeader({
               marginTop: 8, maxWidth: 'min(640px, calc(100vw - 32px))',
               background: t.containerBg, border: `1px solid ${t.divider}`,
               borderRadius: 18, boxShadow: t.containerShadow,
-              padding: 18, maxHeight: '54vh', overflowY: 'auto',
+              padding: 22, maxHeight: '54vh', overflowY: 'auto',
             }}
           >
             {reveal}
@@ -160,7 +162,7 @@ export function StageIcon({
       onClick={(e) => onClick(e.currentTarget)}
       style={{
         position: 'relative',
-        width: 32, height: 32, borderRadius: 999, padding: 0, flexShrink: 0,
+        width: 36, height: 36, borderRadius: 999, padding: 0, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
         border: `1px solid ${pressed ? shell.line : 'transparent'}`,
         background: pressed ? shell.fill : 'transparent',
@@ -169,7 +171,7 @@ export function StageIcon({
       }}
     >
       <svg
-        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
         style={{ transform: rotates && pressed ? 'rotate(180deg)' : undefined, transition: 'transform 200ms ease' }}
       >

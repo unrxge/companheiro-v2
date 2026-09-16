@@ -21,7 +21,7 @@ export const CHROME_CSS = `
 .studio-tip { position: relative; }
 .studio-tip::after {
   content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%);
-  font-family: ${fonts.mono}; font-size: 10px; font-weight: 500; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
+  font-family: ${fonts.ui}; font-size: 10px; font-weight: 500; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
   color: ${shell.text}; background: rgba(13,12,11,0.92); padding: 5px 7px; border-radius: 4px; white-space: nowrap;
   opacity: 0; pointer-events: none; transition: opacity 120ms ease 0ms; z-index: ${zIndex.dialog};
 }

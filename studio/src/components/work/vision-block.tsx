@@ -19,7 +19,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { RuleList } from '@/components/work/rules'
 import { InlineField } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
+import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Rule } from '@/lib/studio/node-types'
 
 export const VISION_TITLE_H = 60
@@ -152,7 +152,7 @@ export function VisionBlock({
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
                 <circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" />
               </svg>
-              <span style={{ ...canvasType.chip, fontFamily: fonts.mono }}>what this is for</span>
+              <span style={{ ...canvasType.chip }}>what this is for</span>
             </div>
             <InlineField
               ariaLabel="what this project is for"
@@ -172,7 +172,7 @@ export function VisionBlock({
                 <line x1="8.5" y1="13" x2="15.5" y2="13" />
                 <line x1="8.5" y1="17" x2="12" y2="17" />
               </svg>
-              <span style={{ ...canvasType.chip, fontFamily: fonts.mono }}>
+              <span style={{ ...canvasType.chip }}>
                 {liveRules || 'no'} {liveRules === 1 ? 'rule' : 'rules'} in force
               </span>
             </div>

@@ -1,7 +1,7 @@
 'use client'
 
 // studio/src/components/canvas/links/link-word-popover.tsx — the word popover
-// after a link is made (D-024; lane D): one mono field, ≤ 24 chars, Enter =
+// after a link is made (D-024; lane D): one field, ≤ 24 chars, Enter =
 // save (api.links.word + store), Esc = no word. `at` is a WORLD point (the
 // link's midpoint); the popover is portalled onto `[data-stage]` and placed in
 // screen space so the input never lives inside the scaled world (D-027).
@@ -10,7 +10,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fonts } from '@/lib/design-tokens'
 import { api } from '@/lib/studio/api-client'
 import { canvasType, glass, line, radii, zIndex } from '@/lib/studio/canvas-tokens'
 import { useStore, useViewport } from '@/lib/studio/hooks'
@@ -124,7 +123,6 @@ export function LinkWordPopover({ linkId, at, onClose }: { linkId: string; at: P
         }}
         style={{
           ...canvasType.label,
-          fontFamily: fonts.mono,
           width: '100%',
           background: 'transparent',
           border: 'none',

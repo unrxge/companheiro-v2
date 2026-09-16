@@ -330,7 +330,7 @@ export default function DevWorkPage() {
   if (focus.kind === 'project') {
     return (
       <Level>
-        <CanvasStage header={<StageHeader status="dev · in memory" />}>
+        <CanvasStage mood="ember" intensity={0.6} header={<StageHeader status="dev · in memory" />}>
           <Board
             project={{ title: projectTitle, intent: projectIntent, rules: projectRules, vision_x: vision.x, vision_y: vision.y }}
             pieces={roots}

@@ -65,7 +65,7 @@ export default function ShelfPage() {
 
   return (
     <Level>
-      <CanvasStage header={<StageHeader title={LEVELS.shelf.name} />}>
+      <CanvasStage mood="verdant" intensity={0.6} header={<StageHeader title={LEVELS.shelf.name} />}>
         {state.status === 'loading' && <Middle>opening the shelf…</Middle>}
 
         {state.status === 'error' && (
