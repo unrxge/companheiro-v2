@@ -22,10 +22,10 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { Rule } from '@/lib/studio/node-types'
 
-export const VISION_W = 440
+export const VISION_W = 560
 export const VISION_TITLE_H = 56
 export const VISION_COLLAPSED_H = VISION_TITLE_H
-export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 360
+export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 300
 
 const TITLE_STYLE = { ...canvasType.anchor, fontSize: 30, lineHeight: 1.15 } as const
 
@@ -126,9 +126,9 @@ export function VisionBlock({
         <div
           data-hold
           style={{
-            marginTop: 8, width: VISION_W, maxHeight: 360, overflowY: 'auto',
+            marginTop: 8, width: VISION_W, maxHeight: 300, overflowY: 'auto',
             background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow,
-            padding: '18px 20px', boxSizing: 'border-box',
+            padding: '20px 24px', boxSizing: 'border-box',
           }}
         >
           <InlineField

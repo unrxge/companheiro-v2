@@ -32,14 +32,14 @@ import {
 const GAP = 44
 const BASE_CARD_TOP = 108
 const WEB_GAP = 46      // space between the cards and the web below them
-const HUB_W = 208
-const HUB_H = 68
+const HUB_W = 236
+const HUB_H = 104
 const HUB_GAP = 30
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
-const NOTICE_W = 320
+const NOTICE_W = 420
 const NOTICE_GAP = 20
-const NOTICE_H = 190    // an estimate — a question this long is rare, and a
-                         // short one just leaves a little air under the card
+const NOTICE_H = 150    // wider than tall on purpose — a card this wide fits
+                         // its own buttons on one row instead of stacking them
 
 export interface BoardProject {
   title: string
@@ -77,7 +77,7 @@ export interface BoardActions {
   tidyBoard: () => void
 }
 
-type Drag = { kind: 'piece' | 'hub' | 'vision'; id: string; at: Point }
+type Drag = { kind: 'hub' | 'vision'; id: string; at: Point }
 
 export function Board({
   project,
@@ -126,11 +126,14 @@ export function Board({
   const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + noticesH + GAP)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
 
-  /** Where a piece actually is right now: hand-placed, mid-drag, or in lane. */
-  const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
-    if (drag?.kind === 'piece' && drag.id === piece.id) return drag.at
-    return { x: piece.board_x ?? cardX(i), y: piece.board_y ?? cardTop }
-  }, [drag, cardX, cardTop])
+  /** Where a piece sits: hand-placed from before this became fixed, or in
+   *  its reading-order lane. Pieces are no longer dragged — the "add a
+   *  thread" and "add a piece" spots kept drifting into odd places as the
+   *  layout around them moved, so only the threads and the title still
+   *  pick up and put down. */
+  const pieceAt = useCallback((piece: TreeNode, i: number): Point =>
+    ({ x: piece.board_x ?? cardX(i), y: piece.board_y ?? cardTop }),
+  [cardX, cardTop])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -328,7 +331,15 @@ export function Board({
         ariaLabel="the board — the pieces of this project and the threads under them"
         chrome={
           <>
-            <ZoomPill canvas={canvas} after={!disabled && <RearrangeButton onClick={rearrange} />} />
+            <ZoomPill
+              canvas={canvas}
+              after={!disabled && (
+                <>
+                  <RearrangeButton onClick={rearrange} />
+                  <AddThreadButton onClick={() => void addNewThread()} />
+                </>
+              )}
+            />
             {arming && armedThread && (
               <ConnectBanner thread={armedThread} onCancel={() => setArming(null)} />
             )}
@@ -418,18 +429,18 @@ export function Board({
           </div>
         ))}
 
-        {/* the pieces */}
+        {/* the pieces — laid out, not dragged: a piece's place is its order
+           among the others, moved with the arrows on the card itself. Only
+           the threads that run across them, and the project's own title,
+           are picked up and put down. */}
         {pieces.map((piece, i) => {
           const targeted = Boolean(armedOn && !armedOn.has(piece.id))
           const at = pieceAt(piece, i)
           return (
             <div
               key={piece.id}
-              onPointerDown={beginDrag('piece', piece.id, at, (landed) => actions.movePiece(piece.id, landed))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
-                cursor: disabled ? 'default' : 'grab', touchAction: 'none',
-                userSelect: 'none', WebkitUserSelect: 'none',
               }}
             >
               <PieceCard
@@ -487,8 +498,6 @@ export function Board({
             >
               <Hub
                 thread={th}
-                count={presence.get(th.id)?.roots.size ?? 0}
-                total={pieces.length}
                 armed={arming === th.id}
                 disabled={disabled}
                 onOpen={() => setOpenThread(th.id)}
@@ -498,28 +507,6 @@ export function Board({
             </div>
           )
         })}
-
-        {!disabled && (
-          <button
-            data-hold
-            type="button"
-            aria-label="add a thread to this project"
-            title="add a thread"
-            onClick={() => void addNewThread()}
-            style={{
-              position: 'absolute', left: hubRight + GAP, top: webTop, width: HUB_W, height: HUB_H,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'transparent', cursor: 'pointer',
-              border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.widget,
-              color: shell.muted,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        )}
 
         {/* one more piece */}
         {!disabled && (
@@ -607,14 +594,33 @@ function RearrangeButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+function AddThreadButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="add a thread to this project"
+      title="add a thread"
+      onClick={onClick}
+      style={{
+        width: 26, height: 26, borderRadius: 999, padding: 0, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent', border: 'none', color: shell.muted,
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    </button>
+  )
+}
+
 // ── the block that stands for one thread ────────────────────────────────────
 
 function Hub({
-  thread, count, total, armed, disabled, onOpen, onConnect, onRemove,
+  thread, armed, disabled, onOpen, onConnect, onRemove,
 }: {
   thread: Thread
-  count: number
-  total: number
   armed: boolean
   disabled: boolean
   onOpen: () => void
@@ -625,10 +631,13 @@ function Hub({
   const colour = hueOf(t, thread.hue)
   const [hover, setHover] = useState(false)
   const ring = armed ? colour : alpha(t.textPrimary, hover ? 0.16 : 0.08)
-  // Dark cards already read as "this belongs to a thread" against the paper
-  // tone alone; on light paper the same plain background just looks white,
-  // so light mode tints it faintly with the thread's own colour instead.
-  const background = theme === 'light' ? alpha(colour, 0.1) : t.cardBg
+  const liveRules = thread.rules.filter((r) => !r.retired_at).length
+  // A low-alpha tint reads fine over an opaque card, but this block floats
+  // straight on the canvas — blended at 10% it was mixing with the shell
+  // behind it, not with paper, so light mode read as near-black text on a
+  // near-black block. color-mix against the theme's own card tone keeps it
+  // opaque and legible in both themes; dark mode is left exactly as it was.
+  const background = theme === 'light' ? `color-mix(in srgb, ${colour} 16%, ${t.cardBg})` : t.cardBg
 
   return (
     <div
@@ -637,7 +646,7 @@ function Hub({
       onMouseLeave={() => setHover(false)}
       style={{
         width: HUB_W, height: HUB_H, boxSizing: 'border-box',
-        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
+        display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px',
         background, borderRadius: radius.widget,
         // Separate longhands, not the `border` shorthand plus a `borderLeft`
         // override — mixing the two triggers React's "conflicting style
@@ -651,7 +660,7 @@ function Hub({
         <button
           type="button"
           onClick={onOpen}
-          title={thread.intent || 'open this thread'}
+          title={thread.name || 'open this thread'}
           style={{
             ...canvasType.label, color: t.textPrimary, background: 'none', border: 'none',
             padding: 0, flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
@@ -674,8 +683,18 @@ function Hub({
           </div>
         )}
       </div>
-      <span style={{ ...canvasType.chip, color: t.textMuted }}>
-        {count} of {total} {total === 1 ? 'piece' : 'pieces'}
+      <p
+        onClick={onOpen}
+        style={{
+          ...canvasType.small, fontSize: 12, lineHeight: 1.35, margin: 0, cursor: 'pointer',
+          color: thread.intent ? t.textSecondary : t.textMuted,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}
+      >
+        {thread.intent || 'what does it hold across the work?'}
+      </p>
+      <span style={{ ...canvasType.chip, color: t.textMuted, marginTop: 'auto' }}>
+        {liveRules || 'no'} {liveRules === 1 ? 'rule' : 'rules'}
       </span>
     </div>
   )
