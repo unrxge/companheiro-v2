@@ -5,7 +5,7 @@ import type {
   CheckOutcome, CreateNodeRequest, CreateThreadRequest, PatchNodeRequest, PatchThreadRequest,
   RuleCheck, Thread, ThreadTag, TreePayload, WorkNode,
 } from '@/lib/studio/node-types'
-import type { Project } from '@/lib/studio/types'
+import type { PatchProjectRequest, Project } from '@/lib/studio/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/studio${path}`, {
@@ -30,6 +30,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 export const work = {
   tree: (projectId: string) => call<{ project: Project; tree: TreePayload }>('GET', `/projects/${projectId}/tree`),
+  patchProject: (projectId: string, body: PatchProjectRequest) =>
+    call<{ project: Project }>('PATCH', `/projects/${projectId}`, body),
 
   createNode: (projectId: string, body: CreateNodeRequest) =>
     call<{ node: WorkNode }>('POST', `/projects/${projectId}/nodes`, body),

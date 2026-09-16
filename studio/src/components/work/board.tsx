@@ -19,11 +19,12 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/surface/surface'
 import { PieceCard } from '@/components/work/piece-card'
 import { ThreadCard } from '@/components/work/thread-card'
+import { CheckCard } from '@/components/work/rules'
 import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, VISION_W } from '@/components/work/vision-block'
 import { hueOf } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
-import type { Appearance, Rule, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
+import type { Appearance, CheckOutcome, Rule, RuleCheck, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 import {
   MARGIN, growWorld, laneCardWidth, laneSlot, packRow, smoothPath, toWorld, type Point,
 } from '@/lib/studio/surface'
@@ -35,6 +36,10 @@ const HUB_W = 208
 const HUB_H = 68
 const HUB_GAP = 30
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
+const NOTICE_W = 320
+const NOTICE_GAP = 20
+const NOTICE_H = 190    // an estimate — a question this long is rare, and a
+                         // short one just leaves a little air under the card
 
 export interface BoardProject {
   title: string
@@ -78,6 +83,9 @@ export function Board({
   project,
   pieces,
   threads,
+  checks,
+  onResolveCheck,
+  onAmendCheck,
   tagFor,
   appearancesFor,
   actions,
@@ -86,6 +94,11 @@ export function Board({
   project: BoardProject
   pieces: TreeNode[]
   threads: Thread[]
+  /** Sits right under the title, side by side when there's more than one —
+   *  never floating in the middle of the canvas on its own. */
+  checks: RuleCheck[]
+  onResolveCheck: (checkId: string, outcome: CheckOutcome, note?: string) => void
+  onAmendCheck: (checkId: string, text: string) => void
   tagFor: (nodeId: string, threadId: string) => ThreadTag | undefined
   appearancesFor: (threadId: string) => Appearance[]
   actions: BoardActions
@@ -106,9 +119,11 @@ export function Board({
 
   const visionH = visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H
   const visionMoved = project.vision_x !== null || project.vision_y !== null
-  // Pieces clear the vision block's default spot only while it is still
-  // sitting there — drag it away and the lane is free to sit higher again.
-  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + GAP)
+  const noticesH = checks.length > 0 ? NOTICE_H + NOTICE_GAP : 0
+  // Pieces clear the title's own space — and the notices sitting under it,
+  // when there are any — only while the title is still where it started.
+  // Drag it away and the lane is free to rise back to its usual place.
+  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + noticesH + GAP)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
 
   /** Where a piece actually is right now: hand-placed, mid-drag, or in lane. */
@@ -179,6 +194,9 @@ export function Board({
     w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
     w = growWorld(w, visionAt.x, visionAt.y, VISION_W, visionH)
+    if (checks.length > 0) {
+      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (NOTICE_W + NOTICE_GAP), NOTICE_H)
+    }
     for (const [i, piece] of pieces.entries()) {
       const at = pieceAt(piece, i)
       w = growWorld(w, at.x, at.y, cardW, cardH)
@@ -188,7 +206,7 @@ export function Board({
       w = growWorld(w, at.x, at.y, HUB_W, HUB_H)
     }
     return w
-  }, [frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH])
+  }, [frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, checks.length])
 
   const canvas = useCanvas(ref, frame, world)
 
@@ -354,8 +372,15 @@ export function Board({
 
         {/* the project's own title, vision and rules */}
         <div
+          data-hold
           onPointerDown={beginDrag('vision', 'vision', visionAt, (at) => actions.moveVision(at))}
-          style={{ position: 'absolute', left: visionAt.x, top: visionAt.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none' }}
+          style={{
+            position: 'absolute', left: visionAt.x, top: visionAt.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+            // Dragging from directly on top of the title text would otherwise
+            // select it like any other text on a page before the drag ever
+            // registers — this only blocks selection outside actual inputs.
+            userSelect: 'none', WebkitUserSelect: 'none',
+          }}
         >
           <VisionBlock
             title={project.title}
@@ -370,6 +395,29 @@ export function Board({
           />
         </div>
 
+        {/* whatever needs the person's attention, right under the title —
+           never floating loose in the middle of the canvas. Side by side. */}
+        {checks.map((check, i) => (
+          <div
+            key={check.id}
+            data-hold
+            style={{
+              position: 'absolute', left: visionAt.x + i * (NOTICE_W + NOTICE_GAP), top: visionAt.y + visionH + NOTICE_GAP,
+              width: NOTICE_W,
+              // CheckCard is styled for a solid backing (it's normally read on
+              // the writing page's own container) — the canvas behind it here
+              // is transparent, so it needs that backing given to it directly.
+              background: t.containerBg, borderRadius: radius.widget, boxShadow: t.containerShadow,
+            }}
+          >
+            <CheckCard
+              check={check}
+              onResolve={(outcome, note) => onResolveCheck(check.id, outcome, note)}
+              onAmend={(text) => onAmendCheck(check.id, text)}
+            />
+          </div>
+        ))}
+
         {/* the pieces */}
         {pieces.map((piece, i) => {
           const targeted = Boolean(armedOn && !armedOn.has(piece.id))
@@ -381,6 +429,7 @@ export function Board({
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
                 cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                userSelect: 'none', WebkitUserSelect: 'none',
               }}
             >
               <PieceCard
@@ -431,7 +480,10 @@ export function Board({
             <div
               key={th.id}
               onPointerDown={beginDrag('hub', th.id, at, (landed) => actions.moveThread(th.id, landed))}
-              style={{ position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none' }}
+              style={{
+                position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                userSelect: 'none', WebkitUserSelect: 'none',
+              }}
             >
               <Hub
                 thread={th}
@@ -569,10 +621,14 @@ function Hub({
   onConnect: () => void
   onRemove: () => void
 }) {
-  const { t } = useTheme()
+  const { t, theme } = useTheme()
   const colour = hueOf(t, thread.hue)
   const [hover, setHover] = useState(false)
   const ring = armed ? colour : alpha(t.textPrimary, hover ? 0.16 : 0.08)
+  // Dark cards already read as "this belongs to a thread" against the paper
+  // tone alone; on light paper the same plain background just looks white,
+  // so light mode tints it faintly with the thread's own colour instead.
+  const background = theme === 'light' ? alpha(colour, 0.1) : t.cardBg
 
   return (
     <div
@@ -582,7 +638,7 @@ function Hub({
       style={{
         width: HUB_W, height: HUB_H, boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
-        background: t.cardBg, borderRadius: radius.widget,
+        background, borderRadius: radius.widget,
         // Separate longhands, not the `border` shorthand plus a `borderLeft`
         // override — mixing the two triggers React's "conflicting style
         // property" warning on every rerender.

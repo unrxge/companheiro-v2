@@ -297,6 +297,9 @@ export interface PatchProjectRequest {
   title?: string
   status?: ProjectStatus
   completion_note?: string
+  /** What the whole project is for. */
+  intent?: string
+  rules?: unknown[]
   viewport?: Viewport
   shelf_x?: number | null
   shelf_y?: number | null

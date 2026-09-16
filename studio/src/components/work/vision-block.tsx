@@ -6,21 +6,28 @@
 // The title, the ethos it's for, and the rules that can catch you used to
 // live in a pill in the corner of the screen — chrome, not content, and easy
 // to forget was even there. It belongs on the same surface as the work it
-// governs: a card like any other, that pans and zooms with everything else,
-// opens to show its vision and constraints, and can be dragged wherever it
-// reads best next to the pieces it is standing over.
+// governs: dragged wherever it reads best next to the pieces it stands over.
+//
+// Collapsed, it is not a card at all — no box, no border, just the title
+// sitting on the canvas the way a heading sits on a page, sized to its own
+// words rather than stretched to fill some fixed row, with a small, quiet
+// toggle right beside it. Only once opened does it take on paper: the vision
+// and the rules need a surface to sit on, the title never did.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { RuleList } from '@/components/work/rules'
 import { InlineField } from '@/components/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, fonts, radius } from '@/lib/design-tokens'
+import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { Rule } from '@/lib/studio/node-types'
 
 export const VISION_W = 440
-export const VISION_COLLAPSED_H = 96
-export const VISION_EXPANDED_H = 420
+export const VISION_TITLE_H = 56
+export const VISION_COLLAPSED_H = VISION_TITLE_H
+export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 360
+
+const TITLE_STYLE = { ...canvasType.anchor, fontSize: 30, lineHeight: 1.15 } as const
 
 export function VisionBlock({
   title,
@@ -44,50 +51,68 @@ export function VisionBlock({
   disabled: boolean
 }) {
   const { t } = useTheme()
-  const [hover, setHover] = useState(false)
   const liveRules = rules.filter((r) => !r.retired_at).length
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState(title)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => { if (!renaming) setDraft(title) }, [title, renaming])
+  useEffect(() => { if (renaming) inputRef.current?.focus() }, [renaming])
+
+  const commit = () => {
+    setRenaming(false)
+    const next = draft.trim()
+    if (next !== title.trim()) onRename(next)
+  }
 
   return (
-    <div
-      data-hold
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        width: VISION_W, boxSizing: 'border-box',
-        maxHeight: expanded ? VISION_EXPANDED_H : VISION_COLLAPSED_H,
-        display: 'flex', flexDirection: 'column',
-        background: t.cardBg, borderRadius: radius.card,
-        border: `1px solid ${hover ? alpha(t.textPrimary, 0.16) : 'transparent'}`,
-        boxShadow: t.shadow,
-        overflow: 'hidden',
-        transition: 'border-color 160ms ease, max-height 200ms ease',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '18px 20px 12px', flexShrink: 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <InlineField
-            ariaLabel="the project's title"
-            value={title}
-            placeholder="untitled project"
-            disabled={disabled}
-            onCommit={onRename}
-            style={{ ...canvasType.conceptTitle, fontSize: 22, color: t.textPrimary }}
+    <div style={{ maxWidth: VISION_W, display: 'flex', flexDirection: 'column' }}>
+      {/* the title itself: never boxed, sized to its own words, always the
+         most prominent thing here — a heading until you click it. */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: VISION_TITLE_H, maxWidth: '100%' }}>
+        {renaming ? (
+          <input
+            ref={inputRef}
+            aria-label="the project's title"
+            value={draft}
+            size={Math.max(draft.length, 8)}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(title); setRenaming(false) } }}
+            style={{
+              ...TITLE_STYLE, color: shell.text, background: 'transparent',
+              border: 'none', outline: 'none', padding: 0, minWidth: 0, maxWidth: '100%',
+            }}
           />
-        </div>
+        ) : (
+          <h1
+            onClick={() => !disabled && setRenaming(true)}
+            title={disabled ? undefined : 'rename the project'}
+            style={{
+              // Never t.textPrimary: this row sits directly on the shell,
+              // which is always dark, in both states — a card only ever
+              // appears underneath it once expanded, never behind the title.
+              ...TITLE_STYLE, color: title ? shell.text : shell.muted, margin: 0,
+              cursor: disabled ? 'default' : 'text', minWidth: 0, maxWidth: '100%',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >
+            {title || 'untitled project'}
+          </h1>
+        )}
         <button
           type="button"
           aria-label={expanded ? 'hide what this is for' : 'what this is for, and the rules that catch you'}
           aria-expanded={expanded}
           onClick={onToggle}
           style={{
-            width: 26, height: 26, borderRadius: 999, padding: 0, flexShrink: 0, marginTop: 2,
+            width: 28, height: 28, borderRadius: 999, padding: 0, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            border: 'none', background: expanded ? alpha(t.textPrimary, 0.08) : 'transparent',
-            color: t.textMuted,
+            border: 'none', background: expanded ? shell.fillHover : 'transparent',
+            color: shell.muted,
           }}
         >
           <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"
             style={{ transform: expanded ? 'rotate(180deg)' : undefined, transition: 'transform 200ms ease' }}
           >
@@ -96,22 +121,16 @@ export function VisionBlock({
         </button>
       </div>
 
-      {!expanded && (
-        <button
-          type="button"
-          onClick={onToggle}
+      {/* the vision and the rules: boxed, and only ever here when asked for */}
+      {expanded && (
+        <div
+          data-hold
           style={{
-            ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none',
-            textAlign: 'left', cursor: 'pointer', padding: '0 20px 16px',
+            marginTop: 8, width: VISION_W, maxHeight: 360, overflowY: 'auto',
+            background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow,
+            padding: '18px 20px', boxSizing: 'border-box',
           }}
         >
-          {intent ? intent : 'what this is for…'}
-          {liveRules > 0 && ` · ${liveRules} ${liveRules === 1 ? 'rule' : 'rules'}`}
-        </button>
-      )}
-
-      {expanded && (
-        <div style={{ padding: '0 20px 20px', overflowY: 'auto', minHeight: 0 }}>
           <InlineField
             ariaLabel="what this project is for"
             value={intent}

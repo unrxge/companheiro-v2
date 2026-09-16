@@ -84,6 +84,17 @@ export function useWork(projectId: string) {
   const api = useMemo(() => ({
     reload: load,
 
+    /** Same shape as editNode/editThread: applied locally first, so renaming
+     *  the project, editing its vision, or moving its title block never
+     *  flashes the whole board back to "opening…" the way a reload would. */
+    editProject: async (patch: {
+      title?: string; intent?: string; rules?: Rule[]
+      vision_x?: number | null; vision_y?: number | null
+    }) => {
+      setProject((prev) => (prev ? { ...prev, ...patch } : prev))
+      await guard(() => work.patchProject(projectId, patch))
+    },
+
     addNode: async (parentId: string | null, afterId?: string | null) => {
       const res = await guard(() => work.createNode(projectId, { parent_id: parentId, after_id: afterId ?? null }))
       if (!res) return null

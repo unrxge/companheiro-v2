@@ -101,17 +101,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     return [...live, ...above.map(({ rule, source }) => ({ rule, from: source.title || 'above' }))]
   }, [node, roots, projectRules])
 
-  const setProjectField = useCallback(async (patch: {
-    title?: string; intent?: string; rules?: Rule[]; vision_x?: number | null; vision_y?: number | null
-  }) => {
-    await fetch(`/api/studio/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify(patch),
-    })
-    await api.reload()
-  }, [api, projectId])
+  const setProjectField = api.editProject
 
   const runCheck = useCallback(async (nodeId: string) => {
     setChecking(true)
@@ -378,11 +368,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             />
           }
         >
-          {checks && (
-            <div style={{ position: 'absolute', top: 74, left: '50%', transform: 'translateX(-50%)', zIndex: 8, width: 'min(440px, calc(100vw - 32px))' }}>
-              {checks}
-            </div>
-          )}
           <Board
             project={{
               title: project.title,
@@ -393,6 +378,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             }}
             pieces={roots}
             threads={tree.threads}
+            checks={openChecks}
+            onResolveCheck={resolve}
+            onAmendCheck={(id, text) => void amendRule(id, text)}
             tagFor={tagFor}
             appearancesFor={appearancesFor}
             actions={boardActions}

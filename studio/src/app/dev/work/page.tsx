@@ -13,7 +13,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
-import type { Rule, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
+import type { Rule, RuleCheck, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
 import { appearancesOf, buildTree, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
 import { Board, type BoardActions } from '@/components/work/board'
 import { Storyline } from '@/components/work/storyline'
@@ -107,6 +107,16 @@ const SEED_TAGS: ThreadTag[] = [
   { node_id: 'f3', thread_id: 'th-rosa', note: 'absent, and still not explaining herself' },
 ]
 
+const SEED_CHECKS: RuleCheck[] = [
+  {
+    id: 'check-1', project_id: 'dev', node_id: 'f1s2',
+    source_node_id: null, source_thread_id: null,
+    rule_id: 'r-voiceover', rule_text: 'no voiceover, ever',
+    question: '“the wrong turn” reads like it is leaning on a line of voiceover to land the beat — fix it, amend the rule, say you meant it, or dismiss?',
+    outcome: null, outcome_note: null, resolved_at: null, created_at: NOW,
+  },
+]
+
 type Focus = { kind: 'project' } | { kind: 'node'; id: string } | { kind: 'thread'; id: string }
 
 export default function DevWorkPage() {
@@ -116,6 +126,7 @@ export default function DevWorkPage() {
   )
   const [threads, setThreads] = useState<Thread[]>(SEED_THREADS)
   const [tags, setTags] = useState<ThreadTag[]>(SEED_TAGS)
+  const [checks, setChecks] = useState<RuleCheck[]>(SEED_CHECKS)
   const [projectTitle, setProjectTitle] = useState('nine nights')
   const [projectIntent, setProjectIntent] = useState(
     'Three short films about a daughter and a mother, released a month apart. Each one has to stand on its own for someone who finds it first, and the three together have to say the thing none of them says alone.',
@@ -324,6 +335,14 @@ export default function DevWorkPage() {
             project={{ title: projectTitle, intent: projectIntent, rules: projectRules, vision_x: vision.x, vision_y: vision.y }}
             pieces={roots}
             threads={threads}
+            checks={checks}
+            onResolveCheck={(id, outcome, note) => setChecks((prev) => prev.map((c) => (
+              c.id === id ? { ...c, outcome, outcome_note: note ?? null, resolved_at: NOW } : c
+            )).filter((c) => c.outcome === null))}
+            onAmendCheck={(id, text) => {
+              const check = checks.find((c) => c.id === id)
+              if (check) setProjectRules((prev) => prev.map((r) => (r.id === check.rule_id ? { ...r, text } : r)))
+            }}
             tagFor={tagFor}
             appearancesFor={appearancesFor}
             actions={boardActions}
