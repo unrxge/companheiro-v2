@@ -226,7 +226,7 @@ export function Studio({
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: flow ? 0 : 14, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
       {!disabled && (
         // Floating, not part of the page's own chrome: one shared pill that
         // stays in reach as the piece scrolls underneath it, the same glass
@@ -258,25 +258,16 @@ export function Studio({
           <article
             key={part.id}
             ref={(el) => { articles.current[part.id] = el }}
-            style={
-              flow
-                ? { padding: '0 0 6px' }
-                : {
-                    background: t.cardBg,
-                    border: `1px solid ${isFocused ? alpha(t.verdant, 0.55) : alpha(t.textPrimary, 0.1)}`,
-                    borderRadius: radius.widget,
-                    overflow: 'hidden',
-                    transition: 'border-color 140ms ease',
-                  }
-            }
+            style={{
+              borderLeft: `2px solid ${isFocused ? alpha(t.verdant, 0.55) : 'transparent'}`,
+              transition: 'border-color 140ms ease',
+            }}
           >
             {!flow && (
               <header
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                  padding: '9px 14px',
-                  borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`,
-                  background: t.cardBgInner,
+                  padding: '22px 0 6px 16px',
                 }}
               >
                 {sectioned && (
@@ -320,7 +311,7 @@ export function Studio({
               </header>
             )}
 
-            <div style={{ padding: flow ? 0 : '10px 16px 14px', fontSize: 17 }}>
+            <div style={{ padding: flow ? 0 : '0 16px 10px', fontSize: 17 }}>
               <SectionEditor
                 content={part.body}
                 editable={!disabled}
@@ -332,7 +323,7 @@ export function Studio({
                 onTransaction={() => bump((n) => n + 1)}
                 onSelectionChange={(sel) => handleSelection(part.id, sel)}
                 textColor={t.textPrimary}
-                className={flow ? 'flow-section' : undefined}
+                className={flow && i > 0 ? 'flow-continued' : undefined}
               />
               {pendingInline?.partId === part.id && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
