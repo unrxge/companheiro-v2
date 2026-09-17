@@ -6,7 +6,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
-import { JourneyNav } from '@/components/widgets'
+import { JourneyNavNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface CoverageItem {
@@ -31,28 +31,31 @@ function TestContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { t } = useTheme()
-  const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
 
   const [result, setResult] = useState<TestResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [projectId, setProjectId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!nodeId) {
       router.push('/project-board')
       return
     }
-    // Entering Test moves the piece to that step of its journey.
-    fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, stage: 'testing' }) }).catch(() => {})
     runTest()
+    fetch(`/api/write/node?node_id=${nodeId}`)
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setProjectId(data.piece.project_id) })
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pieceId])
+  }, [nodeId])
 
   const runTest = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/write/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId }) })
+      const res = await fetch('/api/write/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: nodeId }) })
       const data = await res.json()
       if (data.error) setError(data.error)
       else setResult(data)
@@ -64,7 +67,7 @@ function TestContent() {
     }
   }
 
-  if (!pieceId) return null
+  if (!nodeId) return null
 
   const landed = result?.coverage.filter((c) => c.status === 'landed').length ?? 0
   const partial = result?.coverage.filter((c) => c.status === 'partial').length ?? 0
@@ -72,11 +75,11 @@ function TestContent() {
 
   return (
     <PageShell mood="ochre" maxWidth={820}>
-      <PageHeader eyebrow="Write · Test" title="Read cold" subtitle="Your finished draft, read against what you set out to make." size="md" back={`/write?piece_id=${pieceId}`} />
+      <PageHeader eyebrow="Write · Test" title="Read cold" subtitle="Your finished draft, read against what you set out to make." size="md" back={`/write?node_id=${nodeId}`} />
 
       <Container>
         <div style={{ marginBottom: 22 }}>
-          <JourneyNav pieceId={pieceId} step="test" />
+          <JourneyNavNode projectId={projectId} nodeId={nodeId} step="test" />
         </div>
 
         {isLoading ? (
@@ -155,8 +158,8 @@ function TestContent() {
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 6 }}>
-              <PrimaryButton href={`/write/translate?piece_id=${pieceId}`}>Shape it: translate →</PrimaryButton>
-              <QuietButton href={`/write/reimagine?piece_id=${pieceId}`}>Reimagine</QuietButton>
+              <PrimaryButton href={`/write/translate?node_id=${nodeId}`}>Shape it: translate →</PrimaryButton>
+              <QuietButton href={`/write/reimagine?node_id=${nodeId}`}>Reimagine</QuietButton>
               <GhostButton onClick={runTest}>Test again</GhostButton>
             </div>
           </div>

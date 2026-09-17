@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
-import { resyncPieceDraft } from '@/lib/write-sections'
+import { bodyPatch, resyncNodeBody } from '@/lib/studio/write-nodes'
 import { logUsage } from '@/lib/usage-log'
 
-// Divides freely-written prose across the piece's intended structure. Splits
-// the existing text WITHOUT rewriting it — every word is preserved, in order,
-// assigned to the beat it belongs to. Replaces the current sections with the
-// divided result. Refuses if any section is locked (would disturb sealed work).
+// Divides freely-written prose (the root node's flattened body) across the
+// piece's intended structure, replacing its children (sections) with the
+// divided result. Splits the existing text WITHOUT rewriting it — every word
+// is preserved, in order, assigned to the beat it belongs to. Refuses if any
+// section is locked (would disturb sealed work).
 //
 // The model is only ever asked WHERE the cuts fall (a short "starts_with"
 // anchor per section), never to retype the prose itself — the actual section
@@ -52,22 +53,22 @@ export async function POST(request: NextRequest) {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id } = await request.json()
-    if (!piece_id) return NextResponse.json({ error: 'Missing piece_id' }, { status: 400 })
+    const { node_id } = await request.json()
+    if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
 
     const { supabase, user } = auth
 
     const [{ data: existing }, { data: piece }] = await Promise.all([
       supabase
-        .from('piece_sections')
-        .select('id, label, intended_emotion, is_locked')
-        .eq('piece_id', piece_id)
+        .from('studio_nodes')
+        .select('id, title, beat, is_locked')
+        .eq('parent_id', node_id)
         .eq('user_id', user.id)
         .order('position', { ascending: true }),
       supabase
-        .from('pieces')
-        .select('substack_draft, emotional_journey')
-        .eq('id', piece_id)
+        .from('studio_nodes')
+        .select('id, project_id, body, emotional_journey')
+        .eq('id', node_id)
         .eq('user_id', user.id)
         .single(),
     ])
@@ -79,12 +80,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const prose = (piece?.substack_draft || '').trim()
+    const prose = (piece?.body || '').trim()
     if (!prose) return NextResponse.json({ error: 'Nothing written to divide yet.' }, { status: 400 })
 
     const targetBeats =
       existing && existing.length > 1
-        ? existing.map((s) => `- ${s.label || 'untitled'}${s.intended_emotion ? ` (${s.intended_emotion})` : ''}`).join('\n')
+        ? existing.map((s) => `- ${s.title || 'untitled'}${s.beat ? ` (${s.beat})` : ''}`).join('\n')
         : null
 
     const response = await anthropic.messages.create({
@@ -138,31 +139,36 @@ ${prose}
       content: prose.slice(boundaries[i], i === beatMeta.length - 1 ? prose.length : boundaries[i + 1]),
     }))
 
-    // Replace existing sections with the divided set.
-    await supabase.from('piece_sections').delete().eq('piece_id', piece_id).eq('user_id', user.id)
+    // Replace existing sections (children) with the divided set.
+    await supabase.from('studio_nodes').delete().eq('parent_id', node_id).eq('user_id', user.id)
 
     const rows = beats.map((b, i) => ({
       user_id: user.id,
-      piece_id,
+      project_id: piece!.project_id,
+      parent_id: node_id,
       position: i,
-      label: b.label || `Section ${i + 1}`,
-      intended_emotion: b.intended_emotion || null,
-      content: b.content || '',
+      title: b.label || `Section ${i + 1}`,
+      beat: b.intended_emotion || '',
+      ...bodyPatch(b.content || ''),
     }))
 
     const { data: inserted, error } = await supabase
-      .from('piece_sections')
+      .from('studio_nodes')
       .insert(rows)
-      .select('id, position, label, intended_emotion, content, is_locked')
+      .select('id, position, title, beat, body, is_locked')
 
     if (error) {
       console.error('divide insert error:', error)
       return NextResponse.json({ error: 'Failed to save divided sections' }, { status: 500 })
     }
 
-    await resyncPieceDraft(auth, piece_id)
+    await resyncNodeBody(auth, node_id)
 
-    return NextResponse.json({ sections: inserted })
+    const sections = (inserted || [])
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({ id: s.id, position: s.position, label: s.title || null, intended_emotion: s.beat || null, content: s.body || '', is_locked: s.is_locked }))
+
+    return NextResponse.json({ sections })
   } catch (error) {
     console.error('divide error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

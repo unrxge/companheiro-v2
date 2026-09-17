@@ -6,9 +6,9 @@ import type { Editor } from '@tiptap/react'
 import { readTextStream } from '@/lib/stream-client'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { useTheme } from '@/components/theme/theme-provider'
-import { shell, journeyStepFromStage } from '@/lib/design-tokens'
+import { shell } from '@/lib/design-tokens'
 import { ensureHtml, ensureSectionsHtml, htmlToPlainText, plainTextToHtml } from '@/lib/rich-text'
-import { JourneyNav } from '@/components/widgets'
+import { JourneyNavNode } from '@/components/widgets'
 import { IconButton } from '@/components/ui/icon-button'
 import { TextField } from '@/components/ui/field'
 import { ModalDialog } from '@/components/ui/modal-dialog'
@@ -26,6 +26,7 @@ interface Task {
 
 interface PieceCore {
   id: string
+  project_id?: string
   title: string
   stage?: string
   one_sentence: string
@@ -188,9 +189,9 @@ function WheelColumn({
 function WriteContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
   const { t } = useTheme()
-  useWritingTimeTracker(!!pieceId)
+  useWritingTimeTracker(!!nodeId)
 
   const [piece, setPiece] = useState<PieceCore | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -267,14 +268,14 @@ function WriteContent() {
   const [viewport, setViewport] = useState({ isMobile: false, isPortrait: true, width: 1024 })
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!nodeId) {
       router.push('/project-board')
       return
     }
     distilledUpToRef.current = 0
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pieceId])
+  }, [nodeId])
 
   // Write-lock status, independent of piece — it's a per-user setting. If
   // it's already active on load, the toggle opens in suggest mode regardless
@@ -301,8 +302,8 @@ function WriteContent() {
   const fetchAll = async () => {
     try {
       const [pieceRes, sectionsRes] = await Promise.all([
-        fetch(`/api/project-board/piece?id=${pieceId}`),
-        fetch(`/api/write/sections?piece_id=${pieceId}`),
+        fetch(`/api/write/node?node_id=${nodeId}`),
+        fetch(`/api/write/sections?node_id=${nodeId}`),
       ])
       const pieceData = await pieceRes.json()
       const sectionsData = await sectionsRes.json()
@@ -322,13 +323,13 @@ function WriteContent() {
   // Auto-ingest: when the piece has a substack_draft and no sections yet,
   // immediately discern and distribute (full draft) or anchor-line (loose text).
   const ingestDraft = useCallback(async () => {
-    if (!pieceId || isIngesting) return
+    if (!nodeId || isIngesting) return
     setIsIngesting(true)
     try {
       const res = await fetch('/api/write/sections/ingest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId }),
+        body: JSON.stringify({ node_id: nodeId }),
       })
       const data = await res.json()
       if (data.sections) setSections(ensureSectionsHtml(data.sections))
@@ -339,7 +340,7 @@ function WriteContent() {
     } finally {
       setIsIngesting(false)
     }
-  }, [pieceId, isIngesting])
+  }, [nodeId, isIngesting])
 
   useEffect(() => {
     if (!piece || sections.length > 0 || !piece.substack_draft?.trim()) return
@@ -352,7 +353,7 @@ function WriteContent() {
 
   const flushSections = useCallback(async () => {
     const dirty = Array.from(dirtySectionsRef.current)
-    if (dirty.length === 0 || !pieceId) return
+    if (dirty.length === 0 || !nodeId) return
     dirtySectionsRef.current = new Set()
     setIsSaving(true)
     try {
@@ -363,7 +364,7 @@ function WriteContent() {
           return fetch('/api/write/sections', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, piece_id: pieceId, content: s.content }),
+            body: JSON.stringify({ id, node_id: nodeId, content: s.content }),
             keepalive: true,
           })
         })
@@ -373,7 +374,7 @@ function WriteContent() {
     } finally {
       setIsSaving(false)
     }
-  }, [pieceId])
+  }, [nodeId])
 
   const markDirty = (id: string) => {
     dirtySectionsRef.current.add(id)
@@ -494,7 +495,7 @@ function WriteContent() {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, piece_id: pieceId, [field]: value }),
+        body: JSON.stringify({ id, node_id: nodeId, [field]: value }),
       })
     } catch (err) {
       console.error('Failed to save section field:', err)
@@ -513,7 +514,7 @@ function WriteContent() {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, piece_id: pieceId, is_locked: next }),
+        body: JSON.stringify({ id, node_id: nodeId, is_locked: next }),
       })
     } catch (err) {
       console.error('Failed to toggle lock:', err)
@@ -525,7 +526,7 @@ function WriteContent() {
       const res = await fetch('/api/write/sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, content }),
+        body: JSON.stringify({ node_id: nodeId, content }),
       })
       const data = await res.json()
       if (data.section) setSections((prev) => [...prev, { ...data.section, content: ensureHtml(data.section.content) }])
@@ -543,7 +544,7 @@ function WriteContent() {
       await fetch('/api/write/sections', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, piece_id: pieceId }),
+        body: JSON.stringify({ id, node_id: nodeId }),
       })
     } catch (err) {
       console.error('Failed to delete section:', err)
@@ -559,7 +560,7 @@ function WriteContent() {
       const res = await fetch('/api/write/sections/divide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId }),
+        body: JSON.stringify({ node_id: nodeId }),
       })
       const data = await res.json()
       if (data.sections) {
@@ -584,7 +585,7 @@ function WriteContent() {
       const res = await fetch('/api/write/sections/seed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, force }),
+        body: JSON.stringify({ node_id: nodeId, force }),
       })
       const data = await res.json()
       if (data.sections) {
@@ -608,7 +609,7 @@ function WriteContent() {
       const res = await fetch('/api/write/anchor-lines', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, text: text.trim(), section_id: sectionId }),
+        body: JSON.stringify({ node_id: nodeId, text: text.trim(), section_id: sectionId }),
       })
       const data = await res.json()
       if (data.anchorLine) setAnchorLines((prev) => [...prev, data.anchorLine])
@@ -637,13 +638,13 @@ function WriteContent() {
       fetch('/api/write/draft', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, title: value }),
+        body: JSON.stringify({ node_id: nodeId, title: value }),
       }).catch((err) => console.error('Failed to save title:', err))
     }, 1000)
   }
 
   const handleChatSend = async () => {
-    if (!chatInput.trim() || !pieceId || isChatLoading) return
+    if (!chatInput.trim() || !nodeId || isChatLoading) return
     const userMessage = chatInput
     setChatInput('')
     const priorHistory = chatMessages
@@ -689,7 +690,7 @@ function WriteContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          piece_id: pieceId,
+          node_id: nodeId,
           conversation_history: priorHistory,
           active_section: activeSectionPayload,
           preceding_sections: precedingSections,
@@ -820,7 +821,7 @@ function WriteContent() {
       await fetch('/api/write/sections', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: sectionId, piece_id: pieceId, content }),
+        body: JSON.stringify({ id: sectionId, node_id: nodeId, content }),
       })
     } catch (err) {
       console.error('Failed to save section:', err)
@@ -828,7 +829,7 @@ function WriteContent() {
   }
 
   const approveInlineEdit = async () => {
-    if (!pendingInlineEdit || !pieceId) return
+    if (!pendingInlineEdit || !nodeId) return
     const { sectionId, range } = pendingInlineEdit
     const editor = sectionEditorsRef.current[sectionId]
     if (!editor) return
@@ -841,7 +842,7 @@ function WriteContent() {
   }
 
   const rejectInlineEdit = async () => {
-    if (!pendingInlineEdit || !pieceId) return
+    if (!pendingInlineEdit || !nodeId) return
     const { sectionId, range, originalText } = pendingInlineEdit
     const editor = sectionEditorsRef.current[sectionId]
     if (!editor) return
@@ -859,7 +860,7 @@ function WriteContent() {
   }
 
   const approveWholeEdit = async () => {
-    if (!pendingWholeEdit || !pieceId) return
+    if (!pendingWholeEdit || !nodeId) return
     const { sectionId, content } = pendingWholeEdit
     const editor = sectionEditorsRef.current[sectionId]
     if (!editor) return
@@ -872,17 +873,18 @@ function WriteContent() {
     await persistSectionContent(sectionId, nextHtml)
   }
 
-  // Optimistic toggle, persisted via the same tasks endpoint the project
-  // board uses — status sticks across sessions since it lives on the row.
+  // Optimistic toggle, persisted via studio_tasks (the node/thread model's
+  // equivalent of the tasks table the old project board used) — status
+  // sticks across sessions since it lives on the row.
   const handleToggleTask = async (taskId: string, currentStatus: 'pending' | 'complete') => {
-    if (!piece) return
+    if (!piece || !nodeId) return
     const nextStatus = currentStatus === 'complete' ? 'pending' : 'complete'
     setPiece({
       ...piece,
       tasks: piece.tasks.map((task) => (task.id === taskId ? { ...task, status: nextStatus } : task)),
     })
     try {
-      await fetch('/api/project-board/tasks', {
+      await fetch(`/api/studio/nodes/${nodeId}/tasks`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: taskId, status: nextStatus }),
@@ -892,20 +894,20 @@ function WriteContent() {
     }
   }
 
-  // Creates via the same endpoint the project board uses, then refetches the
-  // piece for the real row id (needed for later toggles) rather than faking one.
+  // Creates via studio_tasks, then refetches the piece for the real row id
+  // (needed for later toggles) rather than faking one.
   const addTask = async () => {
     const title = newTaskTitle.trim()
-    if (!title || !pieceId || isAddingTask) return
+    if (!title || !nodeId || isAddingTask) return
     setIsAddingTask(true)
     try {
-      await fetch('/api/project-board/tasks', {
+      await fetch(`/api/studio/nodes/${nodeId}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, title, type: 'creation' }),
+        body: JSON.stringify({ title, type: 'creation' }),
       })
       setNewTaskTitle('')
-      const res = await fetch(`/api/project-board/piece?id=${pieceId}`)
+      const res = await fetch(`/api/write/node?node_id=${nodeId}`)
       const data = await res.json()
       if (data.success) setPiece(data.piece)
     } catch (err) {
@@ -1000,9 +1002,12 @@ function WriteContent() {
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </IconButton>
-        {pieceId && (
+        {nodeId && (
           <div className="hidden sm:block" style={{ width: 240, flexShrink: 0 }}>
-            <JourneyNav pieceId={pieceId} step={journeyStepFromStage(piece?.stage)} compact />
+            {/* No write-journey stage exists on studio_nodes (see Phase 3
+                report) — "write" is a reasonable default for whoever is on
+                this page, rather than deriving a step from nothing. */}
+            <JourneyNavNode projectId={piece?.project_id ?? null} nodeId={nodeId} step="write" compact />
           </div>
         )}
         <div className="flex items-center gap-2 min-w-0">
@@ -1363,7 +1368,7 @@ function WriteContent() {
                 <button
                   onClick={async () => {
                     await flushSections()
-                    router.push(`/write/test?piece_id=${pieceId}`)
+                    router.push(`/write/test?node_id=${nodeId}`)
                   }}
                   className="mt-6 text-sm text-[#aaa59c] hover:text-[#ece9e2] transition-colors underline"
                 >

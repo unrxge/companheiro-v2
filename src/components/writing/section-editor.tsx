@@ -8,6 +8,7 @@ import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import Typography from '@tiptap/extension-typography'
 import { useTheme } from '@/components/theme/theme-provider'
+import { alpha } from '@/lib/design-tokens'
 
 // Marks a proposed AI edit that's been materialised into the document but not
 // yet decided on — styled (see globals.css) as a plain inline highlight, no
@@ -83,7 +84,11 @@ function ToolbarButton({
         padding: '0 6px',
         borderRadius: 6,
         border: 'none',
-        background: active ? 'rgba(232,230,224,0.14)' : 'transparent',
+        // Relative to the page's own text colour, not a fixed light overlay
+        // — that read fine against the toolbar's old always-dark background,
+        // but the same light-on-light tint went nearly invisible once the
+        // pill itself could be light too.
+        background: active ? alpha(t.textPrimary, 0.12) : 'transparent',
         color: disabled ? t.textMuted : active ? t.textPrimary : t.textSecondary,
         display: 'flex',
         alignItems: 'center',

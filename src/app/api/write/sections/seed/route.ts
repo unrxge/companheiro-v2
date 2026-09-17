@@ -5,23 +5,24 @@ import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
 
-// Derives an editable section skeleton for a piece from its Core Concept's
-// emotional_journey (each beat -> one section, with a loose suggestion +
-// example). Refuses if sections already exist unless force=true.
+// Derives an editable section skeleton (child studio_nodes under node_id)
+// from the root node's emotional_journey (each beat -> one section, with a
+// loose suggestion + example). Refuses if sections already exist unless
+// force=true.
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id, force } = await request.json()
-    if (!piece_id) return NextResponse.json({ error: 'Missing piece_id' }, { status: 400 })
+    const { node_id, force } = await request.json()
+    if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
 
     const { supabase, user } = auth
 
     const { data: existing } = await supabase
-      .from('piece_sections')
+      .from('studio_nodes')
       .select('id')
-      .eq('piece_id', piece_id)
+      .eq('parent_id', node_id)
       .eq('user_id', user.id)
       .limit(1)
 
@@ -30,9 +31,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: piece } = await supabase
-      .from('pieces')
-      .select('title, emotional_journey, conviction_statement, core_truth, substack_draft')
-      .eq('id', piece_id)
+      .from('studio_nodes')
+      .select('id, project_id, title, emotional_journey, intent, core_truth')
+      .eq('id', node_id)
       .eq('user_id', user.id)
       .single()
 
@@ -60,7 +61,7 @@ Return ONLY JSON:
         {
           role: 'user',
           content: `Title: ${piece.title || '(untitled)'}
-Conviction: ${piece.conviction_statement || '(none)'}
+Conviction: ${piece.intent || '(none)'}
 Core truth: ${piece.core_truth || '(none)'}
 Emotional journey: ${piece.emotional_journey || '(not defined — infer an honest progression)'}`,
         },
@@ -86,35 +87,40 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
     // If regenerating, clear the old skeleton first.
     if (force) {
       await supabase
-        .from('piece_sections')
+        .from('studio_nodes')
         .delete()
-        .eq('piece_id', piece_id)
+        .eq('parent_id', node_id)
         .eq('user_id', user.id)
     }
 
     const rows = beats.map((b, i) => ({
       user_id: user.id,
-      piece_id,
+      project_id: piece.project_id,
+      parent_id: node_id,
       position: i,
-      label: b.label || `Section ${i + 1}`,
-      intended_emotion: b.intended_emotion || null,
-      content: '',
+      title: b.label || `Section ${i + 1}`,
+      beat: b.intended_emotion || '',
+      body: '',
     }))
 
     const { data: inserted, error } = await supabase
-      .from('piece_sections')
+      .from('studio_nodes')
       .insert(rows)
-      .select('id, position, label, intended_emotion, content, is_locked')
+      .select('id, position, title, beat, body, is_locked')
 
     if (error) {
       console.error('seed insert error:', error)
       return NextResponse.json({ error: 'Failed to save sections' }, { status: 500 })
     }
 
+    const sections = (inserted || [])
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({ id: s.id, position: s.position, label: s.title || null, intended_emotion: s.beat || null, content: s.body || '', is_locked: s.is_locked }))
+
     // Return sections plus the per-beat suggestions (client shows them as guidance).
     const suggestions = beats.map((b) => b.suggestion || '')
 
-    return NextResponse.json({ sections: inserted, suggestions })
+    return NextResponse.json({ sections, suggestions })
   } catch (error) {
     console.error('sections seed error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

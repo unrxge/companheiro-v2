@@ -71,23 +71,28 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestRespo
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ ...empty, error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id } = await request.json()
-    if (!piece_id) return NextResponse.json({ ...empty, error: 'Missing piece_id' }, { status: 400 })
+    const { node_id } = await request.json()
+    if (!node_id) return NextResponse.json({ ...empty, error: 'Missing node_id' }, { status: 400 })
 
     const { supabase, user } = auth
 
-    const [{ data: piece }, { data: anchorLines }, companionContext] = await Promise.all([
-      supabase
-        .from('pieces')
-        .select('title, substack_draft, writing_ethos, emotional_journey, conviction_statement, core_truth')
-        .eq('id', piece_id)
-        .eq('user_id', user.id)
-        .single(),
-      supabase.from('anchor_lines').select('text').eq('piece_id', piece_id).eq('user_id', user.id),
+    const { data: root } = await supabase
+      .from('studio_nodes')
+      .select('id, project_id, title, body, writing_ethos, emotional_journey, intent, core_truth')
+      .eq('id', node_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!root) return NextResponse.json({ ...empty, error: 'Piece not found' }, { status: 404 })
+    const piece = { ...root, substack_draft: root.body, conviction_statement: root.intent }
+
+    // Scoped by project_id, same caveat as write/sections' anchor-line read:
+    // if a project ever holds more than one root piece, this isn't scoped
+    // any narrower than that (studio_anchor_lines has no per-piece column).
+    const [{ data: anchorLines }, companionContext] = await Promise.all([
+      supabase.from('studio_anchor_lines').select('text').eq('project_id', root.project_id).eq('user_id', user.id),
       buildCompanionContext(auth),
     ])
-
-    if (!piece) return NextResponse.json({ ...empty, error: 'Piece not found' }, { status: 404 })
 
     const draft = (piece.substack_draft || '').trim()
     if (!draft) {

@@ -11,7 +11,7 @@ interface Message {
 }
 
 interface ConverseRequest {
-  piece_id: string
+  node_id: string
   messages: Message[]
 }
 
@@ -27,20 +27,21 @@ export async function POST(request: NextRequest) {
     if (!auth) return NextResponse.json({ response: '' }, { status: 401 })
 
     const body: ConverseRequest = await request.json()
-    if (!body.piece_id || !Array.isArray(body.messages)) {
+    if (!body.node_id || !Array.isArray(body.messages)) {
       return NextResponse.json({ response: '' }, { status: 400 })
     }
 
     const { supabase, user } = auth
 
-    const { data: piece } = await supabase
-      .from('pieces')
-      .select('title, core_truth, conviction_statement, emotional_journey')
-      .eq('id', body.piece_id)
+    const { data: root } = await supabase
+      .from('studio_nodes')
+      .select('title, core_truth, intent, emotional_journey')
+      .eq('id', body.node_id)
       .eq('user_id', user.id)
       .single()
 
-    if (!piece) return NextResponse.json({ response: '' }, { status: 404 })
+    if (!root) return NextResponse.json({ response: '' }, { status: 404 })
+    const piece = { ...root, conviction_statement: root.intent }
 
     const isFirstTurn = body.messages.length === 0
 

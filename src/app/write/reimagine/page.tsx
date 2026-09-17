@@ -84,7 +84,7 @@ function bodyGlow(): Style {
 function ReimagineContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
@@ -113,13 +113,13 @@ function ReimagineContent() {
   const threadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!nodeId) {
       router.push('/project-board')
       return
     }
     fetchAIResponse([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pieceId])
+  }, [nodeId])
 
   useEffect(() => {
     if (threadRef.current) {
@@ -160,7 +160,7 @@ function ReimagineContent() {
       const res = await fetch('/api/write/reimagine/converse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ piece_id: pieceId, messages: conversationHistory }),
+        body: JSON.stringify({ node_id: nodeId, messages: conversationHistory }),
       })
 
       if (!res.ok) {
@@ -210,7 +210,7 @@ function ReimagineContent() {
   }
 
   const runReimagine = async () => {
-    if (!pendingLens || !pieceId || isGenerating) return
+    if (!pendingLens || !nodeId || isGenerating) return
     setIsGenerating(true)
     setOutput('')
     try {
@@ -218,7 +218,7 @@ function ReimagineContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          piece_id: pieceId,
+          node_id: nodeId,
           lens_description: pendingLens.lens,
           energy: ENERGY_SCALE[energyIndex],
         }),
@@ -317,7 +317,7 @@ function ReimagineContent() {
       </div>
 
       <button
-        onClick={() => router.push(`/write?piece_id=${pieceId}`)}
+        onClick={() => router.push(`/write?node_id=${nodeId}`)}
         className="fixed top-6 left-6 z-30 px-4 py-2 text-xs font-bold uppercase tracking-widest"
         style={{ ...glassPill(), color: 'var(--muted)' }}
       >

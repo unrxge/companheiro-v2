@@ -7,7 +7,8 @@ import { logUsage } from '@/lib/usage-log'
 
 // Discerns whether the user's brought text is a full draft or loose fragments,
 // then either distributes the draft across the emotional-journey sections
-// or creates anchor lines from the individual sentences.
+// (child studio_nodes under node_id) or creates anchor lines from the
+// individual sentences.
 //
 // Full draft: ≥100 words OR ≥2 non-trivial paragraphs
 // Loose text: everything else (notes, sentence fragments, scattered lines)
@@ -29,14 +30,24 @@ function extractLines(text: string): string[] {
     .filter((s) => s.length > 2 && s.split(/\s+/).length >= 2)
 }
 
+interface SectionRow {
+  id: string
+  position: number
+  label: string
+  intended_emotion: string | null
+  content: string
+  is_locked: boolean
+}
+
 // Seed empty sections from the piece's emotional journey using the same
 // Claude call as /api/write/sections/seed, minus the legacy-draft placement.
 async function seedSections(
   supabase: AuthedContext['supabase'],
   userId: string,
-  pieceId: string,
-  piece: { title: string | null; emotional_journey: string | null; conviction_statement: string | null; core_truth: string | null }
-) {
+  projectId: string,
+  nodeId: string,
+  piece: { title: string | null; emotional_journey: string | null; intent: string | null; core_truth: string | null }
+): Promise<SectionRow[]> {
   // Same extraction job as write/sections/seed — a short skeleton from a
   // journey the writer already confirmed, no craft judgement involved.
   const response = await anthropic.messages.create({
@@ -55,7 +66,7 @@ Return ONLY JSON: { "sections": [ { "label": "...", "intended_emotion": "..." },
       {
         role: 'user',
         content: `Title: ${piece.title || '(untitled)'}
-Conviction: ${piece.conviction_statement || '(none)'}
+Conviction: ${piece.intent || '(none)'}
 Core truth: ${piece.core_truth || '(none)'}
 Emotional journey: ${piece.emotional_journey || '(not defined — infer an honest progression)'}`,
       },
@@ -74,20 +85,23 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
 
   const rows = beats.map((b, i) => ({
     user_id: userId,
-    piece_id: pieceId,
+    project_id: projectId,
+    parent_id: nodeId,
     position: i,
-    label: b.label || `Section ${i + 1}`,
-    intended_emotion: b.intended_emotion || null,
-    content: '',
+    title: b.label || `Section ${i + 1}`,
+    beat: b.intended_emotion || '',
+    body: '',
   }))
 
   const { data: inserted, error } = await supabase
-    .from('piece_sections')
+    .from('studio_nodes')
     .insert(rows)
-    .select('id, position, label, intended_emotion, content, is_locked')
+    .select('id, position, title, beat, body, is_locked')
 
   if (error || !inserted) throw new Error('Failed to insert sections')
-  return inserted as Array<{ id: string; position: number; label: string; intended_emotion: string | null; content: string; is_locked: boolean }>
+  return inserted
+    .sort((a, b) => a.position - b.position)
+    .map((s) => ({ id: s.id, position: s.position, label: s.title || '', intended_emotion: s.beat || null, content: s.body || '', is_locked: s.is_locked }))
 }
 
 export async function POST(req: NextRequest) {
@@ -96,33 +110,35 @@ export async function POST(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { supabase, user } = auth
 
-    const { piece_id } = await req.json()
-    if (!piece_id) return NextResponse.json({ error: 'Missing piece_id' }, { status: 400 })
+    const { node_id } = await req.json()
+    if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
 
     const { data: piece } = await supabase
-      .from('pieces')
-      .select('title, substack_draft, emotional_journey, conviction_statement, core_truth')
-      .eq('id', piece_id)
+      .from('studio_nodes')
+      .select('id, project_id, title, body, emotional_journey, intent, core_truth')
+      .eq('id', node_id)
       .eq('user_id', user.id)
       .single()
 
     if (!piece) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
 
-    const draft = (piece.substack_draft || '').trim()
+    const draft = (piece.body || '').trim()
     if (!draft) return NextResponse.json({ error: 'No draft to ingest' }, { status: 400 })
 
     // Load or seed sections
     const { data: existing } = await supabase
-      .from('piece_sections')
-      .select('id, position, label, intended_emotion, content, is_locked')
-      .eq('piece_id', piece_id)
+      .from('studio_nodes')
+      .select('id, position, title, beat, body, is_locked')
+      .eq('parent_id', node_id)
       .eq('user_id', user.id)
       .order('position', { ascending: true })
 
-    let sections = (existing || []) as Array<{ id: string; position: number; label: string; intended_emotion: string | null; content: string; is_locked: boolean }>
+    let sections: SectionRow[] = (existing || []).map((s) => ({
+      id: s.id, position: s.position, label: s.title || '', intended_emotion: s.beat || null, content: s.body || '', is_locked: s.is_locked,
+    }))
 
     if (sections.length === 0) {
-      sections = await seedSections(supabase, user.id, piece_id, piece)
+      sections = await seedSections(supabase, user.id, piece.project_id, node_id, piece)
     }
 
     // ── Discern ─────────────────────────────────────────────────────────────
@@ -198,8 +214,8 @@ ${paragraphs.map((p: string, i: number) => `${i}: "${p.length > 300 ? p.slice(0,
           const newContent = assignedParagraphs ? assignedParagraphs.join('\n\n') : s.content
           if (newContent !== s.content) {
             await supabase
-              .from('piece_sections')
-              .update({ content: newContent })
+              .from('studio_nodes')
+              .update({ body: newContent })
               .eq('id', s.id)
               .eq('user_id', user.id)
           }
@@ -252,18 +268,22 @@ ${sections.map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion
         const matchedSection = sectionId ? sections.find((s) => s.id === sectionId) : null
         return {
           user_id: user.id,
-          piece_id,
-          section_id: matchedSection ? matchedSection.id : null,
+          project_id: piece.project_id,
+          node_id: matchedSection ? matchedSection.id : null,
           text: line,
         }
       })
 
       const { data: insertedLines } = await supabase
-        .from('anchor_lines')
+        .from('studio_anchor_lines')
         .insert(anchorRows)
-        .select('id, section_id, text')
+        .select('id, node_id, text')
 
-      return NextResponse.json({ type: 'loose', sections, anchorLines: insertedLines || [] })
+      return NextResponse.json({
+        type: 'loose',
+        sections,
+        anchorLines: (insertedLines || []).map((l) => ({ id: l.id, section_id: l.node_id, text: l.text })),
+      })
     }
   } catch (err) {
     console.error('ingest error:', err)

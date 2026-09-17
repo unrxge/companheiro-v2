@@ -26,7 +26,7 @@ interface PrecedingSection {
 
 interface ChatRequest {
   message: string;
-  piece_id: string;
+  node_id: string;
   conversation_history: Array<{ role: "user" | "assistant"; content: string }>;
   active_section?: ActiveSection | null;
   preceding_sections?: PrecedingSection[];
@@ -43,19 +43,19 @@ export async function POST(request: NextRequest) {
 
     const body: ChatRequest = await request.json();
 
-    if (!body.message || !body.piece_id) {
+    if (!body.message || !body.node_id) {
       return NextResponse.json({ response: "" }, { status: 400 });
     }
 
     const { supabase, user } = auth;
 
-    const [{ data: pieceData, error: pieceError }, { data: settingsData }] = await Promise.all([
+    const [{ data: pieceRow, error: pieceError }, { data: settingsData }] = await Promise.all([
       supabase
-        .from("pieces")
+        .from("studio_nodes")
         .select(
-          "title, conviction_statement, emotional_journey, core_truth, substack_goals, open_threads, substack_draft, writing_ethos"
+          "title, intent, emotional_journey, core_truth, substack_goals, open_threads, body, writing_ethos"
         )
-        .eq("id", body.piece_id)
+        .eq("id", body.node_id)
         .eq("user_id", user.id)
         .single(),
       supabase
@@ -65,9 +65,10 @@ export async function POST(request: NextRequest) {
         .maybeSingle(),
     ]);
 
-    if (pieceError || !pieceData) {
+    if (pieceError || !pieceRow) {
       return NextResponse.json({ response: "" }, { status: 404 });
     }
+    const pieceData = { ...pieceRow, conviction_statement: pieceRow.intent };
 
     const [companionContext, echoes] = await Promise.all([
       buildCompanionContext(auth),

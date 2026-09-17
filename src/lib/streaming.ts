@@ -12,7 +12,7 @@ export const META_DELIMITER = ''
 export function streamClaudeText(
   route: string,
   params: MessageCreateParamsNonStreaming,
-  buildMeta?: (fullText: string) => Record<string, unknown>
+  buildMeta?: (fullText: string) => Record<string, unknown> | Promise<Record<string, unknown>>
 ): Response {
   const encoder = new TextEncoder()
 
@@ -39,7 +39,7 @@ export function streamClaudeText(
         const finalMessage = await messageStream.finalMessage()
         logUsage(route, finalMessage.model, finalMessage.usage)
         const meta: Record<string, unknown> = {
-          ...(buildMeta ? buildMeta(fullText) : {}),
+          ...(buildMeta ? await buildMeta(fullText) : {}),
           truncated: finalMessage.stop_reason === 'max_tokens',
         }
         controller.enqueue(encoder.encode(META_DELIMITER + JSON.stringify(meta)))

@@ -63,7 +63,8 @@ export default function CoreConceptPage() {
   const [showConversation, setShowConversation] = useState(false)
   const [showTaskReview, setShowTaskReview] = useState(false)
   const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
-  const [pieceId, setPieceId] = useState<string | null>(null)
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [nodeId, setNodeId] = useState<string | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
 
@@ -139,8 +140,11 @@ export default function CoreConceptPage() {
         const bringIdeaFlow = sessionStorage.getItem('bring_idea_flow') === 'true'
         sessionStorage.removeItem('bring_idea_flow')
         sessionStorage.removeItem('conceptualisation_conversation')
-        if (bringIdeaFlow) router.push(`/project-board?piece_id=${data.piece_id}`)
-        else { setPieceId(data.piece_id); setTasks(data.tasks || []); setShowTaskReview(true) }
+        // Both branches route by project id, not a piece id — the project's
+        // own single-piece auto-open (work-page.tsx) takes it straight into
+        // writing when there's nothing else on the board yet.
+        if (bringIdeaFlow) router.push(`/p/${data.project_id}`)
+        else { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
       } else setError(data.error || 'Failed to save document')
     } catch (err) {
       console.error('Save error:', err)
@@ -151,9 +155,9 @@ export default function CoreConceptPage() {
   }
 
   const handleDeleteTask = async (taskId?: string, index?: number) => {
-    if (!taskId) { setTasks((prev) => prev.filter((_, i) => i !== index)); return }
+    if (!taskId || !nodeId) { setTasks((prev) => prev.filter((_, i) => i !== index)); return }
     try {
-      const res = await fetch('/api/project-board/tasks', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId }) })
+      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId }) })
       const data = await res.json()
       if (data.success) setTasks((prev) => prev.filter((x) => x.id !== taskId))
       else setError('Failed to delete task')
@@ -161,9 +165,9 @@ export default function CoreConceptPage() {
   }
 
   const handleAddTask = async () => {
-    if (!newTaskTitle.trim() || !pieceId) { setError('Please enter a task title'); return }
+    if (!newTaskTitle.trim() || !nodeId) { setError('Please enter a task title'); return }
     try {
-      const res = await fetch('/api/project-board/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, title: newTaskTitle, type: newTaskType }) })
+      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTaskTitle, type: newTaskType }) })
       const data = await res.json()
       if (data.success) { setTasks((prev) => [...prev, { id: data.task?.id, title: newTaskTitle, type: newTaskType }]); setNewTaskTitle(''); setNewTaskType('creation') }
       else setError('Failed to add task')
@@ -189,7 +193,7 @@ export default function CoreConceptPage() {
   const bareStyle: React.CSSProperties = { fontSize: 14, lineHeight: 1.65 }
 
   // ── Task review ──
-  if (showTaskReview && pieceId) {
+  if (showTaskReview && projectId) {
     return (
       <PageShell mood="ember" maxWidth={760}>
         <PageHeader eyebrow="Idea Lab" title="Task roadmap" subtitle="Review and edit the suggested tasks before beginning." size="md" />
@@ -219,7 +223,7 @@ export default function CoreConceptPage() {
             </div>
           </Card>
           <div style={{ marginTop: 20 }}>
-            <PrimaryButton onClick={() => router.push(`/project-board?piece_id=${pieceId}`)} full size="lg">Begin</PrimaryButton>
+            <PrimaryButton onClick={() => router.push(`/p/${projectId}`)} full size="lg">Begin</PrimaryButton>
           </div>
         </Container>
       </PageShell>

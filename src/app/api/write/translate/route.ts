@@ -6,7 +6,7 @@ import { withLanguage } from "@/lib/language";
 import { logUsage } from "@/lib/usage-log";
 
 interface TranslateRequest {
-  piece_id: string;
+  node_id: string;
 }
 
 interface TranslateResponse {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
   try {
     const body: TranslateRequest = await request.json();
 
-    if (!body.piece_id) {
+    if (!body.node_id) {
       return NextResponse.json(
         { script: "" },
         { status: 400 }
@@ -36,13 +36,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
 
     const userId = userData.user.id;
 
-    // Fetch piece
-    const { data: pieceData, error: pieceError } = await supabase
-      .from("pieces")
-      .select("substack_draft, short_form_goals, conviction_statement, core_truth")
-      .eq("id", body.piece_id)
+    // Fetch piece (root node)
+    const { data: nodeRow, error: pieceError } = await supabase
+      .from("studio_nodes")
+      .select("body, short_form_goals, intent, core_truth")
+      .eq("id", body.node_id)
       .eq("user_id", userId)
       .single();
+    const pieceData = nodeRow ? { substack_draft: nodeRow.body, short_form_goals: nodeRow.short_form_goals, conviction_statement: nodeRow.intent, core_truth: nodeRow.core_truth } : null;
 
     if (pieceError || !pieceData || !pieceData.substack_draft) {
       return NextResponse.json(

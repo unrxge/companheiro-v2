@@ -12,21 +12,22 @@ export async function POST(request: NextRequest) {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id, lens_description, energy } = await request.json()
-    if (!piece_id || !lens_description?.trim()) {
-      return NextResponse.json({ error: 'Missing piece_id/lens_description' }, { status: 400 })
+    const { node_id, lens_description, energy } = await request.json()
+    if (!node_id || !lens_description?.trim()) {
+      return NextResponse.json({ error: 'Missing node_id/lens_description' }, { status: 400 })
     }
 
     const { supabase, user } = auth
 
-    const { data: piece } = await supabase
-      .from('pieces')
-      .select('title, substack_draft, conviction_statement, core_truth')
-      .eq('id', piece_id)
+    const { data: root } = await supabase
+      .from('studio_nodes')
+      .select('title, body, intent, core_truth')
+      .eq('id', node_id)
       .eq('user_id', user.id)
       .single()
 
-    if (!piece) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
+    if (!root) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
+    const piece = { ...root, substack_draft: root.body, conviction_statement: root.intent }
 
     const draft = (piece.substack_draft || '').trim()
     if (!draft) return NextResponse.json({ error: 'No draft to reimagine' }, { status: 400 })

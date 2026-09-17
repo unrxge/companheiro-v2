@@ -6,11 +6,12 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { TextArea } from '@/components/ui/field'
-import { JourneyNav } from '@/components/widgets'
+import { JourneyNavNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface PieceData {
   id: string
+  project_id: string
   title: string
   substack_draft: string
   short_form_script: string
@@ -20,7 +21,7 @@ function TranslateContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { t } = useTheme()
-  const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
 
   const [piece, setPiece] = useState<PieceData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -31,18 +32,17 @@ function TranslateContent() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!nodeId) {
       router.push('/project-board')
       return
     }
-    fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, stage: 'translating' }) }).catch(() => {})
     fetchPiece()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pieceId, router])
+  }, [nodeId, router])
 
   const fetchPiece = async () => {
     try {
-      const res = await fetch(`/api/project-board/piece?id=${pieceId}`)
+      const res = await fetch(`/api/write/node?node_id=${nodeId}`)
       const data = await res.json()
       if (data.success) {
         setPiece(data.piece)
@@ -56,10 +56,10 @@ function TranslateContent() {
   }
 
   const handleGenerateScript = async () => {
-    if (!pieceId || isGenerating) return
+    if (!nodeId || isGenerating) return
     setIsGenerating(true)
     try {
-      const res = await fetch('/api/write/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId }) })
+      const res = await fetch('/api/write/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: nodeId }) })
       const data = await res.json()
       setScript(data.script || '')
     } catch (err) {
@@ -69,11 +69,11 @@ function TranslateContent() {
     }
   }
 
-  const saveScript = async (stage?: 'executing') => {
-    if (!pieceId) return
+  const saveScript = async () => {
+    if (!nodeId) return
     setIsSaving(true)
     try {
-      await fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, short_form_script: script, ...(stage ? { stage } : {}) }) })
+      await fetch('/api/write/draft', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: nodeId, short_form_script: script }) })
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
     } catch (err) {
@@ -83,9 +83,13 @@ function TranslateContent() {
     }
   }
 
+  // /post-publication isn't repointed in this phase (see CLAUDE.md's Phase 3
+  // notes) — it still keys off a `pieces` row that doesn't exist for
+  // node-based work. This link is left pointed at it with the node id in the
+  // piece_id slot as a known, documented gap rather than removed outright.
   const handleMarkReady = async () => {
-    await saveScript('executing')
-    router.push(`/post-publication?piece_id=${pieceId}`)
+    await saveScript()
+    router.push(`/post-publication?piece_id=${nodeId}`)
   }
 
   const copy = (text: string) => {
@@ -94,7 +98,7 @@ function TranslateContent() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  if (!pieceId) return null
+  if (!nodeId) return null
 
   return (
     <PageShell mood="violet">
@@ -103,16 +107,16 @@ function TranslateContent() {
         title={piece?.title || 'Translate'}
         subtitle="Long-form to short-form. The draft stays as it is; the script is yours to shape."
         size="md"
-        back={`/write?piece_id=${pieceId}`}
+        back={`/write?node_id=${nodeId}`}
         actions={script ? <PrimaryButton size="sm" onClick={handleMarkReady} loading={isSaving} loadingLabel="Saving…">Ready to post →</PrimaryButton> : undefined}
       />
 
       <Container>
         <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
-            <JourneyNav pieceId={pieceId} step="shape" />
+            <JourneyNavNode projectId={piece?.project_id ?? null} nodeId={nodeId} step="shape" />
           </div>
-          <GhostButton size="sm" href={`/write/reimagine?piece_id=${pieceId}`}>Or reimagine it through a lens →</GhostButton>
+          <GhostButton size="sm" href={`/write/reimagine?node_id=${nodeId}`}>Or reimagine it through a lens →</GhostButton>
         </div>
 
         {isLoading || !piece ? (

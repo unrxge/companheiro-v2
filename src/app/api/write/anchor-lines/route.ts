@@ -4,30 +4,42 @@ import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { logUsage } from '@/lib/usage-log'
 
-// POST   -> add an anchor line. If no section_id given, AI places it into the
-//           best-fitting existing section.
+// POST   -> add an anchor line under a piece's root node_id. If no section_id
+//           given, AI places it into the best-fitting existing section (a
+//           child studio_node).
 // DELETE -> remove an anchor line.
+//
+// Writes to studio_anchor_lines (migration 006): project_id + nullable
+// node_id, mirroring anchor_lines' piece_id + nullable section_id.
 
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { piece_id, text, section_id } = await request.json()
-    if (!piece_id || !text?.trim()) {
-      return NextResponse.json({ error: 'Missing piece_id/text' }, { status: 400 })
+    const { node_id, text, section_id } = await request.json()
+    if (!node_id || !text?.trim()) {
+      return NextResponse.json({ error: 'Missing node_id/text' }, { status: 400 })
     }
 
     const { supabase, user } = auth
+
+    const { data: root, error: rootError } = await supabase
+      .from('studio_nodes')
+      .select('id, project_id')
+      .eq('id', node_id)
+      .eq('user_id', user.id)
+      .single()
+    if (rootError || !root) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
 
     let resolvedSectionId: string | null = section_id ?? null
 
     // No explicit section → let the AI place the line into the best section.
     if (!resolvedSectionId) {
       const { data: sections } = await supabase
-        .from('piece_sections')
-        .select('id, label, intended_emotion, content')
-        .eq('piece_id', piece_id)
+        .from('studio_nodes')
+        .select('id, title, beat, body')
+        .eq('parent_id', node_id)
         .eq('user_id', user.id)
         .order('position', { ascending: true })
 
@@ -46,8 +58,8 @@ Sections:
 ${sections
   .map(
     (s) =>
-      `id: ${s.id} | ${s.label || 'untitled'} (emotion: ${s.intended_emotion || 'n/a'})${
-        s.content ? ` | current text: ${s.content.slice(0, 200)}` : ''
+      `id: ${s.id} | ${s.title || 'untitled'} (emotion: ${s.beat || 'n/a'})${
+        s.body ? ` | current text: ${s.body.slice(0, 200)}` : ''
       }`
   )
   .join('\n')}
@@ -70,14 +82,14 @@ Return the id only.`,
     }
 
     const { data, error } = await supabase
-      .from('anchor_lines')
+      .from('studio_anchor_lines')
       .insert({
         user_id: user.id,
-        piece_id,
-        section_id: resolvedSectionId,
+        project_id: root.project_id,
+        node_id: resolvedSectionId,
         text: text.trim(),
       })
-      .select('id, section_id, text, created_at')
+      .select('id, node_id, text, created_at')
       .single()
 
     if (error) {
@@ -85,7 +97,7 @@ Return the id only.`,
       return NextResponse.json({ error: 'Failed to add anchor line' }, { status: 500 })
     }
 
-    return NextResponse.json({ anchorLine: data })
+    return NextResponse.json({ anchorLine: { id: data.id, section_id: data.node_id, text: data.text } })
   } catch (error) {
     console.error('anchor-lines POST error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -103,7 +115,7 @@ export async function DELETE(request: NextRequest) {
     const { supabase, user } = auth
 
     const { error } = await supabase
-      .from('anchor_lines')
+      .from('studio_anchor_lines')
       .delete()
       .eq('id', id)
       .eq('user_id', user.id)

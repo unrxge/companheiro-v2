@@ -21,8 +21,9 @@ interface SaveRequest {
 
 interface SaveResponse {
   success: boolean;
-  idea_id?: string;
-  piece_id?: string;
+  project_id?: string;
+  node_id?: string;
+  tasks?: Array<{ id: string; title: string; type: string }>;
   error?: string;
 }
 
@@ -35,7 +36,16 @@ function normaliseArc(raw: string): string {
   return "Beginning"; // default fallback
 }
 
-
+// Saves a locked Core Concept document as a Studio project: one studio_projects
+// row (the shelf-level container, carrying the Lens and the write-journey
+// lane) plus one root studio_nodes row (parent_id null — the piece itself,
+// carrying every Gather/Shape/Write/Test field Write mode reads). This is the
+// Phase 3 rewiring of Idea Lab's creation flow off pieces/ideas and onto the
+// node/thread model (see studio/supabase/migrations/007_project_arc_and_tasks.sql
+// for the arc/thematic_territory + studio_tasks schema this depends on).
+//
+// Deliberately does NOT touch pieces/ideas/tasks — those tables and the old
+// Project Board stay live, untouched, for pieces created before this change.
 export async function POST(request: NextRequest): Promise<NextResponse<SaveResponse>> {
   try {
     const body: SaveRequest = await request.json();
@@ -87,44 +97,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     })
     console.log('Generated poetic title:', poeticTitle)
 
-    // Create idea
-    console.log('Creating idea with:', {
-      user_id: userId,
-      one_sentence: body.one_sentence,
-      arc: normalisedArc,
-      thematic_territory: normalisedTerritory,
-    })
-
-    const { data: ideaData, error: ideaError } = await supabase
-      .from("ideas")
-      .insert([
-        {
-          user_id: userId,
-          title: poeticTitle,
-          one_sentence: body.one_sentence,
-          arc: normalisedArc,
-          thematic_territory: normalisedTerritory,
-          is_project: false,
-          status: "ready",
-          conceptualisation_log: body.conversation_history,
-        },
-      ])
-      .select();
-
-    if (ideaError || !ideaData || ideaData.length === 0) {
-      console.error("Error creating idea:", ideaError);
-      return NextResponse.json(
-        { success: false, error: "Failed to save idea" },
-        { status: 500 }
-      );
-    }
-
-    const ideaId = ideaData[0].id;
-    console.log('Idea created successfully:', ideaId)
-
-    // Create piece
-    console.log('Creating piece with idea_id:', ideaId)
-
     // Convert open_threads string to array — one thread per line, stripping any
     // leading bullet ("- ", "• ") or numbered ("1.", "1)") marker
     const openThreadsArray = typeof body.open_threads === 'string'
@@ -136,46 +108,98 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     console.log('Converted open_threads to array:', openThreadsArray)
 
     // If the conversation has a single user message it came from "Bring an idea".
-    // Store that text as the substack_draft so the write page can ingest it.
+    // Store that text as the root node's body so the write flow can ingest it —
+    // same convention pieces.substack_draft used, and the same plain-text shape
+    // (root.body only becomes HTML once Write mode's own editor touches it).
     const bringIdeaDraft =
       body.conversation_history.length === 1 &&
       body.conversation_history[0].role === 'user'
         ? body.conversation_history[0].content.trim()
         : null
 
-    const { data: pieceData, error: pieceError } = await supabase
-      .from("pieces")
+    // Create the project (the shelf-level container).
+    console.log('Creating studio project for:', poeticTitle)
+    const { data: projectData, error: projectError } = await supabase
+      .from("studio_projects")
       .insert([
         {
           user_id: userId,
-          idea_id: ideaId,
           title: poeticTitle,
+          intent: body.conviction_statement,
+          rules: [],
           arc: normalisedArc,
           thematic_territory: normalisedTerritory,
-          format: "substack",
-          stage: "conceptualising",
-          conviction_statement: body.conviction_statement,
+          shelf_stage: "active",
+          canvas_version: 1,
+          composed_at: null,
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (projectError || !projectData) {
+      console.error("Error creating studio project:", projectError);
+      return NextResponse.json(
+        { success: false, error: "Failed to save project" },
+        { status: 500 }
+      );
+    }
+
+    const projectId = projectData.id as string;
+    console.log('Studio project created successfully:', projectId)
+
+    // A creation concept revision, so the board's vision block has something
+    // to show — mirrors what /api/studio/projects POST does for projects
+    // created from the Studio's own "new project" flow.
+    const { error: conceptError } = await supabase.from("studio_concept_revisions").insert({
+      user_id: userId,
+      project_id: projectId,
+      body: body.conviction_statement || body.one_sentence,
+      constraints: [],
+      origin: "creation",
+    });
+    if (conceptError) {
+      console.error("Error creating concept revision (non-fatal):", conceptError);
+    }
+
+    // Create the root node — the piece itself. parent_id null puts it at the
+    // top of the project; Write mode's children (sections) nest under it.
+    const { data: nodeData, error: nodeError } = await supabase
+      .from("studio_nodes")
+      .insert([
+        {
+          user_id: userId,
+          project_id: projectId,
+          parent_id: null,
+          position: 0,
+          title: poeticTitle,
+          intent: body.conviction_statement,
+          stands_whole: true,
+          status: "open",
           emotional_journey: body.emotional_journey,
           core_truth: body.core_truth,
           substack_goals: body.substack_goals,
           short_form_goals: body.short_form_goals,
           open_threads: openThreadsArray,
-          ...(bringIdeaDraft ? { substack_draft: bringIdeaDraft } : {}),
-          next_action: "Begin writing the Substack piece",
+          writing_ethos: null, // left blank for Gather to fill later
+          body: bringIdeaDraft ?? "",
         },
       ])
-      .select();
+      .select("id")
+      .single();
 
-    if (pieceError || !pieceData || pieceData.length === 0) {
-      console.error("Error creating piece:", pieceError);
+    if (nodeError || !nodeData) {
+      console.error("Error creating root node:", nodeError);
+      // Never leave a half-made project on the shelf.
+      await supabase.from("studio_projects").delete().eq("id", projectId);
       return NextResponse.json(
         { success: false, error: "Failed to save piece" },
         { status: 500 }
       );
     }
 
-    const pieceId = pieceData[0].id;
-    console.log('Piece created successfully:', pieceId)
+    const nodeId = nodeData.id as string;
+    console.log('Root node created successfully:', nodeId)
 
     // Run portrait distillation and task generation in parallel — both are
     // independent of each other and were previously sequential, adding ~2s
@@ -204,7 +228,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     if (suggestedTasks.length > 0) {
       const tasksToInsert = suggestedTasks.map((task, index) => ({
         user_id: userId,
-        piece_id: pieceId,
+        project_id: projectId,
+        node_id: nodeId,
         title: task.title,
         type: task.type,
         is_writing_related: task.is_writing_related,
@@ -213,7 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       }))
 
       const { data: tasksData, error: tasksError } = await supabase
-        .from("tasks")
+        .from("studio_tasks")
         .insert(tasksToInsert)
         .select("id, title, type")
 
@@ -226,8 +251,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
 
     return NextResponse.json({
       success: true,
-      idea_id: ideaId,
-      piece_id: pieceId,
+      project_id: projectId,
+      node_id: nodeId,
       tasks: insertedTasks,
     })
   } catch (error) {

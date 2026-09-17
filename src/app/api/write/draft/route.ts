@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 
 interface DraftRequest {
-  piece_id: string;
+  node_id: string;
   title?: string;
   substack_draft?: string;
   short_form_script?: string;
   writing_ethos?: string;
-  /** Journey step transition; only forward-moving working stages are accepted here. */
-  stage?: "writing" | "testing" | "translating" | "executing";
 }
 
 interface DraftResponse {
@@ -16,13 +14,19 @@ interface DraftResponse {
   error?: string;
 }
 
+// PATCH — small, frequent edits to a piece's root node from within Write
+// mode: the title (renaming from the Write page), the flattened draft cache,
+// the generated short-form script, and the writing ethos. No `stage`
+// transition here (unlike the old pieces-backed route) — the node/thread
+// model has no write-journey-stage field, and nothing downstream reads one
+// for a studio_nodes row, so there's nothing to keep in sync.
 export async function PATCH(request: NextRequest): Promise<NextResponse<DraftResponse>> {
   try {
     const body: DraftRequest = await request.json();
 
-    if (!body.piece_id) {
+    if (!body.node_id) {
       return NextResponse.json(
-        { success: false, error: "Missing piece_id" },
+        { success: false, error: "Missing node_id" },
         { status: 400 }
       );
     }
@@ -44,7 +48,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
       updateData.title = body.title;
     }
     if (body.substack_draft !== undefined) {
-      updateData.substack_draft = body.substack_draft;
+      updateData.body = body.substack_draft;
     }
     if (body.short_form_script !== undefined) {
       updateData.short_form_script = body.short_form_script;
@@ -53,29 +57,14 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
       updateData.writing_ethos = body.writing_ethos;
     }
 
-    // Get current piece to check stage
-    const { data: pieceData } = await supabase
-      .from("pieces")
-      .select("stage")
-      .eq("id", body.piece_id)
-      .eq("user_id", userId)
-      .single();
-
-    // Update stage to "writing" if it's "conceptualising"
-    if (pieceData?.stage === "conceptualising") {
-      updateData.stage = "writing";
-    }
-    // Explicit journey transitions from the writing screens. Never move a
-    // posted piece backwards.
-    const ALLOWED_STAGES = ["writing", "testing", "translating", "executing"];
-    if (body.stage && ALLOWED_STAGES.includes(body.stage) && pieceData?.stage !== "posted") {
-      updateData.stage = body.stage;
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ success: true });
     }
 
     const { error: updateError } = await supabase
-      .from("pieces")
+      .from("studio_nodes")
       .update(updateData)
-      .eq("id", body.piece_id)
+      .eq("id", body.node_id)
       .eq("user_id", userId);
 
     if (updateError) {
