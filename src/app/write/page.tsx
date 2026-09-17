@@ -264,7 +264,7 @@ function WriteContent() {
   // measuring where a highlighted passage sits on screen.
   const sectionEditorsRef = useRef<Record<string, Editor | null>>({})
   const sectionContainerRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const [viewport, setViewport] = useState({ isMobile: false, isPortrait: true })
+  const [viewport, setViewport] = useState({ isMobile: false, isPortrait: true, width: 1024 })
 
   useEffect(() => {
     if (!pieceId) {
@@ -454,6 +454,7 @@ function WriteContent() {
       setViewport({
         isMobile: window.innerWidth < 768,
         isPortrait: window.innerHeight >= window.innerWidth,
+        width: window.innerWidth,
       })
     }
     update()
@@ -465,15 +466,22 @@ function WriteContent() {
     }
   }, [])
 
-  // On mobile portrait, the assistant panel covers the bottom half of the
-  // screen as a bottom sheet — scroll the section being written into the
-  // visible top half so the writer can still see their cursor. In landscape
-  // (and on desktop) the panel sits beside the text instead, so this isn't
-  // needed there.
+  // Below this width, a portrait viewport doesn't have room for the tool
+  // panel beside the text (this covers phones AND portrait tablets — an
+  // iPad in portrait is 744-1024px wide, well past the old 768px "mobile"
+  // cutoff, but still too narrow for a 360-460px side panel plus a readable
+  // column of text). isMobile stays a phone-only signal used elsewhere for
+  // touch-target/font sizing; this is specifically the panel-layout question.
+  const stackPanel = viewport.isPortrait && viewport.width < 1080
+
+  // When the tool panel stacks below the text as a bottom sheet, it covers
+  // the bottom half of the screen — scroll the section being written into
+  // the visible top half so the writer can still see their cursor. When the
+  // panel sits beside the text instead, this isn't needed.
   useEffect(() => {
-    if (!viewport.isMobile || !viewport.isPortrait || !openTool || !activeSectionId) return
+    if (!stackPanel || !openTool || !activeSectionId) return
     sectionContainerRefs.current[activeSectionId]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [openTool, viewport.isMobile, viewport.isPortrait, activeSectionId])
+  }, [openTool, stackPanel, activeSectionId])
 
   const handleSectionContentChange = (id: string, content: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, content } : s)))
@@ -961,18 +969,19 @@ function WriteContent() {
 
   // The writing column reserves room on the right for whatever rail panel is
   // open, so text recenters in the space that's left rather than sitting under
-  // the panel. Nothing open -> full width. On mobile portrait the panel is a
-  // bottom sheet instead (no horizontal reservation needed); on mobile
-  // landscape it sits to the right like desktop, just narrower.
+  // the panel. Nothing open -> full width. Whenever the panel stacks below as
+  // a bottom sheet (any portrait viewport too narrow for a side panel, phone
+  // or tablet), no horizontal reservation is needed; phone landscape reserves
+  // a narrower strip than desktop/tablet-landscape's fixed side panel.
   const reservedRight = !openTool
     ? '0px'
-    : viewport.isMobile
-      ? viewport.isPortrait
-        ? '0px'
-        : '55vw'
-      : openTool === 'assistant' && chatExpanded
-        ? 'calc(38vw + 100px)'
-        : '460px'
+    : stackPanel
+      ? '0px'
+      : viewport.isMobile
+        ? '55vw'
+        : openTool === 'assistant' && chatExpanded
+          ? 'calc(38vw + 100px)'
+          : '460px'
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: shell.background }}>
@@ -1065,7 +1074,7 @@ function WriteContent() {
           background: 'transparent',
           paddingRight: reservedRight,
           paddingTop: sections.length > 0 && !flowView ? 44 : undefined,
-          paddingBottom: viewport.isMobile && viewport.isPortrait && openTool ? '52vh' : undefined,
+          paddingBottom: stackPanel && openTool ? '52vh' : undefined,
           transition: 'padding 0.3s ease',
           // Safari-specific: an overflow-y:auto scroller paired with a
           // position:fixed sibling (the tool panel below) is a well-known
@@ -1183,7 +1192,7 @@ function WriteContent() {
                           className={`bg-transparent font-medium text-[#ece9e2] uppercase focus:outline-none flex-1 min-w-0 ${viewport.isMobile ? 'tracking-wide' : 'tracking-widest'}`}
                           style={{ fontSize: viewport.isMobile ? 9 : 12 }}
                         />
-                        {section.intended_emotion && (!viewport.isMobile || !viewport.isPortrait) && (
+                        {section.intended_emotion && !stackPanel && (
                           <span className="text-xs text-[#7d786f] italic flex-shrink-0">{section.intended_emotion}</span>
                         )}
                         <button
@@ -1372,7 +1381,7 @@ function WriteContent() {
       {/* Floating tool rail */}
       <div
         className="fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2"
-        style={{ display: viewport.isMobile && openTool ? 'none' : 'flex' }}
+        style={{ display: stackPanel && openTool ? 'none' : 'flex' }}
       >
         {TOOL_META.map((tool) => (
           <div key={tool.key} className="group relative flex items-center justify-end">
@@ -1402,26 +1411,26 @@ function WriteContent() {
       {openTool && (
         <div
           className={
-            viewport.isMobile
-              ? viewport.isPortrait
-                ? 'fixed inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden'
-                : 'fixed right-3 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
-              : 'fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
+            stackPanel
+              ? 'fixed inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden'
+              : viewport.isMobile
+                ? 'fixed right-3 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
+                : 'fixed right-20 top-16 bottom-4 z-30 flex flex-col overflow-hidden'
           }
           style={
-            viewport.isMobile
-              ? viewport.isPortrait
+            stackPanel
+              ? {
+                  height: '50vh',
+                  background: t.containerBg,
+                  borderTop: `1px solid ${t.divider}`,
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  boxShadow: t.containerShadow,
+                  transform: 'translateZ(0)',
+                  WebkitTransform: 'translateZ(0)',
+                }
+              : viewport.isMobile
                 ? {
-                    height: '50vh',
-                    background: t.containerBg,
-                    borderTop: `1px solid ${t.divider}`,
-                    borderTopLeftRadius: 20,
-                    borderTopRightRadius: 20,
-                    boxShadow: t.containerShadow,
-                    transform: 'translateZ(0)',
-                    WebkitTransform: 'translateZ(0)',
-                  }
-                : {
                     width: '55vw',
                     background: t.containerBg,
                     border: `1px solid ${t.divider}`,
@@ -1430,17 +1439,17 @@ function WriteContent() {
                     transform: 'translateZ(0)',
                     WebkitTransform: 'translateZ(0)',
                   }
-              : {
-                  width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
-                  background: t.containerBg,
-                  border: `1px solid ${t.divider}`,
-                  borderRadius: 20,
-                  boxShadow: t.containerShadow,
-                  // Safari-specific fix — see the writing surface container
-                  // above for the full explanation of this compositing bug.
-                  transform: 'translateZ(0)',
-                  WebkitTransform: 'translateZ(0)',
-                }
+                : {
+                    width: openTool === 'assistant' && chatExpanded ? '38%' : '360px',
+                    background: t.containerBg,
+                    border: `1px solid ${t.divider}`,
+                    borderRadius: 20,
+                    boxShadow: t.containerShadow,
+                    // Safari-specific fix — see the writing surface container
+                    // above for the full explanation of this compositing bug.
+                    transform: 'translateZ(0)',
+                    WebkitTransform: 'translateZ(0)',
+                  }
           }
         >
           <div
@@ -1464,7 +1473,7 @@ function WriteContent() {
                   </svg>
                 </button>
               )}
-              {openTool === 'assistant' && !viewport.isMobile && (
+              {openTool === 'assistant' && !stackPanel && !viewport.isMobile && (
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
                   style={{ color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}

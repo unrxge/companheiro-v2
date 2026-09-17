@@ -9,6 +9,7 @@ import { useTerritories } from '@/hooks/useTerritories'
 import { PageShell, PageHeader, Container } from '@/components/shell/page-shell'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { IconButton } from '@/components/ui/icon-button'
+import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 import { StageRibbon } from '@/components/widgets'
 import { arcHue, journeyStepFromStage, shell, toneHue, type Arc } from '@/lib/design-tokens'
 
@@ -88,6 +89,7 @@ interface PieceDetail {
   tasks: Task[]
   session_logs: SessionLog[]
   created_at?: string
+  conceptualisation_log?: ConversationLogMessage[]
 }
 
 interface IdeaDetail {
@@ -106,6 +108,7 @@ interface IdeaDetail {
   substack_goals?: string
   short_form_goals?: string
   open_threads?: string | string[]
+  conceptualisation_log?: ConversationLogMessage[]
 }
 
 type ModalType = 'piece' | 'idea'
@@ -159,6 +162,7 @@ function ProjectBoardContent() {
   const [modalType, setModalType] = useState<ModalType | null>(null)
   const [selectedPiece, setSelectedPiece] = useState<PieceDetail | null>(null)
   const [selectedIdea, setSelectedIdea] = useState<IdeaDetail | null>(null)
+  const [showConversation, setShowConversation] = useState(false)
   const [newTaskInput, setNewTaskInput] = useState('')
   const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
   const [coreConceptDraft, setCoreConceptDraft] = useState<{
@@ -353,6 +357,7 @@ function ProjectBoardContent() {
     setSelectedPiece(null)
     setSelectedIdea(null)
     setCoreConceptDraft(null)
+    setShowConversation(false)
   }
 
   const handleDeleteTask = async (taskId: string) => {
@@ -544,14 +549,14 @@ function ProjectBoardContent() {
       <PageShell mood="verdant" fill>
         <PageHeader eyebrow="Companheiro" title="Project Board" />
         <Container fill padding={0}>
-          <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
+          <div className="min-[1080px]:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
             {['Queue', 'Active', 'Completed'].map((name) => (
               <div key={name} className="flex-1 py-3 flex items-center justify-center">
                 <div className="h-3 w-14 rounded animate-pulse" style={{ backgroundColor: c.divider }} />
               </div>
             ))}
           </div>
-          <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+          <div className="hidden min-[1080px]:flex flex-1" style={{ minHeight: 0 }}>
             {[{ width: '260px', border: true }, { width: undefined, border: true }, { width: '260px', border: false }].map((col, i) => (
               <div key={i} className="flex flex-col px-4 py-3 space-y-3" style={{ width: col.width, flex: col.width ? '0 0 auto' : '1 1 0%', borderRight: col.border ? `1px solid ${c.divider}` : 'none' }}>
                 <div className="h-3 w-16 rounded animate-pulse mb-2" style={{ backgroundColor: c.divider }} />
@@ -561,7 +566,7 @@ function ProjectBoardContent() {
               </div>
             ))}
           </div>
-          <div className="md:hidden flex-1 px-4 py-3 space-y-3">
+          <div className="min-[1080px]:hidden flex-1 px-4 py-3 space-y-3">
             {[...Array(3)].map((_, j) => (
               <div key={j} className="h-20 rounded-lg animate-pulse" style={{ backgroundColor: c.cardBg }} />
             ))}
@@ -913,8 +918,11 @@ function ProjectBoardContent() {
       />
 
       <Container fill padding={0}>
-        {/* Mobile Tab Bar - Hidden on md+ */}
-        <div className="md:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
+        {/* Mobile Tab Bar - hidden once there's room for the 3-column board (1080px+).
+            Deliberately wider than Tailwind's md (768px): that range still catches
+            portrait tablets (iPad is 744-1024px wide in portrait), which don't have
+            room for two fixed 260px columns plus a readable Active column. */}
+        <div className="min-[1080px]:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
           {[
           { name: 'Queue' as MobileTab, color: c.ochre, count: queue.length + queueDraftCount },
           { name: 'Active' as MobileTab, color: c.verdant, count: active.length },
@@ -956,7 +964,7 @@ function ProjectBoardContent() {
         {/* Desktop Layout - 3 Columns. Widths sum to 1080px (was 240+600+240) and the
             row is centered via maxWidth+margin:auto so any leftover container width
             splits evenly on both sides instead of showing as a gap on the right. */}
-        <div className="hidden md:flex flex-1" style={{ minHeight: 0 }}>
+        <div className="hidden min-[1080px]:flex flex-1" style={{ minHeight: 0 }}>
           {/* Queue Column - fixed width, doesn't shrink when the board narrows */}
           <div
             className="flex flex-col transition-colors"
@@ -1082,7 +1090,7 @@ function ProjectBoardContent() {
         </div>
 
         {/* Mobile Layout - Single Column with Tabs */}
-        <div className="board-scroll md:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
+        <div className="board-scroll min-[1080px]:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
           <div className="space-y-3">
           {activeTab === 'Queue' && conceptualiseDrafts.length > 0 && renderDraftCard()}
           {activeTab === 'Queue' &&
@@ -1310,6 +1318,20 @@ function ProjectBoardContent() {
                 >
                   {selectedPiece?.substack_draft ? 'Resume writing' : 'Begin writing'}
                 </button>
+                  {selectedPiece.conceptualisation_log && selectedPiece.conceptualisation_log.length > 0 && (
+                    <button
+                      onClick={() => setShowConversation(true)}
+                      aria-label="Review the conceptualisation conversation"
+                      title="Review the conceptualisation conversation"
+                      style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: shell.muted }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.text }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.muted }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDeletePiece(selectedPiece.id)}
                     aria-label="Delete piece"
@@ -1934,6 +1956,20 @@ function ProjectBoardContent() {
                   >
                     Activate idea
                   </button>
+                  {selectedIdea.conceptualisation_log && selectedIdea.conceptualisation_log.length > 0 && (
+                    <button
+                      onClick={() => setShowConversation(true)}
+                      aria-label="Review the conceptualisation conversation"
+                      title="Review the conceptualisation conversation"
+                      style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: shell.muted }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.text }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = shell.muted }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDeleteIdea(selectedIdea.id)}
                     aria-label="Delete idea"
@@ -2085,6 +2121,13 @@ function ProjectBoardContent() {
           </div>
         )
       })()}
+
+      {showConversation && (selectedPiece?.conceptualisation_log || selectedIdea?.conceptualisation_log) && (
+        <ConversationLogModal
+          messages={selectedPiece?.conceptualisation_log || selectedIdea?.conceptualisation_log || []}
+          onClose={() => setShowConversation(false)}
+        />
+      )}
 
       {/* Resume exploration modal — shown when New Idea is tapped while a draft exists */}
       {showNewIdeaModal && conceptualiseDrafts.length > 0 && (

@@ -7,7 +7,7 @@ import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/comp
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
-import { ModalDialog } from '@/components/ui/modal-dialog'
+import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
 import { useTerritories } from '@/hooks/useTerritories'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
@@ -349,18 +349,7 @@ export default function CoreConceptPage() {
         </div>
       </Container>
 
-      {showConversation && (
-        <ModalDialog onClose={() => setShowConversation(false)} title="Conceptualisation" maxWidth="640px">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {conversation.map((msg, i) => (
-              <div key={i} style={{ borderBottom: i < conversation.length - 1 ? `1px solid ${t.divider}` : 'none', paddingBottom: i < conversation.length - 1 ? 18 : 0 }}>
-                <Eyebrow style={{ marginBottom: 6, color: msg.role === 'user' ? t.ember : t.textMuted }}>{msg.role === 'user' ? 'You' : 'Companheiro'}</Eyebrow>
-                <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, whiteSpace: 'pre-wrap' }}>{msg.content}</p>
-              </div>
-            ))}
-          </div>
-        </ModalDialog>
-      )}
+      {showConversation && <ConversationLogModal messages={conversation} onClose={() => setShowConversation(false)} />}
     </PageShell>
   )
 }

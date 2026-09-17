@@ -8,6 +8,11 @@ interface Task {
   status: "pending" | "complete";
 }
 
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface IdeaDetail {
   id: string;
   title: string;
@@ -24,6 +29,7 @@ interface IdeaDetail {
   short_form_goals?: string;
   open_threads?: string | string[];
   created_at?: string;
+  conceptualisation_log?: ConversationMessage[];
 }
 
 interface IdeaDetailResponse {
@@ -58,7 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
     // Fetch idea
     const { data: ideaData, error: ideaError } = await supabase
       .from("ideas")
-      .select("id, title, one_sentence, arc, thematic_territory, status, created_at")
+      .select("id, title, one_sentence, arc, thematic_territory, status, created_at, conceptualisation_log")
       .eq("id", ideaId)
       .eq("user_id", userId)
       .single();
@@ -94,6 +100,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
       success: true,
       idea: {
         ...ideaData,
+        conceptualisation_log: ideaData.conceptualisation_log || [],
         piece_id: pieceData?.id,
         tasks,
         conviction_statement: pieceData?.conviction_statement,
