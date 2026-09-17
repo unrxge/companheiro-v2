@@ -1,13 +1,12 @@
 // GET /api/studio/projects — the shelf · POST — create a project (D-061)
 
 import { NextResponse, type NextRequest } from 'next/server'
-import type { AuthedContext } from '@/lib/supabase/route'
 import {
-  badRequest, fromDbError, isRecord, isString, isStringArray, loadBundle, nowIso, readJson, shelfProjects, withAuth,
+  badRequest, fromDbError, isRecord, isString, isStringArray, nowIso, readJson, shelfProjects, withAuth,
 } from '@/lib/studio/db'
-import { registry } from '@/lib/studio/registry'
-import { composeNew } from '@/lib/studio/layout/compose'
-import type { AnyBlock, BlockType, CreateProjectRequest } from '@/lib/studio/types'
+import { nextPosition } from '@/lib/studio/nodes-db'
+import type { CreateProjectRequest } from '@/lib/studio/types'
+import type { Rule } from '@/lib/studio/node-types'
 
 export async function GET() {
   return withAuth(async (auth) => {
@@ -53,46 +52,35 @@ function parseCreate(body: unknown): CreateProjectRequest {
   }
 }
 
-function blockSeed(auth: AuthedContext, projectId: string, type: BlockType, content: Record<string, unknown>, z: number, now: string): AnyBlock {
-  const s = registry[type]
-  return {
-    id: crypto.randomUUID(),
-    user_id: auth.user.id,
-    project_id: projectId,
-    type,
-    x: 0, y: 0, w: s.defaultW, h: s.defaultH, z,
-    parent_id: null,
-    stacked_in: null,
-    name: null,
-    locked: false,
-    hidden: false,
-    collapsed: false,
-    placed_by: 'auto',
-    arrival_state: 'placed',
-    arrived_from: null,
-    struck_at: null,
-    struck_by: null,
-    content,
-    created_at: now,
-    updated_at: now,
-    deleted_at: null,
-  } as AnyBlock
-}
-
 export async function POST(req: NextRequest) {
   return withAuth(async (auth) => {
     const input = parseCreate(await readJson(req))
     const sb = auth.supabase
+    const now = nowIso()
+
+    const constraintRules: Rule[] = input.concept.constraints.map((text) => ({
+      id: crypto.randomUUID(),
+      text,
+      created_at: now,
+    }))
 
     const { data: projectRow, error: pErr } = await sb
       .from('studio_projects')
-      .insert({ user_id: auth.user.id, title: input.title, canvas_version: 1, composed_at: null })
+      .insert({
+        user_id: auth.user.id,
+        title: input.title,
+        intent: input.concept.body,
+        rules: constraintRules,
+        canvas_version: 1,
+        composed_at: null,
+      })
       .select('id')
       .single()
     if (pErr || !projectRow) throw fromDbError(pErr)
     const projectId = (projectRow as { id: string }).id
 
     try {
+      // history of the concept as written, kept for drift/recalibration reading later
       const { error: rErr } = await sb.from('studio_concept_revisions').insert({
         user_id: auth.user.id,
         project_id: projectId,
@@ -102,26 +90,22 @@ export async function POST(req: NextRequest) {
       })
       if (rErr) throw fromDbError(rErr)
 
-      // the three permanent blocks + anchors + references, z in insertion order
-      const now = nowIso()
-      let z = 0
-      const concept = blockSeed(auth, projectId, 'concept', {}, ++z, now)
-      const since = blockSeed(auth, projectId, 'since', {}, ++z, now)
-      const compass = blockSeed(auth, projectId, 'compass', {}, ++z, now)
-      const anchors = input.anchors.map((text) => blockSeed(auth, projectId, 'anchor', { text, source_block_id: null }, ++z, now))
-      const references = input.references.map((r) =>
-        blockSeed(auth, projectId, 'reference', { url: r.url, title: r.title, note: r.note }, ++z, now)
-      )
-      const all = [concept, since, compass, ...anchors, ...references]
-      const byId = new Map(all.map((b) => [b.id, b]))
-      for (const p of composeNew({ concept, since, compass, anchors, references })) {
-        const b = byId.get(p.id)
-        if (!b) continue
-        b.x = p.x; b.y = p.y; b.w = p.w; b.h = p.h
-      }
-      const rows = all.map(({ updated_at: _u, ...row }) => row)
-      const { error: bErr } = await sb.from('studio_blocks').insert(rows)
-      if (bErr) throw fromDbError(bErr)
+      // the root piece the board/shelf actually read
+      const position = await nextPosition(auth, projectId, null)
+      const { error: nErr } = await sb.from('studio_nodes').insert({
+        user_id: auth.user.id,
+        project_id: projectId,
+        parent_id: null,
+        position,
+        title: input.title,
+        intent: input.concept.body,
+        beat: '',
+        stands_whole: true,
+        rules: constraintRules,
+        body: '',
+        status: 'open',
+      })
+      if (nErr) throw fromDbError(nErr)
 
       if (input.compass_seed.length > 0) {
         const seeds = input.compass_seed.map((c) => ({
@@ -142,8 +126,6 @@ export async function POST(req: NextRequest) {
       throw e
     }
 
-    const bundle = await loadBundle(auth, projectId)
-    if (!bundle) throw fromDbError(null)
-    return NextResponse.json({ bundle }, { status: 201 })
+    return NextResponse.json({ bundle: { project: { id: projectId } } }, { status: 201 })
   })
 }
