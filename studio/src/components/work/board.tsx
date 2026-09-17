@@ -142,12 +142,16 @@ export function Board({
   const visionMoved = project.vision_x !== null || project.vision_y !== null
   // Measured the same way as the vision panel above it — a guessed constant
   // either clipped a long question or left too much air under a short one.
+  // Stacked, so this is the height of every notice combined, not just one.
   const noticeH = checks.length > 0 ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
   // Stretched across the frame itself, not the vision panel — a collision is
   // a nudge, and a nudge reads as one whenever it can stay short and wide
-  // rather than boxed to the vision panel's own, much narrower scale.
+  // rather than boxed to the vision panel's own, much narrower scale. Every
+  // notice gets this same full width — dividing it by how many are open
+  // was the actual bug behind the box still wrapping after the width cap
+  // went up: two collisions at once were quietly splitting it in half.
   const noticeW = checks.length > 0
-    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, ((frame.w || 1200) - MARGIN * 2 - (checks.length - 1) * NOTICE_GAP) / checks.length)))
+    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2)))
     : 0
   // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
   // twice over. With no notices in the way, vision → pieces keeps the wider
@@ -239,7 +243,9 @@ export function Board({
     w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + ADD_GAP + HUB_H)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (checks.length > 0) {
-      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (noticeW + NOTICE_GAP), noticeH)
+      // Stacked, one column — noticeH already covers every notice and the
+      // gaps between them, not just one.
+      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, noticeW, noticeH)
     }
     for (const [i, piece] of pieces.entries()) {
       const at = pieceAt(piece, i)
@@ -460,16 +466,19 @@ export function Board({
         </div>
 
         {/* whatever needs the person's attention, right under the title —
-           never floating loose in the middle of the canvas. Side by side,
-           and measured for its real height, the same as the vision panel
-           above it: a guessed height either clipped a long question or
-           left the pieces below sitting on too much empty air. */}
+           never floating loose in the middle of the canvas. Stacked, not
+           side by side — sharing a row meant sharing its width too, so two
+           collisions open at once were splitting the space between them
+           instead of each getting the full, wide, short read this is meant
+           to be. Measured for its real height, the same as the vision panel
+           above it: a guessed height either clipped a long question or left
+           the pieces below sitting on too much empty air. */}
         {checks.length > 0 && (
           <div
             ref={noticesRef}
             style={{
               position: 'absolute', left: visionAt.x, top: visionAt.y + visionH + NOTICE_GAP,
-              display: 'flex', alignItems: 'flex-start', gap: NOTICE_GAP,
+              display: 'flex', flexDirection: 'column', gap: NOTICE_GAP,
             }}
           >
             {checks.map((check) => (
