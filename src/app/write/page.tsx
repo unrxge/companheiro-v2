@@ -1148,7 +1148,7 @@ function WriteContent() {
               )}
             </div>
           ) : (
-            <div className={flowView ? 'space-y-0' : viewport.isMobile ? 'space-y-2' : 'space-y-4'}>
+            <div className="space-y-0">
               {!flowView && unplacedLines.length > 0 && (
                 <div className="border border-dashed border-[#352f29] rounded p-3 space-y-1">
                   <p className="text-xs text-[#7d786f] uppercase tracking-widest mb-1">Unplaced lines</p>
@@ -1172,16 +1172,13 @@ function WriteContent() {
                     ref={(el) => {
                       sectionContainerRefs.current[section.id] = el
                     }}
-                    className={
-                      flowView
-                        ? ''
-                        : `rounded-lg border transition-colors ${
-                            isActive ? 'border-[#39a875]/50' : 'border-[#352f29]'
-                          } ${section.is_locked ? 'bg-[#1c1916]' : 'bg-[#161412]'}`
-                    }
+                    style={{
+                      borderLeft: `2px solid ${isActive ? 'rgba(57,168,117,0.55)' : 'transparent'}`,
+                      transition: 'border-color 0.2s ease',
+                    }}
                   >
                     {!flowView && (
-                      <div className={`flex items-center gap-2 border-b border-[#352f29] ${viewport.isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
+                      <div className={`flex items-center gap-2 pl-4 ${viewport.isMobile ? 'pt-5 pb-1' : 'pt-6 pb-1.5'}`}>
                         <input
                           value={section.label || ''}
                           onChange={(e) =>
@@ -1251,7 +1248,7 @@ function WriteContent() {
                       </div>
                     )}
 
-                    <div style={{ position: 'relative', padding: flowView ? '0 1rem' : '0.25rem 1rem 1rem', fontSize: '1.125rem' }}>
+                    <div style={{ position: 'relative', padding: flowView ? '0 1rem' : '0 1rem 0.75rem', fontSize: '1.125rem' }}>
                       <SectionEditor
                         content={section.content}
                         onChange={(html) => {
