@@ -311,7 +311,7 @@ export function Studio({
               </header>
             )}
 
-            <div style={{ padding: flow ? 0 : '0 16px 10px', fontSize: 17 }}>
+            <div style={{ padding: flow ? '0 16px' : '0 16px 10px', fontSize: 17 }}>
               <SectionEditor
                 content={part.body}
                 editable={!disabled}
