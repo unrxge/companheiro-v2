@@ -298,22 +298,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     let groundingBlock = "";
     if (!isImpersonal) {
       const { supabase, user } = auth;
-      const [portraitEntries, { data: activePieces }, { data: queueIdeas }, { data: activeStudioProjects }, { data: queuedStudioProjects }] = await Promise.all([
+      // `studio_projects` is the complete dataset for active/queued work —
+      // migration 009 copied every old `pieces`/`ideas` row here too, so
+      // these are no longer a supplement to pieces/ideas queries, they're
+      // the whole picture (queued covers both old queued pieces and ideas).
+      const [portraitEntries, { data: activeStudioProjects }, { data: queuedStudioProjects }] = await Promise.all([
         getActivePortrait(auth),
-        supabase
-          .from("pieces")
-          .select("title, arc, thematic_territory, stage")
-          .eq("user_id", user.id)
-          .neq("stage", "posted")
-          .limit(8),
-        supabase
-          .from("ideas")
-          .select("title, one_sentence, arc")
-          .eq("user_id", user.id)
-          .in("status", ["ready", "developing"])
-          .limit(8),
-        // Studio's equivalents of the two groundings below — old data isn't
-        // migrated, so these read alongside pieces/ideas, never replacing them.
         supabase
           .from("studio_projects")
           .select("title, arc, thematic_territory")
@@ -332,18 +322,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       const portraitBlock = formatPortraitForPrompt(portraitEntries);
       if (portraitBlock) contextParts.push(portraitBlock);
 
-      const activeLines = [
-        ...(activePieces || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`),
-        ...(activeStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
-      ];
+      const activeLines = (activeStudioProjects || []).map(
+        (p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`
+      );
       if (activeLines.length > 0) {
         contextParts.push("WHAT'S ACTIVELY IN MOTION:\n" + activeLines.join("\n"));
       }
 
-      const queuedLines = [
-        ...(queueIdeas || []).map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`),
-        ...(queuedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
-      ];
+      const queuedLines = (queuedStudioProjects || []).map(
+        (p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`
+      );
       if (queuedLines.length > 0) {
         contextParts.push("IDEAS ALREADY QUEUED:\n" + queuedLines.join("\n"));
       }

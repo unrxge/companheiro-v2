@@ -68,9 +68,6 @@ export async function POST(request: NextRequest) {
     const [
       { data: lastTrajectory },
       { data: checkIns },
-      { data: activePieces },
-      { data: queueIdeas },
-      { data: recentPosted },
       { data: postPubLogs },
       { data: activeStudioProjects },
       { data: queuedStudioProjects },
@@ -95,31 +92,15 @@ export async function POST(request: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(8),
       supabase
-        .from("pieces")
-        .select("title, arc, thematic_territory, stage")
-        .eq("user_id", userId)
-        .neq("stage", "posted"),
-      supabase
-        .from("ideas")
-        .select("title, one_sentence, arc")
-        .eq("user_id", userId)
-        .in("status", ["ready", "developing"]),
-      supabase
-        .from("pieces")
-        .select("title, arc, thematic_territory, posted_at")
-        .eq("user_id", userId)
-        .eq("stage", "posted")
-        .order("posted_at", { ascending: false })
-        .limit(5),
-      supabase
         .from("post_publication_logs")
         .select("thread, what_it_opened, unresolved, natural_continuations, created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(5),
-      // Studio's equivalents of the three pieces/ideas groundings above — old
-      // data isn't migrated, so these read alongside the pieces/ideas
-      // queries, never replacing them.
+      // `studio_projects` is the complete dataset for active/queued/posted
+      // work — migration 009 copied every old `pieces`/`ideas` row here too,
+      // so these are no longer a supplement to pieces/ideas queries, they're
+      // the whole picture (queued covers both old queued pieces and ideas).
       supabase
         .from("studio_projects")
         .select("title, arc, thematic_territory")
@@ -141,9 +122,6 @@ export async function POST(request: NextRequest) {
 
     const hasAnySignal =
       (checkIns && checkIns.length > 0) ||
-      (activePieces && activePieces.length > 0) ||
-      (queueIdeas && queueIdeas.length > 0) ||
-      (recentPosted && recentPosted.length > 0) ||
       (activeStudioProjects && activeStudioProjects.length > 0) ||
       (queuedStudioProjects && queuedStudioProjects.length > 0) ||
       (recentPostedStudioProjects && recentPostedStudioProjects.length > 0);
@@ -181,26 +159,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const activePiecesLines = [
-      ...(activePieces || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, stage: ${p.stage})`),
-      ...(activeStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
-    ];
+    const activePiecesLines = (activeStudioProjects || []).map(
+      (p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`
+    );
     if (activePiecesLines.length > 0) {
       contextParts.push("ACTIVE PIECES IN PROGRESS:\n" + activePiecesLines.join("\n"));
     }
 
-    const queuedLines = [
-      ...(queueIdeas || []).map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`),
-      ...(queuedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
-    ];
+    const queuedLines = (queuedStudioProjects || []).map(
+      (p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`
+    );
     if (queuedLines.length > 0) {
       contextParts.push("QUEUED IDEAS (not yet active):\n" + queuedLines.join("\n"));
     }
 
-    const recentPostedLines = [
-      ...(recentPosted || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`),
-      ...(recentPostedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
-    ];
+    const recentPostedLines = (recentPostedStudioProjects || []).map(
+      (p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`
+    );
     if (recentPostedLines.length > 0) {
       contextParts.push("RECENTLY PUBLISHED PIECES:\n" + recentPostedLines.join("\n"));
     }

@@ -42,7 +42,6 @@ export async function buildCompanionContext(
     const [
       { data: checkIns },
       { data: trajectory },
-      { data: activePieces },
       { data: activeStudioProjects },
       { data: postPubLogs },
       portrait,
@@ -54,15 +53,9 @@ export async function buildCompanionContext(
         .eq('user_id', user.id)
         .is('superseded_at', null)
         .maybeSingle(),
-      supabase
-        .from('pieces')
-        .select('title, arc, stage')
-        .eq('user_id', user.id)
-        .neq('stage', 'posted')
-        .neq('stage', 'queued')
-        .limit(5),
-      // Studio's equivalent of "active pieces" — old data isn't migrated,
-      // so this reads alongside `pieces`, never replacing it.
+      // `studio_projects` is the complete dataset for active work — migration
+      // 009 copied every old `pieces` row here too, so this is no longer a
+      // supplement to a `pieces` query, it's the whole picture.
       supabase
         .from('studio_projects')
         .select('id, title, arc')
@@ -122,7 +115,6 @@ export async function buildCompanionContext(
     }
 
     const activeWorkLines = [
-      ...(activePieces || []).map((p) => `"${p.title}" (${p.arc}, ${p.stage})`),
       ...(activeStudioProjects || []).map((p) => {
         const rootStatus = studioRootByProject.get(p.id)
         return `"${p.title}" (${p.arc || 'studio'}${rootStatus ? `, ${rootStatus}` : ''})`

@@ -10,15 +10,26 @@ import { TextField } from '@/components/ui/field'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { ModalDialog } from '@/components/ui/modal-dialog'
-import { ProportionBar, StageRibbon, WeatherStrip } from '@/components/widgets'
-import { journeyStepFromStage, JOURNEY_LABELS, shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
+import { ProportionBar, WeatherStrip } from '@/components/widgets'
+import { shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 
 interface ActivePiece {
   id: string
   title: string
-  stage: string
   arc: string
+}
+
+// Runtime shape of a row from GET /api/studio/projects (the shelf's own
+// endpoint) — the API returns the full studio_projects row (`select('*')`),
+// including `shelf_stage`, but that column isn't declared on the shared
+// `Project`/`ShelfProject` TS types (which model the studio canvas's own
+// `status` field, a different concept), so it's typed narrowly here instead.
+interface ShelfProjectSummary {
+  id: string
+  title: string
+  arc: string | null
+  shelf_stage: 'queued' | 'active' | 'completed'
 }
 
 interface RecentCapture {
@@ -76,15 +87,23 @@ function HomeContent() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [piecesRes, historyRes, activityRes] = await Promise.all([fetch('/api/project-board/pieces'), fetch('/api/check-in/history'), fetch('/api/write/activity')])
-        const data = await piecesRes.json()
+        // studio_projects is the complete dataset now (migration 009 copied
+        // every old pieces/ideas row here too) — the shelf's own GET already
+        // returns shelf_stage + title + arc per project, which is everything
+        // this widget needs.
+        const [projectsRes, historyRes, activityRes] = await Promise.all([fetch('/api/studio/projects'), fetch('/api/check-in/history'), fetch('/api/write/activity')])
+        const data = await projectsRes.json()
         const history = await historyRes.json()
         const activity = await activityRes.json()
-        setActivePieces((data.active || []).slice(0, 5))
+        const projects: ShelfProjectSummary[] = data.projects || []
+        const active = projects.filter((p) => p.shelf_stage === 'active')
+        const queue = projects.filter((p) => p.shelf_stage === 'queued')
+        const completed = projects.filter((p) => p.shelf_stage === 'completed')
+        setActivePieces(active.slice(0, 5).map((p) => ({ id: p.id, title: p.title, arc: p.arc || '' })))
         setPieceCounts({
-          active: (data.active || []).length,
-          queue: (data.queue || []).length + (data.draftCount ?? 0),
-          completed: (data.archived || []).length,
+          active: active.length,
+          queue: queue.length,
+          completed: completed.length,
         })
         setCheckIns(history.checkIns || [])
         setWritingActivity(activity.activity || [])
@@ -207,37 +226,33 @@ function HomeContent() {
               {isLoading ? (
                 <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
               ) : activePieces.length === 0 ? (
-                <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the project board.</p>
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the shelf.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {activePieces.map((piece, index) => {
-                    const step = journeyStepFromStage(piece.stage)
-                    return (
-                      <a
-                        key={piece.id}
-                        href={`/write?piece_id=${piece.id}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', textDecoration: 'none', borderBottom: index < activePieces.length - 1 ? `1px solid ${t.divider}` : 'none', borderLeft: '2px solid transparent', marginLeft: -12, paddingLeft: 10, transition: 'border-color 0.2s ease' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = t.ember }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = 'transparent' }}
-                      >
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t.verdant, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{piece.title}</p>
-                          <div style={{ marginTop: 6, maxWidth: 220 }}>
-                            <StageRibbon step={step} compact />
-                          </div>
-                        </div>
+                  {activePieces.map((piece, index) => (
+                    <a
+                      key={piece.id}
+                      href={`/p/${piece.id}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', textDecoration: 'none', borderBottom: index < activePieces.length - 1 ? `1px solid ${t.divider}` : 'none', borderLeft: '2px solid transparent', marginLeft: -12, paddingLeft: 10, transition: 'border-color 0.2s ease' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = t.ember }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = 'transparent' }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t.verdant, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{piece.title}</p>
+                      </div>
+                      {piece.arc && (
                         <span className="hidden md:inline" style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flexShrink: 0 }}>
-                          {piece.arc} · {JOURNEY_LABELS[step]}
+                          {piece.arc}
                         </span>
-                      </a>
-                    )
-                  })}
+                      )}
+                    </a>
+                  ))}
                 </div>
               )}
               <div style={{ paddingTop: 16, borderTop: activePieces.length > 0 ? `1px solid ${t.divider}` : 'none', display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
                 <UnderlineLink href="/idea-lab" color={t.textSecondary}>New idea</UnderlineLink>
-                <UnderlineLink href="/project-board" color={t.textSecondary}>View full board →</UnderlineLink>
+                <UnderlineLink href="/shelf" color={t.textSecondary}>View shelf →</UnderlineLink>
               </div>
             </Card>
 

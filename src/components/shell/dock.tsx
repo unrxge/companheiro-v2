@@ -33,9 +33,9 @@ const SEATS: Seat[] = [
     icon: <svg width="18" height="18" viewBox="0 0 24 24" {...stroke}><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /><path d="M19 15l.7 1.6 1.6.7-1.6.7L19 19.6l-.7-1.6-1.6-.7 1.6-.7z" /></svg>,
   },
   {
-    href: '/project-board',
-    label: 'Board',
-    match: (p) => p.startsWith('/project-board') || p.startsWith('/write') || p.startsWith('/zoom-out') || p.startsWith('/post-publication') || p.startsWith('/read'),
+    href: '/shelf',
+    label: 'Shelf',
+    match: (p) => p.startsWith('/shelf') || p.startsWith('/project-board') || p.startsWith('/new') || p.startsWith('/p/') || p.startsWith('/write') || p.startsWith('/zoom-out') || p.startsWith('/post-publication') || p.startsWith('/read'),
     icon: <svg width="18" height="18" viewBox="0 0 24 24" {...stroke}><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="9.5" y="4" width="5" height="11" rx="1.5" /><rect x="16" y="4" width="5" height="8" rx="1.5" /></svg>,
   },
   {
