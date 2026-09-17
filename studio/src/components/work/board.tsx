@@ -43,7 +43,7 @@ const NOTICE_GAP = 24
 // content, and wants the room to stay almost as short as its title, not a
 // width tied to whatever the vision panel happens to be.
 const NOTICE_MIN_W = 480
-const NOTICE_MAX_W = 2000
+const NOTICE_MAX_W = 1500
 const NOTICE_FALLBACK_H = 130  // only the one frame before the row measures itself
 // Rearranging glides rather than snaps — fast at first, easing to a stop —
 // the same curve the reveal panels already use (stage.tsx), so every motion
@@ -142,17 +142,22 @@ export function Board({
   const visionMoved = project.vision_x !== null || project.vision_y !== null
   // Measured the same way as the vision panel above it — a guessed constant
   // either clipped a long question or left too much air under a short one.
-  // Stacked, so this is the height of every notice combined, not just one.
+  // However many rows that takes once notices are wrapping, not just one.
   const noticeH = checks.length > 0 ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
+  // The room the row itself gets — every notice in it wraps onto a new line
+  // rather than shrink to fit, so this is the frame's own width, not any one
+  // notice's. Kept separate from noticeW below: capping this the same way
+  // would stop two notices ever sitting side by side at all.
+  const noticesRowMaxW = Math.round(Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2))
   // Stretched across the frame itself, not the vision panel — a collision is
   // a nudge, and a nudge reads as one whenever it can stay short and wide
   // rather than boxed to the vision panel's own, much narrower scale. Every
-  // notice gets this same full width — dividing it by how many are open
-  // was the actual bug behind the box still wrapping after the width cap
-  // went up: two collisions at once were quietly splitting it in half.
-  const noticeW = checks.length > 0
-    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2)))
-    : 0
+  // notice gets up to this same width regardless of how many are open —
+  // dividing it by count was the actual bug behind the box still wrapping
+  // its own text after the width cap went up: two collisions at once were
+  // quietly splitting it in half. Two that both fit at this width sit side
+  // by side (flexWrap below); past that, the next one drops to its own row.
+  const noticeW = checks.length > 0 ? Math.min(NOTICE_MAX_W, noticesRowMaxW) : 0
   // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
   // twice over. With no notices in the way, vision → pieces keeps the wider
   // GAP — that relationship was never the one asked to tighten.
@@ -243,9 +248,9 @@ export function Board({
     w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + ADD_GAP + HUB_H)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (checks.length > 0) {
-      // Stacked, one column — noticeH already covers every notice and the
-      // gaps between them, not just one.
-      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, noticeW, noticeH)
+      // The row's own full width, not one notice's — however many of them
+      // fit side by side, the world has to have room for the row itself.
+      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, noticesRowMaxW, noticeH)
     }
     for (const [i, piece] of pieces.entries()) {
       const at = pieceAt(piece, i)
@@ -258,7 +263,7 @@ export function Board({
     return w
   }, [
     frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, checks.length,
-    cardX, cardTop, addColW, addPieceH, addHelpH, noticeW, noticeH,
+    cardX, cardTop, addColW, addPieceH, addHelpH, noticesRowMaxW, noticeH,
   ])
 
   const canvas = useCanvas(ref, frame, world)
@@ -466,19 +471,20 @@ export function Board({
         </div>
 
         {/* whatever needs the person's attention, right under the title —
-           never floating loose in the middle of the canvas. Stacked, not
-           side by side — sharing a row meant sharing its width too, so two
-           collisions open at once were splitting the space between them
-           instead of each getting the full, wide, short read this is meant
-           to be. Measured for its real height, the same as the vision panel
-           above it: a guessed height either clipped a long question or left
-           the pieces below sitting on too much empty air. */}
+           never floating loose in the middle of the canvas. Side by side
+           when there is room for that — the row's own width is capped to
+           the frame, not divided among however many notices are in it, so
+           each one wraps onto its own line rather than every one of them
+           shrinking to fit. Measured for its real height, the same as the
+           vision panel above it: a guessed height either clipped a long
+           question or left the pieces below sitting on too much empty air. */}
         {checks.length > 0 && (
           <div
             ref={noticesRef}
             style={{
               position: 'absolute', left: visionAt.x, top: visionAt.y + visionH + NOTICE_GAP,
-              display: 'flex', flexDirection: 'column', gap: NOTICE_GAP,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: NOTICE_GAP,
+              maxWidth: noticesRowMaxW,
             }}
           >
             {checks.map((check) => (
