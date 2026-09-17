@@ -298,7 +298,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     let groundingBlock = "";
     if (!isImpersonal) {
       const { supabase, user } = auth;
-      const [portraitEntries, { data: activePieces }, { data: queueIdeas }] = await Promise.all([
+      const [portraitEntries, { data: activePieces }, { data: queueIdeas }, { data: activeStudioProjects }, { data: queuedStudioProjects }] = await Promise.all([
         getActivePortrait(auth),
         supabase
           .from("pieces")
@@ -312,26 +312,40 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
           .eq("user_id", user.id)
           .in("status", ["ready", "developing"])
           .limit(8),
+        // Studio's equivalents of the two groundings below — old data isn't
+        // migrated, so these read alongside pieces/ideas, never replacing them.
+        supabase
+          .from("studio_projects")
+          .select("title, arc, thematic_territory")
+          .eq("user_id", user.id)
+          .eq("shelf_stage", "active")
+          .limit(8),
+        supabase
+          .from("studio_projects")
+          .select("title, arc, thematic_territory")
+          .eq("user_id", user.id)
+          .eq("shelf_stage", "queued")
+          .limit(8),
       ]);
 
       const contextParts: string[] = [];
       const portraitBlock = formatPortraitForPrompt(portraitEntries);
       if (portraitBlock) contextParts.push(portraitBlock);
 
-      if (activePieces && activePieces.length > 0) {
-        contextParts.push(
-          "WHAT'S ACTIVELY IN MOTION:\n" +
-            activePieces
-              .map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`)
-              .join("\n")
-        );
+      const activeLines = [
+        ...(activePieces || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`),
+        ...(activeStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
+      ];
+      if (activeLines.length > 0) {
+        contextParts.push("WHAT'S ACTIVELY IN MOTION:\n" + activeLines.join("\n"));
       }
 
-      if (queueIdeas && queueIdeas.length > 0) {
-        contextParts.push(
-          "IDEAS ALREADY QUEUED:\n" +
-            queueIdeas.map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`).join("\n")
-        );
+      const queuedLines = [
+        ...(queueIdeas || []).map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`),
+        ...(queuedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
+      ];
+      if (queuedLines.length > 0) {
+        contextParts.push("IDEAS ALREADY QUEUED:\n" + queuedLines.join("\n"));
       }
 
       groundingBlock = contextParts.join("\n\n");

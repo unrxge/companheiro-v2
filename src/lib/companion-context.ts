@@ -43,6 +43,7 @@ export async function buildCompanionContext(
       { data: checkIns },
       { data: trajectory },
       { data: activePieces },
+      { data: activeStudioProjects },
       { data: postPubLogs },
       portrait,
     ] = await Promise.all([
@@ -60,6 +61,14 @@ export async function buildCompanionContext(
         .neq('stage', 'posted')
         .neq('stage', 'queued')
         .limit(5),
+      // Studio's equivalent of "active pieces" — old data isn't migrated,
+      // so this reads alongside `pieces`, never replacing it.
+      supabase
+        .from('studio_projects')
+        .select('id, title, arc')
+        .eq('user_id', user.id)
+        .eq('shelf_stage', 'active')
+        .limit(5),
       supabase
         .from('post_publication_logs')
         .select('unresolved, natural_continuations, created_at')
@@ -68,6 +77,21 @@ export async function buildCompanionContext(
         .limit(2),
       getActivePortrait({ supabase, user }),
     ])
+
+    // Root node per active studio project (parent_id null) for its status —
+    // a second pass since it depends on which projects came back above.
+    const studioRootByProject = new Map<string, string>()
+    if (activeStudioProjects && activeStudioProjects.length > 0) {
+      const { data: rootNodes } = await supabase
+        .from('studio_nodes')
+        .select('project_id, status')
+        .eq('user_id', user.id)
+        .is('parent_id', null)
+        .in('project_id', activeStudioProjects.map((p) => p.id))
+      for (const n of rootNodes || []) {
+        if (!studioRootByProject.has(n.project_id)) studioRootByProject.set(n.project_id, n.status)
+      }
+    }
 
     const parts: string[] = []
 
@@ -97,10 +121,15 @@ export async function buildCompanionContext(
       parts.push(`Recent check-ins (newest first):\n${lines.join('\n')}`)
     }
 
-    if (activePieces && activePieces.length > 0) {
-      parts.push(
-        `Actively working on: ${activePieces.map((p) => `"${p.title}" (${p.arc}, ${p.stage})`).join('; ')}`
-      )
+    const activeWorkLines = [
+      ...(activePieces || []).map((p) => `"${p.title}" (${p.arc}, ${p.stage})`),
+      ...(activeStudioProjects || []).map((p) => {
+        const rootStatus = studioRootByProject.get(p.id)
+        return `"${p.title}" (${p.arc || 'studio'}${rootStatus ? `, ${rootStatus}` : ''})`
+      }),
+    ]
+    if (activeWorkLines.length > 0) {
+      parts.push(`Actively working on: ${activeWorkLines.join('; ')}`)
     }
 
     if (postPubLogs && postPubLogs.length > 0) {

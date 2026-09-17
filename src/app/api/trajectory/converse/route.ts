@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
       { data: queueIdeas },
       { data: recentPosted },
       { data: postPubLogs },
+      { data: activeStudioProjects },
+      { data: queuedStudioProjects },
+      { data: recentPostedStudioProjects },
     ] = await Promise.all([
       supabase
         .from("trajectories")
@@ -114,13 +117,36 @@ export async function POST(request: NextRequest) {
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(5),
+      // Studio's equivalents of the three pieces/ideas groundings above — old
+      // data isn't migrated, so these read alongside the pieces/ideas
+      // queries, never replacing them.
+      supabase
+        .from("studio_projects")
+        .select("title, arc, thematic_territory")
+        .eq("user_id", userId)
+        .eq("shelf_stage", "active"),
+      supabase
+        .from("studio_projects")
+        .select("title, arc, thematic_territory")
+        .eq("user_id", userId)
+        .eq("shelf_stage", "queued"),
+      supabase
+        .from("studio_projects")
+        .select("title, arc, thematic_territory, completed_at")
+        .eq("user_id", userId)
+        .eq("shelf_stage", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(5),
     ]);
 
     const hasAnySignal =
       (checkIns && checkIns.length > 0) ||
       (activePieces && activePieces.length > 0) ||
       (queueIdeas && queueIdeas.length > 0) ||
-      (recentPosted && recentPosted.length > 0);
+      (recentPosted && recentPosted.length > 0) ||
+      (activeStudioProjects && activeStudioProjects.length > 0) ||
+      (queuedStudioProjects && queuedStudioProjects.length > 0) ||
+      (recentPostedStudioProjects && recentPostedStudioProjects.length > 0);
 
     if (!hasAnySignal && body.messages.length === 0) {
       return NextResponse.json({
@@ -155,25 +181,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (activePieces && activePieces.length > 0) {
-      contextParts.push(
-        "ACTIVE PIECES IN PROGRESS:\n" +
-          activePieces.map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, stage: ${p.stage})`).join("\n")
-      );
+    const activePiecesLines = [
+      ...(activePieces || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, stage: ${p.stage})`),
+      ...(activeStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
+    ];
+    if (activePiecesLines.length > 0) {
+      contextParts.push("ACTIVE PIECES IN PROGRESS:\n" + activePiecesLines.join("\n"));
     }
 
-    if (queueIdeas && queueIdeas.length > 0) {
-      contextParts.push(
-        "QUEUED IDEAS (not yet active):\n" +
-          queueIdeas.map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`).join("\n")
-      );
+    const queuedLines = [
+      ...(queueIdeas || []).map((i) => `- "${i.title}": ${i.one_sentence} (${i.arc})`),
+      ...(queuedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
+    ];
+    if (queuedLines.length > 0) {
+      contextParts.push("QUEUED IDEAS (not yet active):\n" + queuedLines.join("\n"));
     }
 
-    if (recentPosted && recentPosted.length > 0) {
-      contextParts.push(
-        "RECENTLY PUBLISHED PIECES:\n" +
-          recentPosted.map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`).join("\n")
-      );
+    const recentPostedLines = [
+      ...(recentPosted || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory})`),
+      ...(recentPostedStudioProjects || []).map((p) => `- "${p.title}" (${p.arc}, ${p.thematic_territory}, studio project)`),
+    ];
+    if (recentPostedLines.length > 0) {
+      contextParts.push("RECENTLY PUBLISHED PIECES:\n" + recentPostedLines.join("\n"));
     }
 
     if (postPubLogs && postPubLogs.length > 0) {

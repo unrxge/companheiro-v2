@@ -80,6 +80,13 @@ export function Companion({
   // and it must not be re-created on every keystroke to get it.
   const draftRef = useRef('')
   draftRef.current = draft
+  // Mirrors write/page.tsx's chatMessagesRef — the latest lines, readable
+  // from the unmount/visibility cleanup below without re-subscribing it.
+  const linesRef = useRef<Line[]>([])
+  linesRef.current = lines
+  // How much of `lines` has already been sent to the portrait distiller —
+  // same batching shape as the main app's Write mode (WRITE_DISTILL_BATCH).
+  const distilledUpToRef = useRef(0)
 
   const dictation = useDictation({
     onAppend: (text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)),
@@ -94,6 +101,7 @@ export function Companion({
     setLoaded(false)
     setLines([])
     setMode('coach')
+    distilledUpToRef.current = 0
     const url = `/api/studio/projects/${projectId}/companion${nodeId ? `?node_id=${nodeId}` : ''}`
     fetch(url, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : { messages: [] }))
@@ -117,6 +125,48 @@ export function Companion({
     bottom.current?.scrollIntoView({ block: 'end' })
   }, [lines, busy])
 
+  // Feeds this conversation to the Living Portrait as it happens — the same
+  // distill-and-discard endpoint Write mode's chat uses (/api/write/distill
+  // takes free-text messages and doesn't care whether they came from a
+  // piece_id, a node_id, or neither). Batched the same way: flush once 8
+  // lines have piled up, or early (4) when the tab is hidden, or in full on
+  // unmount — never on every single message.
+  const COMPANION_DISTILL_BATCH = 8
+  const COMPANION_DISTILL_HIDDEN_MIN = 4
+  const flushChatDistillation = useCallback(
+    (allLines: Line[], force = false, minBatch = COMPANION_DISTILL_BATCH) => {
+      const pending = allLines.slice(distilledUpToRef.current)
+      if (pending.length === 0) return
+      if (!force && pending.length < minBatch) return
+      distilledUpToRef.current = allLines.length
+      const messages = pending.map((l) => ({
+        role: l.role === 'person' ? ('user' as const) : ('assistant' as const),
+        content: l.text,
+      }))
+      fetch('/api/write/distill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+        keepalive: true,
+      }).catch((err) => console.error('Failed to distill studio companion chat:', err))
+    },
+    []
+  )
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushChatDistillation(linesRef.current, false, COMPANION_DISTILL_HIDDEN_MIN)
+      }
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      flushChatDistillation(linesRef.current, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flushChatDistillation])
+
   useEffect(() => {
     const el = box.current
     if (!el) return
@@ -131,6 +181,10 @@ export function Companion({
     setDraft('')
     setError(null)
     setBusy(true)
+    // Captured before setLines below, so the flush after the reply can
+    // append this turn explicitly rather than re-reading it back out of
+    // state/linesRef and risking a duplicate.
+    const priorLines = linesRef.current
     const mine: Line = { id: `me-${Date.now()}`, role: 'person', text }
     const replyId = `it-${Date.now()}`
     setLines((prev) => [...prev, mine, { id: replyId, role: 'companion', text: '' }])
@@ -161,13 +215,16 @@ export function Companion({
         onProposedEdit?.(result.meta.proposedEdit)
         onClearSelection?.()
       }
+      if (result.text) {
+        flushChatDistillation([...priorLines, mine, { id: replyId, role: 'companion', text: result.text }])
+      }
     } catch {
       setLines((prev) => prev.filter((l) => l.id !== replyId))
       setError('It did not answer. Try again in a moment.')
     } finally {
       setBusy(false)
     }
-  }, [busy, canSuggest, dictation, draft, mode, nodeId, onClearSelection, onProposedEdit, projectId, selection])
+  }, [busy, canSuggest, dictation, draft, flushChatDistillation, mode, nodeId, onClearSelection, onProposedEdit, projectId, selection])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
