@@ -32,12 +32,9 @@ export function JourneyNav({ pieceId, step, compact = false }: { pieceId: string
 
 /**
  * Where each journey step lives for a piece created through the node/thread
- * model (Phase 3 of the Project Board -> Studio migration) — a root
- * studio_node rather than a `pieces` row. 'post' and 'reflect' aren't
- * repointed in this phase: /post-publication and /read still key off a
- * `pieces` row that doesn't exist for node-based work, so those two steps
- * render as plain (non-clickable) progress bars until a later phase gives
- * them somewhere real to go.
+ * model (Phase 3 of the Project Board -> Studio migration, extended in
+ * Phase 4) — a root studio_node rather than a `pieces` row. All six steps
+ * are clickable now that /post-publication and /read understand node_id too.
  */
 export function journeyHrefForNode(
   step: JourneyStep,
@@ -53,8 +50,9 @@ export function journeyHrefForNode(
     case 'shape':
       return `/write/translate?node_id=${nodeId}`
     case 'post':
+      return `/post-publication?node_id=${nodeId}`
     case 'reflect':
-      return null
+      return `/read?node_id=${nodeId}`
   }
 }
 

@@ -7,7 +7,7 @@ import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/comp
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { UnderlineLink } from '@/components/ui/underline-link'
-import { JourneyNav, JourneyCurve } from '@/components/widgets'
+import { JourneyNav, JourneyNavNode, JourneyCurve } from '@/components/widgets'
 import { useTerritories } from '@/hooks/useTerritories'
 import { arcHue, journeyStepFromStage, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 
@@ -21,6 +21,7 @@ interface Reflection {
 
 interface Piece {
   id: string
+  project_id?: string | null
   title: string
   arc: Arc
   thematic_territory: string
@@ -46,22 +47,24 @@ function ReadContent() {
   const { t } = useTheme()
   const territories = useTerritories()
   const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
 
   const [piece, setPiece] = useState<Piece | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [copied, setCopied] = useState<'md' | 'script' | null>(null)
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!pieceId && !nodeId) {
       router.push('/project-board')
       return
     }
-    fetch(`/api/project-board/piece?id=${pieceId}`)
+    const url = nodeId ? `/api/read/node?node_id=${nodeId}` : `/api/project-board/piece?id=${pieceId}`
+    fetch(url)
       .then((r) => r.json())
       .then((d) => { if (d.success) setPiece(d.piece) })
       .catch((err) => console.error('Failed to load piece:', err))
       .finally(() => setIsLoading(false))
-  }, [pieceId, router])
+  }, [pieceId, nodeId, router])
 
   const copy = (kind: 'md' | 'script') => {
     if (!piece) return
@@ -71,7 +74,7 @@ function ReadContent() {
     setTimeout(() => setCopied(null), 1500)
   }
 
-  if (!pieceId) return null
+  if (!pieceId && !nodeId) return null
 
   const words = (piece?.substack_draft ?? '').trim().split(/\s+/).filter(Boolean).length
   const openThreads = [piece?.reflection?.unresolved, ...(piece?.reflection?.natural_continuations ?? [])].filter(Boolean) as string[]
@@ -82,7 +85,7 @@ function ReadContent() {
         eyebrow="Reading room"
         title={piece?.title ?? 'Reading room'}
         subtitle={piece ? `${piece.posted_at ? `Posted ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not yet posted'} · ${words.toLocaleString()} words` : undefined}
-        back="/project-board"
+        back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/shelf') : '/project-board'}
         actions={
           piece ? (
             <>
@@ -100,7 +103,11 @@ function ReadContent() {
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
-                <JourneyNav pieceId={piece.id} step={journeyStepFromStage(piece.stage)} />
+                {nodeId ? (
+                  <JourneyNavNode projectId={piece.project_id ?? null} nodeId={piece.id} step={journeyStepFromStage(piece.stage)} />
+                ) : (
+                  <JourneyNav pieceId={piece.id} step={journeyStepFromStage(piece.stage)} />
+                )}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Pill hue={arcHue[piece.arc] ?? 'ember'} dot>{piece.arc}</Pill>
@@ -135,7 +142,7 @@ function ReadContent() {
               <Card>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <Eyebrow>Reflection</Eyebrow>
-                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : <UnderlineLink href={`/post-publication?piece_id=${piece.id}`} color={t.ember}>Write it →</UnderlineLink>}
+                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : <UnderlineLink href={nodeId ? `/post-publication?node_id=${piece.id}` : `/post-publication?piece_id=${piece.id}`} color={t.ember}>Write it →</UnderlineLink>}
                 </div>
                 {piece.reflection ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

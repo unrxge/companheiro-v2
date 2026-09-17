@@ -83,13 +83,9 @@ function TranslateContent() {
     }
   }
 
-  // /post-publication isn't repointed in this phase (see CLAUDE.md's Phase 3
-  // notes) — it still keys off a `pieces` row that doesn't exist for
-  // node-based work. This link is left pointed at it with the node id in the
-  // piece_id slot as a known, documented gap rather than removed outright.
   const handleMarkReady = async () => {
     await saveScript()
-    router.push(`/post-publication?piece_id=${nodeId}`)
+    router.push(`/post-publication?node_id=${nodeId}`)
   }
 
   const copy = (text: string) => {

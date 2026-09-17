@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 
 interface LogRequest {
-  piece_id: string;
+  piece_id?: string;
+  node_id?: string;
   thread: string;
   what_it_opened: string;
   unresolved: string;
@@ -18,9 +19,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
   try {
     const body: LogRequest = await request.json();
 
-    if (!body.piece_id) {
+    if (!body.piece_id && !body.node_id) {
       return NextResponse.json(
-        { success: false, error: "Missing piece_id" },
+        { success: false, error: "Missing piece_id or node_id" },
         { status: 400 }
       );
     }
@@ -43,6 +44,81 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
       .split('\n')
       .map((line: string) => line.trim())
       .filter((line: string) => line.length > 0);
+
+    // Node/thread-model path (Phase 4 of the Project Board -> Studio
+    // migration): studio_post_publication_logs instead of
+    // post_publication_logs, and the studio equivalents of "piece posted" —
+    // studio_nodes.status = 'done' and studio_projects.shelf_stage =
+    // 'completed' + completed_at — instead of pieces.stage/posted_at and
+    // ideas.status. No idea-status equivalent exists on the node/thread
+    // model, so that third update is simply not needed here.
+    if (body.node_id) {
+      const { error: logError } = await supabase
+        .from("studio_post_publication_logs")
+        .insert([
+          {
+            user_id: userId,
+            node_id: body.node_id,
+            thread: body.thread,
+            what_it_opened: body.what_it_opened,
+            unresolved: body.unresolved,
+            natural_continuations: continuationsArray,
+          },
+        ]);
+
+      if (logError) {
+        console.error("Error inserting studio post-publication log:", logError);
+        return NextResponse.json(
+          { success: false, error: "Failed to log post-publication" },
+          { status: 500 }
+        );
+      }
+
+      const { data: nodeData, error: nodeFetchError } = await supabase
+        .from("studio_nodes")
+        .select("project_id")
+        .eq("id", body.node_id)
+        .eq("user_id", userId)
+        .single();
+
+      if (nodeFetchError || !nodeData) {
+        console.error("Error fetching node:", nodeFetchError);
+        return NextResponse.json(
+          { success: false, error: "Failed to update node" },
+          { status: 500 }
+        );
+      }
+
+      const { error: nodeError } = await supabase
+        .from("studio_nodes")
+        .update({ status: "done" })
+        .eq("id", body.node_id)
+        .eq("user_id", userId);
+
+      if (nodeError) {
+        console.error("Error updating node:", nodeError);
+        return NextResponse.json(
+          { success: false, error: "Failed to update node" },
+          { status: 500 }
+        );
+      }
+
+      const { error: projectError } = await supabase
+        .from("studio_projects")
+        .update({ shelf_stage: "completed", completed_at: now })
+        .eq("id", nodeData.project_id)
+        .eq("user_id", userId);
+
+      if (projectError) {
+        console.error("Error updating project:", projectError);
+        return NextResponse.json(
+          { success: false, error: "Failed to update project" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true });
+    }
 
     // Insert into post_publication_logs
     const { error: logError } = await supabase

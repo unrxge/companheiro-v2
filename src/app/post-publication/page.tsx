@@ -8,12 +8,16 @@ import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/sh
 import { PrimaryButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
 import { MicButton } from '@/components/ui/mic-button'
-import { JourneyNav } from '@/components/widgets'
+import { JourneyNav, JourneyNavNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface PieceData {
   title: string
   one_sentence: string
+}
+
+interface NodePieceData extends PieceData {
+  project_id: string | null
 }
 
 type Field = 'thread' | 'what_it_opened' | 'unresolved' | 'natural_continuations'
@@ -30,8 +34,9 @@ function PostPublicationContent() {
   const router = useRouter()
   const { t } = useTheme()
   const pieceId = searchParams.get('piece_id')
+  const nodeId = searchParams.get('node_id')
 
-  const [piece, setPiece] = useState<PieceData | null>(null)
+  const [piece, setPiece] = useState<NodePieceData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [focusedField, setFocusedField] = useState<Field | null>(null)
@@ -55,26 +60,31 @@ function PostPublicationContent() {
   })
 
   useEffect(() => {
-    if (!pieceId) {
+    if (!pieceId && !nodeId) {
       router.push('/project-board')
       return
     }
-    fetch(`/api/project-board/piece?id=${pieceId}`)
+    const url = nodeId ? `/api/write/node?node_id=${nodeId}` : `/api/project-board/piece?id=${pieceId}`
+    fetch(url)
       .then((r) => r.json())
       .then((data) => {
-        if (data.success) setPiece({ title: data.piece.title, one_sentence: data.piece.one_sentence })
+        if (data.success) setPiece({ title: data.piece.title, one_sentence: data.piece.one_sentence, project_id: data.piece.project_id ?? null })
       })
       .catch((err) => console.error('Failed to fetch piece:', err))
       .finally(() => setIsLoading(false))
-  }, [pieceId, router])
+  }, [pieceId, nodeId, router])
 
   const handleSubmit = async () => {
-    if (!pieceId) return
+    if (!pieceId && !nodeId) return
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/post-publication/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ piece_id: pieceId, ...form }) })
+      const res = await fetch('/api/post-publication/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nodeId ? { node_id: nodeId, ...form } : { piece_id: pieceId, ...form }),
+      })
       const data = await res.json()
-      if (data.success) router.push(`/read?piece_id=${pieceId}`)
+      if (data.success) router.push(nodeId ? `/read?node_id=${nodeId}` : `/read?piece_id=${pieceId}`)
     } catch (err) {
       console.error('Failed to submit:', err)
     } finally {
@@ -82,16 +92,16 @@ function PostPublicationContent() {
     }
   }
 
-  if (!pieceId) return null
+  if (!pieceId && !nodeId) return null
   const target = focusedField ?? lastFieldRef.current
 
   return (
     <PageShell mood="violet" maxWidth={760}>
-      <PageHeader eyebrow="Write · Post" title={piece?.title || 'Post-publication'} subtitle="It is out. Before it goes quiet, say what it opened and what it left open." size="md" back={`/write/translate?piece_id=${pieceId}`} />
+      <PageHeader eyebrow="Write · Post" title={piece?.title || 'Post-publication'} subtitle="It is out. Before it goes quiet, say what it opened and what it left open." size="md" back={nodeId ? `/write/translate?node_id=${nodeId}` : `/write/translate?piece_id=${pieceId}`} />
 
       <Container>
         <div style={{ marginBottom: 22 }}>
-          <JourneyNav pieceId={pieceId} step="post" />
+          {nodeId ? <JourneyNavNode projectId={piece?.project_id ?? null} nodeId={nodeId} step="post" /> : <JourneyNav pieceId={pieceId!} step="post" />}
         </div>
 
         {isLoading ? (
