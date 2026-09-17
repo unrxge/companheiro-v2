@@ -21,7 +21,6 @@ import { InlineField, ThreadChips } from '@/components/work/bits'
 export function Storyline({
   parts,
   threads,
-  onOpen,
   onReorder,
   onEditBeat,
   onAdd,
@@ -31,7 +30,6 @@ export function Storyline({
 }: {
   parts: TreeNode[]
   threads: Thread[]
-  onOpen: (id: string) => void
   onReorder: (ids: string[]) => void
   onEditBeat: (id: string, beat: string) => void
   onAdd: (afterId: string | null) => void
@@ -114,16 +112,9 @@ export function Storyline({
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onOpen(part.id)}
-                style={{
-                  ...canvasType.title, color: t.textPrimary, background: 'none', border: 'none',
-                  padding: 0, textAlign: 'left', cursor: 'pointer',
-                }}
-              >
+              <h3 style={{ ...canvasType.title, color: t.textPrimary, margin: 0 }}>
                 {part.title || 'Untitled part'}
-              </button>
+              </h3>
 
               {part.intent && (
                 <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>

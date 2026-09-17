@@ -416,7 +416,6 @@ export default function DevWorkPage() {
                   <Storyline
                     parts={current.children}
                     threads={threads}
-                    onOpen={(id) => setFocus({ kind: 'node', id })}
                     onReorder={reorder}
                     onEditBeat={(id, beat) => editNode(id, { beat })}
                     onAdd={(afterId) => addNode(current.id, afterId)}
@@ -434,7 +433,6 @@ export default function DevWorkPage() {
                   onEdit={editNode}
                   onAdd={(afterId) => addNode(current.id, afterId)}
                   onRemove={(part) => removeNode(part.id)}
-                  onOpenPart={(id) => setFocus({ kind: 'node', id })}
                   onOpenThread={(id) => setFocus({ kind: 'thread', id })}
                   onFinished={() => setFocus({ kind: 'project' })}
                 />

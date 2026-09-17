@@ -39,9 +39,17 @@ const ADD_GAP = 16      // between the "add a piece" and "add a thread" spots �
                          // they read as one stacked unit, not two separate rows
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
 const NOTICE_GAP = 24
-const NOTICE_MIN_W = 360
-const NOTICE_MAX_W = 640
+// Its own scale, not the vision panel's — a collision is a nudge, not
+// content, and wants the room to stay almost as short as its title, not a
+// width tied to whatever the vision panel happens to be.
+const NOTICE_MIN_W = 480
+const NOTICE_MAX_W = 1500
 const NOTICE_FALLBACK_H = 130  // only the one frame before the row measures itself
+// Rearranging glides rather than snaps — fast at first, easing to a stop —
+// the same curve the reveal panels already use (stage.tsx), so every motion
+// on these canvases settles the same way.
+const TIDY_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const TIDY_MS = 450
 
 export interface BoardProject {
   title: string
@@ -135,11 +143,11 @@ export function Board({
   // Measured the same way as the vision panel above it — a guessed constant
   // either clipped a long question or left too much air under a short one.
   const noticeH = checks.length > 0 ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
-  // Scaled with the vision panel above it, not a width of its own — the same
-  // reasoning as visionWidth: proportional to the lane's own scale so a wide
-  // canvas doesn't leave a narrow card stranded in the middle of it.
+  // Stretched across the frame itself, not the vision panel — a collision is
+  // a nudge, and a nudge reads as one whenever it can stay short and wide
+  // rather than boxed to the vision panel's own, much narrower scale.
   const noticeW = checks.length > 0
-    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, (visionW - (checks.length - 1) * NOTICE_GAP) / checks.length)))
+    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, ((frame.w || 1200) - MARGIN * 2 - (checks.length - 1) * NOTICE_GAP) / checks.length)))
     : 0
   // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
   // twice over. With no notices in the way, vision → pieces keeps the wider
@@ -432,6 +440,9 @@ export function Board({
             // select it like any other text on a page before the drag ever
             // registers — this only blocks selection outside actual inputs.
             userSelect: 'none', WebkitUserSelect: 'none',
+            // Off while the hand is actually moving it — a live drag has to
+            // track the pointer exactly, not ease toward it a beat behind.
+            transition: drag?.kind === 'vision' ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
           }}
         >
           <VisionBlock
@@ -492,6 +503,7 @@ export function Board({
               key={piece.id}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
+                transition: `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
               }}
             >
               <PieceCard
@@ -545,6 +557,8 @@ export function Board({
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
+                transition: drag?.kind === 'hub' && drag.id === th.id
+                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
               }}
             >
               <Hub

@@ -498,7 +498,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                 <Storyline
                   parts={node.children}
                   threads={tree.threads}
-                  onOpen={(id) => goNode(id)}
                   onReorder={(ids) => void api.reorder(node.id, ids)}
                   onEditBeat={(id, beat) => void api.editNode(id, { beat })}
                   onAdd={(afterId) => void api.addNode(node.id, afterId)}
@@ -521,7 +520,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                     : void breakIntoParts(node)
                 }
                 onRemove={(part) => void removeNode(part)}
-                onOpenPart={(id) => goNode(id)}
                 onOpenThread={goThread}
                 onFinished={() => goProject()}
                 onSelectionChange={setSelection}

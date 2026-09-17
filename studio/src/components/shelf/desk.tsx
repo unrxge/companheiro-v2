@@ -24,6 +24,11 @@ const CARD = { w: 264, h: 178 }
 const GAP = 34
 const COLS = 4
 const SPEC = { cardW: CARD.w, cardH: CARD.h, gap: GAP, cols: COLS }
+// Straightening the desk glides rather than snaps — fast at first, easing to
+// a stop — the same curve board.tsx uses for the same reason, so tidying
+// looks and feels the same at every altitude that has it.
+const TIDY_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const TIDY_MS = 450
 
 /** The room a desk gets before anything has been dropped outside it. */
 const ROOM = { w: MARGIN * 2 + COLS * (CARD.w + GAP), h: 20000 }
@@ -212,7 +217,9 @@ function Folder({
         position: 'absolute', left: at.x, top: at.y, width: CARD.w, height: CARD.h,
         transform: `rotate(${tilt}deg) translateZ(0) scale(${held ? 1.04 : hover ? 1.015 : 1})`,
         transformOrigin: '50% 50%',
-        transition: held ? 'none' : 'transform 160ms cubic-bezier(0.2,0.7,0.2,1), box-shadow 160ms ease',
+        transition: held
+          ? 'none'
+          : `transform 160ms cubic-bezier(0.2,0.7,0.2,1), box-shadow 160ms ease, left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
         cursor: held ? 'grabbing' : 'pointer',
         zIndex: held ? 30 : 1,
         touchAction: 'none',

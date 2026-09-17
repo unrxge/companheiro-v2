@@ -32,7 +32,6 @@ export function Studio({
   onEdit,
   onAdd,
   onRemove,
-  onOpenPart,
   onOpenThread,
   onFinished,
   /** Bubbles the live text selection up, so the companion can offer to
@@ -50,7 +49,6 @@ export function Studio({
   onEdit: (nodeId: string, patch: Partial<TreeNode>) => void | Promise<void>
   onAdd: (afterId: string | null) => void
   onRemove: (part: TreeNode) => void
-  onOpenPart: (id: string) => void
   onOpenThread: (id: string) => void
   /** Called when the whole piece is marked done — the way back out. */
   onFinished?: () => void
@@ -286,11 +284,6 @@ export function Studio({
                     >
                       {part.status === 'done' ? 'Done' : 'Mark done'}
                     </HeaderAction>
-                    {sectioned && (
-                      <HeaderAction label="Open this part on its own" onClick={() => onOpenPart(part.id)}>
-                        Open
-                      </HeaderAction>
-                    )}
                     {sectioned && (
                       <HeaderAction label="Delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
                     )}

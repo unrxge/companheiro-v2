@@ -146,12 +146,13 @@ export function CheckCard({
         border: `1px solid ${alpha(t.ochre, 0.4)}`,
         background: alpha(t.ochre, 0.07),
         borderRadius: radius.widget,
-        padding: 14,
-        display: 'flex', flexDirection: 'column', gap: 10,
+        padding: '10px 14px',
+        display: 'flex', flexDirection: 'column', gap: 6,
       }}
     >
+      {/* the title, not counted toward how tall the notification itself
+         reads — a nudge, not the thing being nudged about. */}
       <div style={{ ...canvasType.chip, color: t.ochre }}>Your rule: {check.rule_text}</div>
-      <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>{check.question}</p>
 
       {amending ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -177,11 +178,21 @@ export function CheckCard({
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <QuietButton size="sm" onClick={() => onResolve('fixed')}>I&rsquo;ll fix it</QuietButton>
-          <GhostButton size="sm" onClick={() => setAmending(true)}>The rule was wrong</GhostButton>
-          <GhostButton size="sm" onClick={() => onResolve('meant_it')}>I meant it</GhostButton>
-          <GhostButton size="sm" onClick={() => onResolve('dismissed')}>Not now</GhostButton>
+        // The question gets the box's full width to itself — sharing a row
+        // with the choices squeezed it into a narrow column that wrapped
+        // sooner than the width was supposed to earn it. On its own line,
+        // a wide box means most questions never wrap at all; the choices
+        // sit right underneath as their own single row.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>
+            {check.question}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <QuietButton size="sm" onClick={() => onResolve('fixed')}>I&rsquo;ll fix it</QuietButton>
+            <GhostButton size="sm" onClick={() => setAmending(true)}>The rule was wrong</GhostButton>
+            <GhostButton size="sm" onClick={() => onResolve('meant_it')}>I meant it</GhostButton>
+            <GhostButton size="sm" onClick={() => onResolve('dismissed')}>Not now</GhostButton>
+          </div>
         </div>
       )}
     </div>

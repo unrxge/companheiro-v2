@@ -98,11 +98,18 @@ export default function ShelfPage() {
 /** Every other screen's header, not the canvas pill the other two levels use
  *  — an eyebrow naming Companheiro, the module's name at the same size as
  *  the project board, check-in and home screens. No back arrow: the shelf
- *  is the top of the climb, there is nowhere further out to go. */
+ *  is the top of the climb, there is nowhere further out to go. The top
+ *  clearance matches PageShell's own .page-col exactly (page-shell.tsx) —
+ *  this header sits outside a PageShell, on the canvas stage instead, so it
+ *  has to repeat the rule rather than inherit it. */
 function ShelfHeader() {
   return (
-    <div style={{ padding: '20px 24px 0', pointerEvents: 'none' }}>
-      <div data-hold style={{ pointerEvents: 'auto', maxWidth: widths.page, margin: '0 auto' }}>
+    <div style={{ pointerEvents: 'none' }}>
+      <style>{`
+        .shelf-header-pad { padding: 24px 24px 0; }
+        @media (min-width: 720px) { .shelf-header-pad { padding-top: 84px; } }
+      `}</style>
+      <div data-hold className="shelf-header-pad" style={{ pointerEvents: 'auto', maxWidth: widths.page, margin: '0 auto', boxSizing: 'border-box' }}>
         <PageHeader title={LEVELS.shelf.name} />
       </div>
     </div>
