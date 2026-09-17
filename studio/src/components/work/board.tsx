@@ -43,7 +43,7 @@ const NOTICE_GAP = 24
 // content, and wants the room to stay almost as short as its title, not a
 // width tied to whatever the vision panel happens to be.
 const NOTICE_MIN_W = 480
-const NOTICE_MAX_W = 1500
+const NOTICE_MAX_W = 2000
 const NOTICE_FALLBACK_H = 130  // only the one frame before the row measures itself
 // Rearranging glides rather than snaps — fast at first, easing to a stop —
 // the same curve the reveal panels already use (stage.tsx), so every motion
@@ -467,7 +467,10 @@ export function Board({
         {checks.length > 0 && (
           <div
             ref={noticesRef}
-            style={{ position: 'absolute', left: visionAt.x, top: visionAt.y + visionH + NOTICE_GAP, display: 'flex', gap: NOTICE_GAP }}
+            style={{
+              position: 'absolute', left: visionAt.x, top: visionAt.y + visionH + NOTICE_GAP,
+              display: 'flex', alignItems: 'flex-start', gap: NOTICE_GAP,
+            }}
           >
             {checks.map((check) => (
               <div

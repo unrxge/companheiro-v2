@@ -23,7 +23,12 @@ import {
 const CARD = { w: 264, h: 178 }
 const GAP = 34
 const COLS = 4
-const SPEC = { cardW: CARD.w, cardH: CARD.h, gap: GAP, cols: COLS }
+// A grid you zoom out on wants real room to scroll into on every side — at
+// typical zoom-out levels the board's own MARGIN left the whole desk fitting
+// inside the frame with space to spare, which the surface centres instead of
+// letting you pan any further. 30% more than the board gets, on all sides.
+const DESK_MARGIN = Math.round(MARGIN * 1.3)
+const SPEC = { cardW: CARD.w, cardH: CARD.h, gap: GAP, cols: COLS, originX: DESK_MARGIN, originY: DESK_MARGIN }
 // Straightening the desk glides rather than snaps — fast at first, easing to
 // a stop — the same curve board.tsx uses for the same reason, so tidying
 // looks and feels the same at every altitude that has it.
@@ -31,7 +36,7 @@ const TIDY_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const TIDY_MS = 450
 
 /** The room a desk gets before anything has been dropped outside it. */
-const ROOM = { w: MARGIN * 2 + COLS * (CARD.w + GAP), h: 20000 }
+const ROOM = { w: DESK_MARGIN * 2 + COLS * (CARD.w + GAP), h: 20000 }
 
 export interface Seating {
   seats: Map<string, { at: Point; placed: boolean }>
@@ -85,15 +90,15 @@ export function Desk({
   const { seats, next: newAt } = useMemo(() => placements(projects), [projects])
 
   const world = useMemo(() => {
-    let right = MARGIN * 2 + COLS * (CARD.w + GAP)
-    let bottom = MARGIN * 2 + CARD.h
+    let right = DESK_MARGIN * 2 + COLS * (CARD.w + GAP)
+    let bottom = DESK_MARGIN * 2 + CARD.h
     for (const { at } of seats.values()) {
-      right = Math.max(right, at.x + CARD.w + MARGIN)
-      bottom = Math.max(bottom, at.y + CARD.h + MARGIN)
+      right = Math.max(right, at.x + CARD.w + DESK_MARGIN)
+      bottom = Math.max(bottom, at.y + CARD.h + DESK_MARGIN)
     }
     // The empty slot for a new project always has somewhere to be.
-    right = Math.max(right, newAt.x + CARD.w + MARGIN)
-    bottom = Math.max(bottom, newAt.y + CARD.h + MARGIN)
+    right = Math.max(right, newAt.x + CARD.w + DESK_MARGIN)
+    bottom = Math.max(bottom, newAt.y + CARD.h + DESK_MARGIN)
     return { w: Math.max(right, frame.w || 0), h: Math.max(bottom, frame.h || 0) }
   }, [seats, newAt, frame])
 
