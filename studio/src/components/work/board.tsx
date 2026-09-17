@@ -35,11 +35,13 @@ const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
+const ADD_GAP = 16      // between the "add a piece" and "add a thread" spots —
+                         // they read as one stacked unit, not two separate rows
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
-const NOTICE_W = 560
 const NOTICE_GAP = 24
-const NOTICE_H = 130    // wider than tall on purpose — a card this wide fits
-                         // its own buttons on one row instead of stacking them
+const NOTICE_MIN_W = 360
+const NOTICE_MAX_W = 640
+const NOTICE_FALLBACK_H = 130  // only the one frame before the row measures itself
 
 export interface BoardProject {
   title: string
@@ -109,6 +111,8 @@ export function Board({
   const frame = useFrame(ref)
   const visionRef = useRef<HTMLDivElement | null>(null)
   const visionFrame = useFrame(visionRef)
+  const noticesRef = useRef<HTMLDivElement | null>(null)
+  const noticesFrame = useFrame(noticesRef)
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [arming, setArming] = useState<string | null>(null)
@@ -128,18 +132,30 @@ export function Board({
   // ResizeObserver's first reading lands.
   const visionH = visionFrame.h || (visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H)
   const visionMoved = project.vision_x !== null || project.vision_y !== null
-  const noticesH = checks.length > 0 ? NOTICE_H + NOTICE_GAP : 0
+  // Measured the same way as the vision panel above it — a guessed constant
+  // either clipped a long question or left too much air under a short one.
+  const noticeH = checks.length > 0 ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
+  // Scaled with the vision panel above it, not a width of its own — the same
+  // reasoning as visionWidth: proportional to the lane's own scale so a wide
+  // canvas doesn't leave a narrow card stranded in the middle of it.
+  const noticeW = checks.length > 0
+    ? Math.round(Math.min(NOTICE_MAX_W, Math.max(NOTICE_MIN_W, (visionW - (checks.length - 1) * NOTICE_GAP) / checks.length)))
+    : 0
+  // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
+  // twice over. With no notices in the way, vision → pieces keeps the wider
+  // GAP — that relationship was never the one asked to tighten.
+  const gapBelowVision = checks.length > 0 ? NOTICE_GAP + noticeH + NOTICE_GAP : GAP
   // Pieces clear the title's own space — and the notices sitting under it,
   // when there are any — only while the title is still where it started.
   // Drag it away and the lane is free to rise back to its usual place.
-  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + noticesH + GAP)
+  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + gapBelowVision)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
   // The "add a piece" spot gives up some of its own height so a matching
   // "add a thread" card — the same size as a real one — can sit right
   // underneath it: one fixed column for adding to the board, instead of a
   // box that has to go looking for wherever the threads currently are.
-  const addColW = Math.min(cardW, 260)
-  const addPieceH = Math.max(140, cardH - GAP - HUB_H)
+  const addColW = HUB_W
+  const addPieceH = Math.max(140, cardH - ADD_GAP - HUB_H)
   const addHelpH = pieces.length === 0 ? 54 : 0
 
   /** Where a piece sits: hand-placed from before this became fixed, or in
@@ -212,10 +228,10 @@ export function Board({
     let w = { w: frame.w || 0, h: frame.h || 0 }
     w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
-    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + GAP + HUB_H)
+    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + ADD_GAP + HUB_H)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (checks.length > 0) {
-      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (NOTICE_W + NOTICE_GAP), NOTICE_H)
+      w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, checks.length * (noticeW + NOTICE_GAP), noticeH)
     }
     for (const [i, piece] of pieces.entries()) {
       const at = pieceAt(piece, i)
@@ -228,7 +244,7 @@ export function Board({
     return w
   }, [
     frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, checks.length,
-    cardX, cardTop, addColW, addPieceH, addHelpH,
+    cardX, cardTop, addColW, addPieceH, addHelpH, noticeW, noticeH,
   ])
 
   const canvas = useCanvas(ref, frame, world)
@@ -313,12 +329,6 @@ export function Board({
    *  pieces, the vision block back to the corner. */
   const rearrange = useCallback(() => actions.tidyBoard(), [actions])
 
-  /** Back to 100%, looking at the title — the one spot on the board that is
-   *  never empty, so "fit to screen" always has somewhere real to land. */
-  const fitToScreen = useCallback(() => {
-    canvas.glideTo({ x: visionAt.x + visionW / 2, y: visionAt.y + visionH / 2 }, 1)
-  }, [canvas, visionAt, visionW, visionH])
-
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
    *  glass. */
@@ -367,7 +377,7 @@ export function Board({
           <>
             <ZoomPill
               canvas={canvas}
-              onHome={fitToScreen}
+              onHome={canvas.resetView}
               after={!disabled && <RearrangeButton onClick={rearrange} />}
             />
             {arming && armedThread && (
@@ -439,27 +449,36 @@ export function Board({
         </div>
 
         {/* whatever needs the person's attention, right under the title —
-           never floating loose in the middle of the canvas. Side by side. */}
-        {checks.map((check, i) => (
+           never floating loose in the middle of the canvas. Side by side,
+           and measured for its real height, the same as the vision panel
+           above it: a guessed height either clipped a long question or
+           left the pieces below sitting on too much empty air. */}
+        {checks.length > 0 && (
           <div
-            key={check.id}
-            data-hold
-            style={{
-              position: 'absolute', left: visionAt.x + i * (NOTICE_W + NOTICE_GAP), top: visionAt.y + visionH + NOTICE_GAP,
-              width: NOTICE_W,
-              // CheckCard is styled for a solid backing (it's normally read on
-              // the writing page's own container) — the canvas behind it here
-              // is transparent, so it needs that backing given to it directly.
-              background: t.containerBg, borderRadius: radius.widget, boxShadow: t.containerShadow,
-            }}
+            ref={noticesRef}
+            style={{ position: 'absolute', left: visionAt.x, top: visionAt.y + visionH + NOTICE_GAP, display: 'flex', gap: NOTICE_GAP }}
           >
-            <CheckCard
-              check={check}
-              onResolve={(outcome, note) => onResolveCheck(check.id, outcome, note)}
-              onAmend={(text) => onAmendCheck(check.id, text)}
-            />
+            {checks.map((check) => (
+              <div
+                key={check.id}
+                data-hold
+                style={{
+                  width: noticeW,
+                  // CheckCard is styled for a solid backing (it's normally read
+                  // on the writing page's own container) — the canvas behind it
+                  // here is transparent, so it needs that backing given directly.
+                  background: t.containerBg, borderRadius: radius.widget, boxShadow: t.containerShadow,
+                }}
+              >
+                <CheckCard
+                  check={check}
+                  onResolve={(outcome, note) => onResolveCheck(check.id, outcome, note)}
+                  onAmend={(text) => onAmendCheck(check.id, text)}
+                />
+              </div>
+            ))}
           </div>
-        ))}
+        )}
 
         {/* the pieces — laid out, not dragged: a piece's place is its order
            among the others, moved with the arrows on the card itself. Only
@@ -573,7 +592,7 @@ export function Board({
               )}
             </div>
 
-            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop + addPieceH + addHelpH + GAP, width: HUB_W, height: HUB_H }}>
+            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop + addPieceH + addHelpH + ADD_GAP, width: HUB_W, height: HUB_H }}>
               <button
                 data-hold
                 type="button"

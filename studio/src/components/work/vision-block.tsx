@@ -34,10 +34,12 @@ export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 340
  * the width of the piece cards it sits above, not a constant of its own.
  * Fixed at 880 regardless of screen, it dwarfed a lane of narrower cards on
  * anything but a wide window; scaled off cardW, the two grow and shrink
- * together and the whole board keeps one sense of scale.
+ * together and the whole board keeps one sense of scale. Capped at 1040, not
+ * 880 — the old cap left both columns wrapping onto more lines than the
+ * words needed on anything wider than a small window.
  */
 export function visionWidth(cardW: number): number {
-  return Math.round(Math.min(880, Math.max(560, cardW * 1.5)))
+  return Math.round(Math.min(1040, Math.max(560, cardW * 1.6)))
 }
 
 const TITLE_STYLE = { ...canvasType.anchor, fontSize: 32, lineHeight: 1.15 } as const

@@ -9,12 +9,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
-import { CanvasStage, StageHeader } from '@/components/surface/stage'
+import { CanvasStage } from '@/components/surface/stage'
+import { PageHeader } from '@/components/shell/page-shell'
 import { Level } from '@/components/surface/travel'
 import { Desk } from '@/components/shelf/desk'
 import { api, ApiError } from '@/lib/studio/api-client'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { shell } from '@/lib/design-tokens'
+import { shell, widths } from '@/lib/design-tokens'
 import { LEVELS } from '@/lib/studio/levels'
 import type { Point } from '@/lib/studio/surface'
 import type { ShelfProject } from '@/lib/studio/types'
@@ -65,7 +66,7 @@ export default function ShelfPage() {
 
   return (
     <Level>
-      <CanvasStage mood="verdant" intensity={0.6} header={<StageHeader title={LEVELS.shelf.name} />}>
+      <CanvasStage mood="verdant" intensity={0.6} header={<ShelfHeader />}>
         {state.status === 'loading' && <Middle>opening the shelf…</Middle>}
 
         {state.status === 'error' && (
@@ -91,6 +92,20 @@ export default function ShelfPage() {
         )}
       </CanvasStage>
     </Level>
+  )
+}
+
+/** Every other screen's header, not the canvas pill the other two levels use
+ *  — an eyebrow naming Companheiro, the module's name at the same size as
+ *  the project board, check-in and home screens. No back arrow: the shelf
+ *  is the top of the climb, there is nowhere further out to go. */
+function ShelfHeader() {
+  return (
+    <div style={{ padding: '20px 24px 0', pointerEvents: 'none' }}>
+      <div data-hold style={{ pointerEvents: 'auto', maxWidth: widths.page, margin: '0 auto' }}>
+        <PageHeader title={LEVELS.shelf.name} />
+      </div>
+    </div>
   )
 }
 

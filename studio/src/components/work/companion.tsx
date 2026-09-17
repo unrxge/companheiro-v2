@@ -134,7 +134,10 @@ export function Companion({
     const mine: Line = { id: `me-${Date.now()}`, role: 'person', text }
     const replyId = `it-${Date.now()}`
     setLines((prev) => [...prev, mine, { id: replyId, role: 'companion', text: '' }])
-    const activeSelection = canSuggest && mode === 'write' ? selection?.text ?? null : null
+    // Reflect still never reads a part on its own — but a passage highlighted
+    // and handed over is the person bringing it, the same as pasting it into
+    // the message would be, so it travels in either mode.
+    const activeSelection = canSuggest ? selection?.text ?? null : null
 
     try {
       const res = await fetch(`/api/studio/projects/${projectId}/companion`, {
@@ -169,7 +172,7 @@ export function Companion({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
       {/* context strip: what this message would land on, if you sent one */}
-      {canSuggest && mode === 'write' && selection?.text && (
+      {canSuggest && selection?.text && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingBottom: 4, flexShrink: 0 }}>
           <span aria-hidden style={{ color: t.tide, fontSize: 12, flexShrink: 0, marginTop: 2 }}>↳</span>
           <p
@@ -200,7 +203,7 @@ export function Companion({
               {mode === 'write'
                 ? "It can see this part's actual text here, and may propose a rewrite — select a passage first and it'll focus there. Nothing lands until you approve it."
                 : nodeId
-                  ? 'It can see the shape of this — what this part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you.'
+                  ? 'It can see the shape of this — what this part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing beyond a passage you hand it by highlighting one, and it will not write anything for you.'
                   : 'It can see the shape of the whole thing — what each part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you. It is also there for who this is actually for, and why it is worth making at all, whenever you want to go there.'}
             </p>
           </div>

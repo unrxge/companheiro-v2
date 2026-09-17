@@ -130,13 +130,20 @@ export function Desk({
   }, [canvas.pan, canvas.zoom, go, onMove, seats, world])
 
   // Land looking at the work, not at the top-left corner of an empty desk.
+  const firstAt = projects.length > 0 ? seats.get(projects[0].id)?.at : undefined
   const homed = useRef(false)
   useEffect(() => {
-    if (homed.current || frame.w === 0 || projects.length === 0) return
+    if (homed.current || frame.w === 0 || !firstAt) return
     homed.current = true
-    const first = seats.get(projects[0].id)?.at
-    if (first) canvas.jumpTo({ x: first.x + CARD.w / 2, y: first.y + CARD.h / 2 })
-  }, [frame, projects, seats, canvas])
+    canvas.jumpTo({ x: firstAt.x + CARD.w / 2, y: firstAt.y + CARD.h / 2 })
+  }, [frame, firstAt, canvas])
+
+  // The same spot the desk opens to, not the generic "back to the origin" —
+  // otherwise the button would land somewhere the person never actually saw.
+  const goHome = useCallback(() => {
+    if (firstAt) canvas.glideTo({ x: firstAt.x + CARD.w / 2, y: firstAt.y + CARD.h / 2 })
+    else canvas.resetView()
+  }, [canvas, firstAt])
 
   return (
     <Surface
@@ -145,7 +152,7 @@ export function Desk({
       ariaLabel="The shelf — every project, where you left it"
       chrome={
         <>
-          <ZoomPill canvas={canvas} />
+          <ZoomPill canvas={canvas} onHome={goHome} />
           <DeskTools
             onNew={onNew}
             onTidy={projects.some((p) => p.shelf_x !== null) ? () => projects.forEach((p) => onMove(p.id, null)) : null}

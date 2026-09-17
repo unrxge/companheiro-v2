@@ -455,7 +455,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     : node?.title || 'Untitled'
 
   return (
-    <PageShell dock={false} mood="neutral">
+    <PageShell dock={false} mood="tide">
       <PageHeader
         eyebrow={null}
         title={headerTitle}
@@ -559,13 +559,16 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   )
 }
 
-/** write · map · flow, the three ways to look at a piece. */
+/** write · map · flow, the three ways to look at a piece — each its own
+ *  colour when active, the same three hues the rest of the studio already
+ *  uses for the same ideas: tide for the words themselves, ochre for
+ *  structure, verdant for a finished, settled read. */
 function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const { t } = useTheme()
-  const options: Array<{ key: View; label: string }> = [
-    { key: 'write', label: 'Write' },
-    { key: 'map', label: 'Map' },
-    { key: 'flow', label: 'Flow' },
+  const options: Array<{ key: View; label: string; tone: string }> = [
+    { key: 'write', label: 'Write', tone: t.tide },
+    { key: 'map', label: 'Map', tone: t.ochre },
+    { key: 'flow', label: 'Flow', tone: t.verdant },
   ]
   return (
     <div
@@ -585,8 +588,8 @@ function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => voi
           style={{
             ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
             border: 'none', cursor: 'pointer',
-            background: view === o.key ? t.cardBg : 'transparent',
-            color: view === o.key ? t.textPrimary : t.textMuted,
+            background: view === o.key ? alpha(o.tone, 0.16) : 'transparent',
+            color: view === o.key ? o.tone : t.textMuted,
           }}
         >
           {o.label}

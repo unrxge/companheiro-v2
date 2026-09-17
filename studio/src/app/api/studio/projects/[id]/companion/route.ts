@@ -6,14 +6,20 @@
 // threads and where they appear and where they go quiet. That is enough to
 // talk about strategy and shape, and it is deliberately not enough to write
 // anything — this is the companion's default, and its behavior everywhere
-// except the one exception below.
+// except the two exceptions below.
 //
-// Write mode is that one exception: opened deliberately, one part at a time,
-// it is handed that part's actual prose and permitted to propose a rewrite —
-// never speculatively, and never anywhere else in the same conversation. A
-// write-lock (user_settings.assistant_write_locked_until, shared with the
-// main app) can hold the companion to reflect-only regardless of what the
-// client asks for, for anyone who wants no AI prose at all while they write.
+// The first exception: a passage highlighted in the editor travels along in
+// either mode, because handing it over is the person's own act, the same as
+// pasting it into the message would be — reflect can discuss it, but that one
+// passage is all it gets; the rest of the part stays unseen.
+//
+// Write mode is the second, bigger exception: opened deliberately, one part
+// at a time, it is handed that part's actual prose and permitted to propose a
+// rewrite — never speculatively, and never anywhere else in the same
+// conversation. A write-lock (user_settings.assistant_write_locked_until,
+// shared with the main app) can hold the companion to reflect-only regardless
+// of what the client asks for, for anyone who wants no AI prose at all while
+// they write.
 //
 // At the project altitude it can see every piece and every thread. Inside a
 // part it sees that part, what it owes the thing above it, and its siblings.
@@ -49,7 +55,7 @@ const MAX_MESSAGE = 4000
 
 const ROLE = `You are sitting beside someone who is holding a long piece of work together — a series, a record, a book, a film. You are here for its SHAPE and its DIRECTION, never for its prose.
 
-WHAT YOU CAN SEE: what each part is for, the rules they set themselves, how the parts are ordered and how big each one is, and the threads running across the whole thing with the places they appear. You can see almost none of the actual writing, and you should not ask for it.
+WHAT YOU CAN SEE: what each part is for, the rules they set themselves, how the parts are ordered and how big each one is, and the threads running across the whole thing with the places they appear. You can see almost none of the actual writing, and you should not ask for it. A SELECTED PASSAGE below is the one exception — they highlighted it themselves to bring it here, so read and discuss that passage directly, but it is not an opening to the rest of the part.
 
 WHAT YOU DO:
 - Notice what the shape is telling you. A thread that runs through the first two pieces and then goes quiet. A part carrying four times the weight of everything around it. A stated intent that nothing beneath it seems aimed at. Say the observation, then ask about it.
@@ -182,6 +188,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
       lines.push(`THIS PART:\n${outline(here, 0, threadNames)}`)
 
+      // A highlighted passage is the person bringing it, not you going and
+      // reading the part — the same as pasting it into the message would be,
+      // so this travels in either mode, unlike everything in canEdit below.
+      if (selectedText) {
+        lines.push(`SELECTED PASSAGE (they highlighted this — it is the exact focus; this is the verbatim current text, never ask them to paste it again):\n"""\n${selectedText}\n"""`)
+      }
+
       // ── the one exception: actual prose, only here, only in write mode ───
       if (canEdit) {
         const precedingText = above
@@ -197,9 +210,6 @@ export async function POST(req: NextRequest, { params }: Params) {
             : 'Nothing has been written before this part yet — it is the opening.',
         )
         lines.push(`THE ACTUAL TEXT OF THIS PART, RIGHT NOW:\n"""\n${htmlToPlainText(here.body).trim() || '(empty)'}\n"""`)
-        if (selectedText) {
-          lines.push(`SELECTED PASSAGE (they highlighted this — it is the exact focus; this is the verbatim current text, never ask them to paste it again):\n"""\n${selectedText}\n"""`)
-        }
       }
     } else {
       lines.push(`WHERE WE ARE: the whole of ${project.title}.`)

@@ -15,7 +15,7 @@ import type { Editor } from '@tiptap/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { SectionEditor, SectionToolbar, type SectionSelection } from '@/components/writing/section-editor'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius, widths } from '@/lib/design-tokens'
+import { alpha, radius, shell, widths } from '@/lib/design-tokens'
 import { plainTextToHtml } from '@/lib/rich-text'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
 import type { ProposedEdit } from '@/components/work/companion'
@@ -207,8 +207,23 @@ export function Studio({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: flow ? 0 : 14, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
       {!disabled && (
-        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: t.containerBg, paddingBottom: 8 }}>
-          <SectionToolbar editor={focused ? editors.current[focused] ?? null : null} />
+        // Floating, not part of the page's own chrome: one shared pill that
+        // stays in reach as the piece scrolls underneath it, the same glass
+        // and the same size as the main app's own writing toolbar. Sticky
+        // rather than fixed — it starts in flow, right below the header, so
+        // it can never land on top of it the way a hard-coded fixed offset
+        // could on a page whose header height isn't this component's to know.
+        <div style={{ position: 'sticky', top: 12, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div
+            style={{
+              pointerEvents: 'auto', display: 'flex', padding: '6px 10px', borderRadius: 999,
+              background: 'rgba(13,12,11,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+              border: `1px solid ${shell.line}`, boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
+              maxWidth: 'calc(100vw - 24px)', overflowX: 'auto',
+            }}
+          >
+            <SectionToolbar editor={focused ? editors.current[focused] ?? null : null} />
+          </div>
         </div>
       )}
 

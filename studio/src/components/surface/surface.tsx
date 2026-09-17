@@ -48,6 +48,12 @@ export interface Canvas {
   setZoom: (k: number, anchor?: Point) => void
   glideTo: (target: Point, k?: number) => void
   jumpTo: (target: Point, k?: number) => void
+  /** Glides back to exactly the view this project opens to — the same pan
+   *  the very first frame settles on, not a point on the canvas centred by
+   *  eye. Centring on a point can still end up pinned off to one side once
+   *  clampPan holds it inside the world's edges; this can't drift from the
+   *  real thing, because it's computed the same way, once, in both places. */
+  resetView: () => void
 }
 
 /**
@@ -97,24 +103,37 @@ export function useCanvas(
     setPanRaw(clampPan(centreOn(target, nextK, f), nextK, w, f))
   }, [stopGlide])
 
-  const glideTo = useCallback((target: Point, k?: number) => {
-    stopGlide()
-    const { pan: from, zoom: z, frame: f, world: w } = live.current
-    if (f.w === 0) { jumpTo(target, k); return }
-    const nextK = k === undefined ? z : clampZoom(k)
-    const to = clampPan(centreOn(target, nextK, f), nextK, w, f)
-    const fromK = z
+  /** Eases pan and zoom toward an already-computed destination — shared by
+   *  glideTo (which works out that destination by centring a point) and
+   *  resetView (which works it out the same way the very first frame does). */
+  const animateTo = useCallback((toPan: Point, toK: number) => {
+    const { pan: from, zoom: fromK } = live.current
     const started = performance.now()
     const step = (now: number) => {
       const p = Math.min(1, (now - started) / GLIDE_MS)
       const e = EASE(p)
-      setZoomRaw(fromK + (nextK - fromK) * e)
-      setPanRaw({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
+      setZoomRaw(fromK + (toK - fromK) * e)
+      setPanRaw({ x: from.x + (toPan.x - from.x) * e, y: from.y + (toPan.y - from.y) * e })
       if (p < 1) glide.current = requestAnimationFrame(step)
       else glide.current = null
     }
     glide.current = requestAnimationFrame(step)
-  }, [jumpTo, stopGlide])
+  }, [])
+
+  const glideTo = useCallback((target: Point, k?: number) => {
+    stopGlide()
+    const { zoom: z, frame: f, world: w } = live.current
+    if (f.w === 0) { jumpTo(target, k); return }
+    const nextK = k === undefined ? z : clampZoom(k)
+    animateTo(clampPan(centreOn(target, nextK, f), nextK, w, f), nextK)
+  }, [animateTo, jumpTo, stopGlide])
+
+  const resetView = useCallback(() => {
+    stopGlide()
+    const { frame: f, world: w } = live.current
+    if (f.w === 0) { setZoomRaw(1); setPanRaw({ x: 0, y: 0 }); return }
+    animateTo(clampPan({ x: 0, y: 0 }, 1, w, f), 1)
+  }, [animateTo, stopGlide])
 
   useEffect(() => stopGlide, [stopGlide])
 
@@ -191,8 +210,8 @@ export function useCanvas(
   }, [ref, settle, stopGlide])
 
   return useMemo(
-    () => ({ pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo }),
-    [pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo],
+    () => ({ pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView }),
+    [pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView],
   )
 }
 
