@@ -16,7 +16,6 @@ import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Rule, RuleCheck, Thread, ThreadTag, WorkNode } from '@/lib/studio/node-types'
 import { appearancesOf, buildTree, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
 import { Board, type BoardActions } from '@/components/work/board'
-import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
 import { CompanionLauncher, Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/work/rail'
@@ -137,7 +136,7 @@ export default function DevWorkPage() {
   ])
   const [vision, setVision] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
   const [focus, setFocus] = useState<Focus>({ kind: 'project' })
-  const [view, setView] = useState<'write' | 'map' | 'flow'>('write')
+  const [view, setView] = useState<'write' | 'flow'>('write')
   const [rail, setRail] = useState<RailKey | null>(null)
   const roomBeside = useRoomBeside()
 
@@ -372,7 +371,7 @@ export default function DevWorkPage() {
                 aria-label="How to look at this"
                 style={{ display: 'inline-flex', padding: 2, gap: 2, background: alpha(t.textPrimary, 0.06), borderRadius: radius.field }}
               >
-                {(['write', 'map', 'flow'] as const).map((v) => (
+                {(['write', 'flow'] as const).map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -411,32 +410,18 @@ export default function DevWorkPage() {
             />
 
             {focus.kind === 'node' && current && (
-              view === 'map' ? (
-                current.children.length > 0 ? (
-                  <Storyline
-                    parts={current.children}
-                    threads={threads}
-                    onReorder={reorder}
-                    onEditBeat={(id, beat) => editNode(id, { beat })}
-                    onAdd={(afterId) => addNode(current.id, afterId)}
-                    onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                    onRemove={(part) => removeNode(part.id)}
-                  />
-                ) : (
-                  <Empty line="Nothing to map yet — this part has no parts of its own." />
-                )
-              ) : (
-                <Studio
-                  node={current}
-                  threads={threads}
-                  flow={view === 'flow'}
-                  onEdit={editNode}
-                  onAdd={(afterId) => addNode(current.id, afterId)}
-                  onRemove={(part) => removeNode(part.id)}
-                  onOpenThread={(id) => setFocus({ kind: 'thread', id })}
-                  onFinished={() => setFocus({ kind: 'project' })}
-                />
-              )
+              <Studio
+                node={current}
+                threads={threads}
+                flow={view === 'flow'}
+                onEdit={editNode}
+                onAdd={(afterId) => addNode(current.id, afterId)}
+                onRemove={(part) => removeNode(part.id)}
+                onReorder={reorder}
+                onEditBeat={(id, beat) => editNode(id, { beat })}
+                onOpenThread={(id) => setFocus({ kind: 'thread', id })}
+                onFinished={() => setFocus({ kind: 'project' })}
+              />
             )}
             {focus.kind === 'node' && !current && <Empty line="That part is gone." />}
 

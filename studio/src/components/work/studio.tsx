@@ -7,6 +7,13 @@
 // box takes a quiet border, one shared toolbar follows the caret, a part can be
 // locked, and flow view strips the chrome so the whole thing reads as prose.
 //
+// The map used to be a separate page you switched to. It's a floating dock
+// now (section-dock.tsx), bottom and centred, the toolbar's own mirror image
+// — collapsed, it is just a row of marks for where the parts are; its arrow
+// opens the same storyline above itself. Picking a part there scrolls this
+// page to it and focuses it — it was never a door to another page, and now
+// it can't pretend to be one.
+//
 // Everything about the vision — what it is for, the rules, the threads, the
 // companion — lives on the rail, because this column belongs to the work.
 
@@ -14,8 +21,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { SectionEditor, SectionToolbar, type SectionSelection } from '@/components/writing/section-editor'
+import { SectionDock } from '@/components/work/section-dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius, shell, widths } from '@/lib/design-tokens'
+import { alpha, radius, widths } from '@/lib/design-tokens'
 import { plainTextToHtml } from '@/lib/rich-text'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
 import type { ProposedEdit } from '@/components/work/companion'
@@ -32,6 +40,8 @@ export function Studio({
   onEdit,
   onAdd,
   onRemove,
+  onReorder,
+  onEditBeat,
   onOpenThread,
   onFinished,
   /** Bubbles the live text selection up, so the companion can offer to
@@ -49,6 +59,9 @@ export function Studio({
   onEdit: (nodeId: string, patch: Partial<TreeNode>) => void | Promise<void>
   onAdd: (afterId: string | null) => void
   onRemove: (part: TreeNode) => void
+  /** For the section dock's own storyline — reordering and the beat track. */
+  onReorder: (ids: string[]) => void
+  onEditBeat: (id: string, beat: string) => void
   onOpenThread: (id: string) => void
   /** Called when the whole piece is marked done — the way back out. */
   onFinished?: () => void
@@ -64,10 +77,20 @@ export function Studio({
   const [focused, setFocused] = useState<string | null>(null)
   const [, bump] = useState(0)
   const editors = useRef<Record<string, Editor | null>>({})
+  const articles = useRef<Record<string, HTMLElement | null>>({})
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pending = useRef<Record<string, string>>({})
   const latestEdit = useRef(onEdit)
   latestEdit.current = onEdit
+
+  /** What the section dock is for: brought into view and given the caret,
+   *  never navigated to — this page is the only one this piece has. */
+  const jumpToPart = useCallback((partId: string) => {
+    articles.current[partId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // After the scroll has had a moment to get there — focusing immediately
+    // can yank the viewport again mid-glide, fighting the smooth scroll.
+    window.setTimeout(() => { editors.current[partId]?.commands.focus() }, 350)
+  }, [])
 
   // The live selection, kept by exact range (not just text) so a proposal
   // that comes back for it can be spliced into precisely the right spot —
@@ -214,9 +237,13 @@ export function Studio({
         <div style={{ position: 'sticky', top: 12, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           <div
             style={{
+              // Glass over the page's own card colour, not a colour of its
+              // own — coal in dark mode, the same near-black as before, but
+              // bone in light mode instead of that same near-black showing
+              // through as a wrong, too-dark pill on a light page.
               pointerEvents: 'auto', display: 'flex', padding: '6px 10px', borderRadius: 999,
-              background: 'rgba(13,12,11,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-              border: `1px solid ${shell.line}`, boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
+              background: alpha(t.cardBg, 0.86), backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+              border: `1px solid ${t.divider}`, boxShadow: t.shadow,
               maxWidth: 'calc(100vw - 24px)', overflowX: 'auto',
             }}
           >
@@ -230,6 +257,7 @@ export function Studio({
         return (
           <article
             key={part.id}
+            ref={(el) => { articles.current[part.id] = el }}
             style={
               flow
                 ? { padding: '0 0 6px' }
@@ -346,6 +374,20 @@ export function Studio({
         >
           {sectioned ? '+ Another part' : '+ Break this into parts'}
         </button>
+      )}
+
+      {sectioned && (
+        <SectionDock
+          parts={parts}
+          threads={threads}
+          focusedId={focused}
+          onSelect={jumpToPart}
+          onReorder={onReorder}
+          onEditBeat={onEditBeat}
+          onOpenThread={onOpenThread}
+          onRemove={onRemove}
+          disabled={disabled}
+        />
       )}
     </div>
   )

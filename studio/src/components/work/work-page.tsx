@@ -28,7 +28,6 @@ import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-typ
 import { useWork } from '@/lib/studio/use-work'
 import { appearancesOf, findNode, newRule, pathTo, rulesInForce } from '@/lib/studio/tree'
 import { Board, type BoardActions } from '@/components/work/board'
-import { Storyline } from '@/components/work/storyline'
 import { Studio } from '@/components/work/studio'
 import { ThreadRead } from '@/components/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/work/companion'
@@ -42,7 +41,7 @@ export type Focus =
   | { kind: 'node'; id: string }
   | { kind: 'thread'; id: string }
 
-type View = 'write' | 'map' | 'flow'
+type View = 'write' | 'flow'
 
 export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus }) {
   return (
@@ -493,41 +492,26 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
 
           {focus.kind === 'node' && node && (
-            view === 'map' ? (
-              node.children.length > 0 ? (
-                <Storyline
-                  parts={node.children}
-                  threads={tree.threads}
-                  onReorder={(ids) => void api.reorder(node.id, ids)}
-                  onEditBeat={(id, beat) => void api.editNode(id, { beat })}
-                  onAdd={(afterId) => void api.addNode(node.id, afterId)}
-                  onOpenThread={goThread}
-                  onRemove={(part) => void removeNode(part)}
-                  disabled={readOnly}
-                />
-              ) : (
-                <Empty line="Nothing to map yet — this part has no parts of its own." />
-              )
-            ) : (
-              <Studio
-                node={node}
-                threads={tree.threads}
-                flow={view === 'flow'}
-                onEdit={(id, patch) => api.editNode(id, patch)}
-                onAdd={(afterId) =>
-                  node.children.length > 0
-                    ? void api.addNode(node.id, afterId)
-                    : void breakIntoParts(node)
-                }
-                onRemove={(part) => void removeNode(part)}
-                onOpenThread={goThread}
-                onFinished={() => goProject()}
-                onSelectionChange={setSelection}
-                proposal={proposal}
-                onProposalHandled={() => setProposal(null)}
-                disabled={readOnly}
-              />
-            )
+            <Studio
+              node={node}
+              threads={tree.threads}
+              flow={view === 'flow'}
+              onEdit={(id, patch) => api.editNode(id, patch)}
+              onAdd={(afterId) =>
+                node.children.length > 0
+                  ? void api.addNode(node.id, afterId)
+                  : void breakIntoParts(node)
+              }
+              onRemove={(part) => void removeNode(part)}
+              onReorder={(ids) => void api.reorder(node.id, ids)}
+              onEditBeat={(id, beat) => void api.editNode(id, { beat })}
+              onOpenThread={goThread}
+              onFinished={() => goProject()}
+              onSelectionChange={setSelection}
+              proposal={proposal}
+              onProposalHandled={() => setProposal(null)}
+              disabled={readOnly}
+            />
           )}
           {focus.kind === 'node' && !node && <Empty line="That part is gone." />}
 
@@ -557,15 +541,16 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   )
 }
 
-/** write · map · flow, the three ways to look at a piece — each its own
- *  colour when active, the same three hues the rest of the studio already
- *  uses for the same ideas: tide for the words themselves, ochre for
- *  structure, verdant for a finished, settled read. */
+/** write · flow, the two ways to read a piece — each its own colour when
+ *  active, the same two hues the rest of the studio already uses for the
+ *  same ideas: tide for the words themselves, verdant for a finished,
+ *  settled read. The map used to be a third option here; it is a standing
+ *  part of the writing view now (section-dock.tsx), not a place you switch
+ *  away to. */
 function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const { t } = useTheme()
   const options: Array<{ key: View; label: string; tone: string }> = [
     { key: 'write', label: 'Write', tone: t.tide },
-    { key: 'map', label: 'Map', tone: t.ochre },
     { key: 'flow', label: 'Flow', tone: t.verdant },
   ]
   return (

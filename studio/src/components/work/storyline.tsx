@@ -7,7 +7,10 @@
 // around it is a structural fact you cannot see any other way. The bar beneath
 // carries the beat each part is meant to hit. Dragging reorders.
 //
-// The alternative is flow: the same parts read continuously, chrome removed.
+// Lives inside the section dock now (section-dock.tsx), not a destination of
+// its own — opening a part here scrolls the writing view to it and focuses
+// it in place, it does not go anywhere. Adding a part isn't here either: the
+// one spot for that is the button at the bottom of the column itself.
 
 import { useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -23,7 +26,9 @@ export function Storyline({
   threads,
   onReorder,
   onEditBeat,
-  onAdd,
+  /** Scrolls the writing view to this part and focuses it — never a
+   *  navigation anywhere, this page is the only one there is. */
+  onSelect,
   onOpenThread,
   onRemove,
   disabled = false,
@@ -32,7 +37,7 @@ export function Storyline({
   threads: Thread[]
   onReorder: (ids: string[]) => void
   onEditBeat: (id: string, beat: string) => void
-  onAdd: (afterId: string | null) => void
+  onSelect?: (id: string) => void
   onOpenThread?: (id: string) => void
   onRemove?: (part: TreeNode) => void
   disabled?: boolean
@@ -112,9 +117,23 @@ export function Storyline({
                 </span>
               </div>
 
-              <h3 style={{ ...canvasType.title, color: t.textPrimary, margin: 0 }}>
-                {part.title || 'Untitled part'}
-              </h3>
+              {onSelect ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(part.id)}
+                  title="Jump to this part"
+                  style={{
+                    ...canvasType.title, color: t.textPrimary, background: 'none', border: 'none',
+                    padding: 0, margin: 0, textAlign: 'left', cursor: 'pointer',
+                  }}
+                >
+                  {part.title || 'Untitled part'}
+                </button>
+              ) : (
+                <h3 style={{ ...canvasType.title, color: t.textPrimary, margin: 0 }}>
+                  {part.title || 'Untitled part'}
+                </h3>
+              )}
 
               {part.intent && (
                 <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>
@@ -168,20 +187,6 @@ export function Storyline({
             </div>
           )
         })}
-
-        {!disabled && (
-          <button
-            type="button"
-            onClick={() => onAdd(parts.length ? parts[parts.length - 1].id : null)}
-            style={{
-              flex: '0 0 auto', minWidth: 96, borderRadius: radius.widget,
-              border: `1px dashed ${alpha(t.textPrimary, 0.2)}`, background: 'transparent',
-              color: t.textMuted, cursor: 'pointer', ...canvasType.small, padding: 12,
-            }}
-          >
-            + Part
-          </button>
-        )}
       </div>
 
       {/* the beat each part is meant to hit */}
@@ -222,7 +227,6 @@ export function Storyline({
                 />
               </div>
             ))}
-            {!disabled && <div style={{ flex: '0 0 auto', minWidth: 96 }} />}
           </div>
         </div>
       )}
