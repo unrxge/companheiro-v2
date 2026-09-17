@@ -199,7 +199,9 @@ export function Companion({
             <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
               {mode === 'write'
                 ? "It can see this part's actual text here, and may propose a rewrite — select a passage first and it'll focus there. Nothing lands until you approve it."
-                : 'It can see the shape of this — what each part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you.'}
+                : nodeId
+                  ? 'It can see the shape of this — what this part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you.'
+                  : 'It can see the shape of the whole thing — what each part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you. It is also there for who this is actually for, and why it is worth making at all, whenever you want to go there.'}
             </p>
           </div>
         )}

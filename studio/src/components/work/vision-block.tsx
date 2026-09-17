@@ -24,6 +24,8 @@ import type { Rule } from '@/lib/studio/node-types'
 
 export const VISION_TITLE_H = 60
 export const VISION_COLLAPSED_H = VISION_TITLE_H
+// A first guess only, for the one frame before the board measures the real
+// thing — the panel itself sizes to its actual content, not this number.
 export const VISION_EXPANDED_H = VISION_TITLE_H + 8 + 340
 
 /**
@@ -141,7 +143,11 @@ export function VisionBlock({
         <div
           data-hold
           style={{
-            marginTop: 8, width, maxHeight: 340, overflowY: 'auto',
+            // Sized to its own content — a fixed cap here either clipped a
+            // long intent and its rules mid-sentence, or left too much air
+            // under a short one. 70vh is a safety valve for a genuinely long
+            // list of rules, not a height ordinary content should ever reach.
+            marginTop: 8, width, maxHeight: '70vh', overflowY: 'auto',
             background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow,
             padding: '26px 30px', boxSizing: 'border-box',
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36,

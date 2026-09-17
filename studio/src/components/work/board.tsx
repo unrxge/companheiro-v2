@@ -107,6 +107,8 @@ export function Board({
   const { t } = useTheme()
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
+  const visionRef = useRef<HTMLDivElement | null>(null)
+  const visionFrame = useFrame(visionRef)
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [arming, setArming] = useState<string | null>(null)
@@ -120,7 +122,11 @@ export function Board({
   // fixed one dwarfed a lane of narrower cards on anything but a wide window.
   const visionW = visionWidth(cardW)
 
-  const visionH = visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H
+  // Measured, not assumed: a fixed height for the expanded panel either
+  // clipped a long intent and its rules mid-sentence, or left a gap too big
+  // for a short one. The fallback only covers the one frame before the
+  // ResizeObserver's first reading lands.
+  const visionH = visionFrame.h || (visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H)
   const visionMoved = project.vision_x !== null || project.vision_y !== null
   const noticesH = checks.length > 0 ? NOTICE_H + NOTICE_GAP : 0
   // Pieces clear the title's own space — and the notices sitting under it,
@@ -262,6 +268,14 @@ export function Board({
     if (disabled) return
     const el = ref.current
     if (!el || e.button !== 0) return
+    // user-select:none on the wrapper stops the drag's own text from
+    // highlighting, but a press-and-drag that starts right at a text edge
+    // could still hand the gesture to the browser's own selection instead of
+    // ours. Preventing the default here is the actual guarantee — it heads
+    // off text selection and native drag-image ghosting regardless of where
+    // in the block the pointer went down, and does not stop the click that
+    // follows a plain press-and-release (that is a separate event).
+    e.preventDefault()
     const box = el.getBoundingClientRect()
     const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
     const offset = { x: grab.x - committed.x, y: grab.y - committed.y }
@@ -399,6 +413,7 @@ export function Board({
 
         {/* the project's own title, vision and rules */}
         <div
+          ref={visionRef}
           data-hold
           onPointerDown={beginDrag('vision', 'vision', visionAt, (at) => actions.moveVision(at))}
           style={{
