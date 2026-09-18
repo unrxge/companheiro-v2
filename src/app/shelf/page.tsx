@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { CanvasStage } from '@/components/studio/surface/stage'
+import { Dock, DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { PageHeader } from '@/components/shell/page-shell'
 import { Level } from '@/components/studio/surface/travel'
 import { Desk } from '@/components/studio/shelf/desk'
@@ -65,49 +66,53 @@ export default function ShelfPage() {
   }, [load])
 
   return (
-    <Level>
-      <CanvasStage mood="verdant" intensity={0.6} header={<ShelfHeader />}>
-        {state.status === 'loading' && <Middle>opening the shelf…</Middle>}
+    <>
+      <Level>
+        <CanvasStage mood="verdant" intensity={0.6} header={<ShelfHeader />}>
+          {state.status === 'loading' && <Middle>opening the shelf…</Middle>}
 
-        {state.status === 'error' && (
-          <Middle>
-            <p style={{ ...canvasType.body, color: shell.text, margin: '0 0 16px' }}>{state.message}</p>
-            {state.code === 401
-              ? <GhostButton onClick={() => router.push('/login')}>sign in</GhostButton>
-              : <GhostButton onClick={() => void load()}>try again</GhostButton>}
-          </Middle>
-        )}
+          {state.status === 'error' && (
+            <Middle>
+              <p style={{ ...canvasType.body, color: shell.text, margin: '0 0 16px' }}>{state.message}</p>
+              {state.code === 401
+                ? <GhostButton onClick={() => router.push('/login')}>sign in</GhostButton>
+                : <GhostButton onClick={() => void load()}>try again</GhostButton>}
+            </Middle>
+          )}
 
-        {state.status === 'ready' && projects.length === 0 && (
-          <Middle>
-            <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
-              Nothing on the shelf yet.
-            </p>
-            <PrimaryButton onClick={goNew}>new project</PrimaryButton>
-          </Middle>
-        )}
+          {state.status === 'ready' && projects.length === 0 && (
+            <Middle>
+              <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
+                Nothing on the shelf yet.
+              </p>
+              <PrimaryButton onClick={goNew}>new project</PrimaryButton>
+            </Middle>
+          )}
 
-        {state.status === 'ready' && projects.length > 0 && (
-          <Desk projects={projects} onNew={goNew} onMove={move} />
-        )}
-      </CanvasStage>
-    </Level>
+          {state.status === 'ready' && projects.length > 0 && (
+            <Desk projects={projects} onNew={goNew} onMove={move} />
+          )}
+        </CanvasStage>
+      </Level>
+      <Dock />
+    </>
   )
 }
 
 /** Every other screen's header, not the canvas pill the other two levels use
  *  — an eyebrow naming Companheiro, the module's name at the same size as
- *  the project board, check-in and home screens. No back arrow: the shelf
- *  is the top of the climb, there is nowhere further out to go. The top
- *  clearance matches PageShell's own .page-col exactly (page-shell.tsx) —
- *  this header sits outside a PageShell, on the canvas stage instead, so it
- *  has to repeat the rule rather than inherit it. */
+ *  the project board, check-in and home screens. No back arrow: the Dock
+ *  handles leaving now that the shelf is one of its five destinations, not
+ *  the app's root. The top clearance matches PageShell's own .page-col
+ *  exactly (page-shell.tsx, dock=true case) — this header sits outside a
+ *  PageShell, on the canvas stage instead, so it has to repeat the rule
+ *  rather than inherit it. */
 function ShelfHeader() {
   return (
     <div style={{ pointerEvents: 'none' }}>
       <style>{`
         .shelf-header-pad { padding: 24px 24px 0; }
-        @media (min-width: 720px) { .shelf-header-pad { padding-top: 84px; } }
+        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .shelf-header-pad { padding-top: 84px; } }
       `}</style>
       <div data-hold className="shelf-header-pad" style={{ pointerEvents: 'auto', maxWidth: widths.page, margin: '0 auto', boxSizing: 'border-box' }}>
         <PageHeader title={LEVELS.shelf.name} />

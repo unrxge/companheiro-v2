@@ -11,6 +11,7 @@
 
 import { useEffect, type ReactNode } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
@@ -107,31 +108,42 @@ export function CompanionLauncher({
 }) {
   const { t } = useTheme()
   return (
-    <button
-      type="button"
-      aria-label="Talk through the vision"
-      aria-pressed={active}
-      title="Talk it through"
-      onClick={onClick}
-      style={{
-        position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)', zIndex: 40,
-        display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-        padding: '13px 24px', borderRadius: 999,
-        border: `1px solid ${active ? t.violet : alpha(t.violet, 0.4)}`,
-        background: active ? t.violet : 'rgba(13,12,11,0.78)',
-        backdropFilter: 'blur(18px) saturate(1.1)',
-        color: active ? shell.ink : t.violet,
-        boxShadow: `0 10px 30px ${alpha(t.violet, active ? 0.4 : 0.2)}`,
-        transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
-      }}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden>
-        <path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" />
-      </svg>
-      <span style={{ ...canvasType.label, textTransform: 'none', letterSpacing: 0, fontSize: 14, fontWeight: 600 }}>
-        Talk about the vision
-      </span>
-    </button>
+    <>
+      {/* Below DOCK_DESKTOP_MIN, Dock claims bottom-centre too (44px seats +
+         4px top/bottom padding, sitting max(14px, safe-area) off the edge —
+         see dock.tsx). Clear that stack plus a visible gap; at and above the
+         breakpoint Dock moves to the top, so this can sit at its normal 22px. */}
+      <style>{`
+        .companion-launcher { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
+        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .companion-launcher { bottom: 22px; } }
+      `}</style>
+      <button
+        type="button"
+        aria-label="Talk through the vision"
+        aria-pressed={active}
+        title="Talk it through"
+        onClick={onClick}
+        className="companion-launcher"
+        style={{
+          position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
+          display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+          padding: '13px 24px', borderRadius: 999,
+          border: `1px solid ${active ? t.violet : alpha(t.violet, 0.4)}`,
+          background: active ? t.violet : 'rgba(13,12,11,0.78)',
+          backdropFilter: 'blur(18px) saturate(1.1)',
+          color: active ? shell.ink : t.violet,
+          boxShadow: `0 10px 30px ${alpha(t.violet, active ? 0.4 : 0.2)}`,
+          transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden>
+          <path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" />
+        </svg>
+        <span style={{ ...canvasType.label, textTransform: 'none', letterSpacing: 0, fontSize: 14, fontWeight: 600 }}>
+          Talk about the vision
+        </span>
+      </button>
+    </>
   )
 }
 

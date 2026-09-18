@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
+import { Dock } from '@/components/shell/dock'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -269,14 +270,17 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   // ── loading and error ─────────────────────────────────────────────────────
   if (state.status === 'loading') {
     return (
-      <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
-        <span />
-      </CanvasStage>
+      <>
+        <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
+          <span />
+        </CanvasStage>
+        <Dock />
+      </>
     )
   }
   if (state.status === 'error' || !project) {
     return (
-      <PageShell dock={false} mood="neutral">
+      <PageShell mood="neutral">
         <PageHeader eyebrow={null} title="It did not open" size="md" />
         <Container padding={32}>
           <p style={{ ...canvasType.body, color: t.textSecondary, margin: '0 0 16px' }}>
@@ -422,9 +426,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     // Redirecting (see the effect above) — render nothing board-shaped in
     // the meantime so it never flashes before the writing view takes over.
     return (
-      <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
-        <span />
-      </CanvasStage>
+      <>
+        <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
+          <span />
+        </CanvasStage>
+        <Dock />
+      </>
     )
   }
   if (focus.kind === 'project') {
@@ -466,6 +473,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))}
           />
         </CanvasStage>
+        <Dock />
         {companionDrawer}
       </>
     )
@@ -477,7 +485,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     : node?.title || 'Untitled'
 
   return (
-    <PageShell dock={false} mood="tide">
+    <PageShell mood="tide">
       <PageHeader
         eyebrow={null}
         title={headerTitle}
