@@ -44,21 +44,30 @@
 -- (postgres has no "add constraint if not exists"), so those are wrapped in
 -- the same do $$ ... exception when duplicate_object $$ guard 007/008 use
 -- for enum/policy creation, to keep this whole file safe to paste twice.
+-- Unique-constraint creation is guarded by checking pg_constraint directly,
+-- not by catching an exception: ADD CONSTRAINT ... UNIQUE implicitly creates
+-- an index, so a collision raises 42P07 (duplicate_table), not 42710
+-- (duplicate_object) - a mismatch that silently aborted every prior run of
+-- this file past the first, once the constraint existed. This form has no
+-- SQLSTATE to get wrong.
 alter table studio_projects add column if not exists migrated_from_piece_id uuid;
 do $$ begin
-  alter table studio_projects add constraint studio_projects_migrated_from_piece_id_key unique (migrated_from_piece_id);
-exception when duplicate_object then null;
+  if not exists (select 1 from pg_constraint where conname = 'studio_projects_migrated_from_piece_id_key') then
+    alter table studio_projects add constraint studio_projects_migrated_from_piece_id_key unique (migrated_from_piece_id);
+  end if;
 end $$;
 
 alter table studio_nodes add column if not exists migrated_from_piece_id uuid;
 alter table studio_nodes add column if not exists migrated_from_section_id uuid;
 do $$ begin
-  alter table studio_nodes add constraint studio_nodes_migrated_from_piece_id_key unique (migrated_from_piece_id);
-exception when duplicate_object then null;
+  if not exists (select 1 from pg_constraint where conname = 'studio_nodes_migrated_from_piece_id_key') then
+    alter table studio_nodes add constraint studio_nodes_migrated_from_piece_id_key unique (migrated_from_piece_id);
+  end if;
 end $$;
 do $$ begin
-  alter table studio_nodes add constraint studio_nodes_migrated_from_section_id_key unique (migrated_from_section_id);
-exception when duplicate_object then null;
+  if not exists (select 1 from pg_constraint where conname = 'studio_nodes_migrated_from_section_id_key') then
+    alter table studio_nodes add constraint studio_nodes_migrated_from_section_id_key unique (migrated_from_section_id);
+  end if;
 end $$;
 
 -- ── the migration itself ────────────────────────────────────────────────────
