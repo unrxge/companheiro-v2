@@ -49,11 +49,34 @@ export default function ProjectBoardPage() {
 
   const items = useMemo(() => boardItems(projects, drafts), [projects, drafts])
 
+  const save = useCallback((id: string, x: number | null, y: number | null) =>
+    fetch(`/api/studio/projects/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ shelf_x: x, shelf_y: y }),
+    }), [])
+
+  /** Optimistic: the folder is already under the hand, so it must not jump. */
+  const move = useCallback((id: string, saved: { x: number; y: number }) => {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, shelf_x: saved.x, shelf_y: saved.y } : p)))
+    save(id, saved.x, saved.y).catch(() => { void load() })
+  }, [load, save])
+
+  /** Every folder back on the grid, most recently opened first. */
+  const arrange = useCallback(() => {
+    const placed = projects.filter((p) => p.shelf_x !== null || p.shelf_y !== null)
+    setProjects((prev) => prev.map((p) => ({ ...p, shelf_x: null, shelf_y: null })))
+    Promise.all(placed.map((p) => save(p.id, null, null))).catch(() => { void load() })
+  }, [load, projects, save])
+
   return (
     <BoardView
       state={state}
       items={items}
       onNew={() => router.push('/idea-lab')}
+      onMove={move}
+      onArrange={arrange}
       onRetry={() => void load()}
       onSignIn={() => router.push('/login')}
     />

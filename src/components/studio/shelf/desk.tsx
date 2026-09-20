@@ -3,14 +3,17 @@
 // src/components/studio/shelf/desk.tsx — the Project Board's folders.
 //
 // One folder per project, plus one for the idea still being explored in Idea
-// Lab. They lie on a grid in the order they were last opened: the folder in
-// the top-left corner is always the one you touched most recently, and the
-// rest run away from it, newest to oldest. Nothing here is hand-placed any
-// more — the order is the meaning.
+// Lab. Left alone they lie on a grid in the order they were last opened: the
+// top-left folder is the one you touched most recently, and the rest run away
+// from it, newest to oldest. Drag any folder wherever you like and it stays
+// there; "Arrange" puts everything back on the grid.
 //
-// The canvas is only the area under the page header (see the page), so
-// scrolling a long board hides folders behind the header's edge instead of
-// sliding them under its text.
+// One screenful is 4 columns by 3 rows on a portrait screen and 5 by 2 on a
+// landscape one (lib/studio/shelf-view.ts). More folders scroll downward; the
+// board never grows wider, and it never zooms out past 100%.
+//
+// The canvas is only the area under the page header (see board-view.tsx), so
+// scrolling hides folders behind the header's edge instead of under its text.
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -20,66 +23,120 @@ import { useTravel } from '@/components/studio/surface/travel'
 import { FolderIcon } from '@/components/studio/shelf/folder-icon'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, shell } from '@/lib/design-tokens'
-import { hoverLines, type BoardItem } from '@/lib/studio/shelf-view'
+import { clampToWorld, freeSlot, tiltOf, toWorld } from '@/lib/studio/surface'
+import {
+  decodePosition, encodePosition, gridFor, hoverLines, slotAt, type BoardItem, type Grid, type Pt,
+} from '@/lib/studio/shelf-view'
 
-interface Metrics {
-  cellW: number
-  cellH: number
-  iconW: number
-  gapX: number
-  gapY: number
-  top: number
-  edge: number
-}
+// Arranging glides folders home rather than snapping them.
+const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const GLIDE_MS = 450
 
-// Folders need air between them; the old card grid sat 34px apart.
-const ROOMY: Metrics = { cellW: 190, cellH: 178, iconW: 150, gapX: 64, gapY: 52, top: 64, edge: 32 }
-const COMPACT: Metrics = { cellW: 148, cellH: 150, iconW: 118, gapX: 26, gapY: 40, top: 44, edge: 16 }
-
-export interface Layout {
-  cols: number
+interface Seats {
+  at: Map<string, Pt>
   world: { w: number; h: number }
-  at: (index: number) => { x: number; y: number }
-  m: Metrics
 }
 
-/** Where each folder goes, given the width of the window it is looking through. */
-export function layoutFor(count: number, frameW: number, frameH: number): Layout {
-  const m = frameW > 0 && frameW < 600 ? COMPACT : ROOMY
-  const room = Math.max(m.cellW, frameW - m.edge * 2)
-  const cols = Math.max(1, Math.floor((room + m.gapX) / (m.cellW + m.gapX)))
-  const gridW = cols * m.cellW + (cols - 1) * m.gapX
-  const originX = Math.max(m.edge, Math.round((frameW - gridW) / 2))
-  const rows = Math.max(1, Math.ceil(count / cols))
-  const at = (i: number) => ({
-    x: originX + (i % cols) * (m.cellW + m.gapX),
-    y: m.top + Math.floor(i / cols) * (m.cellH + m.gapY),
+/** Where every folder sits: its own saved spot if it has one, otherwise the
+ *  next place on the recency grid — and never on top of something else, since
+ *  a folder hidden under another folder is a folder you have lost. */
+function seat(items: BoardItem[], g: Grid, frame: { w: number; h: number }): Seats {
+  // freeSlot treats anything within 4px as touching, so cells that sit exactly
+  // one pitch apart need 8px shaved off to count as neighbours, not overlaps.
+  const spec = { cardW: g.pitchX - 8, cardH: g.pitchY - 8, gap: 8, cols: g.cols }
+  const roomy = { w: frame.w, h: g.topPad + (items.length + g.cols) * g.pitchY + g.bottomPad }
+  const at = new Map<string, Pt>()
+  const taken: Pt[] = []
+
+  items.forEach((item) => {
+    const saved = decodePosition(item.shelfX, item.shelfY, frame.w, g.pitchY)
+    if (!saved) return
+    const p = clampToWorld(saved, g.pitchX, g.pitchY, roomy)
+    at.set(item.id, p)
+    taken.push(p)
   })
-  const right = originX + gridW + originX
-  // Space under the last row clears the corner controls and the bottom fade.
-  const bottom = m.top + rows * m.cellH + (rows - 1) * m.gapY + 110
-  return { cols, m, at, world: { w: Math.max(right, frameW), h: Math.max(bottom, frameH) } }
+  items.forEach((item, i) => {
+    if (at.has(item.id)) return
+    const p = freeSlot(slotAt(i, g), taken, spec, roomy)
+    at.set(item.id, p)
+    taken.push(p)
+  })
+
+  let bottom = g.topPad + Math.ceil(items.length / g.cols) * g.pitchY
+  for (const p of at.values()) bottom = Math.max(bottom, p.y + g.pitchY)
+  return { at, world: { w: frame.w, h: Math.max(frame.h, bottom + g.bottomPad) } }
 }
 
 export function Desk({
   items,
   onNew,
+  onMove,
+  onArrange,
 }: {
   items: BoardItem[]
   onNew: () => void
+  /** Saved as the board's own units, not pixels — see encodePosition. */
+  onMove: (id: string, saved: { x: number; y: number }) => void
+  onArrange: () => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
   const router = useRouter()
   const go = useTravel()
 
-  const layout = useMemo(() => layoutFor(items.length, frame.w, frame.h), [items.length, frame.w, frame.h])
-  const canvas = useCanvas(ref, frame, layout.world)
+  const grid = useMemo(() => gridFor(frame.w, frame.h), [frame.w, frame.h])
+  const { at: seats, world } = useMemo(() => seat(items, grid, frame), [items, grid, frame])
+  const canvas = useCanvas(ref, frame, world, { minZoom: 1 })
+
+  const [drag, setDrag] = useState<{ id: string; at: Pt } | null>(null)
 
   const open = useCallback((item: BoardItem, el: HTMLElement) => {
     if (item.kind === 'draft') router.push(`/idea-lab/conceptualise?resume=${item.id}`)
     else go(`/p/${item.id}`, 'in', el)
   }, [go, router])
+
+  const startDrag = useCallback((item: BoardItem, e: React.PointerEvent<HTMLElement>) => {
+    const el = ref.current
+    const from = seats.get(item.id)
+    const target = e.currentTarget
+    if (!el || !from || e.button !== 0) return
+
+    // An idea still in Idea Lab has nowhere to save a position, so it just opens.
+    if (item.kind === 'draft') {
+      const up = () => { target.removeEventListener('pointerup', up); open(item, target) }
+      target.addEventListener('pointerup', up)
+      return
+    }
+
+    const box = el.getBoundingClientRect()
+    const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
+    const offset = { x: grab.x - from.x, y: grab.y - from.y }
+    let moved = false
+    // Kept here, not read back out of state: a setState updater runs during
+    // render, and calling the parent's onMove from inside one is the classic
+    // "update a component while rendering another" fault.
+    let landed = from
+    target.setPointerCapture(e.pointerId)
+
+    const move = (ev: PointerEvent) => {
+      const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
+      landed = clampToWorld({ x: now.x - offset.x, y: now.y - offset.y }, grid.pitchX, grid.pitchY, world)
+      if (Math.abs(landed.x - from.x) > 4 || Math.abs(landed.y - from.y) > 4) moved = true
+      setDrag({ id: item.id, at: landed })
+    }
+    const up = (ev: PointerEvent) => {
+      target.removeEventListener('pointermove', move)
+      target.removeEventListener('pointerup', up)
+      target.removeEventListener('pointercancel', up)
+      if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
+      setDrag(null)
+      if (moved) onMove(item.id, encodePosition(landed, world.w, grid.pitchY))
+      else open(item, target)
+    }
+    target.addEventListener('pointermove', move)
+    target.addEventListener('pointerup', up)
+    target.addEventListener('pointercancel', up)
+  }, [canvas.pan, canvas.zoom, grid.pitchX, grid.pitchY, onMove, open, seats, world])
 
   // The folder under the pointer, and where it is on screen right now. Both
   // are re-measured as the canvas moves, so the tooltip follows a folder that
@@ -89,9 +146,11 @@ export function Desk({
   const [rect, setRect] = useState<DOMRect | null>(null)
   useLayoutEffect(() => {
     const el = hoverId ? cells.current.get(hoverId) : null
-    setRect(el && !canvas.dragging ? el.getBoundingClientRect() : null)
-  }, [hoverId, canvas.pan.x, canvas.pan.y, canvas.zoom, canvas.dragging])
+    setRect(el && !canvas.dragging && !drag ? el.getBoundingClientRect() : null)
+  }, [hoverId, canvas.pan.x, canvas.pan.y, canvas.zoom, canvas.dragging, drag])
   const hovered = hoverId ? items.find((i) => i.id === hoverId) ?? null : null
+
+  const anyPlaced = items.some((i) => decodePosition(i.shelfX, i.shelfY, frame.w, grid.pitchY))
 
   return (
     <>
@@ -102,21 +161,28 @@ export function Desk({
         chrome={
           <>
             <ZoomPill canvas={canvas} onHome={canvas.resetView} />
-            <NewButton onNew={onNew} />
+            <Controls onNew={onNew} onArrange={anyPlaced ? onArrange : null} />
           </>
         }
       >
-        {items.map((item, i) => (
-          <Folder
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            at={layout.at(i)}
-            m={layout.m}
-            register={(el) => { if (el) cells.current.set(item.id, el); else cells.current.delete(item.id) }}
-            onHover={(on) => setHoverId((cur) => (on ? item.id : cur === item.id ? null : cur))}
-            onOpen={(el) => open(item, el)}
-          />
-        ))}
+        {items.map((item) => {
+          const held = drag?.id === item.id
+          const at = held ? drag.at : seats.get(item.id)
+          if (!at) return null
+          return (
+            <Folder
+              key={`${item.kind}-${item.id}`}
+              item={item}
+              at={at}
+              grid={grid}
+              held={held}
+              register={(el) => { if (el) cells.current.set(item.id, el); else cells.current.delete(item.id) }}
+              onHover={(on) => setHoverId((cur) => (on ? item.id : cur === item.id ? null : cur))}
+              onPointerDown={(e) => startDrag(item, e)}
+              onKey={(el) => open(item, el)}
+            />
+          )
+        })}
       </Surface>
       {hovered && rect && <Tooltip item={hovered} rect={rect} />}
     </>
@@ -133,17 +199,20 @@ const STATE_WORD = {
 } as const
 
 function Folder({
-  item, at, m, register, onHover, onOpen,
+  item, at, grid, held, register, onHover, onPointerDown, onKey,
 }: {
   item: BoardItem
-  at: { x: number; y: number }
-  m: Metrics
+  at: Pt
+  grid: Grid
+  held: boolean
   register: (el: HTMLElement | null) => void
   onHover: (on: boolean) => void
-  onOpen: (el: HTMLElement) => void
+  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void
+  onKey: (el: HTMLElement) => void
 }) {
   const [hover, setHover] = useState(false)
   const done = item.state === 'completed'
+  const lift = held ? 1.08 : hover ? 1.04 : 1
   return (
     <div
       ref={register}
@@ -151,32 +220,35 @@ function Folder({
       role="button"
       tabIndex={0}
       aria-label={`${item.title} — ${STATE_WORD[item.state]}`}
-      onClick={(e) => onOpen(e.currentTarget)}
+      onPointerDown={onPointerDown}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(e.currentTarget) }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onKey(e.currentTarget) }
       }}
       onMouseEnter={() => { setHover(true); onHover(true) }}
       onMouseLeave={() => { setHover(false); onHover(false) }}
       onFocus={() => onHover(true)}
       onBlur={() => onHover(false)}
       style={{
-        position: 'absolute', left: at.x, top: at.y, width: m.cellW, height: m.cellH,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-        cursor: 'pointer', outline: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+        position: 'absolute', left: at.x, top: at.y, width: grid.pitchX, height: grid.pitchY,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+        cursor: held ? 'grabbing' : 'pointer', outline: 'none',
+        userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none',
+        zIndex: held ? 30 : 1,
+        transition: held ? 'none' : `left ${GLIDE_MS}ms ${EASE}, top ${GLIDE_MS}ms ${EASE}`,
       }}
     >
       <div
         style={{
-          transform: `translateY(${hover ? -3 : 0}px) scale(${hover ? 1.04 : 1})`,
-          transition: 'transform 160ms cubic-bezier(0.2,0.7,0.2,1)',
+          transform: `rotate(${tiltOf(item.id, 3)}deg) translateY(${held ? -4 : hover ? -3 : 0}px) scale(${lift})`,
+          transition: held ? 'none' : 'transform 160ms cubic-bezier(0.2,0.7,0.2,1)',
         }}
       >
-        <FolderIcon state={item.state} width={m.iconW} />
+        <FolderIcon state={item.state} width={grid.iconW} />
       </div>
       <span
         style={{
-          ...canvasType.small, color: done ? shell.muted : shell.text, textAlign: 'center',
-          maxWidth: '100%', lineHeight: 1.3,
+          ...canvasType.small, fontSize: grid.fontSize, color: done ? shell.muted : shell.text, textAlign: 'center',
+          maxWidth: '94%', lineHeight: 1.3,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
           textDecorationLine: hover ? 'underline' : 'none', textDecorationColor: alpha(shell.text, 0.35), textUnderlineOffset: 3,
         }}
@@ -192,7 +264,7 @@ function Folder({
 const TIP_W = 236
 
 /** Drawn on the page, not inside the zoomed world, so it stays one readable
- *  size however far out the board is, and never gets clipped by it. */
+ *  size however the board is zoomed, and never gets clipped by it. */
 function Tooltip({ item, rect }: { item: BoardItem; rect: DOMRect }) {
   if (typeof document === 'undefined') return null
   const lines = hoverLines(item)
@@ -223,11 +295,35 @@ function Tooltip({ item, rect }: { item: BoardItem; rect: DOMRect }) {
   )
 }
 
-// ── the board's one button ──────────────────────────────────────────────────
+// ── the board's own buttons ─────────────────────────────────────────────────
 
-function NewButton({ onNew }: { onNew: () => void }) {
+/** `onArrange` is null while nothing has been moved by hand — there is
+ *  nothing to put back, so the button rests. */
+function Controls({ onNew, onArrange }: { onNew: () => void; onArrange: (() => void) | null }) {
   return (
-    <div data-hold style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 6 }}>
+    <div data-hold style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <button
+        type="button"
+        aria-label="Arrange — put every folder back in order, most recently opened first"
+        title="Put every folder back in order, most recently opened first"
+        disabled={!onArrange}
+        onClick={() => onArrange?.()}
+        style={{
+          height: 40, padding: '0 14px 0 12px', borderRadius: 999, cursor: onArrange ? 'pointer' : 'default',
+          display: 'flex', alignItems: 'center', gap: 8,
+          border: `1px solid ${shell.line}`, background: 'rgba(13,12,11,0.74)', backdropFilter: 'blur(18px) saturate(1.1)',
+          color: shell.muted, opacity: onArrange ? 1 : 0.45, transition: 'opacity 160ms ease',
+          ...canvasType.chip,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+          <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+          <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+          <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+        </svg>
+        Arrange
+      </button>
       <button
         type="button"
         aria-label="Start a new idea"

@@ -65,13 +65,18 @@ export function useCanvas(
   ref: RefObject<HTMLDivElement | null>,
   frame: Frame,
   world: World,
-  opts: { initialCentre?: Point | null } = {},
+  opts: { initialCentre?: Point | null; minZoom?: number } = {},
 ): Canvas {
   const [pan, setPanRaw] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoomRaw] = useState(1)
   const [dragging, setDragging] = useState(false)
   const live = useRef({ pan, zoom, frame, world })
   live.current = { pan, zoom, frame, world }
+  // Some surfaces (the Project Board) must not zoom out past 100%, or the
+  // screenful they promise — so many columns by so many rows — stops being true.
+  const floor = useRef(opts.minZoom ?? ZOOM.min)
+  floor.current = opts.minZoom ?? ZOOM.min
+  const clampK = useCallback((k: number) => Math.max(floor.current, clampZoom(k)), [])
   const glide = useRef<number | null>(null)
   const placed = useRef(false)
 
@@ -89,19 +94,19 @@ export function useCanvas(
   const setZoom = useCallback((k: number, anchor?: Point) => {
     stopGlide()
     const { pan: p, zoom: z, frame: f, world: w } = live.current
-    const next = clampZoom(k)
+    const next = clampK(k)
     const at = anchor ?? { x: f.w / 2, y: f.h / 2 }
     setZoomRaw(next)
     setPanRaw(clampPan(zoomAbout(at, p, z, next), next, w, f))
-  }, [stopGlide])
+  }, [stopGlide, clampK])
 
   const jumpTo = useCallback((target: Point, k?: number) => {
     stopGlide()
     const { zoom: z, frame: f, world: w } = live.current
-    const nextK = k === undefined ? z : clampZoom(k)
+    const nextK = k === undefined ? z : clampK(k)
     setZoomRaw(nextK)
     setPanRaw(clampPan(centreOn(target, nextK, f), nextK, w, f))
-  }, [stopGlide])
+  }, [stopGlide, clampK])
 
   /** Eases pan and zoom toward an already-computed destination — shared by
    *  glideTo (which works out that destination by centring a point) and
@@ -124,9 +129,9 @@ export function useCanvas(
     stopGlide()
     const { zoom: z, frame: f, world: w } = live.current
     if (f.w === 0) { jumpTo(target, k); return }
-    const nextK = k === undefined ? z : clampZoom(k)
+    const nextK = k === undefined ? z : clampK(k)
     animateTo(clampPan(centreOn(target, nextK, f), nextK, w, f), nextK)
-  }, [animateTo, jumpTo, stopGlide])
+  }, [animateTo, jumpTo, stopGlide, clampK])
 
   const resetView = useCallback(() => {
     stopGlide()
