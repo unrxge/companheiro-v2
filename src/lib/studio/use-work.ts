@@ -42,6 +42,9 @@ export function useWork(projectId: string) {
       setProject(res.project)
       setTree(res.tree)
       setState({ status: 'ready' })
+      // Opening a project is what the Project Board sorts by ("last accessed").
+      // Fire and forget: a failure here must never get in the way of the work.
+      void fetch(`/api/studio/projects/${projectId}/open`, { method: 'POST', credentials: 'same-origin' }).catch(() => {})
     } catch (e) {
       if (!alive.current) return
       const code = typeof (e as { status?: number }).status === 'number' ? (e as { status: number }).status : 0

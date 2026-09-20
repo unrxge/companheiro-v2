@@ -33,8 +33,8 @@ const SEATS: Seat[] = [
     icon: <svg width="18" height="18" viewBox="0 0 24 24" {...stroke}><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /><path d="M19 15l.7 1.6 1.6.7-1.6.7L19 19.6l-.7-1.6-1.6-.7 1.6-.7z" /></svg>,
   },
   {
-    href: '/shelf',
-    label: 'Shelf',
+    href: '/project-board',
+    label: 'Project Board',
     match: (p) => p.startsWith('/shelf') || p.startsWith('/project-board') || p.startsWith('/new') || p.startsWith('/p/') || p.startsWith('/write') || p.startsWith('/zoom-out') || p.startsWith('/post-publication') || p.startsWith('/read'),
     icon: <svg width="18" height="18" viewBox="0 0 24 24" {...stroke}><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="9.5" y="4" width="5" height="11" rx="1.5" /><rect x="16" y="4" width="5" height="8" rx="1.5" /></svg>,
   },
@@ -63,7 +63,7 @@ export function Dock({ hidden = false }: { hidden?: boolean }) {
         .dock { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 999px; background-color: rgba(13,12,11,0.74); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid ${shell.line}; box-shadow: 0 10px 30px rgba(0,0,0,0.45); max-width: calc(100vw - 24px); }
         .dock { bottom: max(14px, env(safe-area-inset-bottom)); top: auto; }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .dock { top: 14px; bottom: auto; } }
-        .dock-seat { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; color: ${shell.muted}; text-decoration: none; font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; transition: color .2s, background-color .2s; -webkit-tap-highlight-color: transparent; }
+        .dock-seat { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; height: 40px; padding: 0 14px; border-radius: 999px; color: ${shell.muted}; text-decoration: none; font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; transition: color .2s, background-color .2s; -webkit-tap-highlight-color: transparent; }
         .dock-seat:hover, .dock-seat[aria-current="page"] { color: ${shell.text}; background-color: ${shell.fillHover}; }
         .dock-seat:focus-visible { outline: 2px solid #d2552f; outline-offset: 2px; }
         .dock-seat .dock-label { display: none; }

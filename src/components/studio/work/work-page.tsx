@@ -114,7 +114,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const goProject = useCallback((from?: HTMLElement | null) => {
     go(`/p/${projectId}`, 'out', from)
   }, [go, projectId])
-  const goShelf = useCallback((from?: HTMLElement | null) => go('/shelf', 'out', from), [go])
+  const goShelf = useCallback((from?: HTMLElement | null) => go('/project-board', 'out', from), [go])
 
   const node = focus.kind === 'node' ? findNode(roots, focus.id) : null
   const thread: Thread | null =
@@ -288,7 +288,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <QuietButton onClick={() => void api.reload()}>Try again</QuietButton>
-            <GhostButton onClick={() => router.push('/shelf')}>Back to the shelf</GhostButton>
+            <GhostButton onClick={() => router.push('/project-board')}>Back to the project board</GhostButton>
           </div>
         </Container>
       </PageShell>

@@ -85,7 +85,7 @@ function ReadContent() {
         eyebrow="Reading room"
         title={piece?.title ?? 'Reading room'}
         subtitle={piece ? `${piece.posted_at ? `Posted ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not yet posted'} · ${words.toLocaleString()} words` : undefined}
-        back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/shelf') : '/project-board'}
+        back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/project-board') : '/project-board'}
         actions={
           piece ? (
             <>

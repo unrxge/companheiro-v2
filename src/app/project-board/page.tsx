@@ -1,26 +1,61 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { shell } from '@/lib/design-tokens'
+// The Project Board — every project and idea as a folder, most recently
+// opened first. Level 3 of the studio (see lib/studio/levels.ts).
 
-// /project-board is superseded by /shelf (Phase 6 of the studio migration —
-// studio_projects/studio_nodes is now the complete dataset for old and new
-// work alike). This is a UI-layer redirect only: the /api/project-board/*
-// routes and the underlying pieces/ideas tables stay fully functional and
-// untouched, so nothing here removes or disables them. Anyone landing on
-// this route (an old bookmark, a stale link) is sent straight to the shelf
-// instead of seeing the retired board UI.
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { BoardView, type BoardState } from '@/components/studio/shelf/board-view'
+import { api, ApiError } from '@/lib/studio/api-client'
+import { boardItems, type DraftLike } from '@/lib/studio/shelf-view'
+import type { ShelfProject } from '@/lib/studio/types'
+
+/** Unfinished Idea Lab explorations. Never worth failing the board over. */
+async function loadDrafts(): Promise<DraftLike[]> {
+  try {
+    const res = await fetch('/api/idea-lab/conceptualise/draft', { credentials: 'same-origin' })
+    if (!res.ok) return []
+    const data = (await res.json()) as { drafts?: DraftLike[] }
+    return data.drafts ?? []
+  } catch {
+    return []
+  }
+}
+
 export default function ProjectBoardPage() {
   const router = useRouter()
+  const [state, setState] = useState<BoardState>({ status: 'loading' })
+  const [projects, setProjects] = useState<ShelfProject[]>([])
+  const [drafts, setDrafts] = useState<DraftLike[]>([])
 
-  useEffect(() => {
-    router.replace('/shelf')
-  }, [router])
+  const load = useCallback(async () => {
+    setState({ status: 'loading' })
+    try {
+      const [res, found] = await Promise.all([api.projects.list(), loadDrafts()])
+      setProjects(res.projects)
+      setDrafts(found)
+      setState({ status: 'ready' })
+    } catch (e) {
+      const code = e instanceof ApiError ? e.status : 0
+      setState({
+        status: 'error',
+        code,
+        message: code === 401 ? 'sign in again to see your projects' : 'the project board did not open',
+      })
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const items = useMemo(() => boardItems(projects, drafts), [projects, drafts])
 
   return (
-    <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: shell.muted }}>Taking you to the shelf…</p>
-    </div>
+    <BoardView
+      state={state}
+      items={items}
+      onNew={() => router.push('/idea-lab')}
+      onRetry={() => void load()}
+      onSignIn={() => router.push('/login')}
+    />
   )
 }

@@ -12,7 +12,7 @@
 export const LEVELS = {
   writing: { n: 1, key: 'writing', name: 'Writing' },
   board: { n: 2, key: 'board', name: 'Board' },
-  shelf: { n: 3, key: 'shelf', name: 'Shelf' },
+  shelf: { n: 3, key: 'shelf', name: 'Project Board' },
 } as const
 
 export type LevelKey = keyof typeof LEVELS

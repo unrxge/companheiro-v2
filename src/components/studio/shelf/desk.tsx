@@ -1,370 +1,249 @@
 'use client'
 
-// studio/src/components/shelf/desk.tsx — the shelf (level 3), as a desk.
+// src/components/studio/shelf/desk.tsx — the Project Board's folders.
 //
-// Projects lie where they were left. A new one arrives straight, on the grid,
-// because nothing should be handed to you already in a mess; after that the
-// mess is yours to make, and the desk remembers it (studio_projects.shelf_x/y).
+// One folder per project, plus one for the idea still being explored in Idea
+// Lab. They lie on a grid in the order they were last opened: the folder in
+// the top-left corner is always the one you touched most recently, and the
+// rest run away from it, newest to oldest. Nothing here is hand-placed any
+// more — the order is the meaning.
 //
-// Clicking one does not navigate: it flies into it. See surface/travel.tsx.
+// The canvas is only the area under the page header (see the page), so
+// scrolling a long board hides folders behind the header's edge instead of
+// sliding them under its text.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTheme } from '@/components/theme/theme-provider'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/studio/surface/surface'
 import { useTravel } from '@/components/studio/surface/travel'
+import { FolderIcon } from '@/components/studio/shelf/folder-icon'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius, shell } from '@/lib/design-tokens'
-import { COMPLETED, statusLabel } from '@/components/studio/shelf/status'
-import type { ShelfProject } from '@/lib/studio/types'
-import {
-  MARGIN, clampToWorld, deskSlot, freeSlot, tiltOf, toWorld, type Point,
-} from '@/lib/studio/surface'
+import { alpha, shell } from '@/lib/design-tokens'
+import { hoverLines, type BoardItem } from '@/lib/studio/shelf-view'
 
-const CARD = { w: 264, h: 178 }
-const GAP = 34
-const COLS = 4
-// A grid you zoom out on wants real room to scroll into on every side — at
-// typical zoom-out levels the board's own MARGIN left the whole desk fitting
-// inside the frame with space to spare, which the surface centres instead of
-// letting you pan any further. 30% more than the board gets, on all sides.
-const DESK_MARGIN = Math.round(MARGIN * 1.3)
-const SPEC = { cardW: CARD.w, cardH: CARD.h, gap: GAP, cols: COLS, originX: DESK_MARGIN, originY: DESK_MARGIN }
-// Straightening the desk glides rather than snaps — fast at first, easing to
-// a stop — the same curve board.tsx uses for the same reason, so tidying
-// looks and feels the same at every altitude that has it.
-const TIDY_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
-const TIDY_MS = 450
-
-/** The room a desk gets before anything has been dropped outside it. */
-const ROOM = { w: DESK_MARGIN * 2 + COLS * (CARD.w + GAP), h: 20000 }
-
-export interface Seating {
-  seats: Map<string, { at: Point; placed: boolean }>
-  /** Where the next thing to arrive should land. */
-  next: Point
+interface Metrics {
+  cellW: number
+  cellH: number
+  iconW: number
+  gapX: number
+  gapY: number
+  top: number
+  edge: number
 }
 
-/**
- * Where each project sits: its own spot if it has one, the aligned grid if
- * not — and never on top of something already there, because a project hidden
- * under another project is a project you have lost.
- */
-export function placements(projects: ShelfProject[]): Seating {
-  const seats = new Map<string, { at: Point; placed: boolean }>()
-  const taken: Point[] = []
-  let slot = 0
+// Folders need air between them; the old card grid sat 34px apart.
+const ROOMY: Metrics = { cellW: 190, cellH: 178, iconW: 150, gapX: 64, gapY: 52, top: 64, edge: 32 }
+const COMPACT: Metrics = { cellW: 148, cellH: 150, iconW: 118, gapX: 26, gapY: 40, top: 44, edge: 16 }
 
-  for (const p of projects) {
-    if (typeof p.shelf_x === 'number' && typeof p.shelf_y === 'number') {
-      const at = { x: p.shelf_x, y: p.shelf_y }
-      seats.set(p.id, { at, placed: true })
-      taken.push(at)
-    }
-  }
-  for (const p of projects) {
-    if (seats.has(p.id)) continue
-    const at = freeSlot(deskSlot(slot++, SPEC), taken, SPEC, ROOM)
-    seats.set(p.id, { at, placed: false })
-    taken.push(at)
-  }
+export interface Layout {
+  cols: number
+  world: { w: number; h: number }
+  at: (index: number) => { x: number; y: number }
+  m: Metrics
+}
 
-  return { seats, next: freeSlot(deskSlot(slot, SPEC), taken, SPEC, ROOM) }
+/** Where each folder goes, given the width of the window it is looking through. */
+export function layoutFor(count: number, frameW: number, frameH: number): Layout {
+  const m = frameW > 0 && frameW < 600 ? COMPACT : ROOMY
+  const room = Math.max(m.cellW, frameW - m.edge * 2)
+  const cols = Math.max(1, Math.floor((room + m.gapX) / (m.cellW + m.gapX)))
+  const gridW = cols * m.cellW + (cols - 1) * m.gapX
+  const originX = Math.max(m.edge, Math.round((frameW - gridW) / 2))
+  const rows = Math.max(1, Math.ceil(count / cols))
+  const at = (i: number) => ({
+    x: originX + (i % cols) * (m.cellW + m.gapX),
+    y: m.top + Math.floor(i / cols) * (m.cellH + m.gapY),
+  })
+  const right = originX + gridW + originX
+  // Space under the last row clears the corner controls and the bottom fade.
+  const bottom = m.top + rows * m.cellH + (rows - 1) * m.gapY + 110
+  return { cols, m, at, world: { w: Math.max(right, frameW), h: Math.max(bottom, frameH) } }
 }
 
 export function Desk({
-  projects,
+  items,
   onNew,
-  onMove,
 }: {
-  projects: ShelfProject[]
+  items: BoardItem[]
   onNew: () => void
-  /** null, null puts it back on the aligned grid. */
-  onMove: (id: string, at: Point | null) => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
+  const router = useRouter()
   const go = useTravel()
 
-  const [drag, setDrag] = useState<{ id: string; at: Point } | null>(null)
+  const layout = useMemo(() => layoutFor(items.length, frame.w, frame.h), [items.length, frame.w, frame.h])
+  const canvas = useCanvas(ref, frame, layout.world)
 
-  const { seats, next: newAt } = useMemo(() => placements(projects), [projects])
+  const open = useCallback((item: BoardItem, el: HTMLElement) => {
+    if (item.kind === 'draft') router.push(`/idea-lab/conceptualise?resume=${item.id}`)
+    else go(`/p/${item.id}`, 'in', el)
+  }, [go, router])
 
-  const world = useMemo(() => {
-    let right = DESK_MARGIN * 2 + COLS * (CARD.w + GAP)
-    let bottom = DESK_MARGIN * 2 + CARD.h
-    for (const { at } of seats.values()) {
-      right = Math.max(right, at.x + CARD.w + DESK_MARGIN)
-      bottom = Math.max(bottom, at.y + CARD.h + DESK_MARGIN)
-    }
-    // The empty slot for a new project always has somewhere to be.
-    right = Math.max(right, newAt.x + CARD.w + DESK_MARGIN)
-    bottom = Math.max(bottom, newAt.y + CARD.h + DESK_MARGIN)
-    return { w: Math.max(right, frame.w || 0), h: Math.max(bottom, frame.h || 0) }
-  }, [seats, newAt, frame])
-
-  const canvas = useCanvas(ref, frame, world)
-
-  const startDrag = useCallback((id: string, e: React.PointerEvent) => {
-    const el = ref.current
-    const seat = seats.get(id)
-    if (!el || !seat) return
-    const box = el.getBoundingClientRect()
-    const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
-    const offset = { x: grab.x - seat.at.x, y: grab.y - seat.at.y }
-    let moved = false
-    // Kept here rather than read back out of state: a setState updater runs
-    // during render, and calling the parent's onMove from inside one is the
-    // classic "update a component while rendering another" fault.
-    let landed = seat.at
-    const target = e.currentTarget as HTMLElement
-    target.setPointerCapture(e.pointerId)
-
-    const move = (ev: PointerEvent) => {
-      const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
-      landed = clampToWorld({ x: now.x - offset.x, y: now.y - offset.y }, CARD.w, CARD.h, world)
-      if (Math.abs(landed.x - seat.at.x) > 3 || Math.abs(landed.y - seat.at.y) > 3) moved = true
-      setDrag({ id, at: landed })
-    }
-    const up = (ev: PointerEvent) => {
-      target.removeEventListener('pointermove', move)
-      target.removeEventListener('pointerup', up)
-      target.removeEventListener('pointercancel', up)
-      if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
-      setDrag(null)
-      if (moved) onMove(id, landed)
-      else go(`/p/${id}`, 'in', target)
-    }
-    target.addEventListener('pointermove', move)
-    target.addEventListener('pointerup', up)
-    target.addEventListener('pointercancel', up)
-  }, [canvas.pan, canvas.zoom, go, onMove, seats, world])
-
-  // Land looking at the work, not at the top-left corner of an empty desk.
-  const firstAt = projects.length > 0 ? seats.get(projects[0].id)?.at : undefined
-  const homed = useRef(false)
-  useEffect(() => {
-    if (homed.current || frame.w === 0 || !firstAt) return
-    homed.current = true
-    canvas.jumpTo({ x: firstAt.x + CARD.w / 2, y: firstAt.y + CARD.h / 2 })
-  }, [frame, firstAt, canvas])
-
-  // The same spot the desk opens to, not the generic "back to the origin" —
-  // otherwise the button would land somewhere the person never actually saw.
-  const goHome = useCallback(() => {
-    if (firstAt) canvas.glideTo({ x: firstAt.x + CARD.w / 2, y: firstAt.y + CARD.h / 2 })
-    else canvas.resetView()
-  }, [canvas, firstAt])
+  // The folder under the pointer, and where it is on screen right now. Both
+  // are re-measured as the canvas moves, so the tooltip follows a folder that
+  // is being scrolled past instead of hanging where it used to be.
+  const cells = useRef(new Map<string, HTMLElement>())
+  const [hoverId, setHoverId] = useState<string | null>(null)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+  useLayoutEffect(() => {
+    const el = hoverId ? cells.current.get(hoverId) : null
+    setRect(el && !canvas.dragging ? el.getBoundingClientRect() : null)
+  }, [hoverId, canvas.pan.x, canvas.pan.y, canvas.zoom, canvas.dragging])
+  const hovered = hoverId ? items.find((i) => i.id === hoverId) ?? null : null
 
   return (
-    <Surface
-      canvas={canvas}
-      innerRef={ref}
-      ariaLabel="The shelf — every project, where you left it"
-      chrome={
-        <>
-          <ZoomPill canvas={canvas} onHome={goHome} />
-          <DeskTools
-            onNew={onNew}
-            onTidy={projects.some((p) => p.shelf_x !== null) ? () => projects.forEach((p) => onMove(p.id, null)) : null}
-          />
-        </>
-      }
-    >
-      {projects.map((p) => {
-        const seat = seats.get(p.id)
-        if (!seat) return null
-        const held = drag?.id === p.id
-        const at = held ? drag.at : seat.at
-        return (
+    <>
+      <Surface
+        canvas={canvas}
+        innerRef={ref}
+        ariaLabel="The project board — every project and idea, most recently opened first"
+        chrome={
+          <>
+            <ZoomPill canvas={canvas} onHome={canvas.resetView} />
+            <NewButton onNew={onNew} />
+          </>
+        }
+      >
+        {items.map((item, i) => (
           <Folder
-            key={p.id}
-            project={p}
-            at={at}
-            tilt={seat.placed ? tiltOf(p.id) : 0}
-            held={held}
-            onPointerDown={(e) => startDrag(p.id, e)}
+            key={`${item.kind}-${item.id}`}
+            item={item}
+            at={layout.at(i)}
+            m={layout.m}
+            register={(el) => { if (el) cells.current.set(item.id, el); else cells.current.delete(item.id) }}
+            onHover={(on) => setHoverId((cur) => (on ? item.id : cur === item.id ? null : cur))}
+            onOpen={(el) => open(item, el)}
           />
-        )
-      })}
-
-      <EmptySlot at={newAt} onClick={onNew} />
-    </Surface>
+        ))}
+      </Surface>
+      {hovered && rect && <Tooltip item={hovered} rect={rect} />}
+    </>
   )
 }
 
-// ── one project ─────────────────────────────────────────────────────────────
+// ── one folder ──────────────────────────────────────────────────────────────
+
+const STATE_WORD = {
+  undeclared: 'idea, not yet declared',
+  queued: 'in the queue',
+  active: 'in progress',
+  completed: 'completed',
+} as const
 
 function Folder({
-  project, at, tilt, held, onPointerDown,
+  item, at, m, register, onHover, onOpen,
 }: {
-  project: ShelfProject
-  at: Point
-  tilt: number
-  held: boolean
-  onPointerDown: (e: React.PointerEvent) => void
+  item: BoardItem
+  at: { x: number; y: number }
+  m: Metrics
+  register: (el: HTMLElement | null) => void
+  onHover: (on: boolean) => void
+  onOpen: (el: HTMLElement) => void
 }) {
-  const { t } = useTheme()
   const [hover, setHover] = useState(false)
-  const resting = project.status !== 'active'
-  const done = COMPLETED.has(project.status)
-  const excerpt = (project.concept_body ?? '').trim()
-
+  const done = item.state === 'completed'
   return (
     <div
+      ref={register}
       data-hold
       role="button"
       tabIndex={0}
-      aria-label={project.title || 'Untitled project'}
-      onPointerDown={onPointerDown}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      aria-label={`${item.title} — ${STATE_WORD[item.state]}`}
+      onClick={(e) => onOpen(e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(e.currentTarget) }
+      }}
+      onMouseEnter={() => { setHover(true); onHover(true) }}
+      onMouseLeave={() => { setHover(false); onHover(false) }}
+      onFocus={() => onHover(true)}
+      onBlur={() => onHover(false)}
       style={{
-        position: 'absolute', left: at.x, top: at.y, width: CARD.w, height: CARD.h,
-        transform: `rotate(${tilt}deg) translateZ(0) scale(${held ? 1.04 : hover ? 1.015 : 1})`,
-        transformOrigin: '50% 50%',
-        transition: held
-          ? 'none'
-          : `transform 160ms cubic-bezier(0.2,0.7,0.2,1), box-shadow 160ms ease, left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
-        cursor: held ? 'grabbing' : 'pointer',
-        zIndex: held ? 30 : 1,
-        touchAction: 'none',
-        // dragging a folder must not paint half its description blue
-        userSelect: 'none', WebkitUserSelect: 'none',
+        position: 'absolute', left: at.x, top: at.y, width: m.cellW, height: m.cellH,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+        cursor: 'pointer', outline: 'none', userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
-      {/* the tab, so it reads as a folder on a desk and not a row in a list */}
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute', left: 14, top: -9, width: 78, height: 14,
-          background: t.cardBgInner,
-          borderRadius: '6px 10px 0 0',
-          boxShadow: held ? t.containerShadow : t.shadow,
-        }}
-      />
       <div
         style={{
-          position: 'relative', height: '100%', boxSizing: 'border-box',
-          display: 'flex', flexDirection: 'column', gap: 8,
-          background: t.cardBg, borderRadius: radius.card, padding: 18,
-          boxShadow: held ? t.containerShadow : t.shadow,
-          border: `1px solid ${hover || held ? alpha(t.textPrimary, 0.16) : 'transparent'}`,
-          opacity: done ? 0.72 : 1,
+          transform: `translateY(${hover ? -3 : 0}px) scale(${hover ? 1.04 : 1})`,
+          transition: 'transform 160ms cubic-bezier(0.2,0.7,0.2,1)',
         }}
       >
-        <h3
-          style={{
-            ...canvasType.title, color: t.textPrimary, margin: 0, maxHeight: '2.5em',
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}
-        >
-          {project.title || 'Untitled project'}
-        </h3>
-
-        {excerpt && (
-          <p
-            style={{
-              ...canvasType.small, color: t.textSecondary, margin: 0, maxHeight: '4.5em',
-              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}
-          >
-            {excerpt}
-          </p>
-        )}
-
-        {resting && (
-          <span style={{ ...canvasType.chip, color: t.textMuted, marginTop: 'auto' }}>
-            {statusLabel(project, new Date())}
-          </span>
-        )}
+        <FolderIcon state={item.state} width={m.iconW} />
       </div>
-    </div>
-  )
-}
-
-function EmptySlot({ at, onClick }: { at: Point; onClick: () => void }) {
-  const [hover, setHover] = useState(false)
-  return (
-    <button
-      data-hold
-      type="button"
-      aria-label="Start a new project"
-      title="Start a new project"
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        position: 'absolute', left: at.x, top: at.y, width: CARD.w, height: CARD.h,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'transparent', cursor: 'pointer',
-        border: `1px dashed ${alpha(shell.text, hover ? 0.3 : 0.14)}`,
-        borderRadius: radius.card,
-        color: hover ? shell.text : shell.muted,
-        transition: 'border-color 160ms ease, color 160ms ease',
-      }}
-    >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </svg>
-      <span style={{ position: 'absolute', clip: 'rect(0 0 0 0)', width: 1, height: 1, overflow: 'hidden' }}>
-        New project
+      <span
+        style={{
+          ...canvasType.small, color: done ? shell.muted : shell.text, textAlign: 'center',
+          maxWidth: '100%', lineHeight: 1.3,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          textDecorationLine: hover ? 'underline' : 'none', textDecorationColor: alpha(shell.text, 0.35), textUnderlineOffset: 3,
+        }}
+      >
+        {item.title}
       </span>
-      {hover && (
-        <span style={{ ...canvasType.chip, position: 'absolute', bottom: 14, color: shell.muted }}>
-          New project
-        </span>
-      )}
-    </button>
-  )
-}
-
-// ── the desk's own two buttons ──────────────────────────────────────────────
-
-function DeskTools({ onNew, onTidy }: { onNew: () => void; onTidy: (() => void) | null }) {
-  return (
-    <div data-hold style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 6, display: 'flex', gap: 8 }}>
-      {onTidy && (
-        <Tool label="Straighten the desk" onClick={onTidy}>
-          <line x1="4" y1="7" x2="20" y2="7" />
-          <line x1="4" y1="12" x2="20" y2="12" />
-          <line x1="4" y1="17" x2="14" y2="17" />
-        </Tool>
-      )}
-      <Tool label="Start a new project" onClick={onNew} strong>
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </Tool>
     </div>
   )
 }
 
-function Tool({
-  label, onClick, children, strong = false,
-}: {
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-  strong?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
+// ── the hover card ──────────────────────────────────────────────────────────
+
+const TIP_W = 236
+
+/** Drawn on the page, not inside the zoomed world, so it stays one readable
+ *  size however far out the board is, and never gets clipped by it. */
+function Tooltip({ item, rect }: { item: BoardItem; rect: DOMRect }) {
+  if (typeof document === 'undefined') return null
+  const lines = hoverLines(item)
+  const below = rect.top < 150
+  const half = TIP_W / 2 + 12
+  const left = Math.min(window.innerWidth - half, Math.max(half, rect.left + rect.width / 2))
+  return createPortal(
+    <div
+      role="tooltip"
       style={{
-        width: 40, height: 40, borderRadius: 999, padding: 0, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: `1px solid ${strong ? 'transparent' : shell.line}`,
-        background: strong ? shell.text : 'rgba(13,12,11,0.74)',
-        backdropFilter: strong ? undefined : 'blur(18px) saturate(1.1)',
-        color: strong ? shell.ink : shell.muted,
+        position: 'fixed', left, top: below ? rect.bottom + 6 : rect.top - 6,
+        transform: below ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+        width: TIP_W, zIndex: 80, pointerEvents: 'none',
+        padding: '12px 14px', borderRadius: 12,
+        background: 'rgba(13,12,11,0.92)', backdropFilter: 'blur(14px) saturate(1.1)',
+        border: `1px solid ${shell.line}`, boxShadow: '0 12px 30px rgba(0,0,0,0.45)',
+        display: 'flex', flexDirection: 'column', gap: 8,
       }}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
-        {children}
-      </svg>
-    </button>
+      {lines.map((l) => (
+        <div key={l.label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ ...canvasType.chip, color: shell.muted }}>{l.label}</span>
+          <span style={{ ...canvasType.small, color: shell.text }}>{l.value}</span>
+        </div>
+      ))}
+    </div>,
+    document.body,
+  )
+}
+
+// ── the board's one button ──────────────────────────────────────────────────
+
+function NewButton({ onNew }: { onNew: () => void }) {
+  return (
+    <div data-hold style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 6 }}>
+      <button
+        type="button"
+        aria-label="Start a new idea"
+        title="Start a new idea"
+        onClick={onNew}
+        style={{
+          width: 40, height: 40, borderRadius: 999, padding: 0, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid transparent', background: shell.text, color: shell.ink,
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
   )
 }

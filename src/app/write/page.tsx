@@ -269,9 +269,8 @@ function WriteContent() {
 
   useEffect(() => {
     if (!nodeId) {
-      // /project-board itself now redirects to /shelf — go straight there
       // to avoid the unnecessary double-hop.
-      router.push('/shelf')
+      router.push('/project-board')
       return
     }
     distilledUpToRef.current = 0

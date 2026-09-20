@@ -226,7 +226,7 @@ function HomeContent() {
               {isLoading ? (
                 <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
               ) : activePieces.length === 0 ? (
-                <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the shelf.</p>
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the project board.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {activePieces.map((piece, index) => (
@@ -252,7 +252,7 @@ function HomeContent() {
               )}
               <div style={{ paddingTop: 16, borderTop: activePieces.length > 0 ? `1px solid ${t.divider}` : 'none', display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
                 <UnderlineLink href="/idea-lab" color={t.textSecondary}>New idea</UnderlineLink>
-                <UnderlineLink href="/shelf" color={t.textSecondary}>View shelf →</UnderlineLink>
+                <UnderlineLink href="/project-board" color={t.textSecondary}>View project board →</UnderlineLink>
               </div>
             </Card>
 

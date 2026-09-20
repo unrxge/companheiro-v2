@@ -10,7 +10,7 @@ import { NewProjectFlow } from '@/components/studio/new/new-project-flow'
 export default function NewProjectPage() {
   return (
     <PageShell mood="neutral">
-      <PageHeader eyebrow={null} title="New project" size="md" back="/shelf" />
+      <PageHeader eyebrow={null} title="New project" size="md" back="/project-board" />
       <NewProjectFlow />
     </PageShell>
   )

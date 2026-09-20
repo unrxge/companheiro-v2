@@ -25,6 +25,8 @@ export interface Project {
   arc: string | null
   thematic_territory: string | null
   status: ProjectStatus
+  /** Where it sits on the Project Board (migration 006). */
+  shelf_stage?: 'queued' | 'active' | 'completed'
   resting_until: string | null
   completed_at: string | null
   completion_note: string | null

@@ -54,6 +54,13 @@ export async function GET(request: NextRequest) {
     }
     if (tasksError) console.error('Tasks query error:', tasksError)
 
+    // Writing in a piece counts as opening its project (the Project Board sorts
+    // by last accessed). Best-effort: never blocks the bundle.
+    if (node.project_id) {
+      const { error: openError } = await supabase.rpc('studio_open_project', { p_project_id: node.project_id })
+      if (openError) console.error('studio_open_project error:', openError)
+    }
+
     return NextResponse.json({
       success: true,
       piece: {

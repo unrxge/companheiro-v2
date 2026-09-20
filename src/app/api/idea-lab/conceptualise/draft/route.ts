@@ -25,7 +25,7 @@ export async function GET() {
 
     const { data } = await supabase
       .from('conceptualise_drafts')
-      .select('id, seed, question, messages, phase, ready_to_advance, updated_at')
+      .select('id, seed, question, messages, phase, ready_to_advance, created_at, updated_at')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 
