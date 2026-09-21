@@ -16,9 +16,12 @@ export function middleware(request: NextRequest) {
   // /reset is reachable both ways: unauthenticated to request a link, and
   // authenticated (via the recovery session) to set the new password.
   const isResetPage = pathname === '/reset'
+  // `/` is the public landing page when signed out; the page itself sends
+  // signed-in visitors on to /home.
+  const isLanding = pathname === '/'
   const isAuthenticated = hasSessionCookie(request)
 
-  if (!isAuthenticated && !isAuthPage && !isResetPage) {
+  if (!isAuthenticated && !isAuthPage && !isResetPage && !isLanding) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     return NextResponse.redirect(loginUrl)
