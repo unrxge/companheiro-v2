@@ -1,134 +1,86 @@
 // src/components/studio/shelf/folder-icon.tsx — one folder, four states.
 //
-//   undeclared  empty folder, a little sparkle  an idea still being explored
-//   queued      one taped-in page               declared, waiting its turn
-//   active      pages + a photo, taped in       underway
-//   completed   the active folder, greyed, with a hand-drawn check on the front
+//   undeclared  empty folder with a spark     an idea still being explored
+//   queued      one page tucked in            declared, waiting its turn
+//   active      pages and a photo tucked in   underway
+//   completed   the active folder, greyed, with a check across the front
 //
-// Drawn to look sketched rather than engineered: soft, slightly uneven shapes,
-// a chunky outline, wobbly writing lines, bits of tape. The paper sits between
-// the back and front panels, which is what makes "how full" readable at a
-// glance. Colours follow the app's light/dark switch.
+// Built from the app's own vocabulary: the meaning palette (ochre = waiting,
+// verdant = underway), hairline edges rather than heavy outlines, the same
+// round-capped stroke the Dock's icons use, and soft paper in place of ink.
+// Casual comes from the tucked-in paper at gentle angles and generous radii,
+// not from wobble. Colours follow the light/dark switch.
 
 import { useId } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import type { FolderState } from '@/lib/studio/shelf-view'
 
-interface Tone { back: string; front: string; line: string }
-interface Palette {
-  tones: Record<FolderState, Tone>
-  paper: string
-  rule: string
-  sky: string
-  sun: string
-  hillA: string
-  hillB: string
-  tape: string
-  ink: string
-  shadow: string
+/** Linear blend of two #rrggbb colours: t=0 is `a`, t=1 is `b`. */
+function mix(a: string, b: string, t: number): string {
+  const p = (hex: string) => {
+    const n = parseInt(hex.replace('#', ''), 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+  const [ar, ag, ab] = p(a)
+  const [br, bg, bb] = p(b)
+  const c = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, '0')
+  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`
 }
 
-// Dark mode: deep, slightly dusty folders that sit in the dark without glowing.
-const DARK: Palette = {
-  tones: {
-    undeclared: { back: '#3a3935', front: '#514f49', line: '#1d1c19' },
-    queued: { back: '#6a4f17', front: '#8f6c26', line: '#33260a' },
-    active: { back: '#1c5540', front: '#2a7656', line: '#0d2e22' },
-    completed: { back: '#35342f', front: '#494842', line: '#1d1c19' },
-  },
-  paper: '#dcd6c8',
-  rule: '#a9a292',
-  sky: '#7f98aa',
-  sun: '#dcbd68',
-  hillA: '#5b788d',
-  hillB: '#496479',
-  tape: 'rgba(232,206,130,0.62)',
-  ink: '#3d3b36',
-  shadow: 'drop-shadow(0 5px 7px rgba(0,0,0,0.45))',
-}
-
-// Light mode: paper-and-pastel, the way the light cards read.
-const LIGHT: Palette = {
-  tones: {
-    undeclared: { back: '#d6d0c2', front: '#e8e3d7', line: '#8f8874' },
-    queued: { back: '#e9c877', front: '#f5dd9e', line: '#a07a22' },
-    active: { back: '#9dd0b4', front: '#bfe6d0', line: '#4a866a' },
-    completed: { back: '#cbcac5', front: '#dedcd8', line: '#8b8983' },
-  },
-  paper: '#fffdf7',
-  rule: '#dcd4c0',
-  sky: '#bcd8e9',
-  sun: '#f6d97f',
-  hillA: '#8db1c8',
-  hillB: '#7b9fb7',
-  tape: 'rgba(244,196,112,0.72)',
-  ink: '#6c6a64',
-  shadow: 'drop-shadow(0 5px 6px rgba(60,50,30,0.22))',
-}
-
-/** A deterministic wobble in [-amp, amp], so shapes are uneven but never flicker. */
-const wob = (n: number, amp: number) => Math.sin(n * 12.9898 + 1.7) * amp
-
-/** A soft, slightly lopsided rectangle. */
-function soft(x: number, y: number, w: number, h: number, seed: number): string {
-  const a = wob(seed, 2), b = wob(seed + 1, 2), c = wob(seed + 2, 2), d = wob(seed + 3, 2)
-  return (
-    `M${x + 5} ${y + a} Q${x + w / 2} ${y - 1.5 + b} ${x + w - 5} ${y + c} `
-    + `Q${x + w + 1.5} ${y + h / 2} ${x + w - 4} ${y + h + d} `
-    + `Q${x + w / 2} ${y + h + 2 + a} ${x + 5} ${y + h + b} `
-    + `Q${x - 1.5} ${y + h / 2 + c} ${x + 5} ${y + a} Z`
-  )
-}
-
-/** A hand-written line: a run of small waves. */
-const scribble = (x: number, y: number, len: number) => {
-  const waves = Math.max(2, Math.round(len / 9))
-  return `M${x} ${y} q4.5 -4 9 0${' t9 0'.repeat(waves - 1)}`
-}
-
-function Page({ p, x, y, w, h, turn, seed, tape }: { p: Palette; x: number; y: number; w: number; h: number; turn: number; seed: number; tape?: boolean }) {
+function Page({ x, y, w, h, turn, paper, rule }: { x: number; y: number; w: number; h: number; turn: number; paper: string; rule: string }) {
   return (
     <g transform={`rotate(${turn} ${x + w / 2} ${y + h / 2})`}>
-      <path d={soft(x, y, w, h, seed)} fill={p.paper} stroke={p.ink} strokeWidth={2.4} strokeLinejoin="round" />
-      <path d={scribble(x + 11, y + h * 0.3, 44)} fill="none" stroke={p.rule} strokeWidth={2.6} strokeLinecap="round" />
-      <path d={scribble(x + 11, y + h * 0.5, 58)} fill="none" stroke={p.rule} strokeWidth={2.6} strokeLinecap="round" />
-      <path d={scribble(x + 11, y + h * 0.7, 30)} fill="none" stroke={p.rule} strokeWidth={2.6} strokeLinecap="round" />
-      {tape && <rect x={x + w / 2 - 11} y={y - 5} width={22} height={9} rx={1.5} fill={p.tape} transform={`rotate(-6 ${x + w / 2} ${y})`} />}
+      <rect x={x} y={y} width={w} height={h} rx={4} fill={paper} />
+      {[0.26, 0.44, 0.62].map((f, i) => (
+        <line key={f} x1={x + 11} y1={y + h * f} x2={x + w - 11 - i * 12} y2={y + h * f} stroke={rule} strokeWidth={2.2} strokeLinecap="round" />
+      ))}
     </g>
   )
 }
 
-function Photo({ p, x, y, w, h, turn, seed, uid }: { p: Palette; x: number; y: number; w: number; h: number; turn: number; seed: number; uid: string }) {
+function Photo({ x, y, w, h, turn, paper, sky, sun, hillA, hillB, uid }: {
+  x: number; y: number; w: number; h: number; turn: number
+  paper: string; sky: string; sun: string; hillA: string; hillB: string; uid: string
+}) {
   const clip = `photo-${uid}`
+  const ix = x + 5, iy = y + 5, iw = w - 10, ih = h - 10
   return (
     <g transform={`rotate(${turn} ${x + w / 2} ${y + h / 2})`}>
-      <path d={soft(x, y, w, h, seed)} fill={p.paper} stroke={p.ink} strokeWidth={2.4} strokeLinejoin="round" />
-      <clipPath id={clip}><path d={soft(x + 6, y + 6, w - 12, h - 12, seed + 5)} /></clipPath>
+      <rect x={x} y={y} width={w} height={h} rx={4} fill={paper} />
+      <clipPath id={clip}><rect x={ix} y={iy} width={iw} height={ih} rx={2.5} /></clipPath>
       <g clipPath={`url(#${clip})`}>
-        <rect x={x} y={y} width={w} height={h} fill={p.sky} />
-        <circle cx={x + w * 0.73} cy={y + h * 0.32} r={h * 0.11} fill={p.sun} />
-        {[0, 1, 2, 3, 4, 5].map((i) => {
-          const a = (i / 6) * Math.PI * 2
-          const cx = x + w * 0.73, cy = y + h * 0.32, r0 = h * 0.15, r1 = h * 0.21
-          return <line key={i} x1={cx + Math.cos(a) * r0} y1={cy + Math.sin(a) * r0} x2={cx + Math.cos(a) * r1} y2={cy + Math.sin(a) * r1} stroke={p.sun} strokeWidth={2.2} strokeLinecap="round" />
-        })}
-        <path d={`M${x} ${y + h} Q${x + w * 0.22} ${y + h * 0.3} ${x + w * 0.45} ${y + h * 0.62} T${x + w} ${y + h * 0.7} L${x + w} ${y + h} Z`} fill={p.hillA} />
-        <path d={`M${x} ${y + h} Q${x + w * 0.4} ${y + h * 0.62} ${x + w * 0.7} ${y + h * 0.82} T${x + w} ${y + h * 0.86} L${x + w} ${y + h} Z`} fill={p.hillB} />
+        <rect x={ix} y={iy} width={iw} height={ih} fill={sky} />
+        <circle cx={ix + iw * 0.72} cy={iy + ih * 0.3} r={ih * 0.12} fill={sun} />
+        <path d={`M${ix} ${iy + ih} L${ix} ${iy + ih * 0.72} Q${ix + iw * 0.28} ${iy + ih * 0.4} ${ix + iw * 0.55} ${iy + ih * 0.74} T${ix + iw} ${iy + ih * 0.66} V${iy + ih} Z`} fill={hillA} />
+        <path d={`M${ix} ${iy + ih} L${ix} ${iy + ih * 0.88} Q${ix + iw * 0.3} ${iy + ih * 0.7} ${ix + iw * 0.62} ${iy + ih * 0.88} T${ix + iw} ${iy + ih * 0.84} V${iy + ih} Z`} fill={hillB} />
       </g>
-      <rect x={x + w / 2 - 12} y={y - 5} width={24} height={9} rx={1.5} fill={p.tape} transform={`rotate(5 ${x + w / 2} ${y})`} />
     </g>
   )
 }
 
 export function FolderIcon({ state, width = 150 }: { state: FolderState; width?: number }) {
-  const { theme } = useTheme()
+  const { t, theme } = useTheme()
   const uid = useId().replace(/:/g, '')
-  const p = theme === 'dark' ? DARK : LIGHT
-  const tone = p.tones[state]
+  const dark = theme === 'dark'
+
+  // One base colour per state, then the two panels are the same colour lifted
+  // toward white (light) or sunk toward black (dark), so every state reads as
+  // the same object in a different mood.
+  const base =
+    state === 'queued' ? t.ochre
+    : state === 'active' ? t.verdant
+    : dark ? '#6f6b63' : '#8f8a80' // undeclared + completed: quiet greys
+  const back = dark ? mix(base, '#000000', 0.5) : mix(base, '#ffffff', 0.32)
+  const front = dark ? mix(base, '#000000', 0.2) : mix(base, '#ffffff', 0.66)
+  const hairline = dark ? 'rgba(236,233,226,0.14)' : 'rgba(26,24,21,0.12)'
+  const sheen = dark ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)'
+
+  const paper = dark ? '#e6e2d8' : '#fbfaf7'
+  const rule = dark ? '#c9c3b4' : '#dcd7cb'
+
   const done = state === 'completed'
   const full = state === 'active' || done
-
-  const outline = { stroke: tone.line, strokeWidth: 3, strokeLinejoin: 'round' as const }
+  const inkOnPaper = '#3b3833'
 
   return (
     <svg
@@ -136,46 +88,56 @@ export function FolderIcon({ state, width = 150 }: { state: FolderState; width?:
       viewBox="0 0 160 132"
       width={width}
       height={(width * 132) / 160}
-      style={{ display: 'block', overflow: 'visible', filter: p.shadow }}
+      style={{
+        display: 'block', overflow: 'visible',
+        filter: dark ? 'drop-shadow(0 6px 8px rgba(0,0,0,0.4))' : 'drop-shadow(0 6px 8px rgba(26,24,21,0.14))',
+      }}
     >
       {/* back panel, with its tab */}
       <path
-        d="M10 28 C9 19 14 14 22 14 L56 13 C61 13 64 16 67 21 C69 24 72 26 77 26 L138 25 C147 25 152 30 152 39 L153 106 C153 115 148 120 139 120 L21 121 C13 121 8 116 8 108 Z"
-        fill={tone.back}
-        {...outline}
+        d="M16 12 H50 C53.5 12 56 13.5 58 16 L62 21.5 C63.5 23.5 65.5 24.5 68 24.5 H144 A8 8 0 0 1 152 32.5 V112 A8 8 0 0 1 144 120 H16 A8 8 0 0 1 8 112 V20 A8 8 0 0 1 16 12 Z"
+        fill={back}
+        stroke={hairline}
+        strokeWidth={1}
       />
 
-      {/* what is inside, drawn between the two panels */}
-      <g opacity={done ? 0.8 : 1}>
-        {state === 'queued' && <Page p={p} x={33} y={27} w={92} h={72} turn={-4} seed={1} tape />}
+      {/* what is inside, tucked between the two panels */}
+      <g opacity={done ? 0.85 : 1}>
+        {state === 'queued' && <Page x={34} y={26} w={90} h={72} turn={-3} paper={paper} rule={rule} />}
         {full && (
           <>
-            <Page p={p} x={19} y={31} w={80} h={72} turn={-9} seed={2} />
-            <Photo p={p} x={58} y={21} w={82} h={70} turn={7} seed={3} uid={uid} />
-            <Page p={p} x={36} y={33} w={88} h={72} turn={-2} seed={4} tape />
+            <Page x={20} y={30} w={80} h={72} turn={-7} paper={paper} rule={rule} />
+            <Photo
+              x={58} y={22} w={82} h={70} turn={6} paper={paper} uid={uid}
+              sky={mix(t.tide, '#ffffff', done ? 0.75 : 0.55)}
+              sun={mix(t.ochre, '#ffffff', 0.35)}
+              hillA={mix(t.verdant, '#ffffff', 0.35)}
+              hillB={mix(t.verdant, '#000000', 0.05)}
+            />
+            <Page x={36} y={32} w={88} h={72} turn={-1.5} paper={paper} rule={rule} />
           </>
         )}
       </g>
 
-      {/* front panel — its top edge sits a touch off-level, like it was drawn */}
-      <path
-        d="M9 60 C9 54 13 51 19 51 L142 49.5 C148 49.5 152 53 152 59 L153 108 C153 116 148 121 140 121 L21 121.5 C13 121.5 8 117 8 109 Z"
-        fill={tone.front}
-        {...outline}
-      />
-      <path d="M18 58 Q80 55.5 141 57.5" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={2.4} strokeLinecap="round" />
+      {/* front panel */}
+      <rect x={8} y={50} width={144} height={70} rx={8} fill={front} stroke={hairline} strokeWidth={1} />
+      <path d="M14 51.5 H146" stroke={sheen} strokeWidth={1.5} strokeLinecap="round" fill="none" />
 
       {state === 'undeclared' && (
-        <path
-          d="M80 74 C81 82 83 84 91 86 C83 88 81 90 80 98 C79 90 77 88 69 86 C77 84 79 82 80 74 Z"
-          fill="none" stroke={tone.line} strokeWidth={2.6} strokeLinejoin="round" opacity={0.75}
-        />
+        <g
+          transform="translate(65 68) scale(1.25)"
+          fill="none" stroke={dark ? 'rgba(236,233,226,0.6)' : 'rgba(26,24,21,0.5)'}
+          strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
+        >
+          {/* the same spark the Dock uses for Ideas */}
+          <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" />
+        </g>
       )}
 
       {done && (
         <g>
-          <path d={soft(60, 70, 40, 38, 9)} fill={p.paper} stroke={p.ink} strokeWidth={2.4} strokeLinejoin="round" opacity={0.96} />
-          <path d="M69 90 C72 92 74 95 77 99 C83 90 90 83 96 78" fill="none" stroke={p.ink} strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx={80} cy={87} r={19} fill={paper} stroke={hairline} strokeWidth={1} />
+          <path d="M70 87.5 L77 94.5 L91 80" fill="none" stroke={inkOnPaper} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
         </g>
       )}
     </svg>

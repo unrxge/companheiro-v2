@@ -6,7 +6,8 @@
 // Lab. Left alone they lie on a grid in the order they were last opened: the
 // top-left folder is the one you touched most recently, and the rest run away
 // from it, newest to oldest. Drag any folder wherever you like and it stays
-// there; "Arrange" puts everything back on the grid.
+// there; "Arrange" puts everything back on the grid. Hover a folder for a bin
+// button (or press Delete on it, or long-press on touch) to remove it.
 //
 // One screenful is 4 columns by 3 rows on a portrait screen and 5 by 2 on a
 // landscape one (lib/studio/shelf-view.ts). More folders scroll downward; the
@@ -15,11 +16,12 @@
 // The canvas is only the area under the page header (see board-view.tsx), so
 // scrolling hides folders behind the header's edge instead of under its text.
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/studio/surface/surface'
 import { useTravel } from '@/components/studio/surface/travel'
+import { useTheme } from '@/components/theme/theme-provider'
 import { FolderIcon } from '@/components/studio/shelf/folder-icon'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, shell } from '@/lib/design-tokens'
@@ -72,12 +74,15 @@ export function Desk({
   onNew,
   onMove,
   onArrange,
+  onDelete,
 }: {
   items: BoardItem[]
   onNew: () => void
   /** Saved as the board's own units, not pixels — see encodePosition. */
   onMove: (id: string, saved: { x: number; y: number }) => void
   onArrange: () => void
+  /** Asks first — the page owns the confirmation. */
+  onDelete: (item: BoardItem) => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
@@ -101,48 +106,66 @@ export function Desk({
     const target = e.currentTarget
     if (!el || !from || e.button !== 0) return
 
-    // An idea still in Idea Lab has nowhere to save a position, so it just opens.
-    if (item.kind === 'draft') {
-      const up = () => { target.removeEventListener('pointerup', up); open(item, target) }
-      target.addEventListener('pointerup', up)
-      return
-    }
-
+    // An idea still in Idea Lab has nowhere to save a position, so it never
+    // moves; it just opens.
+    const movable = item.kind === 'project'
     const box = el.getBoundingClientRect()
     const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
     const offset = { x: grab.x - from.x, y: grab.y - from.y }
     let moved = false
+    let fired = false
     // Kept here, not read back out of state: a setState updater runs during
     // render, and calling the parent's onMove from inside one is the classic
     // "update a component while rendering another" fault.
     let landed = from
-    target.setPointerCapture(e.pointerId)
+    if (movable) target.setPointerCapture(e.pointerId)
+
+    // No hover on a touchscreen, so holding a folder is how you get to delete it.
+    const hold = e.pointerType === 'mouse'
+      ? undefined
+      : window.setTimeout(() => { fired = true; finish(); setDrag(null); onDelete(item) }, 550)
 
     const move = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) > 6) window.clearTimeout(hold)
+      if (!movable) return
       const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
       landed = clampToWorld({ x: now.x - offset.x, y: now.y - offset.y }, grid.pitchX, grid.pitchY, world)
       if (Math.abs(landed.x - from.x) > 4 || Math.abs(landed.y - from.y) > 4) moved = true
       setDrag({ id: item.id, at: landed })
     }
-    const up = (ev: PointerEvent) => {
+    const finish = () => {
+      window.clearTimeout(hold)
       target.removeEventListener('pointermove', move)
       target.removeEventListener('pointerup', up)
       target.removeEventListener('pointercancel', up)
-      if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
+      if (movable && target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId)
+    }
+    function up(ev: PointerEvent) {
+      finish()
       setDrag(null)
-      if (moved) onMove(item.id, encodePosition(landed, world.w, grid.pitchY))
-      else open(item, target)
+      if (fired || ev.type === 'pointercancel') return
+      if (movable && moved) onMove(item.id, encodePosition(landed, world.w, grid.pitchY))
+      else if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) <= 6) open(item, target)
     }
     target.addEventListener('pointermove', move)
     target.addEventListener('pointerup', up)
     target.addEventListener('pointercancel', up)
-  }, [canvas.pan, canvas.zoom, grid.pitchX, grid.pitchY, onMove, open, seats, world])
+  }, [canvas.pan, canvas.zoom, grid.pitchX, grid.pitchY, onDelete, onMove, open, seats, world])
 
   // The folder under the pointer, and where it is on screen right now. Both
   // are re-measured as the canvas moves, so the tooltip follows a folder that
   // is being scrolled past instead of hanging where it used to be.
   const cells = useRef(new Map<string, HTMLElement>())
   const [hoverId, setHoverId] = useState<string | null>(null)
+  // A short beat before the card appears, so sweeping across the board does
+  // not flash one up for every folder the pointer passes over.
+  const hoverTimer = useRef<number | undefined>(undefined)
+  const hover = useCallback((id: string, on: boolean) => {
+    window.clearTimeout(hoverTimer.current)
+    if (on) hoverTimer.current = window.setTimeout(() => setHoverId(id), 140)
+    else setHoverId((cur) => (cur === id ? null : cur))
+  }, [])
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
   const [rect, setRect] = useState<DOMRect | null>(null)
   useLayoutEffect(() => {
     const el = hoverId ? cells.current.get(hoverId) : null
@@ -177,9 +200,10 @@ export function Desk({
               grid={grid}
               held={held}
               register={(el) => { if (el) cells.current.set(item.id, el); else cells.current.delete(item.id) }}
-              onHover={(on) => setHoverId((cur) => (on ? item.id : cur === item.id ? null : cur))}
+              onHover={(on) => hover(item.id, on)}
               onPointerDown={(e) => startDrag(item, e)}
               onKey={(el) => open(item, el)}
+              onDelete={() => onDelete(item)}
             />
           )
         })}
@@ -199,7 +223,7 @@ const STATE_WORD = {
 } as const
 
 function Folder({
-  item, at, grid, held, register, onHover, onPointerDown, onKey,
+  item, at, grid, held, register, onHover, onPointerDown, onKey, onDelete,
 }: {
   item: BoardItem
   at: Pt
@@ -209,52 +233,95 @@ function Folder({
   onHover: (on: boolean) => void
   onPointerDown: (e: React.PointerEvent<HTMLElement>) => void
   onKey: (el: HTMLElement) => void
+  onDelete: () => void
 }) {
+  const { t } = useTheme()
   const [hover, setHover] = useState(false)
+  const [focused, setFocused] = useState(false)
   const done = item.state === 'completed'
   const lift = held ? 1.08 : hover ? 1.04 : 1
   return (
+    // The cell only positions the folder; it takes no pointer events itself,
+    // so the gaps between folders are just canvas — they pan it and show nothing.
     <div
-      ref={register}
-      data-hold
-      role="button"
-      tabIndex={0}
-      aria-label={`${item.title} — ${STATE_WORD[item.state]}`}
-      onPointerDown={onPointerDown}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onKey(e.currentTarget) }
-      }}
-      onMouseEnter={() => { setHover(true); onHover(true) }}
-      onMouseLeave={() => { setHover(false); onHover(false) }}
-      onFocus={() => onHover(true)}
-      onBlur={() => onHover(false)}
       style={{
         position: 'absolute', left: at.x, top: at.y, width: grid.pitchX, height: grid.pitchY,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
-        cursor: held ? 'grabbing' : 'pointer', outline: 'none',
-        userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
         zIndex: held ? 30 : 1,
         transition: held ? 'none' : `left ${GLIDE_MS}ms ${EASE}, top ${GLIDE_MS}ms ${EASE}`,
       }}
     >
       <div
+        ref={register}
+        data-hold
+        role="button"
+        tabIndex={0}
+        aria-label={`${item.title} — ${STATE_WORD[item.state]}`}
+        aria-keyshortcuts="Delete"
+        onPointerDown={onPointerDown}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onKey(e.currentTarget) }
+          else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onDelete() }
+        }}
+        onMouseEnter={() => { setHover(true); onHover(true) }}
+        onMouseLeave={() => { setHover(false); onHover(false) }}
+        onFocus={(e) => { setFocused(true); if (e.currentTarget.matches(':focus-visible')) onHover(true) }}
+        onBlur={() => { setFocused(false); onHover(false) }}
         style={{
-          transform: `rotate(${tiltOf(item.id, 3)}deg) translateY(${held ? -4 : hover ? -3 : 0}px) scale(${lift})`,
-          transition: held ? 'none' : 'transform 160ms cubic-bezier(0.2,0.7,0.2,1)',
+          position: 'relative', pointerEvents: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+          maxWidth: '100%', padding: 6, borderRadius: 14,
+          cursor: held ? 'grabbing' : 'pointer', outline: 'none',
+          boxShadow: focused ? `0 0 0 2px ${alpha(shell.text, 0.35)}` : 'none',
+          userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none',
         }}
       >
-        <FolderIcon state={item.state} width={grid.iconW} />
+        <div
+          style={{
+            transform: `rotate(${tiltOf(item.id, 2)}deg) translateY(${held ? -4 : hover ? -3 : 0}px) scale(${lift})`,
+            transition: held ? 'none' : 'transform 160ms cubic-bezier(0.2,0.7,0.2,1)',
+          }}
+        >
+          <FolderIcon state={item.state} width={grid.iconW} />
+        </div>
+        <span
+          style={{
+            ...canvasType.small, fontSize: grid.fontSize, color: done ? shell.muted : shell.text, textAlign: 'center',
+            lineHeight: 1.3, maxWidth: grid.pitchX * 0.94,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            textDecorationLine: hover ? 'underline' : 'none', textDecorationColor: alpha(shell.text, 0.35), textUnderlineOffset: 3,
+          }}
+        >
+          {item.title}
+        </span>
+
+        {(hover || focused) && !held && (
+          <button
+            type="button"
+            aria-label={item.kind === 'draft' ? 'Discard this idea' : `Delete ${item.title}`}
+            title={item.kind === 'draft' ? 'Discard this idea' : 'Delete'}
+            // this button must not start a drag or open the folder
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            style={{
+              position: 'absolute', top: 2, right: 2, width: 26, height: 26, borderRadius: 999, padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              background: 'rgba(13,12,11,0.78)', backdropFilter: 'blur(14px) saturate(1.1)',
+              border: `1px solid ${shell.line}`, color: shell.muted,
+              transition: 'color 140ms ease, border-color 140ms ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = t.danger; e.currentTarget.style.borderColor = alpha(t.danger, 0.5) }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = shell.muted; e.currentTarget.style.borderColor = shell.line }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7h16" />
+              <path d="M9 7V4.5h6V7" />
+              <path d="M6.5 7l.9 12a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12" />
+              <path d="M10 11.5v5M14 11.5v5" />
+            </svg>
+          </button>
+        )}
       </div>
-      <span
-        style={{
-          ...canvasType.small, fontSize: grid.fontSize, color: done ? shell.muted : shell.text, textAlign: 'center',
-          maxWidth: '94%', lineHeight: 1.3,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          textDecorationLine: hover ? 'underline' : 'none', textDecorationColor: alpha(shell.text, 0.35), textUnderlineOffset: 3,
-        }}
-      >
-        {item.title}
-      </span>
     </div>
   )
 }

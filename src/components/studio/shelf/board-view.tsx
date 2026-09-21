@@ -25,13 +25,14 @@ export type BoardState =
   | { status: 'ready' }
 
 export function BoardView({
-  state, items, onNew, onMove, onArrange, onRetry, onSignIn,
+  state, items, onNew, onMove, onArrange, onDelete, onRetry, onSignIn,
 }: {
   state: BoardState
   items: BoardItem[]
   onNew: () => void
   onMove: (id: string, saved: { x: number; y: number }) => void
   onArrange: () => void
+  onDelete: (item: BoardItem) => void
   onRetry: () => void
   onSignIn: () => void
 }) {
@@ -86,7 +87,7 @@ export function BoardView({
               </Middle>
             )}
 
-            {state.status === 'ready' && items.length > 0 && <Desk items={items} onNew={onNew} onMove={onMove} onArrange={onArrange} />}
+            {state.status === 'ready' && items.length > 0 && <Desk items={items} onNew={onNew} onMove={onMove} onArrange={onArrange} onDelete={onDelete} />}
           </div>
         </div>
       </Level>

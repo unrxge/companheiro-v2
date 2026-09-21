@@ -5,9 +5,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { BoardView, type BoardState } from '@/components/studio/shelf/board-view'
 import { api, ApiError } from '@/lib/studio/api-client'
-import { boardItems, type DraftLike } from '@/lib/studio/shelf-view'
+import { boardItems, type BoardItem, type DraftLike } from '@/lib/studio/shelf-view'
 import type { ShelfProject } from '@/lib/studio/types'
 
 /** Unfinished Idea Lab explorations. Never worth failing the board over. */
@@ -24,6 +25,7 @@ async function loadDrafts(): Promise<DraftLike[]> {
 
 export default function ProjectBoardPage() {
   const router = useRouter()
+  const confirm = useConfirm()
   const [state, setState] = useState<BoardState>({ status: 'loading' })
   const [projects, setProjects] = useState<ShelfProject[]>([])
   const [drafts, setDrafts] = useState<DraftLike[]>([])
@@ -70,6 +72,29 @@ export default function ProjectBoardPage() {
     Promise.all(placed.map((p) => save(p.id, null, null))).catch(() => { void load() })
   }, [load, projects, save])
 
+  /** Deleting is for good, so it always asks first. */
+  const remove = useCallback(async (item: BoardItem) => {
+    const project = item.kind === 'project'
+    const ok = await confirm({
+      title: project ? `Delete “${item.title}”?` : 'Discard this idea?',
+      body: project
+        ? 'The project and everything written in it will be deleted for good. This can’t be undone.'
+        : 'The unfinished exploration will be discarded. This can’t be undone.',
+      confirmLabel: project ? 'Delete' : 'Discard',
+      danger: true,
+    })
+    if (!ok) return
+    if (project) {
+      setProjects((prev) => prev.filter((p) => p.id !== item.id))
+      api.projects.delete(item.id).catch(() => { void load() })
+    } else {
+      setDrafts((prev) => prev.filter((d) => d.id !== item.id))
+      fetch(`/api/idea-lab/conceptualise/draft?id=${encodeURIComponent(item.id)}`, { method: 'DELETE', credentials: 'same-origin' })
+        .then((res) => { if (!res.ok) void load() })
+        .catch(() => { void load() })
+    }
+  }, [confirm, load])
+
   return (
     <BoardView
       state={state}
@@ -77,6 +102,7 @@ export default function ProjectBoardPage() {
       onNew={() => router.push('/idea-lab')}
       onMove={move}
       onArrange={arrange}
+      onDelete={(item) => void remove(item)}
       onRetry={() => void load()}
       onSignIn={() => router.push('/login')}
     />
