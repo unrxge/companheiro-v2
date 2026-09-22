@@ -17,8 +17,9 @@ export interface Signals {
 
 /**
  * The three signals extracted from a check-in, shown back as small cards the
- * person can correct. Tap Energy or Arc to pick; the weather word is edited
- * in place. This is both the transparency moment and the data-quality fix.
+ * person can correct. Tap Energy or Movement to pick; the weather word is
+ * edited in place. This is both the transparency moment and the data-quality
+ * fix.
  */
 export function SignalCards({ signals, onChange }: { signals: Signals; onChange?: (next: Signals) => void }) {
   const { t } = useTheme()
@@ -50,8 +51,8 @@ export function SignalCards({ signals, onChange }: { signals: Signals; onChange?
           <p style={k}>Weather</p>
           <p style={{ ...v, fontStyle: 'italic' }}>{signals.inner_weather}</p>
         </button>
-        <button type="button" style={cell} onClick={() => editable && setEditing(editing === 'arc' ? null : 'arc')} aria-label="Arc texture">
-          <p style={k}>Arc</p>
+        <button type="button" style={cell} onClick={() => editable && setEditing(editing === 'arc' ? null : 'arc')} aria-label="Movement">
+          <p style={k}>Movement</p>
           <p style={{ ...v, color: t[arcHue[signals.arc_texture]] }}>{signals.arc_texture}</p>
         </button>
       </div>

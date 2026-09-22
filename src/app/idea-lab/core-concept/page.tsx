@@ -262,7 +262,7 @@ export default function CoreConceptPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
                 <div>
-                  <Eyebrow style={{ marginBottom: 10 }}>Arc</Eyebrow>
+                  <Eyebrow style={{ marginBottom: 10 }}>Movement</Eyebrow>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {ARCS.map((arc) => (
                       <Pill key={arc} hue={arcHue[arc]} selected={p1.content.arc === arc} onClick={p1.status === 'confirmed' ? undefined : () => handleEditContent('phase1', 'arc', arc)} size="md" dot>

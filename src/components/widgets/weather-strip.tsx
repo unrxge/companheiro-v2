@@ -106,7 +106,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
         ) : active ? (
           <span style={{ color: t.textMuted }}>{active.date} · no check-in</span>
         ) : (
-          <span style={{ color: t.textMuted }}>Height is energy, colour is arc. A quiet bar means writing time with no check-in.</span>
+          <span style={{ color: t.textMuted }}>Height is energy, colour is movement. A quiet bar means writing time with no check-in.</span>
         )}
       </div>
     </div>

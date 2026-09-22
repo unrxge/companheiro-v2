@@ -85,7 +85,7 @@ export default function DesignGalleryPage() {
               ))}
             </div>
             <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 12, maxWidth: '60ch' }}>
-              The shell takes the module&apos;s hue (Ideas lean ember, Board leans verdant, Portrait leans violet). On Home and Check-in it takes your last arc texture instead, and energy sets how present it is.
+              The shell takes the module&apos;s hue (Ideas lean ember, Board leans verdant, Portrait leans violet). On Home and Check-in it takes your last movement instead, and energy sets how present it is.
             </p>
           </div>
           <div style={{ flex: '0 1 260px' }}>
@@ -113,7 +113,7 @@ export default function DesignGalleryPage() {
               ))}
             </div>
             <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 12 }}>
-              Arc → hue: Breakaway ember, Beginning verdant, Expansion violet, Integration ochre. Board columns: Queue ochre, Active verdant, Completed violet. The app&apos;s own vocabulary is its colour system.
+              Movement → hue: Breakaway ember, Beginning verdant, Expansion violet, Integration ochre. Board columns: Queue ochre, Active verdant, Completed violet. The app&apos;s own vocabulary is its colour system.
             </p>
           </Card>
           <Card>

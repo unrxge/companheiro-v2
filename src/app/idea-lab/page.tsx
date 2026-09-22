@@ -175,11 +175,11 @@ export default function IdeaLabPage() {
 
   const handleGeneratePrompt = async () => {
     if (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) {
-      setError('Select at least one arc, use random, or skip arcs')
+      setError('Select at least one movement, use random, or skip')
       return
     }
     if (skipArcs && selectedTerritoryKeys.length === 0 && !skipTerritories) {
-      setError('Skipping arcs needs a territory — select one or use random')
+      setError('Skipping movements needs a territory — select one or use random')
       return
     }
     setIsGenerating(true)
@@ -271,7 +271,7 @@ export default function IdeaLabPage() {
           <Card padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Eyebrow>Arc</Eyebrow>
+                <Eyebrow>Movement</Eyebrow>
                 <div style={{ display: 'flex', gap: 10 }}>
                   {textLink(handleRandomArcs, 'Random', useRandomArcs)}
                   {textLink(handleSkipArcs, 'Skip', skipArcs)}
