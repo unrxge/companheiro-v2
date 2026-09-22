@@ -16,7 +16,7 @@ import { ArrowRight } from 'lucide-react'
 import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { alpha, shell, tokensFor, type Mood } from '@/lib/design-tokens'
-import { HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, TalkMockup } from './mockups'
+import { CanvasMockup, HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, VisionFinder } from './mockups'
 
 const ember = tokensFor('dark').ember
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -103,7 +103,7 @@ function Nav() {
   )
 }
 
-// ── Hero: asymmetric split, the talk mockup plays once ───────────────────────
+// ── Hero: asymmetric split, the vision assembles from fragments ─────────────
 
 function Hero() {
   const ref = useRef<HTMLElement>(null)
@@ -126,12 +126,14 @@ function Hero() {
       <div className="max-w-[640px]">
         <m.h1
           {...enter(0)}
-          className="text-balance text-[40px] font-bold leading-[1.04] tracking-[-0.035em] text-[var(--bone)] md:text-[52px] lg:text-[46px] xl:text-[60px]"
+          className="text-balance text-[44px] font-bold leading-[1.04] tracking-[-0.035em] text-[var(--bone)] md:text-[60px] xl:text-[72px]"
         >
-          You <span className="text-[var(--ember)]">already</span> know what you want to make.
+          {/* Same pairing as the brand document: Geist headline, one word in Newsreader italic. */}
+          You already have a{' '}
+          <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">vision</span>.
         </m.h1>
         <m.p {...enter(1)} className="mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]">
-          You just can&rsquo;t say it yet. Companheiro listens while you talk it through, and hands it back in words you recognise.
+          It&rsquo;s scattered across your notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.
         </m.p>
         <m.div {...enter(2)} className="mt-9">
           <BeginButton />
@@ -144,7 +146,7 @@ function Hero() {
         transition={{ duration: 1.1, delay: 0.3, ease: EASE }}
         className="w-full max-w-[480px] lg:justify-self-end"
       >
-        <TalkMockup />
+        <VisionFinder />
       </m.div>
     </section>
   )
@@ -153,7 +155,7 @@ function Hero() {
 // ── Manifesto: words come up as you read ─────────────────────────────────────
 
 const MANIFESTO =
-  'It usually starts as something you can’t quite name. A line you keep coming back to. A feeling that wants a form. Most tools expect you to know what it is already. Companheiro starts before that.'
+  'It usually starts as something you can\u2019t quite name. A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are one vision, seen from different sides. Companheiro helps you see it whole.'
 
 function Word({ word, progress, range }: { word: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.16, 1])
@@ -184,23 +186,23 @@ function Manifesto() {
   )
 }
 
-// ── How it listens: sticky stage on the left, movements on the right ────────
+// ── Find, hold, talk: sticky stage on the left, movements on the right ──────
 
 const MOVEMENTS: { title: string; body: string; mood: Mood }[] = [
   {
-    title: 'Talk it through',
-    body: 'Say it however it comes out. Speak or type, for ten seconds or an hour. Nothing needs sorting first.',
-    mood: 'tide',
+    title: 'Find the vision',
+    body: 'Bring notes, drafts and voice memos. It asks one question at a time until your vision fits in a sentence you would stand behind.',
+    mood: 'ochre',
   },
   {
-    title: 'Answer one question at a time',
-    body: 'It asks, gently and in order, until the idea fits in a sentence you would stand behind.',
-    mood: 'ember',
-  },
-  {
-    title: 'Keep hold of it',
-    body: 'It remembers what you said mattered, and tells you plainly when the work starts drifting away from it.',
+    title: 'Hold it steady',
+    body: 'Your vision is written down, dated and kept. When new work pulls away from it, you get a question, never a verdict.',
     mood: 'violet',
+  },
+  {
+    title: 'Talk to it whenever',
+    body: 'Speak or type when something comes up, for ten seconds or an hour. It remembers what mattered, so you never file anything.',
+    mood: 'tide',
   },
 ]
 
@@ -241,7 +243,7 @@ function HowItListens() {
   return (
     <section className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-28">
       <Reveal>
-        <h2 className={`max-w-[16ch] ${H2}`}>It listens first. Then it asks.</h2>
+        <h2 className={`max-w-[16ch] ${H2}`}>Find it. Hold it. Build from it.</h2>
       </Reveal>
       <div className="mt-12 grid grid-cols-1 gap-16 md:mt-4 md:grid-cols-[1fr_0.9fr] md:gap-16">
         <div className="hidden md:sticky md:top-[18vh] md:block md:self-start md:pt-[10vh]">
@@ -252,6 +254,39 @@ function HowItListens() {
             <Movement key={mv.title} index={i} active={active === i} onActive={setActive} />
           ))}
         </ol>
+      </div>
+    </section>
+  )
+}
+
+// ── The canvas: full-width, draggable ───────────────────────────────────────
+
+const CANVAS_FACTS = [
+  'Any medium: essays, songs, photographs, film.',
+  'Several visions at once, each on its own canvas.',
+  'Images and recordings are for your eyes. It only reads what you write about them.',
+]
+
+function WholeVision() {
+  const ref = useRef<HTMLElement>(null)
+  useSectionMood(ref, 'verdant')
+  return (
+    <section ref={ref} className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-32">
+      <Reveal>
+        <h2 className={`max-w-[18ch] ${H2}`}>See the whole vision at once.</h2>
+        <p className="mt-5 max-w-[52ch] text-[17px] leading-relaxed text-[var(--muted)]">
+          Every piece laid out side by side on a canvas that goes as far as you need. Threads show what connects, so the shape of the work is visible.
+        </p>
+      </Reveal>
+      <Reveal delay={0.1} className="mt-12 md:mt-16">
+        <CanvasMockup />
+      </Reveal>
+      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
+        {CANVAS_FACTS.map((f, i) => (
+          <Reveal key={f} delay={i * 0.06}>
+            <p className="max-w-[34ch] border-t border-[var(--line)] pt-4 text-[15px] leading-relaxed text-[var(--muted)]">{f}</p>
+          </Reveal>
+        ))}
       </div>
     </section>
   )
@@ -286,7 +321,7 @@ const NEVER = [
 
 function Never() {
   const ref = useRef<HTMLElement>(null)
-  useSectionMood(ref, 'ochre')
+  useSectionMood(ref, 'ember')
   return (
     <section ref={ref} className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-32">
       <Reveal>
@@ -308,7 +343,7 @@ function Never() {
 
 function Closing() {
   const ref = useRef<HTMLElement>(null)
-  useSectionMood(ref, 'verdant')
+  useSectionMood(ref, 'ochre')
   return (
     <section
       ref={ref}
@@ -320,7 +355,7 @@ function Closing() {
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>It remembers where you left off.</h2>
         <p className="mt-5 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Come back tomorrow or in three months. Your ideas, your words and what you decided will be where you left them.
+          Come back tomorrow or in three months. Your vision, your words and every decision will be where you left them.
         </p>
         <div className="mt-8">
           <BeginButton />
@@ -353,6 +388,7 @@ export function Landing() {
             <Hero />
             <Manifesto />
             <HowItListens />
+            <WholeVision />
             <Heard />
             <Never />
             <Closing />

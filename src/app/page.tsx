@@ -1,14 +1,18 @@
 import type { Metadata } from 'next'
+import { Newsreader } from 'next/font/google'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Landing } from '@/components/landing/landing'
 
+// The one serif on the page: the coloured word in the hero headline.
+const newsreader = Newsreader({ subsets: ['latin'], style: ['italic'], weight: ['400'], variable: '--font-newsreader' })
+
 export const metadata: Metadata = {
   title: 'Companheiro',
-  description: 'Companheiro listens while you talk through what you want to make, and hands it back in words you recognise.',
+  description: 'Your vision is scattered across notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.',
   openGraph: {
     title: 'Companheiro',
-    description: 'You already know what you want to make. You just can’t say it yet.',
+    description: 'You already have a vision.',
     type: 'website',
   },
 }
@@ -22,5 +26,9 @@ export default async function RootPage() {
 
   if (user) redirect('/home')
 
-  return <Landing />
+  return (
+    <div className={newsreader.variable}>
+      <Landing />
+    </div>
+  )
 }
