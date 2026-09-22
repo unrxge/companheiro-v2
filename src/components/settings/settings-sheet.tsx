@@ -10,6 +10,7 @@ import { DangerButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { IconButton } from '@/components/ui/icon-button'
+import { BillingCard } from '@/components/settings/billing-card'
 import { DICTATION_LANGS, setDictationLangCache, type UserSettings } from '@/lib/settings'
 import { radius, type as typeRoles } from '@/lib/design-tokens'
 
@@ -146,6 +147,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             </Pill>
           </div>
         </Card>
+
+        <BillingCard />
 
         <Card padding={18}>
           <div style={row}>
