@@ -12,10 +12,13 @@
 
 import Link from 'next/link'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
-import { alpha, shell, tokensFor, type Mood } from '@/lib/design-tokens'
+import { Container, Card } from '@/components/shell/page-shell'
+import { Pill } from '@/components/ui/pill'
+import { useTheme } from '@/components/theme/theme-provider'
+import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, VisionFinder } from './mockups'
 
 const ember = tokensFor('dark').ember
@@ -93,12 +96,20 @@ function Nav() {
         <img src="/favicon.svg" alt="" width={22} height={22} />
         Companheiro
       </Link>
-      <Link
-        href={LOGIN}
-        className="rounded-full px-4 py-2 text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--fill)] hover:text-[var(--bone)]"
-      >
-        Log in
-      </Link>
+      <nav className="flex items-center gap-1">
+        <a
+          href="#pricing"
+          className="rounded-full px-4 py-2 text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--fill)] hover:text-[var(--bone)]"
+        >
+          Pricing
+        </a>
+        <Link
+          href={LOGIN}
+          className="rounded-full px-4 py-2 text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--fill)] hover:text-[var(--bone)]"
+        >
+          Log in
+        </Link>
+      </nav>
     </header>
   )
 }
@@ -357,9 +368,172 @@ function Closing() {
         <p className="mt-5 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)]">
           Come back tomorrow or in three months. Your vision, your words and every decision will be where you left them.
         </p>
-        <div className="mt-8">
+      </Reveal>
+    </section>
+  )
+}
+
+// ── Pricing: two plans, Direction leads ─────────────────────────────────────
+// Figures from the v5 working document (Practice and Direction). Not final:
+// update here when the plan is.
+
+type Billing = 'month' | 'year'
+
+const PLANS = [
+  {
+    id: 'practice',
+    name: 'Practice',
+    line: 'For one vision at a time, in words.',
+    price: { month: 9, year: 90 },
+    features: [
+      'One active project at a time',
+      'Writing and lyrics',
+      'Find, hold and talk to your vision',
+      'The writing studio',
+      'Switch projects by resting one for 14 days',
+    ],
+  },
+  {
+    id: 'direction',
+    name: 'Direction',
+    line: 'For many visions at once, in any medium.',
+    price: { month: 29, year: 290 },
+    features: [
+      'Everything in Practice',
+      'As many active projects as you carry',
+      'The full canvas for every vision',
+      'Images and recordings beside your words',
+      'Talk through direction whenever you need to',
+    ],
+  },
+] as const
+
+function PlanButton({ lead }: { lead: boolean }) {
+  const { t } = useTheme()
+  return (
+    <Link
+      href={SIGNUP}
+      className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+      style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
+    >
+      Begin
+      <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
+    </Link>
+  )
+}
+
+function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billing: Billing; lead: boolean }) {
+  const { t } = useTheme()
+  const amount = plan.price[billing]
+  const perMonth = billing === 'year' ? (plan.price.year / 12).toFixed(2).replace(/\.00$/, '') : null
+  return (
+    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
+      <div className="flex items-center justify-between gap-3">
+        <p style={{ ...typeRoles.h2, fontSize: lead ? 26 : 22, color: t.textPrimary }}>{plan.name}</p>
+        {lead && <Pill hue="ember">Many visions</Pill>}
+      </div>
+      <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 6 }}>{plan.line}</p>
+      <div className="mt-6 flex items-baseline gap-1.5">
+        <span style={{ ...typeRoles.display, fontSize: lead ? 48 : 40, color: t.textPrimary }}>&euro;{amount}</span>
+        <span style={{ ...typeRoles.ui, color: t.textMuted }}>a {billing}</span>
+      </div>
+      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4, minHeight: '1.5em' }}>
+        {perMonth ? `\u20ac${perMonth} a month, two months free` : 'Or yearly, with two months free'}
+      </p>
+      <ul className="mt-6 flex flex-1 flex-col gap-3">
+        {plan.features.map((f) => (
+          <li key={f} className="flex items-start gap-3">
+            <Check size={16} strokeWidth={2} aria-hidden style={{ color: lead ? t.ember : t.verdant, marginTop: 3, flexShrink: 0 }} />
+            <span style={{ ...typeRoles.ui, color: t.textPrimary }}>{f}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-8">
+        <PlanButton lead={lead} />
+      </div>
+    </Card>
+  )
+}
+
+const PRICING_FACTS = [
+  { title: '30 days free', body: 'No card needed to start.' },
+  { title: 'Pause when life is full', body: 'Up to three months, paying nothing. Everything waits.' },
+  { title: 'Pay what you can', body: 'If the price is out of reach, Practice costs \u20ac3 to \u20ac6 a month.' },
+]
+
+function Pricing() {
+  const ref = useRef<HTMLElement>(null)
+  useSectionMood(ref, 'violet')
+  const [billing, setBilling] = useState<Billing>('month')
+  return (
+    <section id="pricing" ref={ref} className="mx-auto w-full max-w-[1180px] scroll-mt-8 px-4 py-20 md:px-8 md:py-32">
+      <Reveal>
+        <h2 className={`max-w-[18ch] ${H2}`}>Two ways to hold a vision.</h2>
+        <p className="mt-5 max-w-[48ch] text-[17px] leading-relaxed text-[var(--muted)]">
+          Practice for one project in words. Direction for many, in any medium. Move between them whenever you like.
+        </p>
+      </Reveal>
+
+      <Reveal delay={0.08} className="mt-10 md:mt-12">
+        <div role="radiogroup" aria-label="Billing period" className="inline-flex gap-1 rounded-full p-1" style={{ backgroundColor: shell.fill }}>
+          {(['month', 'year'] as const).map((b) => (
+            <button
+              key={b}
+              type="button"
+              role="radio"
+              aria-checked={billing === b}
+              onClick={() => setBilling(b)}
+              className="cursor-pointer rounded-full px-4 py-2 text-[14px] font-medium transition-colors"
+              style={billing === b ? { backgroundColor: shell.text, color: shell.ink } : { color: shell.muted }}
+            >
+              {b === 'month' ? 'Monthly' : 'Yearly'}
+            </button>
+          ))}
+        </div>
+      </Reveal>
+
+      <Reveal delay={0.12} className="mt-6">
+        <Container padding={16}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[0.85fr_1.15fr]">
+            <PlanCard plan={PLANS[0]} billing={billing} lead={false} />
+            <PlanCard plan={PLANS[1]} billing={billing} lead />
+          </div>
+        </Container>
+      </Reveal>
+
+      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
+        {PRICING_FACTS.map((f, i) => (
+          <Reveal key={f.title} delay={i * 0.06}>
+            <div className="border-t border-[var(--line)] pt-4">
+              <p className="text-[16px] font-semibold text-[var(--bone)]">{f.title}</p>
+              <p className="mt-1 max-w-[34ch] text-[15px] leading-relaxed text-[var(--muted)]">{f.body}</p>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── Final call to action: the bookend to the hero ───────────────────────────
+
+function FinalCta() {
+  const ref = useRef<HTMLElement>(null)
+  useSectionMood(ref, 'ember')
+  return (
+    <section ref={ref} className="mx-auto flex w-full max-w-[1000px] flex-col items-center px-4 pb-28 pt-16 text-center md:px-8 md:pb-40 md:pt-24">
+      <Reveal className="flex flex-col items-center">
+        <h2 className="text-balance text-[40px] font-bold leading-[1.06] tracking-[-0.035em] text-[var(--bone)] md:text-[64px]">
+          Start with what you{' '}
+          <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">already</span> have.
+        </h2>
+        <p className="mt-6 max-w-[40ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]">
+          Bring one note, one draft, one thing you keep circling. The vision is usually already in there.
+        </p>
+        <div className="mt-10">
           <BeginButton />
         </div>
+        <p className="mt-5 text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
       </Reveal>
     </section>
   )
@@ -392,6 +566,8 @@ export function Landing() {
             <Heard />
             <Never />
             <Closing />
+            <Pricing />
+            <FinalCta />
           </main>
           <Footer />
         </div>
