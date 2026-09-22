@@ -15,6 +15,7 @@
 // and the rules need a surface to sit on, the title never did.
 
 import { useEffect, useRef, useState } from 'react'
+import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 import { useTheme } from '@/components/theme/theme-provider'
 import { RuleList } from '@/components/studio/work/rules'
 import { InlineField } from '@/components/studio/work/bits'
@@ -55,6 +56,7 @@ export function VisionBlock({
   onEditIntent,
   onEditRules,
   disabled,
+  conversationLog,
 }: {
   title: string
   /** From visionWidth(cardW) — kept in proportion with the cards below it. */
@@ -67,10 +69,13 @@ export function VisionBlock({
   onEditIntent: (intent: string) => void
   onEditRules: (rules: Rule[]) => void
   disabled: boolean
+  /** The Idea Lab conversation behind this project, when there was one. */
+  conversationLog?: ConversationLogMessage[] | null
 }) {
   const { t } = useTheme()
   const liveRules = rules.filter((r) => !r.retired_at).length
   const [renaming, setRenaming] = useState(false)
+  const [showLog, setShowLog] = useState(false)
   const [draft, setDraft] = useState(title)
   const inputRef = useRef<HTMLInputElement | null>(null)
   useEffect(() => { if (!renaming) setDraft(title) }, [title, renaming])
@@ -171,6 +176,18 @@ export function VisionBlock({
               onCommit={onEditIntent}
               style={{ ...canvasType.conceptBody, fontSize: 15, color: t.textSecondary }}
             />
+            {conversationLog && conversationLog.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowLog(true)}
+                style={{
+                  ...canvasType.chip, marginTop: 16, padding: 0, background: 'none', border: 'none',
+                  color: t.ember, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3,
+                }}
+              >
+                Read the conversation that shaped this
+              </button>
+            )}
           </div>
           <div style={{ borderLeft: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingLeft: 36 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: t.textMuted, marginBottom: 10 }}>
@@ -187,6 +204,9 @@ export function VisionBlock({
             <RuleList rules={rules} inherited={[]} disabled={disabled} onChange={onEditRules} />
           </div>
         </div>
+      )}
+      {showLog && conversationLog && (
+        <ConversationLogModal messages={conversationLog} onClose={() => setShowLog(false)} />
       )}
     </div>
   )

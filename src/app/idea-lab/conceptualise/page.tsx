@@ -20,6 +20,7 @@ interface Draft {
   phase: number
   ready_to_advance: boolean
   updated_at: string
+  brought?: boolean
 }
 
 const PHASE_LABELS = ['First Contact', 'Expansion', 'The Reader', 'The Principle', 'Declaration']
@@ -33,6 +34,9 @@ function ConceptualiseContent() {
   const seed = searchParams.get('seed')
   const question = searchParams.get('question')
   const resumeId = searchParams.get('resume')
+  // "Bring an idea": the person opens the conversation with an idea they
+  // already carry, instead of answering a summoned question.
+  const bringMode = searchParams.get('mode') === 'bring'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -43,10 +47,12 @@ function ConceptualiseContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [readyToAdvance, setReadyToAdvance] = useState(false)
+  const [brought, setBrought] = useState(bringMode)
+  const broughtSeedRef = useRef<string | null>(null)
 
-  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId)
+  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode)
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
-  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId)
+  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode)
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
@@ -68,6 +74,8 @@ function ConceptualiseContent() {
       fetchAIResponse([seedMessage], 1)
       return
     }
+    // Nothing to fetch yet: the conversation starts with their first message.
+    if (bringMode) return
     if (resumeId) {
       const autoResume = async () => {
         try {
@@ -80,6 +88,7 @@ function ConceptualiseContent() {
             setPhase(draft.phase)
             setReadyToAdvance(draft.ready_to_advance)
             if (draft.question) setActiveQuestion(draft.question)
+            if (draft.brought) { setBrought(true); broughtSeedRef.current = draft.seed }
           }
         } catch (err) {
           console.error('Failed to auto-resume draft:', err)
@@ -101,7 +110,7 @@ function ConceptualiseContent() {
     }
     checkDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed, resumeId])
+  }, [seed, resumeId, bringMode])
 
   useEffect(() => {
     const container = threadRef.current
@@ -128,7 +137,7 @@ function ConceptualiseContent() {
     fetch('/api/idea-lab/conceptualise/draft', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: draftIdRef.current, seed: seed || null, question: activeQuestion || null, messages: finalMessages, phase: savedPhase, ready_to_advance: savedReadyToAdvance }),
+      body: JSON.stringify({ id: draftIdRef.current, seed: seed || broughtSeedRef.current || null, question: activeQuestion || null, messages: finalMessages, phase: savedPhase, ready_to_advance: savedReadyToAdvance, brought }),
     }).catch((err) => console.error('Failed to autosave draft:', err))
   }
 
@@ -139,7 +148,7 @@ function ConceptualiseContent() {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
@@ -175,6 +184,7 @@ function ConceptualiseContent() {
     setPhase(draft.phase)
     setReadyToAdvance(draft.ready_to_advance)
     if (draft.question) setActiveQuestion(draft.question)
+    if (draft.brought) { setBrought(true); broughtSeedRef.current = draft.seed }
     setResumeDecided(true)
   }
 
@@ -199,6 +209,7 @@ function ConceptualiseContent() {
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
     const userMessage: ThreadMessage = { role: 'user', content: inputText.trim() }
+    if (brought && !messages.some((x) => x.role === 'user')) broughtSeedRef.current = userMessage.content
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputText('')
@@ -207,6 +218,11 @@ function ConceptualiseContent() {
   }
 
   const handleDeclare = () => {
+    // The idea as first brought becomes the piece's starting draft.
+    const firstUser = messages.find((x) => x.role === 'user')
+    if (brought && firstUser) sessionStorage.setItem('brought_idea', firstUser.content)
+    else sessionStorage.removeItem('brought_idea')
+    sessionStorage.removeItem('bring_idea_flow')
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages.map((x) => ({ ...x, content: x.content.split(PHASE_MARKER).join('').trim() }))))
     fetch(`/api/idea-lab/conceptualise/draft?id=${draftIdRef.current}`, { method: 'DELETE' }).catch((err) => console.error('Failed to clear draft on declare:', err))
     router.push('/idea-lab/core-concept')
@@ -275,6 +291,13 @@ function ConceptualiseContent() {
                 <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{activeQuestion}</p>
               </Card>
             )}
+            {brought && messages.length === 0 && (
+              <Card>
+                <Eyebrow style={{ marginBottom: 8, color: t.ember }}>Bring an idea</Eyebrow>
+                <p style={{ ...typeRoles.quote, color: t.textPrimary, marginBottom: 8 }}>What&apos;s the idea you&apos;ve been carrying?</p>
+                <p style={{ ...typeRoles.small, color: t.textMuted }}>Say it however it comes: the angle, the feeling, who it&apos;s for, what&apos;s still unclear. We&apos;ll work it into shape together.</p>
+              </Card>
+            )}
             <Thread messages={messages} streaming={isLoading}>
               {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
             </Thread>
@@ -289,7 +312,7 @@ function ConceptualiseContent() {
               onChange={(v) => { clearInterim(); setInputText(v) }}
               onSend={handleSend}
               disabled={isLoading}
-              placeholder="Share your thought…"
+              placeholder={brought && messages.length === 0 ? 'Describe your idea…' : 'Share your thought…'}
               recording={isRecording}
               onToggleRecording={handleRecordToggle}
             />

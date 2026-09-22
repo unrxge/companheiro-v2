@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useDictation } from '@/lib/use-dictation'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
@@ -10,11 +9,10 @@ import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/comp
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
 import { TextArea } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
-import { MicButton } from '@/components/ui/mic-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { useTerritories } from '@/hooks/useTerritories'
-import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { alpha, arcHue, radius, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
 
 interface Capture {
@@ -68,11 +66,9 @@ export default function IdeaLabPage() {
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
-  type ScratchState = 'idle' | 'choosing' | 'importing'
-  const [scratchState, setScratchState] = useState<ScratchState>('idle')
-  const [importText, setImportText] = useState('')
-  const importTextRef = useRef('')
-  importTextRef.current = importText
+  // The mask over the lens + stage: bring an idea you already have (straight
+  // into the conversation), or summon one (the lens and question below).
+  const [entry, setEntry] = useState<'choosing' | 'summon'>('choosing')
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
@@ -206,8 +202,6 @@ export default function IdeaLabPage() {
       const data = await res.json()
       if (data.prompt) {
         setGeneratedPrompt(data.prompt)
-        setScratchState('idle')
-        setImportText('')
       } else {
         setError('Failed to generate — try again')
       }
@@ -220,28 +214,7 @@ export default function IdeaLabPage() {
 
   const isGenerateDisabled = (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
 
-  // ── Import dictation ──────────────────────────────────────────────────────
-  const { isRecording: isImportRecording, interimText, handleRecordToggle: handleImportRecordToggle, stopRecording: stopImportRecording, clearInterim } = useDictation({
-    onAppend: useCallback((text: string) => {
-      setImportText((prev) => prev + (prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '') + text)
-    }, []),
-    getContext: () => importTextRef.current.slice(-80),
-  })
-
-  const closeImport = () => {
-    if (isImportRecording) stopImportRecording()
-    setScratchState('idle')
-    setImportText('')
-    clearInterim()
-  }
-
-  const submitImport = () => {
-    if (!importText.trim()) return
-    if (isImportRecording) stopImportRecording()
-    sessionStorage.setItem('conceptualisation_conversation', JSON.stringify([{ role: 'user' as const, content: importText.trim() }]))
-    sessionStorage.setItem('bring_idea_flow', 'true')
-    router.push('/idea-lab/core-concept')
-  }
+  const bringIdea = () => router.push('/idea-lab/conceptualise?mode=bring')
 
   const textLink = (onClick: () => void, label: string, active = false) => (
     <button onClick={onClick} style={{ background: 'none', border: 'none', padding: '3px 0', color: active ? t.textPrimary : t.textMuted, ...typeRoles.small, fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
@@ -258,15 +231,59 @@ export default function IdeaLabPage() {
         .idea-lab-carousel::-webkit-scrollbar { display: none; }
         .idea-lab-carousel-card { flex: 0 0 calc(33.33% - 8px); min-width: 0; scroll-snap-align: start; }
         @media (max-width: 800px) { .idea-lab-carousel-card { flex: 0 0 calc(72% - 6px); } }
+        .idea-lab-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; max-width: 620px; }
+        @media (max-width: 640px) { .idea-lab-entry { grid-template-columns: 1fr; } }
         .idea-lab-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; background: linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant}); outline: none; cursor: pointer; width: 100%; display: block; }
         .idea-lab-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.28); border: 2px solid ${t.textPrimary}; }
         .idea-lab-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; border: 2px solid ${t.textPrimary}; box-shadow: 0 1px 4px rgba(0,0,0,0.28); }
       `}</style>
 
-      <PageHeader eyebrow="Companheiro" title="Idea Lab" subtitle="Configure the lens, summon a question, or bring an idea you already have." />
+      <PageHeader eyebrow="Companheiro" title="Idea Lab" subtitle="Bring an idea you already carry, or summon a new one." />
 
       <Container>
-        <div className="idea-lab-grid">
+        <div style={{ position: 'relative' }}>
+        <AnimatePresence>
+          {entry === 'choosing' && (
+            <m.div
+              key="entry-mask"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              style={{
+                position: 'absolute', inset: -8, zIndex: 20, borderRadius: radius.card,
+                background: alpha(shell.ink, 0.62), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: 'clamp(40px, 10vh, 96px) 16px 32px', gap: 28, textAlign: 'center',
+              }}
+            >
+              <div>
+                <p style={{ ...typeRoles.h2, fontSize: 'clamp(22px, 3.4vw, 28px)', color: shell.text, marginBottom: 10 }}>Where are you starting from?</p>
+                <p style={{ ...typeRoles.ui, fontSize: 14, color: shell.muted }}>Either way, you&apos;ll end with a core concept.</p>
+              </div>
+              <div className="idea-lab-entry">
+                {[
+                  { key: 'bring', eyebrow: 'I have one', title: 'Bring an idea', body: 'Something you’ve been carrying. Tell it straight to the companion and shape it together.', onClick: bringIdea },
+                  { key: 'summon', eyebrow: 'I need one', title: 'Summon an idea', body: 'Set a lens (movement, territory, energy) and get a question to start from.', onClick: () => setEntry('summon') },
+                ].map((o) => (
+                  <m.button
+                    key={o.key}
+                    type="button"
+                    onClick={o.onClick}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.99 }}
+                    style={{ textAlign: 'left', background: t.cardBg, color: t.textPrimary, border: 'none', borderRadius: radius.card, boxShadow: t.shadow, padding: '22px 22px 20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }}
+                  >
+                    <Eyebrow style={{ color: t.ember }}>{o.eyebrow}</Eyebrow>
+                    <span style={{ ...typeRoles.h2, fontSize: 20, color: t.textPrimary }}>{o.title} →</span>
+                    <span style={{ ...typeRoles.small, color: t.textMuted }}>{o.body}</span>
+                  </m.button>
+                ))}
+              </div>
+            </m.div>
+          )}
+        </AnimatePresence>
+        <div className="idea-lab-grid" inert={entry === 'choosing'} aria-hidden={entry === 'choosing'}>
           {/* ── The Lens ── */}
           <Card padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
@@ -400,35 +417,7 @@ export default function IdeaLabPage() {
           {/* ── The Stage ── */}
           <Card padding={0} style={{ display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
             <AnimatePresence mode="wait">
-              {scratchState === 'importing' ? (
-                <m.div key="importing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 'clamp(20px, 4vw, 36px)', gap: 18 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                    <div>
-                      <Eyebrow style={{ marginBottom: 4 }}>Bring an idea</Eyebrow>
-                      <p style={{ ...typeRoles.small, color: t.textMuted }}>Describe what you already know: the angle, the feeling, what it&apos;s really about.</p>
-                    </div>
-                    <GhostButton size="sm" onClick={closeImport}>Cancel</GhostButton>
-                  </div>
-                  <Divider />
-                  <TextArea
-                    autoFocus
-                    voice
-                    value={importText + (interimText ? (importText && !importText.endsWith(' ') && !importText.endsWith('\n') ? ' ' : '') + interimText : '')}
-                    onChange={(v) => { clearInterim(); setImportText(v) }}
-                    onKeyDown={(e) => { if (e.key === 'Escape') closeImport() }}
-                    placeholder="Write freely. What's the core insight? Who is it for? What do you want them to feel when they finish reading? Any specific angles, references, or tensions you want to explore…"
-                    ariaLabel="Your idea"
-                    minRows={7}
-                    maxHeight={480}
-                    style={{ fontSize: 15, lineHeight: 1.7, padding: '16px 18px', borderRadius: radius.widget }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <MicButton recording={isImportRecording} onToggle={handleImportRecordToggle} size={44} />
-                    <QuietButton onClick={submitImport} disabled={!importText.trim()} full size="lg">Build core concept →</QuietButton>
-                  </div>
-                  {isImportRecording && <p style={{ ...typeRoles.eyebrow, color: t.textMuted, textAlign: 'center', marginTop: -6 }}>Listening…</p>}
-                </m.div>
-              ) : !generatedPrompt ? (
+              {!generatedPrompt ? (
                 <m.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'clamp(40px, 8vw, 64px) clamp(20px, 5vw, 52px)', textAlign: 'center', gap: 28 }}>
                   <div>
                     <p style={{ ...typeRoles.h2, fontSize: 'clamp(22px, 3.4vw, 28px)', color: t.textPrimary, marginBottom: 10 }}>The question is waiting.</p>
@@ -443,22 +432,11 @@ export default function IdeaLabPage() {
                     <PrimaryButton onClick={handleGeneratePrompt} disabled={isGenerateDisabled} loading={isGenerating} loadingLabel="Summoning…" size="lg">
                       Generate a question →
                     </PrimaryButton>
-                    <AnimatePresence mode="wait">
-                      {scratchState === 'idle' && (
-                        <m.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                          <UnderlineLink onClick={() => setScratchState('choosing')} color={t.textMuted}>Or start from scratch</UnderlineLink>
-                        </m.div>
-                      )}
-                      {scratchState === 'choosing' && (
-                        <m.div key="choosing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                          <UnderlineLink onClick={() => router.push('/idea-lab/conceptualise')} color={t.textSecondary}>Write fresh</UnderlineLink>
-                          <span style={{ color: t.divider }}>·</span>
-                          <UnderlineLink onClick={() => setScratchState('importing')} color={t.textSecondary}>Bring an idea</UnderlineLink>
-                          <span style={{ color: t.divider }}>·</span>
-                          <UnderlineLink onClick={() => setScratchState('idle')} color={t.textMuted}>✕</UnderlineLink>
-                        </m.div>
-                      )}
-                    </AnimatePresence>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <UnderlineLink onClick={() => router.push('/idea-lab/conceptualise')} color={t.textMuted}>Start from scratch</UnderlineLink>
+                      <span style={{ color: t.divider }}>·</span>
+                      <UnderlineLink onClick={bringIdea} color={t.textMuted}>Bring an idea instead</UnderlineLink>
+                    </div>
                   </div>
                 </m.div>
               ) : (
@@ -490,6 +468,7 @@ export default function IdeaLabPage() {
               )}
             </AnimatePresence>
           </Card>
+        </div>
         </div>
 
         {/* ── Capture bank ── */}

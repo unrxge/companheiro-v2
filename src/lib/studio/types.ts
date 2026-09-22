@@ -40,6 +40,8 @@ export interface Project {
   settings: ProjectSettings
   auto_layout: boolean
   composed_at: string | null
+  /** The Idea Lab back-and-forth that shaped it (migration 023). */
+  conceptualisation_log?: Array<{ role: 'user' | 'assistant'; content: string }> | null
   canvas_version: number
   last_opened_at: string
   opened_before_at: string

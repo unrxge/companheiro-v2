@@ -17,6 +17,8 @@ interface SaveRequest {
   short_form_goals: string;
   open_threads: string;
   conversation_history: Array<{ role: "user" | "assistant"; content: string }>;
+  /** The idea as the person first brought it, when they came via "Bring an idea". */
+  brought_idea?: string | null;
 }
 
 interface SaveResponse {
@@ -112,10 +114,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     // same convention pieces.substack_draft used, and the same plain-text shape
     // (root.body only becomes HTML once Write mode's own editor touches it).
     const bringIdeaDraft =
-      body.conversation_history.length === 1 &&
+      body.brought_idea?.trim() ||
+      (body.conversation_history.length === 1 &&
       body.conversation_history[0].role === 'user'
         ? body.conversation_history[0].content.trim()
-        : null
+        : null)
 
     // Create the project (the shelf-level container).
     console.log('Creating studio project for:', poeticTitle)
@@ -146,6 +149,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     const projectId = projectData.id as string;
+
+    // The back-and-forth that shaped this, kept for re-reading from the board.
+    // Separate from the insert so a missing column (migration 023 not yet
+    // applied) never blocks saving the project itself.
+    if (body.conversation_history.length > 1) {
+      const { error: logError } = await supabase
+        .from("studio_projects")
+        .update({ conceptualisation_log: body.conversation_history })
+        .eq("id", projectId);
+      if (logError) console.error("Error saving conceptualisation log (non-fatal):", logError);
+    }
     console.log('Studio project created successfully:', projectId)
 
     // A creation concept revision, so the board's vision block has something

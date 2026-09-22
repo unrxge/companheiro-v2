@@ -13,6 +13,7 @@ interface SaveDraftRequest {
   messages: DraftMessage[]
   phase: number
   ready_to_advance?: boolean
+  brought?: boolean
 }
 
 // GET: return all drafts for this user, newest first.
@@ -25,7 +26,7 @@ export async function GET() {
 
     const { data } = await supabase
       .from('conceptualise_drafts')
-      .select('id, seed, question, messages, phase, ready_to_advance, created_at, updated_at')
+      .select('*')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 
@@ -51,21 +52,25 @@ export async function PUT(request: NextRequest) {
 
     const { supabase, user } = auth
 
-    const { error } = await supabase
-      .from('conceptualise_drafts')
-      .upsert(
-        {
-          id: body.id,
-          user_id: user.id,
-          seed: body.seed || null,
-          question: body.question || null,
-          messages: body.messages,
-          phase: body.phase,
-          ready_to_advance: body.ready_to_advance ?? false,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' }
-      )
+    const row: Record<string, unknown> = {
+      id: body.id,
+      user_id: user.id,
+      seed: body.seed || null,
+      question: body.question || null,
+      messages: body.messages,
+      phase: body.phase,
+      ready_to_advance: body.ready_to_advance ?? false,
+      updated_at: new Date().toISOString(),
+    }
+    // Only sent when true, so ordinary drafts never depend on migration 023.
+    if (body.brought) row.brought = true
+
+    let { error } = await supabase.from('conceptualise_drafts').upsert(row, { onConflict: 'id' })
+    if (error && row.brought) {
+      // Column not there yet — keep the draft, lose only the flag.
+      delete row.brought
+      ;({ error } = await supabase.from('conceptualise_drafts').upsert(row, { onConflict: 'id' }))
+    }
 
     if (error) {
       console.error('conceptualise draft upsert error:', error)

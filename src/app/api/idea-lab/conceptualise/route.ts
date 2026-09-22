@@ -18,6 +18,8 @@ interface ConceptualiseRequest {
   phase: number;
   seed?: string;
   question?: string;
+  /** The person arrived with an idea they already carry ("Bring an idea"). */
+  brought?: boolean;
 }
 
 const PHASE_PROMPTS: Record<number, string> = {
@@ -106,6 +108,12 @@ export async function POST(request: NextRequest) {
       ? `\nTHE QUESTION THAT OPENED THIS:\n"${body.question}"\nThis is what the person was responding to when they started. Let it inform the shape of the conversation without quoting it back.`
       : '';
 
+    // A brought idea has already been lived with — don't treat it as a raw
+    // spark. Receive what's worked out, find what's still unresolved.
+    const broughtContext = body.brought
+      ? `\nTHE PERSON BROUGHT THIS IDEA WITH THEM:\nThey've already been carrying it, maybe for a while. Don't re-explain it to them or start it from zero. Receive what they've worked out, notice what's settled and what's still loose, and spend your questions on the loose parts. If a phase's work is already answered by what they brought, complete it quickly.`
+      : '';
+
     // Stable across most of a conceptualise session — only companionContext
     // and the intro ever change turn to turn, and companionContext is itself
     // usually stable within one sitting (it's built from check-ins/pieces
@@ -117,7 +125,7 @@ ${COMPANION_TONE}
 
 ${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this phase's work is genuinely done — the person has answered the phase's question with something real, not just acknowledged it — end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit it on the first turn of a phase.`;
 
-    const volatileSystemBlock = `${PHASE_PROMPTS[nextPhase]}${questionContext}`;
+    const volatileSystemBlock = `${PHASE_PROMPTS[nextPhase]}${questionContext}${broughtContext}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to

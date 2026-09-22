@@ -455,6 +455,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               rules: projectRules,
               vision_x: project.vision_x,
               vision_y: project.vision_y,
+              conceptualisation_log: project.conceptualisation_log,
             }}
             pieces={roots}
             threads={tree.threads}

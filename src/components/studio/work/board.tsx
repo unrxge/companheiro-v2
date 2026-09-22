@@ -57,6 +57,7 @@ export interface BoardProject {
   rules: Rule[]
   vision_x: number | null
   vision_y: number | null
+  conceptualisation_log?: Array<{ role: 'user' | 'assistant'; content: string }> | null
 }
 
 export interface BoardActions {
@@ -470,6 +471,7 @@ export function Board({
             onEditIntent={actions.editProjectIntent}
             onEditRules={actions.editProjectRules}
             disabled={disabled}
+            conversationLog={project.conceptualisation_log}
           />
         </div>
 

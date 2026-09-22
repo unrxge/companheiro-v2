@@ -133,12 +133,14 @@ export default function CoreConceptPage() {
         short_form_goals: sections.phase4.content.short_form_goals || '',
         open_threads: sections.phase4.content.open_threads || '',
         conversation_history: conversation,
+        brought_idea: sessionStorage.getItem('brought_idea'),
       }
       const res = await fetch('/api/idea-lab/core-concept/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(documentData) })
       const data = await res.json()
       if (data.success) {
         const bringIdeaFlow = sessionStorage.getItem('bring_idea_flow') === 'true'
         sessionStorage.removeItem('bring_idea_flow')
+        sessionStorage.removeItem('brought_idea')
         sessionStorage.removeItem('conceptualisation_conversation')
         // Both branches route by project id, not a piece id — the project's
         // own single-piece auto-open (work-page.tsx) takes it straight into
