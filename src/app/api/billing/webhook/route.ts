@@ -25,21 +25,27 @@ function mapStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
 }
 
 async function syncSubscription(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata.user_id
+  // Defensive optional chaining throughout: a thin-payload event carries only
+  // an id and type, not these fields, and shouldn't crash the handler even
+  // though we don't otherwise expect to receive one (see plans.ts / the
+  // dashboard destination should only route snapshot-format events here).
+  const userId = subscription.metadata?.user_id
   if (!userId) {
     console.error('billing webhook: subscription missing user_id metadata', subscription.id)
     return
   }
-  const priceId = subscription.items.data[0]?.price.id
+  const item = subscription.items?.data?.[0]
+  const priceId = item?.price?.id
   const tier = priceId ? tierForPriceId(priceId) : null
-  const periodEnd = subscription.items.data[0]?.current_period_end
+  const periodEnd = item?.current_period_end
+  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id
 
   const { error } = await adminClient()
     .from('subscriptions')
     .update({
       status: mapStatus(subscription.status),
       tier,
-      stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
+      stripe_customer_id: customerId,
       stripe_subscription_id: subscription.id,
       current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       cancel_at_period_end: subscription.cancel_at_period_end,
