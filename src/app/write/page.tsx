@@ -194,6 +194,10 @@ function WriteContent() {
   useWritingTimeTracker(!!nodeId)
 
   const [piece, setPiece] = useState<PieceCore | null>(null)
+  // Still one piece on its own: offer to make a project of it (a board where
+  // more pieces and threads can join it).
+  const [lonePiece, setLonePiece] = useState(false)
+  const [makingProject, setMakingProject] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [title, setTitle] = useState('')
   const [sections, setSections] = useState<Section[]>([])
@@ -311,6 +315,7 @@ function WriteContent() {
       if (pieceData.success) {
         setPiece(pieceData.piece)
         setTitle(pieceData.piece.title || '')
+        setLonePiece(Boolean(pieceData.lone_piece))
       }
       setSections(ensureSectionsHtml(sectionsData.sections || []))
       setAnchorLines(sectionsData.anchorLines || [])
@@ -1012,6 +1017,27 @@ function WriteContent() {
           </div>
         )}
         <div className="flex items-center gap-2 min-w-0">
+          {lonePiece && piece?.project_id && (
+            <GhostButton
+              size="sm"
+              loading={makingProject}
+              loadingLabel="Creating…"
+              onClick={async () => {
+                setMakingProject(true)
+                await flushSections()
+                const res = await fetch(`/api/studio/projects/${piece.project_id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ settings: { board: true } }),
+                })
+                if (res.ok) { router.push(`/p/${piece.project_id}`); return }
+                setMakingProject(false)
+              }}
+            >
+              <span className="hidden sm:inline">Create a project from this piece</span>
+              <span className="sm:hidden">Make a project</span>
+            </GhostButton>
+          )}
           {canDivide && (
             <IconButton
               ariaLabel={

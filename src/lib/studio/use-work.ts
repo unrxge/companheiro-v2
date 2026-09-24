@@ -9,7 +9,7 @@ import { work } from '@/lib/studio/work-api'
 import type {
   CheckOutcome, Rule, RuleCheck, Thread, ThreadHue, ThreadTag, TreePayload, WorkNode,
 } from '@/lib/studio/node-types'
-import type { Project } from '@/lib/studio/types'
+import type { Project, ProjectSettings } from '@/lib/studio/types'
 import { buildTree, wordCount } from '@/lib/studio/tree'
 
 export type WorkState =
@@ -93,8 +93,9 @@ export function useWork(projectId: string) {
     editProject: async (patch: {
       title?: string; intent?: string; rules?: Rule[]
       vision_x?: number | null; vision_y?: number | null
+      settings?: Partial<ProjectSettings>
     }) => {
-      setProject((prev) => (prev ? { ...prev, ...patch } : prev))
+      setProject((prev) => (prev ? { ...prev, ...patch, settings: { ...prev.settings, ...patch.settings } } : prev))
       await guard(() => work.patchProject(projectId, patch))
     },
 

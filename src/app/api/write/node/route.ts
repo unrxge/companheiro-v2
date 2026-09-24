@@ -56,6 +56,20 @@ export async function GET(request: NextRequest) {
 
     // Writing in a piece counts as opening its project (the Project Board sorts
     // by last accessed). Best-effort: never blocks the bundle.
+    // Whether this is still a single piece on its own (one root, no threads,
+    // never turned into a project) — the writing page then offers "Create a
+    // project from this piece". Same test as the project page's skip.
+    let lonePiece = false
+    if (node.project_id) {
+      const [{ data: roots }, { count: threadCount }, { data: project }] = await Promise.all([
+        supabase.from('studio_nodes').select('id').eq('project_id', node.project_id).is('parent_id', null).limit(2),
+        supabase.from('studio_node_threads').select('node_id', { count: 'exact', head: true }).eq('node_id', node.id),
+        supabase.from('studio_projects').select('settings').eq('id', node.project_id).maybeSingle(),
+      ])
+      lonePiece = roots?.length === 1 && roots[0].id === node.id && !threadCount &&
+        !(project?.settings as { board?: boolean } | null)?.board
+    }
+
     if (node.project_id) {
       const { error: openError } = await supabase.rpc('studio_open_project', { p_project_id: node.project_id })
       if (openError) console.error('studio_open_project error:', openError)
@@ -79,6 +93,7 @@ export async function GET(request: NextRequest) {
         writing_ethos: node.writing_ethos || '',
         tasks: (tasksData || []) as Task[],
       },
+      lone_piece: lonePiece,
     })
   } catch (error) {
     console.error('Write node bundle error:', error)

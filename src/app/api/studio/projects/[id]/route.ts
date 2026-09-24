@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.settings !== undefined) {
       if (!isRecord(body.settings)) throw badRequest('settings must be an object')
       const next = { ...project.settings }
-      for (const key of ['snap', 'grid', 'sizes'] as const) {
+      for (const key of ['snap', 'grid', 'sizes', 'board'] as const) {
         if (body.settings[key] !== undefined) {
           if (typeof body.settings[key] !== 'boolean') throw badRequest(`settings.${key} must be a boolean`)
           next[key] = body.settings[key] as boolean

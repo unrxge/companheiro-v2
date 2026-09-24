@@ -259,9 +259,23 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   // not persisted (idea-lab-trajectory-layer convention): the moment a second
   // root piece is added via the board's own "add a piece" affordance, this
   // stops matching and the next load falls back to the board on its own.
-  const singlePieceNode = focus.kind === 'project' && roots.length === 1 && roots[0].threads.length === 0
+  //
+  // "Create a project from this piece" sets settings.board, which turns the
+  // skip off for good: the one piece shows as a card, ready for more.
+  const lonePiece = roots.length === 1 && roots[0].threads.length === 0 && !project?.settings?.board
     ? roots[0]
     : null
+  const singlePieceNode = focus.kind === 'project' ? lonePiece : null
+  // While the piece is alone, "the project" would only bounce back here —
+  // so up goes to the shelf instead.
+  const goUp = useCallback(() => (lonePiece ? goShelf() : goProject()), [lonePiece, goShelf, goProject])
+  const [makingProject, setMakingProject] = useState(false)
+  const makeProject = useCallback(async () => {
+    if (!project) return
+    setMakingProject(true)
+    await api.editProject({ settings: { board: true } })
+    goProject()
+  }, [api, goProject, project])
   useEffect(() => {
     if (state.status !== 'ready' || !singlePieceNode) return
     router.replace(`/p/${projectId}/n/${singlePieceNode.id}`)
@@ -506,10 +520,15 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                 {node.body.trim() || node.children.length > 0 ? 'Resume writing' : 'Begin writing'}
               </QuietButton>
             )}
+            {focus.kind === 'node' && node && lonePiece?.id === node.id && (
+              <QuietButton onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
+                Create a project from this piece
+              </QuietButton>
+            )}
             {focus.kind === 'node' && node && <ViewSwitch view={view} onChange={setView} />}
           </div>
         }
-        back={() => goProject()}
+        back={goUp}
       />
 
       <Container
@@ -524,7 +543,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             steps={focus.kind === 'node' ? trail : []}
             onGo={(id) => goNode(id)}
             projectTitle={project.title}
-            onGoProject={() => goProject()}
+            onGoProject={goUp}
           />
 
           {checks}

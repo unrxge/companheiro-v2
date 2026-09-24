@@ -11,7 +11,12 @@ export type Hue = 'ember' | 'verdant' | 'violet' | 'ochre' | 'tide'
 
 // ── project ────────────────────────────────────────────────────────────────
 export type ProjectStatus = 'active' | 'resting' | 'finished' | 'kept' | 'abandoned'
-export interface ProjectSettings { snap: boolean; grid: boolean; sizes: boolean }
+export interface ProjectSettings {
+  snap: boolean; grid: boolean; sizes: boolean
+  /** Set by "Create a project from this piece": show the board even while
+   *  there is only one piece, instead of skipping straight to the writing. */
+  board?: boolean
+}
 
 export interface Project {
   id: string
