@@ -74,8 +74,18 @@ function ConceptualiseContent() {
       fetchAIResponse([seedMessage], 1)
       return
     }
-    // Nothing to fetch yet: the conversation starts with their first message.
-    if (bringMode) return
+    // Opened from the Idea Lab's "Bring an idea" box: that text is the first turn.
+    if (bringMode) {
+      const opening = sessionStorage.getItem('brought_opening')
+      sessionStorage.removeItem('brought_opening')
+      if (opening) {
+        const first: ThreadMessage = { role: 'user', content: opening }
+        broughtSeedRef.current = opening
+        setMessages([first])
+        fetchAIResponse([first], 1)
+      }
+      return
+    }
     if (resumeId) {
       const autoResume = async () => {
         try {

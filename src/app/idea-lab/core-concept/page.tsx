@@ -61,6 +61,8 @@ export default function CoreConceptPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showConversation, setShowConversation] = useState(false)
+  // Came via "Skip to the core concept": there's no conversation to go back to.
+  const skippedConversation = conversation.length === 1 && conversation[0].role === 'user'
   const [showTaskReview, setShowTaskReview] = useState(false)
   const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -238,7 +240,7 @@ export default function CoreConceptPage() {
         eyebrow="Idea Lab"
         title="Core concept"
         size="md"
-        back="/idea-lab/conceptualise"
+        back={skippedConversation ? '/idea-lab' : '/idea-lab/conceptualise'}
         actions={conversation.length > 0 ? <GhostButton size="sm" onClick={() => setShowConversation(true)}>Conversation</GhostButton> : undefined}
       />
 
