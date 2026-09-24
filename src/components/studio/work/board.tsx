@@ -24,7 +24,7 @@ import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from 
 import { hueOf } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
-import type { Appearance, CheckOutcome, Rule, RuleCheck, Thread, ThreadTag, TreeNode } from '@/lib/studio/node-types'
+import type { Appearance, CheckOutcome, Rule, RuleCheck, Thread, ThreadHue, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 import {
   MARGIN, growWorld, laneCardWidth, laneSlot, packRow, smoothPath, toWorld, type Point,
 } from '@/lib/studio/surface'
@@ -35,9 +35,16 @@ const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
-const ADD_GAP = 16      // between the "add a piece" and "add a thread" spots —
-                         // they read as one stacked unit, not two separate rows
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
+const ADD_THREAD_D = 30    // the "+ thread" button set into each card's bottom edge
+// Connection points fan out from both sides of that button rather than from
+// the card's centre, so a thread's touchdown never lands underneath it.
+const MARKER_INSET = ADD_THREAD_D / 2 + 10
+// A piece keeps one colour of its own, by its place in the order, and every
+// thread started from it is born that colour — so which card a thread came
+// from is readable from the line itself.
+const PIECE_HUES: ThreadHue[] = ['ember', 'verdant', 'violet', 'ochre', 'tide']
+const pieceHue = (i: number): ThreadHue => PIECE_HUES[i % PIECE_HUES.length]
 const NOTICE_GAP = 24
 // Its own scale, not the vision panel's — a collision is a nudge, not
 // content, and wants the room to stay almost as short as its title, not a
@@ -72,9 +79,10 @@ export interface BoardActions {
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
   movePiece: (id: string, at: Point | null) => void
-  /** Makes a new, unattached thread. Opened straight away so it can be named
-   *  and connected to its first pieces from the checklist. */
-  addThread: () => Promise<Thread | null>
+  /** Makes a new thread in the given colour. Started from a piece's own
+   *  "+" button, so it is tagged to that piece and opened straight away to
+   *  be named and run on to the others. */
+  addThread: (hue?: ThreadHue) => Promise<Thread | null>
   editThread: (id: string, patch: Partial<Thread>) => void
   removeThread: (id: string) => void
   moveThread: (id: string, at: Point | null) => void
@@ -173,19 +181,17 @@ export function Board({
   // Drag it away and the lane is free to rise back to its usual place.
   const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + gapBelowVision)
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
-  // The "add a piece" spot gives up some of its own height so a matching
-  // "add a thread" card — the same size as a real one — can sit right
-  // underneath it: one fixed column for adding to the board, instead of a
-  // box that has to go looking for wherever the threads currently are.
-  const addColW = HUB_W
-  const addPieceH = Math.max(140, cardH - ADD_GAP - HUB_H)
+  // The "add a piece" spot is the size of the piece it would make: it sits
+  // at the end of the lane reading as the next card, now that nothing else
+  // shares its column. (Threads are started from each card's own edge.)
+  const addColW = cardW
+  const addPieceH = cardH
   const addHelpH = pieces.length === 0 ? 54 : 0
 
   /** Where a piece sits: hand-placed from before this became fixed, or in
    *  its reading-order lane. Pieces are no longer dragged — the "add a
-   *  thread" and "add a piece" spots kept drifting into odd places as the
-   *  layout around them moved, so only the threads and the title still
-   *  pick up and put down. */
+   *  piece" spot kept drifting into odd places as the layout around it
+   *  moved, so only the threads and the title still pick up and put down. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point =>
     ({ x: piece.board_x ?? cardX(i), y: piece.board_y ?? cardTop }),
   [cardX, cardTop])
@@ -207,8 +213,8 @@ export function Board({
   }, [threads, appearancesFor])
 
   /** The threads that actually have a hub — the ones with at least one piece.
-   *  A brand-new thread with nothing on it yet lives only in its own card,
-   *  reached through the "+ thread" button, until it has its first line. */
+   *  A thread started from a card is tagged to it immediately, so it has a
+   *  hub from birth. */
   const hubs = useMemo(
     () => threads.filter((th) => (presence.get(th.id)?.roots.size ?? 0) > 0),
     [threads, presence],
@@ -251,7 +257,7 @@ export function Board({
     let w = { w: frame.w || 0, h: frame.h || 0 }
     w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
-    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH + ADD_GAP + HUB_H)
+    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (checks.length > 0) {
       // The row's own full width, not one notice's — however many of them
@@ -279,8 +285,13 @@ export function Board({
    *  not draw on top of each other. */
   const markersFor = useCallback((pieceId: string) => {
     const mine = hubs.filter((th) => presence.get(th.id)?.roots.has(pieceId))
-    const n = mine.length
-    return mine.map((th, i) => ({ thread: th, dx: (i - (n - 1) / 2) * MARKER_SPACING }))
+    // Left, right, left, right — each pair a step further out from the
+    // "+ thread" button holding the middle of the edge.
+    return mine.map((th, i) => {
+      const side = i % 2 === 0 ? -1 : 1
+      const step = Math.floor(i / 2)
+      return { thread: th, dx: side * (MARKER_INSET + step * MARKER_SPACING) }
+    })
   }, [hubs, presence])
 
   // Escape drops whatever you were in the middle of.
@@ -384,9 +395,13 @@ export function Board({
     actions.tag(piece.id, thread.id)
   }, [actions, arming, pieces.length, presence, threads])
 
-  const addNewThread = useCallback(async () => {
-    const created = await actions.addThread()
-    if (created) setOpenThread(created.id)
+  /** A thread begins on a piece: born in that card's colour, already running
+   *  through it, and opened so it can be named and carried to the others. */
+  const addThreadFrom = useCallback(async (piece: TreeNode, i: number) => {
+    const created = await actions.addThread(pieceHue(i))
+    if (!created) return
+    actions.tag(piece.id, created.id)
+    setOpenThread(created.id)
   }, [actions])
 
   const armedThread = arming ? threads.find((th) => th.id === arming) ?? null : null
@@ -559,6 +574,15 @@ export function Board({
                   }}
                 />
               )}
+              {/* start a thread here — set into the card's own bottom edge,
+                 in this card's colour, which the thread then carries */}
+              {!disabled && (
+                <AddThreadButton
+                  hue={pieceHue(i)}
+                  pieceTitle={piece.title}
+                  onClick={() => void addThreadFrom(piece, i)}
+                />
+              )}
               {/* the connection points along this card's own bottom edge */}
               {markersFor(piece.id).map(({ thread, dx }) => (
                 <Marker
@@ -600,62 +624,38 @@ export function Board({
           )
         })}
 
-        {/* one more piece, and — the same size and style as a real thread
-           card — one more thread right beneath it: the one spot on the
-           board for adding to it, fixed in place regardless of what the
-           threads or the title are currently doing. */}
+        {/* one more piece, at the end of the lane and the size of a real
+           card. Threads no longer have a box of their own here: each one
+           starts from the "+" on the piece it runs through. */}
         {!disabled && (
-          <>
-            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: addColW }}>
-              <button
-                data-hold
-                type="button"
-                aria-label="Add a piece to this project"
-                title="Add a piece"
-                onClick={actions.addPiece}
-                style={{
-                  width: '100%', height: addPieceH,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'transparent', cursor: 'pointer',
-                  border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
-                  color: shell.muted,
-                }}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-              {pieces.length === 0 && (
-                <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center', height: addHelpH - 14, boxSizing: 'border-box' }}>
-                  A piece is one whole thing — a film, a chapter, a song, an essay.
-                </p>
-              )}
-            </div>
-
-            <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop + addPieceH + addHelpH + ADD_GAP, width: HUB_W, height: HUB_H }}>
-              <button
-                data-hold
-                type="button"
-                aria-label="Add a thread to this project"
-                title="Add a thread"
-                onClick={() => void addNewThread()}
-                style={{
-                  width: '100%', height: '100%', boxSizing: 'border-box',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'transparent', cursor: 'pointer',
-                  border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.widget,
-                  color: shell.muted,
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            </div>
-          </>
+          <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: addColW }}>
+            <button
+              data-hold
+              type="button"
+              aria-label="Add a piece to this project"
+              title="Add a piece"
+              onClick={actions.addPiece}
+              style={{
+                width: '100%', height: addPieceH,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'transparent', cursor: 'pointer',
+                border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
+                color: shell.muted,
+              }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            {pieces.length === 0 && (
+              <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center', height: addHelpH - 14, boxSizing: 'border-box' }}>
+                A piece is one whole thing — a film, a chapter, a song, an essay.
+              </p>
+            )}
+          </div>
         )}
+
       </Surface>
 
       {openThread && (
@@ -813,6 +813,45 @@ function HubAct({ label, tone, onClick, children }: { label: string; tone: strin
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
         {children}
+      </svg>
+    </button>
+  )
+}
+
+// ── starting a thread from the piece it runs through ────────────────────────
+
+/** Set into the middle of a card's bottom edge, in that card's own colour.
+ *  The ring is the canvas behind it, so the button reads as a break in the
+ *  card's outline rather than something floating over it. */
+function AddThreadButton({ hue, pieceTitle, onClick }: { hue: ThreadHue; pieceTitle: string; onClick: () => void }) {
+  const { t } = useTheme()
+  const colour = hueOf(t, hue)
+  const [hover, setHover] = useState(false)
+  const label = `Start a thread from ${pieceTitle || 'this piece'}`
+  return (
+    <button
+      data-hold
+      type="button"
+      title="Start a thread here"
+      aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'absolute', left: '50%', bottom: -ADD_THREAD_D / 2,
+        width: ADD_THREAD_D, height: ADD_THREAD_D, marginLeft: -ADD_THREAD_D / 2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 0, borderRadius: '50%', border: 'none', cursor: 'pointer',
+        background: colour, color: t.cardBg,
+        boxShadow: `0 0 0 4px ${shell.ink}, 0 0 0 ${hover ? 8 : 4}px ${alpha(colour, hover ? 0.3 : 0)}`,
+        transform: hover ? 'scale(1.06)' : 'scale(1)',
+        transition: 'transform 140ms ease, box-shadow 140ms ease',
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     </button>
   )

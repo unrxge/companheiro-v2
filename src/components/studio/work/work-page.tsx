@@ -233,7 +233,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
     movePiece: (id, at) => void api.editNode(id, { board_x: at?.x ?? null, board_y: at?.y ?? null }),
-    addThread: () => api.addThread(),
+    addThread: (hue) => api.addThread(hue),
     editThread: (id, patch) => void api.editThread(id, patch),
     removeThread: (id) => void api.removeThread(id),
     moveThread: (id, at) => void api.editThread(id, { board_x: at?.x ?? null, board_y: at?.y ?? null }),
