@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
-import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 
 // "Bring an idea" → "Skip to writing": the idea is already clear, so no
 // conversation and no core-concept document up front. Creates the project
@@ -15,7 +14,8 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as { text?: string };
     // Empty is allowed: skipping straight to a blank page is the point.
     const text = body.text?.trim() ?? "";
-    const title = text ? await quickTitle(text) : "Untitled";
+    // No generated title: naming it is usually the first thing people do.
+    const title = "Untitled";
 
     const { data: project, error: projectError } = await supabase
       .from("studio_projects")
@@ -76,17 +76,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// generatePoeticTitle falls back to the whole input on failure, and odd
-// input can get a sentence back instead of a title — studio_nodes caps
-// titles at 200 chars, so anything not title-shaped becomes its first line.
-async function quickTitle(text: string): Promise<string> {
-  const generated = await generatePoeticTitle({
-    one_sentence: text.slice(0, 1200),
-    conviction_statement: "",
-    emotional_journey: "",
-    core_truth: "",
-  });
-  if (generated && generated.length <= 80 && !generated.includes("\n") && generated !== text) return generated;
-  const firstLine = text.split("\n")[0].trim();
-  return firstLine.length > 80 ? `${firstLine.slice(0, 77).trimEnd()}…` : firstLine || "Untitled";
-}

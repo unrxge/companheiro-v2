@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
@@ -46,7 +46,18 @@ function DashedList({ text }: { text: string }) {
 }
 
 export default function CoreConceptPage() {
+  return (
+    <Suspense fallback={null}>
+      <CoreConceptContent />
+    </Suspense>
+  )
+}
+
+function CoreConceptContent() {
   const router = useRouter()
+  // Read via the router, not window.location: on an in-app navigation the
+  // address bar can update after this page's first effect has already run.
+  const projectParam = useSearchParams().get('project')
   const { t } = useTheme()
   const territories = useTerritories()
 
@@ -74,7 +85,7 @@ export default function CoreConceptPage() {
   const [existingProjectId, setExistingProjectId] = useState<string | null>(null)
 
   useEffect(() => {
-    const pid = new URLSearchParams(window.location.search).get('project')
+    const pid = projectParam
     if (pid) {
       setExistingProjectId(pid)
       fetch(`/api/studio/projects/${pid}`)
@@ -102,7 +113,7 @@ export default function CoreConceptPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [projectParam])
 
   const initializePhase = async (conversationData: ConversationMessage[], phase: number) => {
     setIsLoading(true)

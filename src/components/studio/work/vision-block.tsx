@@ -15,7 +15,7 @@
 // and the rules need a surface to sit on, the title never did.
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 import { useTheme } from '@/components/theme/theme-provider'
 import { RuleList } from '@/components/studio/work/rules'
@@ -80,6 +80,7 @@ export function VisionBlock({
   const liveRules = rules.filter((r) => !r.retired_at).length
   const [renaming, setRenaming] = useState(false)
   const [showLog, setShowLog] = useState(false)
+  const router = useRouter()
   const [draft, setDraft] = useState(title)
   const inputRef = useRef<HTMLInputElement | null>(null)
   useEffect(() => { if (!renaming) setDraft(title) }, [title, renaming])
@@ -147,12 +148,15 @@ export function VisionBlock({
           </svg>
         </button>
         {coreConceptHref && (
-          <Link
-            href={coreConceptHref}
-            style={{ ...canvasType.chip, flexShrink: 0, marginLeft: 6, color: t.ember, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          <button
+            type="button"
+            // The whole block is a drag handle; keep the press to ourselves.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); router.push(coreConceptHref) }}
+            style={{ ...canvasType.chip, flexShrink: 0, marginLeft: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: t.ember, whiteSpace: 'nowrap' }}
           >
             Build the core concept →
-          </Link>
+          </button>
         )}
       </div>
 
