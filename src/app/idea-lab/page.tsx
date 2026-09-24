@@ -227,6 +227,10 @@ export default function IdeaLabPage() {
     getContext: () => bringTextRef.current.slice(-80),
   })
 
+  // What the box shows, including dictation still being punctuated — the
+  // source of truth for both exits, so a click never sees an empty idea.
+  const bringShown = bringText + (bringInterim ? (bringText && !bringText.endsWith(' ') && !bringText.endsWith('\n') ? ' ' : '') + bringInterim : '')
+
   const leaveBring = () => {
     if (isBringRecording) stopBringRecording()
     clearBringInterim()
@@ -235,7 +239,7 @@ export default function IdeaLabPage() {
 
   // Not settled yet: talk it through, opening with what they wrote.
   const talkItThrough = () => {
-    const text = bringText.trim()
+    const text = bringShown.trim()
     if (!text) return
     if (isBringRecording) stopBringRecording()
     sessionStorage.setItem('brought_opening', text)
@@ -246,7 +250,7 @@ export default function IdeaLabPage() {
   // Straight into writing; the core concept can be built later from the board.
   const [isStarting, setIsStarting] = useState(false)
   const skipToWriting = async () => {
-    const text = bringText.trim()
+    const text = bringShown.trim()
     if (!text || isStarting) return
     if (isBringRecording) stopBringRecording()
     setIsStarting(true)
@@ -255,7 +259,7 @@ export default function IdeaLabPage() {
       const res = await fetch('/api/idea-lab/quick-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
       const data = await res.json()
       if (data.success) { router.push(`/p/${data.project_id}`); return }
-      setError(data.error || 'Could not start the project')
+      setError(data.error || `Could not start the project (${res.status})`)
     } catch {
       setError('Could not start the project')
     }
@@ -343,7 +347,7 @@ export default function IdeaLabPage() {
                   <TextArea
                     autoFocus
                     voice
-                    value={bringText + (bringInterim ? (bringText && !bringText.endsWith(' ') && !bringText.endsWith('\n') ? ' ' : '') + bringInterim : '')}
+                    value={bringShown}
                     onChange={(v) => { clearBringInterim(); setBringText(v) }}
                     onKeyDown={(e) => { if (e.key === 'Escape') leaveBring() }}
                     placeholder="Write freely…"
@@ -355,14 +359,18 @@ export default function IdeaLabPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <MicButton recording={isBringRecording} onToggle={toggleBringRecording} size={44} />
                     <div style={{ flex: 1, minWidth: 200 }}>
-                      <PrimaryButton onClick={talkItThrough} disabled={!bringText.trim()} full size="lg">Talk it through →</PrimaryButton>
+                      <PrimaryButton onClick={talkItThrough} disabled={!bringShown.trim() || isStarting} full size="lg">Talk it through →</PrimaryButton>
                     </div>
                   </div>
-                  <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center' }}>
-                    Already clear in your head?{' '}
-                    <UnderlineLink onClick={skipToWriting} color={bringText.trim() ? t.ember : t.textMuted}>{isStarting ? 'Starting…' : 'Skip straight to writing'}</UnderlineLink>
-                  </p>
-                  {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, textAlign: 'center' }}>{error}</p>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, flex: 1 }}>Already clear in your head? Skip the conversation and the concept; you can build the concept later from the board.</span>
+                    <GhostButton onClick={skipToWriting} disabled={!bringShown.trim()} loading={isStarting} loadingLabel="Starting…">Skip to writing →</GhostButton>
+                  </div>
+                  {error && (
+                    <div style={{ backgroundColor: t.soft.danger, borderRadius: radius.field, padding: '10px 14px' }}>
+                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </m.div>

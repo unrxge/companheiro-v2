@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       .single();
     if (projectError || !project) {
       console.error("quick-start project insert error:", projectError);
-      return NextResponse.json({ success: false, error: "Failed to create project" }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Failed to create project: ${projectError?.message ?? "unknown"}` }, { status: 500 });
     }
     const projectId = project.id as string;
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     if (nodeError || !node) {
       console.error("quick-start node insert error:", nodeError);
       await supabase.from("studio_projects").delete().eq("id", projectId);
-      return NextResponse.json({ success: false, error: "Failed to create piece" }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Failed to create piece: ${nodeError?.message ?? "unknown"}` }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, project_id: projectId, node_id: node.id });
