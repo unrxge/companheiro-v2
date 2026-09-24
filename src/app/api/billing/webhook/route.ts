@@ -6,7 +6,7 @@ import { tierForPriceId } from '@/lib/billing/plans'
 import type { SubscriptionStatus } from '@/lib/billing/access'
 
 function adminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? '', {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true })
   } catch (error) {
     console.error('billing webhook: handler error', error)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    const reason = error instanceof Error ? error.message : 'unknown error'
+    return NextResponse.json({ error: `Internal error: ${reason}` }, { status: 500 })
   }
 }
