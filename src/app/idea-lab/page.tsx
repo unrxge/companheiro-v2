@@ -251,7 +251,7 @@ export default function IdeaLabPage() {
   const [isStarting, setIsStarting] = useState(false)
   const skipToWriting = async () => {
     const text = bringShown.trim()
-    if (!text || isStarting) return
+    if (isStarting) return
     if (isBringRecording) stopBringRecording()
     setIsStarting(true)
     setError(null)
@@ -362,15 +362,11 @@ export default function IdeaLabPage() {
                       <PrimaryButton onClick={talkItThrough} disabled={!bringShown.trim() || isStarting} full size="lg">Talk it through →</PrimaryButton>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, flex: 1 }}>Already clear in your head? Skip the conversation and the concept; you can build the concept later from the board.</span>
-                    <GhostButton onClick={skipToWriting} disabled={!bringShown.trim()} loading={isStarting} loadingLabel="Starting…">Skip to writing →</GhostButton>
-                  </div>
-                  {error && (
-                    <div style={{ backgroundColor: t.soft.danger, borderRadius: radius.field, padding: '10px 14px' }}>
-                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>
-                    </div>
-                  )}
+                  <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center' }}>
+                    Already clear in your head?{' '}
+                    <UnderlineLink onClick={skipToWriting} color={t.ember}>{isStarting ? 'Starting…' : 'Skip straight to writing'}</UnderlineLink>
+                  </p>
+                  {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, textAlign: 'center' }}>{error}</p>}
                 </div>
               )}
             </m.div>

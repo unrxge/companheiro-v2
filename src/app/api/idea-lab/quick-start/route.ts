@@ -13,16 +13,9 @@ export async function POST(request: NextRequest) {
     const { supabase, user } = auth;
 
     const body = (await request.json()) as { text?: string };
-    const text = body.text?.trim();
-    if (!text) return NextResponse.json({ success: false, error: "Say what the idea is" }, { status: 400 });
-
-    // Falls back to the text itself on failure, so this never blocks.
-    const title = await generatePoeticTitle({
-      one_sentence: text.slice(0, 1200),
-      conviction_statement: "",
-      emotional_journey: "",
-      core_truth: "",
-    });
+    // Empty is allowed: skipping straight to a blank page is the point.
+    const text = body.text?.trim() ?? "";
+    const title = text ? await quickTitle(text) : "Untitled";
 
     const { data: project, error: projectError } = await supabase
       .from("studio_projects")
@@ -81,4 +74,19 @@ export async function POST(request: NextRequest) {
     console.error("quick-start error:", error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
+}
+
+// generatePoeticTitle falls back to the whole input on failure, and odd
+// input can get a sentence back instead of a title — studio_nodes caps
+// titles at 200 chars, so anything not title-shaped becomes its first line.
+async function quickTitle(text: string): Promise<string> {
+  const generated = await generatePoeticTitle({
+    one_sentence: text.slice(0, 1200),
+    conviction_statement: "",
+    emotional_journey: "",
+    core_truth: "",
+  });
+  if (generated && generated.length <= 80 && !generated.includes("\n") && generated !== text) return generated;
+  const firstLine = text.split("\n")[0].trim();
+  return firstLine.length > 80 ? `${firstLine.slice(0, 77).trimEnd()}…` : firstLine || "Untitled";
 }
