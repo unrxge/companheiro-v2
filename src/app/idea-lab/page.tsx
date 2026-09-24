@@ -242,16 +242,26 @@ export default function IdeaLabPage() {
     router.push('/idea-lab/conceptualise?mode=bring')
   }
 
-  // Already clear in their mind: skip the conversation, straight to the concept.
-  const skipToConcept = () => {
+  // Already clear in their mind: no conversation, no concept document.
+  // Straight into writing; the core concept can be built later from the board.
+  const [isStarting, setIsStarting] = useState(false)
+  const skipToWriting = async () => {
     const text = bringText.trim()
-    if (!text) return
+    if (!text || isStarting) return
     if (isBringRecording) stopBringRecording()
-    sessionStorage.setItem('conceptualisation_conversation', JSON.stringify([{ role: 'user' as const, content: text }]))
-    sessionStorage.setItem('brought_idea', text)
-    sessionStorage.setItem('bring_idea_flow', 'true')
-    router.push('/idea-lab/core-concept')
+    setIsStarting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/idea-lab/quick-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+      const data = await res.json()
+      if (data.success) { router.push(`/p/${data.project_id}`); return }
+      setError(data.error || 'Could not start the project')
+    } catch {
+      setError('Could not start the project')
+    }
+    setIsStarting(false)
   }
+
 
 
   const textLink = (onClick: () => void, label: string, active = false) => (
@@ -303,7 +313,7 @@ export default function IdeaLabPage() {
                   </div>
                   <div className="idea-lab-entry">
                     {[
-                      { key: 'bring', eyebrow: 'I have one', title: 'Bring an idea', body: 'Something you’ve been carrying. Talk it through, or go straight to the concept if it’s already clear.', onClick: () => setEntry('bring') },
+                      { key: 'bring', eyebrow: 'I have one', title: 'Bring an idea', body: 'Something you’ve been carrying. Talk it through, or go straight to writing if it’s already clear.', onClick: () => setEntry('bring') },
                       { key: 'summon', eyebrow: 'I need one', title: 'Summon an idea', body: 'Set a lens (movement, territory, energy) and get a question to start from.', onClick: () => setEntry('summon') },
                     ].map((o) => (
                       <m.button
@@ -350,8 +360,9 @@ export default function IdeaLabPage() {
                   </div>
                   <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center' }}>
                     Already clear in your head?{' '}
-                    <UnderlineLink onClick={skipToConcept} color={bringText.trim() ? t.ember : t.textMuted}>Skip to the core concept</UnderlineLink>
+                    <UnderlineLink onClick={skipToWriting} color={bringText.trim() ? t.ember : t.textMuted}>{isStarting ? 'Starting…' : 'Skip straight to writing'}</UnderlineLink>
                   </p>
+                  {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, textAlign: 'center' }}>{error}</p>}
                 </div>
               )}
             </m.div>

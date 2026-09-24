@@ -58,6 +58,8 @@ export interface BoardProject {
   vision_x: number | null
   vision_y: number | null
   conceptualisation_log?: Array<{ role: 'user' | 'assistant'; content: string }> | null
+  /** Set when the project skipped the core concept at the start. */
+  coreConceptHref?: string | null
 }
 
 export interface BoardActions {
@@ -472,6 +474,7 @@ export function Board({
             onEditRules={actions.editProjectRules}
             disabled={disabled}
             conversationLog={project.conceptualisation_log}
+            coreConceptHref={project.coreConceptHref}
           />
         </div>
 

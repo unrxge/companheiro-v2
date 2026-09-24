@@ -19,6 +19,9 @@ interface SaveRequest {
   conversation_history: Array<{ role: "user" | "assistant"; content: string }>;
   /** The idea as the person first brought it, when they came via "Bring an idea". */
   brought_idea?: string | null;
+  /** Building the core concept later for a project that already exists
+   *  (it was started via "Skip to writing"): update it, don't create one. */
+  project_id?: string | null;
 }
 
 interface SaveResponse {
@@ -88,6 +91,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       original_territory: body.thematic_territory,
       normalised_territory: normalisedTerritory,
     })
+
+    if (body.project_id) {
+      return await completeExistingProject(supabase, userId, body, normalisedArc, normalisedTerritory);
+    }
 
     // Generate the poetic title that will represent this idea/piece
     // everywhere in the UI until the user renames it while writing.
@@ -276,4 +283,78 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
       { status: 500 }
     );
   }
+}
+
+function toThreadArray(raw: unknown): string[] {
+  return typeof raw === "string"
+    ? raw.split("\n").map((line) => line.replace(/^\s*[-•\d.)]+\s*/, "").trim()).filter((x) => x.length > 0)
+    : Array.isArray(raw) ? (raw as string[]) : [];
+}
+
+// The core concept arriving after the fact: fills the project's lens and
+// vision and the root piece's concept fields. Title and body are the
+// person's own by now, so neither is touched. No task generation — they're
+// already writing.
+async function completeExistingProject(
+  supabase: Awaited<ReturnType<typeof createRouteClient>>,
+  userId: string,
+  body: SaveRequest,
+  arc: string,
+  territory: string,
+): Promise<NextResponse<SaveResponse>> {
+  const projectId = body.project_id as string;
+  const { data: root, error: rootError } = await supabase
+    .from("studio_nodes")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .is("parent_id", null)
+    .order("position", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (rootError || !root) {
+    return NextResponse.json({ success: false, error: "Project not found" }, { status: 404 });
+  }
+
+  const update: Record<string, unknown> = {
+    arc,
+    thematic_territory: territory,
+    intent: body.conviction_statement,
+  };
+  if (body.conversation_history.length > 1) update.conceptualisation_log = body.conversation_history;
+  let { error: projectError } = await supabase.from("studio_projects").update(update).eq("id", projectId).eq("user_id", userId);
+  if (projectError && update.conceptualisation_log) {
+    delete update.conceptualisation_log; // migration 023 not applied yet
+    ({ error: projectError } = await supabase.from("studio_projects").update(update).eq("id", projectId).eq("user_id", userId));
+  }
+  if (projectError) {
+    console.error("Core concept (existing project) update error:", projectError);
+    return NextResponse.json({ success: false, error: "Failed to save" }, { status: 500 });
+  }
+
+  await supabase.from("studio_concept_revisions").insert({
+    user_id: userId,
+    project_id: projectId,
+    body: body.conviction_statement || body.one_sentence,
+    constraints: [],
+    origin: "edit",
+  });
+
+  const { error: nodeError } = await supabase
+    .from("studio_nodes")
+    .update({
+      intent: body.conviction_statement,
+      emotional_journey: body.emotional_journey,
+      core_truth: body.core_truth,
+      substack_goals: body.substack_goals,
+      short_form_goals: body.short_form_goals,
+      open_threads: toThreadArray(body.open_threads),
+    })
+    .eq("id", root.id);
+  if (nodeError) {
+    console.error("Core concept (existing project) node update error:", nodeError);
+    return NextResponse.json({ success: false, error: "Failed to save" }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, project_id: projectId, node_id: root.id as string, tasks: [] });
 }

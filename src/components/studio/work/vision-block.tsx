@@ -15,6 +15,7 @@
 // and the rules need a surface to sit on, the title never did.
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 import { useTheme } from '@/components/theme/theme-provider'
 import { RuleList } from '@/components/studio/work/rules'
@@ -57,6 +58,7 @@ export function VisionBlock({
   onEditRules,
   disabled,
   conversationLog,
+  coreConceptHref,
 }: {
   title: string
   /** From visionWidth(cardW) — kept in proportion with the cards below it. */
@@ -71,6 +73,8 @@ export function VisionBlock({
   disabled: boolean
   /** The Idea Lab conversation behind this project, when there was one. */
   conversationLog?: ConversationLogMessage[] | null
+  /** Where to build the core concept, when the project skipped it. */
+  coreConceptHref?: string | null
 }) {
   const { t } = useTheme()
   const liveRules = rules.filter((r) => !r.retired_at).length
@@ -142,6 +146,14 @@ export function VisionBlock({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
+        {coreConceptHref && (
+          <Link
+            href={coreConceptHref}
+            style={{ ...canvasType.chip, flexShrink: 0, marginLeft: 6, color: t.ember, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            Build the core concept →
+          </Link>
+        )}
       </div>
 
       {/* the vision and the rules: boxed, and only ever here when asked for.

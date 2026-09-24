@@ -62,7 +62,6 @@ export default function CoreConceptPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [showConversation, setShowConversation] = useState(false)
   // Came via "Skip to the core concept": there's no conversation to go back to.
-  const skippedConversation = conversation.length === 1 && conversation[0].role === 'user'
   const [showTaskReview, setShowTaskReview] = useState(false)
   const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -70,7 +69,27 @@ export default function CoreConceptPage() {
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
 
+  // ?project=<id>: building the core concept later, for a project started
+  // via "Skip to writing". Seeded from what the project already holds.
+  const [existingProjectId, setExistingProjectId] = useState<string | null>(null)
+
   useEffect(() => {
+    const pid = new URLSearchParams(window.location.search).get('project')
+    if (pid) {
+      setExistingProjectId(pid)
+      fetch(`/api/studio/projects/${pid}`)
+        .then((res) => res.json())
+        .then((data) => {
+          const project = data.bundle?.project
+          if (!project) { setError('Could not load this project'); return }
+          const log = project.conceptualisation_log as ConversationMessage[] | null | undefined
+          const seeded: ConversationMessage[] = log && log.length > 0 ? log : [{ role: 'user', content: `${project.title}\n\n${project.intent ?? ''}`.trim() }]
+          setConversation(seeded)
+          initializePhase(seeded, 1)
+        })
+        .catch(() => setError('Could not load this project'))
+      return
+    }
     const stored = sessionStorage.getItem('conceptualisation_conversation')
     if (stored) {
       try {
@@ -135,7 +154,8 @@ export default function CoreConceptPage() {
         short_form_goals: sections.phase4.content.short_form_goals || '',
         open_threads: sections.phase4.content.open_threads || '',
         conversation_history: conversation,
-        brought_idea: sessionStorage.getItem('brought_idea'),
+        brought_idea: existingProjectId ? null : sessionStorage.getItem('brought_idea'),
+        project_id: existingProjectId,
       }
       const res = await fetch('/api/idea-lab/core-concept/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(documentData) })
       const data = await res.json()
@@ -147,7 +167,8 @@ export default function CoreConceptPage() {
         // Both branches route by project id, not a piece id — the project's
         // own single-piece auto-open (work-page.tsx) takes it straight into
         // writing when there's nothing else on the board yet.
-        if (bringIdeaFlow) router.push(`/p/${data.project_id}`)
+        if (existingProjectId) router.push(`/p/${existingProjectId}`)
+        else if (bringIdeaFlow) router.push(`/p/${data.project_id}`)
         else { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
       } else setError(data.error || 'Failed to save document')
     } catch (err) {
@@ -240,7 +261,7 @@ export default function CoreConceptPage() {
         eyebrow="Idea Lab"
         title="Core concept"
         size="md"
-        back={skippedConversation ? '/idea-lab' : '/idea-lab/conceptualise'}
+        back={existingProjectId ? `/p/${existingProjectId}` : '/idea-lab/conceptualise'}
         actions={conversation.length > 0 ? <GhostButton size="sm" onClick={() => setShowConversation(true)}>Conversation</GhostButton> : undefined}
       />
 

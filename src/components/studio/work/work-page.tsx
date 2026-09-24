@@ -456,6 +456,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               vision_x: project.vision_x,
               vision_y: project.vision_y,
               conceptualisation_log: project.conceptualisation_log,
+              // Started via "Skip straight to writing": offer the core concept later.
+              coreConceptHref: roots.length > 0 && !roots[0].core_truth ? `/idea-lab/core-concept?project=${projectId}` : null,
             }}
             pieces={roots}
             threads={tree.threads}
