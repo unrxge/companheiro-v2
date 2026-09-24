@@ -59,7 +59,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 /** POST /api/billing/webhook — Stripe event delivery. */
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature')
-  const secret = process.env.STRIPE_WEBHOOK_SECRET
+  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim()
   if (!signature || !secret) {
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
   }

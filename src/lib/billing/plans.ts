@@ -3,12 +3,12 @@ export type Interval = 'monthly' | 'yearly'
 
 const PRICE_ENV: Record<Tier, Record<Interval, string | undefined>> = {
   practice: {
-    monthly: process.env.STRIPE_PRICE_PRACTICE_MONTHLY,
-    yearly: process.env.STRIPE_PRICE_PRACTICE_YEARLY,
+    monthly: process.env.STRIPE_PRICE_PRACTICE_MONTHLY?.trim(),
+    yearly: process.env.STRIPE_PRICE_PRACTICE_YEARLY?.trim(),
   },
   direction: {
-    monthly: process.env.STRIPE_PRICE_DIRECTION_MONTHLY,
-    yearly: process.env.STRIPE_PRICE_DIRECTION_YEARLY,
+    monthly: process.env.STRIPE_PRICE_DIRECTION_MONTHLY?.trim(),
+    yearly: process.env.STRIPE_PRICE_DIRECTION_YEARLY?.trim(),
   },
 }
 
