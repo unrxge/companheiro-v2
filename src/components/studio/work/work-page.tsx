@@ -501,6 +501,10 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     focus.kind === 'thread' ? thread?.name || 'A thread'
     : node?.title || 'Untitled'
 
+  // A piece that skipped the concept is already on a writing page; the full studio stays on the board's piece card.
+  const isLone = !!node && lonePiece?.id === node.id
+  const offerFullStudio = !!node && !node.parent_id && !(isLone && !node.core_truth)
+
   return (
     <PageShell mood="tide">
       <PageHeader
@@ -508,25 +512,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         title={headerTitle}
         size="md"
         actions={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span
-              aria-live="polite"
-              style={{ ...canvasType.chip, color: shell.muted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
-            >
-              Saving…
-            </span>
-            {focus.kind === 'node' && node && !node.parent_id && (
-              <QuietButton onClick={() => router.push(`/write?node_id=${node.id}`)}>
-                {node.body.trim() || node.children.length > 0 ? 'Resume writing' : 'Begin writing'}
-              </QuietButton>
-            )}
-            {focus.kind === 'node' && node && lonePiece?.id === node.id && (
-              <QuietButton onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
-                Create a project from this piece
-              </QuietButton>
-            )}
-            {focus.kind === 'node' && node && <ViewSwitch view={view} onChange={setView} />}
-          </div>
+          <span
+            aria-live="polite"
+            style={{ ...canvasType.chip, color: shell.muted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}
+          >
+            Saving…
+          </span>
         }
         back={goUp}
       />
@@ -539,12 +530,47 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <Trail
-            steps={focus.kind === 'node' ? trail : []}
-            onGo={(id) => goNode(id)}
-            projectTitle={project.title}
-            onGoProject={goUp}
-          />
+          {/* Piece controls sit here, not in the header, so the title keeps its room on a phone. */}
+          <style>{`
+            .piece-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+            .piece-bar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+            .piece-bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+            /* On a phone the view switch stays beside the trail and the buttons drop to their own row. */
+            @media (max-width: 719px) {
+              .piece-bar-tools { display: contents; }
+              .piece-bar-switch { order: 1; margin-left: auto; }
+              .piece-bar-actions { order: 2; flex-basis: 100%; }
+            }
+          `}</style>
+          <div className="piece-bar">
+            <Trail
+              steps={focus.kind === 'node' ? trail : []}
+              onGo={(id) => goNode(id)}
+              projectTitle={project.title}
+              onGoProject={goUp}
+            />
+            {focus.kind === 'node' && node && (
+              <div className="piece-bar-tools">
+                {(offerFullStudio || isLone) && (
+                  <div className="piece-bar-actions">
+                    {offerFullStudio && (
+                      <GhostButton size="sm" onClick={() => router.push(`/write?node_id=${node.id}`)}>
+                        {node.body.trim() || node.children.length > 0 ? 'Resume writing' : 'Begin writing'}
+                      </GhostButton>
+                    )}
+                    {isLone && (
+                      <GhostButton size="sm" onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
+                        Create a project from this piece
+                      </GhostButton>
+                    )}
+                  </div>
+                )}
+                <div className="piece-bar-switch">
+                  <ViewSwitch view={view} onChange={setView} />
+                </div>
+              </div>
+            )}
+          </div>
 
           {checks}
           {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}

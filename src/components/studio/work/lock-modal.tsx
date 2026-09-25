@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
+import { Portal } from '@/components/ui/portal'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { radius } from '@/lib/design-tokens'
 
@@ -28,6 +29,7 @@ export function LockModal({
   const total = hours * 60 + minutes
 
   return (
+    <Portal>
     <div
       role="presentation"
       onClick={onClose}
@@ -65,6 +67,7 @@ export function LockModal({
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
 

@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { Portal } from '@/components/ui/portal'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { InlineField, hueOf } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -77,6 +78,7 @@ export function ThreadCard({
   }
 
   return (
+    <Portal>
     <div
       role="presentation"
       onClick={onClose}
@@ -238,6 +240,7 @@ export function ThreadCard({
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
 

@@ -3,6 +3,7 @@
 import { AnimatePresence, motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { IconButton } from '@/components/ui/icon-button'
+import { Portal } from '@/components/ui/portal'
 import { radius, shell, type as typeRoles, type Theme } from '@/lib/design-tokens'
 
 /**
@@ -31,6 +32,7 @@ export function ModalDialog({
   const { t } = useTheme()
 
   return (
+    <Portal>
     <AnimatePresence>
       <m.div
         initial={{ opacity: 0 }}
@@ -91,6 +93,7 @@ export function ModalDialog({
         </m.div>
       </m.div>
     </AnimatePresence>
+    </Portal>
   )
 }
 

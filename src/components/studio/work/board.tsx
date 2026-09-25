@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { Portal } from '@/components/ui/portal'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/studio/surface/surface'
 import { PieceCard } from '@/components/studio/work/piece-card'
 import { ThreadCard } from '@/components/studio/work/thread-card'
@@ -936,6 +937,7 @@ function EverywhereDialog({
   const { t } = useTheme()
   const name = thread.name || 'this thread'
   return (
+    <Portal>
     <div
       role="presentation"
       onClick={onCancel}
@@ -973,6 +975,7 @@ function EverywhereDialog({
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
 
