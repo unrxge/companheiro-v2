@@ -20,7 +20,7 @@ const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset']
 
 type Reason = 'trial_ended' | 'fair_use'
 
-type Status = {
+export type Status = {
   subscription: { status: string; tier: 'practice' | 'direction' | null; repeat_trial?: boolean } | null
   access: 'uncapped' | 'capped' | 'no_access'
   usage: { plan: 'trial' | 'practice' | 'direction'; period: string; used_micros: number; cap_micros: number } | null
@@ -120,7 +120,7 @@ export function AccessGate() {
   )
 }
 
-function NearLimitBanner({ plan, onClose }: { plan: 'trial' | 'practice' | 'direction'; onClose: () => void }) {
+export function NearLimitBanner({ plan, onClose }: { plan: 'trial' | 'practice' | 'direction'; onClose: () => void }) {
   const { t } = useTheme()
 
   useEffect(() => {
@@ -193,7 +193,7 @@ function Footer({ onClose, onPlans, plansLabel }: { onClose: () => void; onPlans
   )
 }
 
-function FairUseNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
+export function FairUseNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
   const s = useText()
   const plan = status?.usage?.plan
   const until = plan === 'trial' ? 'you choose a plan' : firstOfNextMonth()
@@ -227,7 +227,7 @@ function FairUseNotice({ status, onClose, onPlans }: { status: Status | null; on
   )
 }
 
-function TrialEndedNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
+export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
   const s = useText()
   const repeat = status?.subscription?.repeat_trial === true
 
