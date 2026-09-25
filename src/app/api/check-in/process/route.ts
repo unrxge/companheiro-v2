@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { SIGNALS_SPEC, JOURNAL_CUE_SPEC, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     const { transcript, local_hour } = await request.json()
     const localHour =
@@ -67,7 +70,7 @@ ${JOURNAL_CUE_SPEC}`
 
     const inferredType = inferCheckInType(transcript, localHour)
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'check-in/process',
       {
         // First turn has no reading yet, so this routes on the entry itself:

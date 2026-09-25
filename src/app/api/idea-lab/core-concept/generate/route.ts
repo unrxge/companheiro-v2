@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { MODELS } from "@/lib/models";
 import { withLanguage } from "@/lib/language";
 import { getUserTerritories, territoryPromptList } from "@/lib/territories-server";
@@ -42,6 +43,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateR
     if (!auth) {
       return NextResponse.json({ content: {} }, { status: 401 });
     }
+    const gated = await aiGate(auth);
+    if (gated) return gated;
 
     const body: GenerateRequest = await request.json();
 
@@ -159,7 +162,7 @@ Return as JSON:
       throw apiError;
     }
 
-    logUsage("idea-lab/core-concept/generate", response.model, response.usage, { phase: body.phase });
+    logUsage(auth.user.id, "idea-lab/core-concept/generate", response.model, response.usage, { phase: body.phase });
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

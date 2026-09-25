@@ -6,6 +6,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireUser, type AuthedContext } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
 import { MODELS } from '@/lib/models'
@@ -98,6 +99,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const auth = await requireUser()
     if (!auth) return unauthorized()
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const body = parseTalkRequest(await readJson(req))
     if (!isUuid(id)) throw notFound()
     const project = await requireProject(auth, id)
@@ -126,7 +129,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       catch: null,
     })
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'studio/talk',
       {
         model: MODELS.deep,

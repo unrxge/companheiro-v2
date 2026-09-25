@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { MODELS } from "@/lib/models";
 import { createRouteClient } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { withLanguage } from "@/lib/language";
 import { logUsage } from "@/lib/usage-log";
 
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
     }
 
     const userId = userData.user.id;
+    const gated = await aiGate({ supabase, user: userData.user });
+    if (gated) return gated;
 
     // Fetch piece (root node)
     const { data: nodeRow, error: pieceError } = await supabase
@@ -79,7 +82,7 @@ Reinterpret this into a short-form video script.`,
       ],
     });
 
-    logUsage("write/translate", response.model, response.usage);
+    logUsage(userId, "write/translate", response.model, response.usage);
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

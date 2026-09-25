@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { PROSE_STANDARD, STORY_STRUCTURE } from "@/lib/writing-craft";
@@ -40,6 +41,8 @@ export async function POST(request: NextRequest) {
     if (!auth) {
       return NextResponse.json({ response: "" }, { status: 401 });
     }
+    const gated = await aiGate(auth);
+    if (gated) return gated;
 
     const body: ChatRequest = await request.json();
 
@@ -210,7 +213,7 @@ ${editInstructions}`;
       { role: "user" as const, content: body.message },
     ];
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'write/chat',
       {
         model: MODELS.deep,

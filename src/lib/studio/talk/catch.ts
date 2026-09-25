@@ -66,7 +66,7 @@ function catchPrompt(c: Candidate, now: Date): string {
 }
 
 /** MODELS.deep decides and writes; returns null on a non-collision or a model failure. */
-async function confirmCatch(c: Candidate, now: Date): Promise<string | null> {
+async function confirmCatch(userId: string, c: Candidate, now: Date): Promise<string | null> {
   try {
     const res = await anthropic.messages.create({
       model: MODELS.deep,
@@ -74,7 +74,7 @@ async function confirmCatch(c: Candidate, now: Date): Promise<string | null> {
       system: withLanguage([COMPANION_TONE, CATCH_SYSTEM].join('\n\n')),
       messages: [{ role: 'user', content: catchPrompt(c, now) }],
     })
-    logUsage('studio/talk/catch', res.model, res.usage)
+    logUsage(userId, 'studio/talk/catch', res.model, res.usage)
     const parsed = parseJsonObject(firstText(res.content as Array<{ type: string; text?: string }>))
     if (!isRecord(parsed) || parsed.collides !== true) return null
     const sentence = isString(parsed.sentence) ? parsed.sentence.trim() : ''
@@ -98,7 +98,7 @@ export async function maybeCatch(
 
   for (const c of list) {
     if (await recentlyCaught(auth, c.refusal.id, now)) continue
-    const sentence = await confirmCatch(c, now)
+    const sentence = await confirmCatch(auth.user.id, c, now)
     if (!sentence) continue
 
     const { data: caught, error } = await auth.supabase

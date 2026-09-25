@@ -22,6 +22,7 @@
     "@tiptap/starter-kit": "^2.27.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "disposable-email-domains-js": "^1.26.0",
     "lucide-react": "^1.31.0",
     "motion": "^13.1.0",
     "next": "^15.5.19",

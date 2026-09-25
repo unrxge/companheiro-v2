@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     const { raw_entry, full_conversation, check_in_id } = await request.json()
     const material = (full_conversation?.trim() || raw_entry?.trim()) as string | undefined
@@ -62,7 +65,7 @@ Return ONLY the prompt itself. No preamble, no explanation. Brief — one to thr
       ],
     })
 
-    logUsage('check-in/journal-prompt', response.model, response.usage)
+    logUsage(auth.user.id, 'check-in/journal-prompt', response.model, response.usage)
 
     const prompt = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
 

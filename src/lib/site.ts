@@ -13,3 +13,8 @@ export const SITE_NAME = 'Companheiro'
 // Kept under 160 characters: this is the line search engines show under the link.
 export const SITE_DESCRIPTION =
   'Your vision is scattered across notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.'
+
+// Where people write to a person rather than a form: fair-use questions and
+// reduced-price requests. Deliberately only ever shown in full, never as a
+// form or a button that pre-fills anything.
+export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() ?? ''

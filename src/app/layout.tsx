@@ -4,6 +4,7 @@ import "./globals.css";
 import LangSync from "@/components/LangSync";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { AccessGate } from "@/components/billing/access-gate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
@@ -80,7 +81,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <LangSync />
         <ThemeProvider>
-          <ConfirmProvider>{children}</ConfirmProvider>
+          <ConfirmProvider>
+            {children}
+            <AccessGate />
+          </ConfirmProvider>
         </ThemeProvider>
       </body>
     </html>

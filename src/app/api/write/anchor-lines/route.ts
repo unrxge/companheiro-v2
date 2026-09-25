@@ -68,7 +68,7 @@ Return the id only.`,
               },
             ],
           })
-          logUsage('write/anchor-lines', response.model, response.usage)
+          logUsage(auth.user.id, 'write/anchor-lines', response.model, response.usage)
           const raw = response.content.find((b) => b.type === 'text')
           const guessed = raw && raw.type === 'text' ? raw.text.trim() : ''
           const match = sections.find((s) => guessed.includes(s.id))

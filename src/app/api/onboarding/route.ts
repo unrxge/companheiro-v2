@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
@@ -50,12 +51,14 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const { messages } = (await request.json()) as { messages: Message[] }
     const history: Message[] = Array.isArray(messages) && messages.length > 0 ? messages : [{ role: 'user', content: 'Hello.' }]
     const userTurns = history.filter((m) => m.role === 'user').length
     const turn = Math.min(3, Math.max(1, userTurns))
     const system = `${OPENING}\n\n${COMPANION_TONE}\n\nYou are now on turn ${turn} of 3.`
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'onboarding',
       { model: MODELS.deep, max_tokens: 400, system: withLanguage(system), messages: history },
       (full) => ({ turn, labels: turn === 3 ? extractLabels(full) : [] })
@@ -99,7 +102,7 @@ export async function PUT(request: NextRequest) {
             system: MAP_SYSTEM,
             messages: [{ role: 'user', content: `Generate a range map and facet seeds for the territory: "${label}"` }],
           })
-          logUsage('onboarding:territory-map', res.model, res.usage)
+          logUsage(auth.user.id, 'onboarding:territory-map', res.model, res.usage)
           const text = res.content.find((b) => b.type === 'text')?.text ?? ''
           const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim())
           if (typeof parsed.rangeMap === 'string' && Array.isArray(parsed.facetSeeds)) {

@@ -12,7 +12,7 @@ export interface PoeticTitleInput {
 // Called once, when a core-concept document is first locked — the title this
 // returns becomes the piece/idea's title until the user renames it while
 // writing. Falls back to one_sentence on any failure so saving never blocks.
-export async function generatePoeticTitle(input: PoeticTitleInput): Promise<string> {
+export async function generatePoeticTitle(userId: string, input: PoeticTitleInput): Promise<string> {
   const summary = `
 What it's about: ${input.one_sentence}
 Conviction: ${input.conviction_statement}
@@ -39,7 +39,7 @@ Rules:
       ],
     })
 
-    logUsage('lib/generate-poetic-title', response.model, response.usage)
+    logUsage(userId, 'lib/generate-poetic-title', response.model, response.usage)
 
     const textContent = response.content.find((block) => block.type === 'text')
     if (!textContent || textContent.type !== 'text') return input.one_sentence

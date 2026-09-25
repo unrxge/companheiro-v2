@@ -1,6 +1,7 @@
 import type { MessageCreateParamsNonStreaming } from '@anthropic-ai/sdk/resources/messages'
 import { anthropic } from './anthropic'
-import { logUsage } from './usage-log'
+import { logUsageLine } from './usage-log'
+import { meterUsage } from './billing/fair-use'
 
 // Text chunks stream raw; if buildMeta is provided, its JSON is appended
 // after this delimiter as the final frame. U+001E (record separator) never
@@ -10,6 +11,7 @@ export const META_DELIMITER = ''
 // Streams a Claude response as text/plain. The client reads incrementally
 // via readTextStream() in lib/stream-client.ts.
 export function streamClaudeText(
+  userId: string,
   route: string,
   params: MessageCreateParamsNonStreaming,
   buildMeta?: (fullText: string) => Record<string, unknown> | Promise<Record<string, unknown>>
@@ -37,7 +39,8 @@ export function streamClaudeText(
         // reads identically to a complete reply unless the client is told,
         // so it's always included regardless of what buildMeta returns.
         const finalMessage = await messageStream.finalMessage()
-        logUsage(route, finalMessage.model, finalMessage.usage)
+        logUsageLine(route, finalMessage.model, finalMessage.usage)
+        await meterUsage(userId, finalMessage.model, finalMessage.usage)
         const meta: Record<string, unknown> = {
           ...(buildMeta ? await buildMeta(fullText) : {}),
           truncated: finalMessage.stop_reason === 'max_tokens',

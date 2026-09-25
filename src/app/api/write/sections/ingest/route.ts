@@ -73,7 +73,7 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
     ],
   })
 
-  logUsage('write/sections/ingest:seed', response.model, response.usage)
+  logUsage(userId, 'write/sections/ingest:seed', response.model, response.usage)
 
   const textBlock = response.content.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') throw new Error('Failed to generate section skeleton')
@@ -183,7 +183,7 @@ ${paragraphs.map((p: string, i: number) => `${i}: "${p.length > 300 ? p.slice(0,
         ],
       })
 
-      logUsage('write/sections/ingest:distribute', distResponse.model, distResponse.usage)
+      logUsage(auth.user.id, 'write/sections/ingest:distribute', distResponse.model, distResponse.usage)
 
       const distBlock = distResponse.content.find((b) => b.type === 'text')
       if (!distBlock || distBlock.type !== 'text') {
@@ -250,7 +250,7 @@ ${sections.map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion
               },
             ],
           })
-          logUsage('write/sections/ingest:place-lines', placeResponse.model, placeResponse.usage)
+          logUsage(auth.user.id, 'write/sections/ingest:place-lines', placeResponse.model, placeResponse.usage)
           const placeBlock = placeResponse.content.find((b) => b.type === 'text')
           if (placeBlock && placeBlock.type === 'text') {
             const placeCleaned = placeBlock.text.replace(/```json\n?|\n?```/g, '').trim()

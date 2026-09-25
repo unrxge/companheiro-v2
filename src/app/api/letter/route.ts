@@ -103,7 +103,7 @@ Rules for the letter:
       system: withLanguage(system),
       messages: [{ role: 'user', content: `Here is the week (${weekKey} to ${toDateOnly(weekEnd)}):\n\n${material}\n\nWrite the letter.` }],
     })
-    logUsage('letter', res.model, res.usage)
+    logUsage(auth.user.id, 'letter', res.model, res.usage)
     const body = res.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
     if (!body) return NextResponse.json({ letter: null, optedIn: true, error: 'empty' }, { status: 500 })
 

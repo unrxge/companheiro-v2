@@ -98,7 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
 
     // Generate the poetic title that will represent this idea/piece
     // everywhere in the UI until the user renames it while writing.
-    const poeticTitle = await generatePoeticTitle({
+    const poeticTitle = await generatePoeticTitle(userId, {
       one_sentence: body.one_sentence,
       conviction_statement: body.conviction_statement,
       emotional_journey: body.emotional_journey,
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         "conceptualise",
         `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
       ),
-      generateTasks({
+      generateTasks(userId, {
         one_sentence: body.one_sentence,
         arc: normalisedArc,
         conviction_statement: body.conviction_statement,

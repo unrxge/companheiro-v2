@@ -28,6 +28,16 @@ export default function SignupPage() {
     }
     setLoading(true)
     try {
+      const check = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (!check.ok) {
+        const d = await check.json().catch(() => ({}))
+        setError(d.error || 'Please check the address and try again.')
+        return
+      }
       const { data, error: err } = await createClient().auth.signUp({
         email: email.trim(),
         password,

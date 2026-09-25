@@ -4,6 +4,12 @@
 // as a usage report until there's Admin API access to pull real numbers
 // from. Never throws: a logging line must never be the reason a request
 // fails.
+//
+// It also feeds the fair-use meter (lib/billing/fair-use.ts), which is why
+// every call site passes the user it's spending on.
+import { after } from 'next/server'
+import { meterUsage } from './billing/fair-use'
+
 export interface UsageLike {
   input_tokens?: number | null
   output_tokens?: number | null
@@ -12,6 +18,27 @@ export interface UsageLike {
 }
 
 export function logUsage(
+  userId: string,
+  route: string,
+  model: string,
+  usage: UsageLike | null | undefined,
+  extra?: Record<string, unknown>
+): void {
+  logUsageLine(route, model, usage, extra)
+  if (!usage) return
+  const record = () => meterUsage(userId, model, usage)
+  try {
+    // Runs after the response is sent, so metering adds no latency.
+    after(record)
+  } catch {
+    // Outside a request scope (scripts, tests): record directly.
+    void record()
+  }
+}
+
+// The log line alone, for callers that meter on their own (lib/streaming.ts
+// awaits the meter before closing its stream instead of deferring it).
+export function logUsageLine(
   route: string,
   model: string,
   usage: UsageLike | null | undefined,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
@@ -13,6 +14,8 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     const { node_id, force } = await request.json()
     if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
@@ -68,7 +71,7 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
       ],
     })
 
-    logUsage('write/sections/seed', response.model, response.usage)
+    logUsage(auth.user.id, 'write/sections/seed', response.model, response.usage)
 
     const textContent = response.content.find((b) => b.type === 'text')
     if (!textContent || textContent.type !== 'text') {

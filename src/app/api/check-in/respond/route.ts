@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { SIGNALS_REVISION_SPEC, JOURNAL_CUE_SPEC, hasSignals, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
@@ -18,6 +19,8 @@ export async function POST(request: Request) {
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     // `energy` is the reading so far, sent by the client purely so routing can
     // see that someone is running on empty. Absent is fine. `check_in_id` is
@@ -82,7 +85,7 @@ ${SIGNALS_REVISION_SPEC}
 
 ${JOURNAL_CUE_SPEC}`
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'check-in/respond',
       {
         // This turn and the one before it — never the accumulated session, or

@@ -148,7 +148,7 @@ export async function distillPortrait(
       ],
     })
 
-    logUsage('lib/portrait:distill', response.model, response.usage, { source })
+    logUsage(user.id, 'lib/portrait:distill', response.model, response.usage, { source })
 
     const textContent = response.content.find((b) => b.type === 'text')
     if (!textContent || textContent.type !== 'text') return

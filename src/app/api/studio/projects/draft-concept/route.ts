@@ -3,6 +3,7 @@
 // words; the code checks every verbatim claim and derives references itself.
 // Nothing is persisted here: the person edits the draft, then `make the project`.
 
+import { aiGate } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { MODELS } from '@/lib/models'
@@ -60,7 +61,9 @@ function userMessage(req: DraftConceptRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  return withAuth(async () => {
+  return withAuth(async (auth) => {
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const request = parseRequest(await readJson(req))
     const source = sourceText(request.mode, request.brief, request.answers)
     if (!source) throw badRequest('nothing to read')
@@ -71,7 +74,7 @@ export async function POST(req: NextRequest) {
       system: withLanguage(`${COMPANION_TONE}\n\n${TASK}`),
       messages: [{ role: 'user', content: userMessage(request) }],
     })
-    logUsage('studio/draft-concept', response.model, response.usage, { mode: request.mode })
+    logUsage(auth.user.id, 'studio/draft-concept', response.model, response.usage, { mode: request.mode })
 
     const text = response.content
       .filter((b): b is Extract<(typeof response.content)[number], { type: 'text' }> => b.type === 'text')

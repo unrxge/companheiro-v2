@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { logUsage } from '@/lib/usage-log'
 
@@ -33,6 +34,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateM
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     const { label }: { label: string } = await request.json()
     if (!label || typeof label !== 'string' || label.trim().length < 2) {
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateM
       }],
     })
 
-    logUsage('idea-lab/territories/generate-map', response.model, response.usage)
+    logUsage(auth.user.id, 'idea-lab/territories/generate-map', response.model, response.usage)
 
     const text = response.content.find((b) => b.type === 'text')?.text ?? ''
 

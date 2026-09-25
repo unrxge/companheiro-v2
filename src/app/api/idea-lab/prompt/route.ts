@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { withLanguage } from "@/lib/language";
@@ -254,6 +255,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     if (!auth) {
       return NextResponse.json({ prompt: "" }, { status: 401 });
     }
+    const gated = await aiGate(auth);
+    if (gated) return gated;
 
     const body: PromptRequest = await request.json();
     const previousPrompt = body.previousPrompt?.trim() || undefined;
@@ -407,7 +410,7 @@ Return only the prompt text. No quotation marks, no preamble, no explanation.`;
       messages: [{ role: "user", content: userMessage }],
     });
 
-    logUsage("idea-lab/prompt", response.model, response.usage);
+    logUsage(auth.user.id, "idea-lab/prompt", response.model, response.usage);
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

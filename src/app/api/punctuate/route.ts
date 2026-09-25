@@ -34,7 +34,7 @@ STRICT RULES:
       ],
     })
 
-    logUsage('punctuate', response.model, response.usage)
+    logUsage(auth.user.id, 'punctuate', response.model, response.usage)
 
     const result =
       response.content[0].type === 'text' ? response.content[0].text.trim() : text

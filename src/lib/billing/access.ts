@@ -9,6 +9,7 @@ export type Subscription = {
   trial_ends_at: string | null
   current_period_end: string | null
   cancel_at_period_end: boolean
+  repeat_trial: boolean
 }
 
 export async function getSubscription(
@@ -17,7 +18,7 @@ export async function getSubscription(
 ): Promise<Subscription | null> {
   const { data } = await supabase
     .from('subscriptions')
-    .select('status, tier, trial_ends_at, current_period_end, cancel_at_period_end')
+    .select('status, tier, trial_ends_at, current_period_end, cancel_at_period_end, repeat_trial')
     .eq('user_id', userId)
     .maybeSingle()
   return data as Subscription | null

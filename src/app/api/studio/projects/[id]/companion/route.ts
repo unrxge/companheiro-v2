@@ -30,6 +30,7 @@
 // well, since none of it needs the prose either. It only comes up when asked
 // for, the same restraint that governs everything else here.
 
+import { aiGate } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import { COMPANION_TONE } from '@/lib/companion-tone'
@@ -144,6 +145,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
   return withAuth(async (auth) => {
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
     if (!isString(body.message) || !body.message.trim()) throw badRequest('say something')
@@ -272,7 +275,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const addendum = assistantMode === 'write' ? (canEdit ? writeAddendum(selectedText) : WRITE_NO_TARGET) : ''
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       ROUTE,
       {
         model: MODELS.deep,

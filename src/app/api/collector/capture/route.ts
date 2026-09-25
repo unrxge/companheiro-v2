@@ -127,7 +127,7 @@ Format your response as JSON:
       messages: [{ role: "user", content: userContent }],
     });
 
-    logUsage("collector/capture", response.model, response.usage);
+    logUsage(auth.user.id, "collector/capture", response.model, response.usage);
 
     // Parse response
     const textContent = response.content.find((block) => block.type === "text");

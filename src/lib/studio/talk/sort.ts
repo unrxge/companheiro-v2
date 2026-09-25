@@ -43,7 +43,7 @@ export function firstText(content: Array<{ type: string; text?: string }>): stri
   return ''
 }
 
-async function runSort(route: string, system: string, ctx: TalkContext, text: string): Promise<unknown> {
+async function runSort(userId: string, route: string, system: string, ctx: TalkContext, text: string): Promise<unknown> {
   const res = await anthropic.messages.create({
     model: MODELS.fast,
     max_tokens: SORT_MAX_TOKENS,
@@ -56,19 +56,19 @@ async function runSort(route: string, system: string, ctx: TalkContext, text: st
       },
     ],
   })
-  logUsage(route, res.model, res.usage)
+  logUsage(userId, route, res.model, res.usage)
   return parseJsonObject(firstText(res.content as Array<{ type: string; text?: string }>))
 }
 
-/** Sort one talk entry. `_auth` and `_personId` are part of the contract for symmetry with apply; the sort itself writes nothing. */
-export async function sortTalk(_auth: AuthedContext, ctx: TalkContext, text: string, _personId: string): Promise<TalkSort> {
-  const raw = await runSort('studio/talk/sort', SORT_SYSTEM, ctx, text)
+/** Sort one talk entry. `auth` attributes the cost; `_personId` is part of the contract for symmetry with apply. The sort itself writes nothing. */
+export async function sortTalk(auth: AuthedContext, ctx: TalkContext, text: string, _personId: string): Promise<TalkSort> {
+  const raw = await runSort(auth.user.id, 'studio/talk/sort', SORT_SYSTEM, ctx, text)
   return validateSort(raw, text, ctx)
 }
 
 /** Direction talk may only propose drift / refusal (≤ 2); everything else is emptied. */
-export async function sortDirection(_auth: AuthedContext, ctx: TalkContext, text: string, _personId: string): Promise<TalkSort> {
-  const raw = await runSort('studio/talk/sort-direction', DIRECTION_SORT_SYSTEM, ctx, text)
+export async function sortDirection(auth: AuthedContext, ctx: TalkContext, text: string, _personId: string): Promise<TalkSort> {
+  const raw = await runSort(auth.user.id, 'studio/talk/sort-direction', DIRECTION_SORT_SYSTEM, ctx, text)
   const sorted = validateSort(raw, text, ctx)
   return {
     update: null,

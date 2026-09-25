@@ -9,6 +9,7 @@
 //   * it arrives as a question, never a verdict, because breaking your own
 //     rule is sometimes the right call and the answer may be to amend the rule.
 
+import { aiGate } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { COMPANION_TONE } from '@/lib/companion-tone'
@@ -77,6 +78,8 @@ function parseCollisions(text: string): Collision[] {
 export async function POST(_req: NextRequest, { params }: Params) {
   const { nodeId } = await params
   return withAuth(async (auth) => {
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const node = await requireNode(auth, nodeId)
     const project = await requireProject(auth, node.project_id)
     const tree = await loadTree(auth, project.id)
@@ -149,7 +152,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       ],
     })
 
-    logUsage(ROUTE, MODELS.deep, response.usage, { node: node.id, rules: inForce.length })
+    logUsage(auth.user.id, ROUTE, MODELS.deep, response.usage, { node: node.id, rules: inForce.length })
 
     const text = response.content
       .map((block) => (block.type === 'text' ? block.text : ''))

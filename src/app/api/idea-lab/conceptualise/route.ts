@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { MODELS } from "@/lib/models";
@@ -85,6 +86,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    const gated = await aiGate(auth);
+    if (gated) return gated;
 
     const body: ConceptualiseRequest = await request.json();
 
@@ -135,7 +138,7 @@ ${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this 
         ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
         : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
       {
         model: nextPhase <= 2 ? MODELS.fast : MODELS.deep,

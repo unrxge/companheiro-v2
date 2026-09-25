@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gated = await aiGate(auth)
+    if (gated) return gated
 
     const { node_id, lens_description, energy } = await request.json()
     if (!node_id || !lens_description?.trim()) {
@@ -44,7 +47,7 @@ ${piece.conviction_statement ? `Conviction to preserve: ${piece.conviction_state
 
 Output only the reimagined piece.`
 
-    return streamClaudeText('write/reimagine', {
+    return streamClaudeText(auth.user.id, 'write/reimagine', {
       model: MODELS.deep,
       max_tokens: 2000,
       system: withLanguage(systemPrompt),

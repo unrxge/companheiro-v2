@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
+import { aiGate } from "@/lib/billing/fair-use";
 import { formatDateAsRelative } from "@/lib/dates";
 import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
     if (!auth) {
       return NextResponse.json({ response: "" }, { status: 401 });
     }
+    const gated = await aiGate(auth);
+    if (gated) return gated;
 
     const body: ConverseRequest = await request.json();
 
@@ -225,7 +228,7 @@ export async function POST(request: NextRequest) {
           ...body.messages,
         ];
 
-    return streamClaudeText(
+    return streamClaudeText(auth.user.id, 
       'trajectory/converse',
       {
         model: MODELS.deep,

@@ -21,7 +21,7 @@ export interface GeneratedTask {
 // Generates the task roadmap for a newly locked piece. Called directly from
 // the core-concept save route — this used to be an unauthenticated HTTP
 // round-trip to /api/project-board/generate-tasks.
-export async function generateTasks(concept: CoreConcept): Promise<GeneratedTask[]> {
+export async function generateTasks(userId: string, concept: CoreConcept): Promise<GeneratedTask[]> {
   const conceptSummary = `
 Idea: ${concept.one_sentence}
 Arc: ${concept.arc}
@@ -57,7 +57,7 @@ Return as JSON:
       ],
     })
 
-    logUsage('lib/generate-tasks', response.model, response.usage)
+    logUsage(userId, 'lib/generate-tasks', response.model, response.usage)
 
     const textContent = response.content.find((block) => block.type === 'text')
     if (!textContent || textContent.type !== 'text') return []
