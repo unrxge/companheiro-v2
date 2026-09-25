@@ -4,6 +4,7 @@ import "./globals.css";
 import LangSync from "@/components/LangSync";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,8 +31,27 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Companheiro",
-  description: "A companion for your inner life",
+  metadataBase: new URL(SITE_URL),
+  // Pages set a short title ("Write"); the tab shows "Write · Companheiro".
+  title: {
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  // The preview image comes from app/opengraph-image.tsx (Next wires it in).
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: "You already have a vision.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: "You already have a vision.",
+  },
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.svg",

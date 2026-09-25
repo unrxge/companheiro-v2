@@ -43,9 +43,9 @@ export const config = {
      * - api routes
      * - _next/static (static files)
      * - _next/image (image optimisation)
-     * - favicon.ico, sitemap.xml, robots.txt
+     * - favicon.ico, sitemap.xml, robots.txt, opengraph-image (link previews)
      * - public image assets
      */
-    '/((?!api|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

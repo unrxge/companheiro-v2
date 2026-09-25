@@ -7,14 +7,10 @@ import { Landing } from '@/components/landing/landing'
 // The one serif on the page: the coloured word in the hero headline.
 const newsreader = Newsreader({ subsets: ['latin'], style: ['italic'], weight: ['400'], variable: '--font-newsreader' })
 
+// Title, description and preview image are inherited from the root layout;
+// only the canonical URL is specific to the landing page.
 export const metadata: Metadata = {
-  title: 'Companheiro',
-  description: 'Your vision is scattered across notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.',
-  openGraph: {
-    title: 'Companheiro',
-    description: 'You already have a vision.',
-    type: 'website',
-  },
+  alternates: { canonical: '/' },
 }
 
 // Signed in: straight to the app. Signed out: the public landing page.
