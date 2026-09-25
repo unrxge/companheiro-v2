@@ -30,7 +30,7 @@
 // well, since none of it needs the prose either. It only comes up when asked
 // for, the same restraint that governs everything else here.
 
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import { COMPANION_TONE } from '@/lib/companion-tone'
@@ -51,7 +51,12 @@ export const maxDuration = 60
 type Params = { params: Promise<{ id: string }> }
 
 const ROUTE = 'studio/companion'
-const HISTORY_LIMIT = 24
+// The window keeps the latest 10–17 exchanges and moves in blocks of 16
+// messages rather than one per reply, so the cached prefix survives eight
+// exchanges at a time instead of being rebuilt on every turn.
+const HISTORY_KEEP = 20
+const HISTORY_STEP = 16
+const HISTORY_FETCH = HISTORY_KEEP + HISTORY_STEP - 1
 const MAX_MESSAGE = 4000
 
 const ROLE = `You are sitting beside someone who is holding a long piece of work together — a series, a record, a book, a film. You are here for its SHAPE and its DIRECTION, never for its prose.
@@ -244,18 +249,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     // ── history ────────────────────────────────────────────────────────────
     let hq = auth.supabase
       .from('studio_vision_messages')
-      .select('role, text, created_at')
+      .select('role, text, created_at', { count: 'exact' })
       .eq('project_id', project.id)
       .eq('user_id', auth.user.id)
       .order('created_at', { ascending: false })
-      .limit(HISTORY_LIMIT)
+      .limit(HISTORY_FETCH)
     hq = nodeId ? hq.eq('node_id', nodeId) : hq.is('node_id', null)
-    const { data: history, error: histErr } = await hq
+    const { data: history, count, error: histErr } = await hq
     if (histErr) throw fromDbError(histErr)
 
-    const past: MessageParam[] = (history ?? [])
-      .slice()
-      .reverse()
+    const recent = (history ?? []).slice().reverse()
+    const total = count ?? recent.length
+    const windowStart = Math.floor(Math.max(0, total - HISTORY_KEEP) / HISTORY_STEP) * HISTORY_STEP
+    const firstFetched = total - recent.length
+    const past: MessageParam[] = recent
+      .slice(Math.max(0, windowStart - firstFetched))
       .map((m: { role: string; text: string }) => ({
         role: m.role === 'companion' ? ('assistant' as const) : ('user' as const),
         content: m.text,
@@ -278,7 +286,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return streamClaudeText(auth.user.id, 
       ROUTE,
       {
-        model: MODELS.deep,
+        model: pickModel(auth, MODELS.deep),
         // A whole-part rewrite needs real room; a reflect-mode reply is
         // meant to stay short, so only write mode gets the bigger cap.
         max_tokens: assistantMode === 'write' ? 4096 : 1200,

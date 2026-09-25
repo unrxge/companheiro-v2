@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { MODELS } from "@/lib/models";
 import { createRouteClient } from "@/lib/supabase/route";
-import { aiGate } from "@/lib/billing/fair-use";
+import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { withLanguage } from "@/lib/language";
 import { logUsage } from "@/lib/usage-log";
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
     }
 
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: pickModel({ user: userData.user }, MODELS.deep),
       max_tokens: 1000,
       system: withLanguage(`You are a translator of long-form written pieces into short-form video scripts. Your job is not to summarize, but to reinterpret — to find the emotional core and the most compelling angle for a 15-60 second video.
 

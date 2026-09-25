@@ -9,7 +9,7 @@
 //   * it arrives as a question, never a verdict, because breaking your own
 //     rule is sometimes the right call and the answer may be to amend the rule.
 
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { COMPANION_TONE } from '@/lib/companion-tone'
@@ -141,7 +141,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     ].filter(Boolean).join('\n')
 
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: pickModel(auth, MODELS.deep),
       max_tokens: 900,
       system: withLanguage(`${COMPANION_TONE}\n\n${ROLE}`),
       messages: [
@@ -152,7 +152,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       ],
     })
 
-    logUsage(auth.user.id, ROUTE, MODELS.deep, response.usage, { node: node.id, rules: inForce.length })
+    logUsage(auth.user.id, ROUTE, response.model, response.usage, { node: node.id, rules: inForce.length })
 
     const text = response.content
       .map((block) => (block.type === 'text' ? block.text : ''))

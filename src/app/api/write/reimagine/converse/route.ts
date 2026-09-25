@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
@@ -74,7 +74,7 @@ Only include these when genuinely earned — never on the first turn, never spec
     return streamClaudeText(auth.user.id, 
       'write/reimagine/converse',
       {
-        model: MODELS.deep,
+        model: pickModel(auth, MODELS.deep),
         max_tokens: 600,
         system: withLanguage(systemPrompt),
         messages: claudeMessages,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { ModalDialog } from '@/components/ui/modal-dialog'
@@ -13,6 +13,9 @@ import { CONTACT_EMAIL } from '@/lib/site'
 // module is server-only).
 const GATE_HEADER = 'x-companheiro-gate'
 const SEEN_KEY = 'companheiro:trial-ended-seen'
+const NEAR_KEY = 'companheiro:near-limit-seen'
+const NEAR_SHARE = 0.8
+const NEAR_VISIBLE_MS = 12_000
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset']
 
 type Reason = 'trial_ended' | 'fair_use'
@@ -20,7 +23,7 @@ type Reason = 'trial_ended' | 'fair_use'
 type Status = {
   subscription: { status: string; tier: 'practice' | 'direction' | null; repeat_trial?: boolean } | null
   access: 'uncapped' | 'capped' | 'no_access'
-  usage: { plan: 'trial' | 'practice' | 'direction'; period: string } | null
+  usage: { plan: 'trial' | 'practice' | 'direction'; period: string; used_micros: number; cap_micros: number } | null
 }
 
 function firstOfNextMonth(): string {
@@ -40,6 +43,8 @@ export function AccessGate() {
   const [reason, setReason] = useState<Reason | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
   const [plansOpen, setPlansOpen] = useState(false)
+  const [near, setNear] = useState(false)
+  const dismissNear = useCallback(() => setNear(false), [])
   const isPublic = PUBLIC_PATHS.includes(pathname ?? '')
 
   useEffect(() => {
@@ -69,6 +74,19 @@ export function AccessGate() {
       .then((d: Status | null) => {
         if (!d) return
         setStatus(d)
+        if (d.usage && d.usage.used_micros >= d.usage.cap_micros * NEAR_SHARE && d.usage.used_micros < d.usage.cap_micros) {
+          // Once per browser session and per period: a heads-up when someone
+          // arrives, never a fixture that follows them from page to page.
+          const key = `${NEAR_KEY}:${d.usage.period}`
+          let shown = false
+          try {
+            shown = sessionStorage.getItem(key) === '1'
+            sessionStorage.setItem(key, '1')
+          } catch {
+            // storage blocked: fall through and show it
+          }
+          if (!shown) setNear(true)
+        }
         // A missing row (or a lookup that failed) is not evidence the trial
         // ended; only a real, expired subscription earns the arrival screen.
         if (d.access !== 'no_access' || !d.subscription) return
@@ -85,7 +103,9 @@ export function AccessGate() {
   }, [isPublic])
 
   if (plansOpen) return <SettingsSheet onClose={() => setPlansOpen(false)} />
-  if (!reason) return null
+  if (!reason) {
+    return near && status?.usage ? <NearLimitBanner plan={status.usage.plan} onClose={dismissNear} /> : null
+  }
 
   const close = () => setReason(null)
   const openPlans = () => {
@@ -97,6 +117,61 @@ export function AccessGate() {
     <FairUseNotice status={status} onClose={close} onPlans={openPlans} />
   ) : (
     <TrialEndedNotice status={status} onClose={close} onPlans={openPlans} />
+  )
+}
+
+function NearLimitBanner({ plan, onClose }: { plan: 'trial' | 'practice' | 'direction'; onClose: () => void }) {
+  const { t } = useTheme()
+
+  useEffect(() => {
+    const id = setTimeout(onClose, NEAR_VISIBLE_MS)
+    return () => clearTimeout(id)
+  }, [onClose])
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'fixed',
+        top: 'calc(12px + env(safe-area-inset-top))',
+        left: 16,
+        right: 16,
+        zIndex: 60,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          ...typeRoles.small,
+          pointerEvents: 'auto',
+          maxWidth: 520,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+          padding: '12px 14px',
+          borderRadius: 12,
+          background: t.cardBg,
+          boxShadow: t.shadow,
+          border: `1px solid ${t.divider}`,
+          color: t.textSecondary,
+          lineHeight: 1.5,
+        }}
+      >
+        <span>
+          A heads-up: you’ve used most of {plan === 'trial' ? 'your free month’s' : 'this month’s'} share of the companion.
+          {plan === 'trial' ? ' Choosing a plan gives you a fresh one.' : ` It refills on ${firstOfNextMonth()}.`}
+        </span>
+        <button
+          onClick={onClose}
+          aria-label="Dismiss"
+          style={{ background: 'none', border: 'none', color: t.textMuted, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
   )
 }
 

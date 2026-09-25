@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { SIGNALS_REVISION_SPEC, JOURNAL_CUE_SPEC, hasSignals, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
@@ -90,11 +90,11 @@ ${JOURNAL_CUE_SPEC}`
       {
         // This turn and the one before it — never the accumulated session, or
         // the escalation would latch on the first heavy word and never lift.
-        model: modelForCheckIn({
+        model: pickModel(auth, modelForCheckIn({
           currentText: response,
           previousText: [...history].reverse().find((m) => m.role === 'user')?.content ?? '',
           energy: typeof energy === 'string' ? (energy as 'low' | 'medium' | 'high') : null,
-        }),
+        })),
         max_tokens: 512,
         system: withLanguage(systemPrompt),
         messages: [...history, { role: 'user', content: response }],

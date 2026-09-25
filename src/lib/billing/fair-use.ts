@@ -3,28 +3,39 @@ import { createClient } from '@supabase/supabase-js'
 import type { AuthedContext } from '@/lib/supabase/route'
 import type { UsageLike } from '@/lib/usage-log'
 import type { Subscription } from './access'
+import { MODELS } from '@/lib/models'
 
 // Fair use, measured in what the AI actually costs us rather than in raw
 // tokens: a Sonnet token costs three times a Haiku one, so a token count
 // would either starve people on the cheap surfaces or let the expensive
 // ones run away. Stored in micro-dollars (the API bills in dollars).
 //
-// The caps are ceilings for outliers, not a budget anyone is expected to
-// reach. At the time of writing one deep companion turn costs roughly
-// $0.02–0.03, so $4 is somewhere around 150–200 long conversations a month.
-// Override per environment with FAIR_USE_{TRIAL,PRACTICE,DIRECTION}_USD;
-// an unset Direction cap means no cap.
-const usd = (name: string, fallback: number | null): number | null => {
+// Two thresholds per plan, both ceilings for outliers rather than budgets:
+//  - soft: past it, the companion quietly answers on the fast model (about a
+//    third of the cost). Never announced — the work carries on.
+//  - hard: the companion's side stops until the period resets. People are
+//    warned at 80% of this (components/billing/access-gate.tsx).
+// Sized from real session costs (Sept 2026): a long writing-assistant reply
+// runs $0.03–0.08 on the deep model, a committed writer $8–12 a month, a
+// daily heavy user $30–50. Soft sits where only that heavy tail reaches it;
+// reaching hard from soft takes roughly three times soft's worth of deep-model
+// work again, which only abuse gets to. Direction's are set so even its
+// heaviest users stay close to what the plan brings in (~$26 net of €29),
+// because Direction is what funds everything else.
+// Override with FAIR_USE_{TRIAL,PRACTICE,DIRECTION}_{SOFT,HARD}_USD.
+const usd = (name: string, fallback: number): number => {
   const raw = process.env[name]?.trim()
   if (!raw) return fallback
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-export const CAPS_USD = {
-  trial: usd('FAIR_USE_TRIAL_USD', 2),
-  practice: usd('FAIR_USE_PRACTICE_USD', 4),
-  direction: usd('FAIR_USE_DIRECTION_USD', null),
+export type CappedPlan = 'trial' | 'practice' | 'direction'
+
+export const CAPS_USD: Record<CappedPlan, { soft: number; hard: number }> = {
+  trial: { soft: usd('FAIR_USE_TRIAL_SOFT_USD', 5), hard: usd('FAIR_USE_TRIAL_HARD_USD', 10) },
+  practice: { soft: usd('FAIR_USE_PRACTICE_SOFT_USD', 12), hard: usd('FAIR_USE_PRACTICE_HARD_USD', 30) },
+  direction: { soft: usd('FAIR_USE_DIRECTION_SOFT_USD', 25), hard: usd('FAIR_USE_DIRECTION_HARD_USD', 50) },
 }
 
 // $ per million tokens. Cache writes are priced at the 1h TTL rate (2×
@@ -49,11 +60,16 @@ export function costMicros(model: string, usage: UsageLike): number {
 
 export type Allowance =
   | { kind: 'uncapped' }
-  | { kind: 'capped'; period: string; capMicros: number; plan: 'trial' | 'practice' | 'direction' }
+  | { kind: 'capped'; period: string; softMicros: number; hardMicros: number; plan: CappedPlan }
   | { kind: 'no_access' }
 
 function monthKey(now = new Date()): string {
   return now.toISOString().slice(0, 7)
+}
+
+function capped(plan: CappedPlan, period: string): Allowance {
+  const c = CAPS_USD[plan]
+  return { kind: 'capped', period, plan, softMicros: c.soft * 1e6, hardMicros: c.hard * 1e6 }
 }
 
 export function allowanceFor(sub: Subscription | null): Allowance {
@@ -62,16 +78,10 @@ export function allowanceFor(sub: Subscription | null): Allowance {
   if (sub.status === 'trialing') {
     const live = sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > Date.now()
     if (!live) return { kind: 'no_access' }
-    return CAPS_USD.trial == null
-      ? { kind: 'uncapped' }
-      : { kind: 'capped', period: 'trial', capMicros: CAPS_USD.trial * 1e6, plan: 'trial' }
+    return capped('trial', 'trial')
   }
   if (sub.status === 'active' || sub.status === 'past_due') {
-    const plan = sub.tier ?? 'practice'
-    const cap = CAPS_USD[plan]
-    return cap == null
-      ? { kind: 'uncapped' }
-      : { kind: 'capped', period: monthKey(), capMicros: cap * 1e6, plan }
+    return capped(sub.tier ?? 'practice', monthKey())
   }
   return { kind: 'no_access' }
 }
@@ -127,10 +137,22 @@ export async function aiGate(auth: AuthedContext): Promise<NextResponse<never> |
   }
   if (a.kind === 'uncapped') return null
   const used = await usageFor(auth, a.period)
-  if (used >= a.capMicros) {
+  if (used >= a.hardMicros) {
     return gateResponse('fair_use', 429, 'You have reached this period’s fair-use limit.')
   }
+  if (used >= a.softMicros) lighter.add(auth.user)
   return null
+}
+
+// Users past their soft threshold for this request, keyed by the request's
+// own user object so nothing outlives the request.
+const lighter = new WeakSet<object>()
+
+// The model a gated route should actually use: the one it asked for, or the
+// fast model once this person is past their soft threshold. Call after
+// aiGate, with the same auth.
+export function pickModel(auth: Pick<AuthedContext, 'user'>, requested: string): string {
+  return lighter.has(auth.user) ? MODELS.fast : requested
 }
 
 function admin() {

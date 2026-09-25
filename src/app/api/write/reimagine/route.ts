@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
@@ -48,7 +48,7 @@ ${piece.conviction_statement ? `Conviction to preserve: ${piece.conviction_state
 Output only the reimagined piece.`
 
     return streamClaudeText(auth.user.id, 'write/reimagine', {
-      model: MODELS.deep,
+      model: pickModel(auth, MODELS.deep),
       max_tokens: 2000,
       system: withLanguage(systemPrompt),
       messages: [

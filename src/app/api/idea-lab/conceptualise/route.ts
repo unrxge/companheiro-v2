@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
-import { aiGate } from "@/lib/billing/fair-use";
+import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { MODELS } from "@/lib/models";
@@ -141,7 +141,7 @@ ${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this 
     return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
       {
-        model: nextPhase <= 2 ? MODELS.fast : MODELS.deep,
+        model: pickModel(auth, nextPhase <= 2 ? MODELS.fast : MODELS.deep),
         max_tokens: 400,
         system: [
           {

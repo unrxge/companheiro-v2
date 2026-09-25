@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
@@ -132,7 +132,7 @@ Return ONLY:
 }`
 
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: pickModel(auth, MODELS.deep),
       max_tokens: 4000,
       system: systemPrompt,
       messages: [

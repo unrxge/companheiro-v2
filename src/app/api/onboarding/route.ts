@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const system = `${OPENING}\n\n${COMPANION_TONE}\n\nYou are now on turn ${turn} of 3.`
     return streamClaudeText(auth.user.id, 
       'onboarding',
-      { model: MODELS.deep, max_tokens: 400, system: withLanguage(system), messages: history },
+      { model: pickModel(auth, MODELS.deep), max_tokens: 400, system: withLanguage(system), messages: history },
       (full) => ({ turn, labels: turn === 3 ? extractLabels(full) : [] })
     )
   } catch (error) {

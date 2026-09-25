@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { SIGNALS_SPEC, JOURNAL_CUE_SPEC, parseSignals, parseJournalCue } from '@/lib/check-in-prompt'
@@ -75,7 +75,7 @@ ${JOURNAL_CUE_SPEC}`
       {
         // First turn has no reading yet, so this routes on the entry itself:
         // delicate material or a long, dense one earns the deeper model.
-        model: modelForCheckIn({ currentText: transcript }),
+        model: pickModel(auth, modelForCheckIn({ currentText: transcript })),
         max_tokens: 512,
         system: withLanguage(systemPrompt),
         messages: [

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
-import { aiGate } from "@/lib/billing/fair-use";
+import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { PROSE_STANDARD, STORY_STRUCTURE } from "@/lib/writing-craft";
@@ -33,6 +33,23 @@ interface ChatRequest {
   preceding_sections?: PrecedingSection[];
   selected_text?: string | null;
   assistant_mode?: "write" | "coach";
+}
+
+// A long session used to resend every exchange on every reply, so turn 40
+// paid for turns 1–39 again. The window keeps the most recent 10–17
+// exchanges and moves in blocks of 16 messages, not one at a time, so the
+// cached prefix survives eight exchanges between trims instead of being
+// rebuilt on every reply. What falls out of the window is still largely in
+// the draft itself, which is always sent.
+const HISTORY_KEEP = 20
+const HISTORY_STEP = 16
+
+function trimHistory<T extends { role: string }>(history: T[]): { messages: T[]; trimmed: boolean } {
+  const drop = Math.floor(Math.max(0, history.length - HISTORY_KEEP) / HISTORY_STEP) * HISTORY_STEP
+  let messages = history.slice(drop)
+  // The API needs the conversation to open on a user turn.
+  while (messages.length && messages[0].role !== 'user') messages = messages.slice(1)
+  return { messages, trimmed: messages.length < history.length }
 }
 
 export async function POST(request: NextRequest) {
@@ -202,21 +219,23 @@ Let some of how you look at things carry a Rick Rubin-ish quality: less "here's 
     // recall keyed to this specific message, and the mode/edit rules that
     // can flip mid-session (write-lock expiring, a highlight changing). Kept
     // out of the cached block above so none of this ever busts the cache.
+    const history = trimHistory(body.conversation_history ?? []);
     const volatileSystemBlock = `${modeIntro}
+${history.trimmed ? "This is a long session; only its more recent exchanges are shown to you. If they refer back to something you can't see, ask rather than guess.\n" : ""}
 
 ${echoes ? echoes + "\n\n" : ""}${sectionBlock}
 
 ${editInstructions}`;
 
     const messages = [
-      ...cacheLastMessage(body.conversation_history),
+      ...cacheLastMessage(history.messages),
       { role: "user" as const, content: body.message },
     ];
 
     return streamClaudeText(auth.user.id, 
       'write/chat',
       {
-        model: MODELS.deep,
+        model: pickModel(auth, MODELS.deep),
         // The RESPONSE DISCIPLINE section of the prompt already asks Claude to
         // match length to what was asked, so this cap exists as a backstop
         // against a genuinely runaway reply, not to bound normal ones — a

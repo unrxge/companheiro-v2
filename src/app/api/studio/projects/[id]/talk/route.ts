@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireUser, type AuthedContext } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
 import { MODELS } from '@/lib/models'
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return streamClaudeText(auth.user.id, 
       'studio/talk',
       {
-        model: MODELS.deep,
+        model: pickModel(auth, MODELS.deep),
         max_tokens: body.kind === 'direction' ? 2048 : 1024,
         system,
         messages: [...cacheLastMessage(ctx.priorTurns), { role: 'user', content: body.text }],

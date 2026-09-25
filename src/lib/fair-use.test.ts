@@ -38,15 +38,19 @@ const sub = (over: Partial<Subscription>): Subscription => ({
   ...over,
 })
 
-test('allowanceFor maps plan state to a cap', () => {
+test('allowanceFor maps plan state to soft and hard thresholds', () => {
   const future = new Date(Date.now() + 86_400_000).toISOString()
   const past = new Date(Date.now() - 1000).toISOString()
-  assert.deepEqual(allowanceFor(sub({ trial_ends_at: future })), { kind: 'capped', period: 'trial', capMicros: 2_000_000, plan: 'trial' })
+  assert.deepEqual(allowanceFor(sub({ trial_ends_at: future })), {
+    kind: 'capped', period: 'trial', plan: 'trial', softMicros: 5_000_000, hardMicros: 10_000_000,
+  })
   assert.equal(allowanceFor(sub({ trial_ends_at: past })).kind, 'no_access')
   assert.equal(allowanceFor(sub({ status: 'grandfathered' })).kind, 'uncapped')
   const practice = allowanceFor(sub({ status: 'active', tier: 'practice' }))
-  assert.equal(practice.kind === 'capped' && practice.capMicros, 4_000_000)
-  assert.equal(allowanceFor(sub({ status: 'active', tier: 'direction' })).kind, 'uncapped')
+  assert.equal(practice.kind === 'capped' && practice.hardMicros, 30_000_000)
+  const direction = allowanceFor(sub({ status: 'active', tier: 'direction' }))
+  assert.equal(direction.kind === 'capped' && direction.softMicros, 25_000_000)
+  assert.equal(direction.kind === 'capped' && direction.hardMicros, 50_000_000)
   assert.equal(allowanceFor(sub({ status: 'canceled' })).kind, 'no_access')
   assert.equal(allowanceFor(null).kind, 'no_access')
 })

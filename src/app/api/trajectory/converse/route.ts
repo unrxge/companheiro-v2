@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
-import { aiGate } from "@/lib/billing/fair-use";
+import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { formatDateAsRelative } from "@/lib/dates";
 import { MODELS } from "@/lib/models";
 import { recallEchoes } from "@/lib/recall";
@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
     return streamClaudeText(auth.user.id, 
       'trajectory/converse',
       {
-        model: MODELS.deep,
+        model: pickModel(auth, MODELS.deep),
         max_tokens: 1024,
         // SYSTEM_PROMPT is a module-level constant — fully static across
         // every user and every turn — so it's cached outright. The messages

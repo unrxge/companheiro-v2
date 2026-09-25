@@ -3,7 +3,7 @@
 // words; the code checks every verbatim claim and derives references itself.
 // Nothing is persisted here: the person edits the draft, then `make the project`.
 
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { NextResponse, type NextRequest } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { MODELS } from '@/lib/models'
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     if (!source) throw badRequest('nothing to read')
 
     const response = await anthropic.messages.create({
-      model: MODELS.deep,
+      model: pickModel(auth, MODELS.deep),
       max_tokens: 1200,
       system: withLanguage(`${COMPANION_TONE}\n\n${TASK}`),
       messages: [{ role: 'user', content: userMessage(request) }],

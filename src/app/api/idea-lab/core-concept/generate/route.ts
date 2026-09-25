@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { requireUser } from "@/lib/supabase/route";
-import { aiGate } from "@/lib/billing/fair-use";
+import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { MODELS } from "@/lib/models";
 import { withLanguage } from "@/lib/language";
 import { getUserTerritories, territoryPromptList } from "@/lib/territories-server";
@@ -142,7 +142,7 @@ Return as JSON:
     // worth the deep model. Phase 4 is pure formatting: turning an already-
     // confirmed conviction into bullet lists, extraction with no craft call
     // to make, so it runs on the fast model like the rest of that tier.
-    const phaseModel = body.phase === 4 ? MODELS.fast : MODELS.deep;
+    const phaseModel = pickModel(auth, body.phase === 4 ? MODELS.fast : MODELS.deep);
 
     let response;
     try {

@@ -15,7 +15,7 @@ export async function GET() {
           plan: allowance.plan,
           period: allowance.period,
           used_micros: await usageFor(auth, allowance.period),
-          cap_micros: allowance.capMicros,
+          cap_micros: allowance.hardMicros,
         }
       : null
   return NextResponse.json({ subscription, access: allowance.kind, usage })
