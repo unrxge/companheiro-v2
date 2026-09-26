@@ -658,9 +658,26 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               <div className="piece-bar-tools">
                 {isLone && (
                   <div className="piece-bar-actions">
-                    <GhostButton size="sm" onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
-                      Create a project from this piece
-                    </GhostButton>
+                    {/* Same pill as the Write / Flow switch beside it: one tray, one chip. */}
+                    <div
+                      style={{
+                        display: 'inline-flex', padding: 2,
+                        background: alpha(t.textPrimary, 0.06), borderRadius: radius.field,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void makeProject()}
+                        disabled={makingProject}
+                        style={{
+                          ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
+                          border: 'none', background: 'transparent', color: t.textMuted,
+                          cursor: makingProject ? 'default' : 'pointer', opacity: makingProject ? 0.6 : 1,
+                        }}
+                      >
+                        {makingProject ? 'Creating…' : 'Create a project from this piece'}
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div className="piece-bar-switch">
