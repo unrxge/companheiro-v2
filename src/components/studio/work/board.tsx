@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
+import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/studio/surface/surface'
 import { PieceCard } from '@/components/studio/work/piece-card'
 import { ThreadCard } from '@/components/studio/work/thread-card'
@@ -31,6 +32,9 @@ import {
 } from '@/lib/studio/surface'
 
 const GAP = 44
+// How far the board opens past its edge so the title clears the back button: beside it from the Dock breakpoint up, below it on a phone.
+const HOME_GAP_X = 20
+const HOME_GAP_Y = 18
 const BASE_CARD_TOP = 108
 const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 236
@@ -279,7 +283,11 @@ export function Board({
     cardX, cardTop, addColW, addPieceH, addHelpH, noticesRowMaxW, noticeH,
   ])
 
-  const canvas = useCanvas(ref, frame, world)
+  const home = useMemo<Point>(
+    () => (frame.w >= DOCK_DESKTOP_MIN ? { x: HOME_GAP_X, y: 0 } : { x: 0, y: HOME_GAP_Y }),
+    [frame.w],
+  )
+  const canvas = useCanvas(ref, frame, world, { home })
 
   /** Where each piece's connection points land along its own bottom edge —
    *  one per thread touching it, fanned out so two threads on one card do

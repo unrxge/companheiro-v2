@@ -501,9 +501,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     focus.kind === 'thread' ? thread?.name || 'A thread'
     : node?.title || 'Untitled'
 
-  // A piece that skipped the concept is already on a writing page; the full studio stays on the board's piece card.
   const isLone = !!node && lonePiece?.id === node.id
-  const offerFullStudio = !!node && !node.parent_id && !(isLone && !node.core_truth)
+  const offerFullStudio = !!node && !node.parent_id
 
   return (
     <PageShell mood="tide">
@@ -554,9 +553,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                 {(offerFullStudio || isLone) && (
                   <div className="piece-bar-actions">
                     {offerFullStudio && (
-                      <GhostButton size="sm" onClick={() => router.push(`/write?node_id=${node.id}`)}>
+                      <QuietButton size="sm" onClick={() => router.push(`/write?node_id=${node.id}`)}>
                         {node.body.trim() || node.children.length > 0 ? 'Resume writing' : 'Begin writing'}
-                      </GhostButton>
+                      </QuietButton>
                     )}
                     {isLone && (
                       <GhostButton size="sm" onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">

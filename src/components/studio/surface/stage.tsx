@@ -55,11 +55,12 @@ export function StageHeader({
   upLabel?: string
   reveal?: ReactNode
   actions?: ReactNode
-  /** A quiet word at the right: `saving…`, and nothing else. */
+  /** A quiet word beside the theme toggle: `saving…`, and nothing else. */
   status?: ReactNode
 }) {
   const { t, theme, toggle } = useTheme()
   const [open, setOpen] = useState(false)
+  const iconOnly = !title && !reveal && !actions
 
   return (
     <div className="stage-header-pad" style={{ pointerEvents: 'none' }}>
@@ -78,7 +79,7 @@ export function StageHeader({
         style={{
           pointerEvents: 'auto',
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '10px 16px 10px 10px', borderRadius: 999,
+          padding: iconOnly ? 10 : '10px 16px 10px 10px', borderRadius: 999,
           background: 'rgba(13,12,11,0.72)', backdropFilter: 'blur(18px) saturate(1.1)',
           border: `1px solid ${shell.line}`,
           maxWidth: 'fit-content',
@@ -108,12 +109,6 @@ export function StageHeader({
         )}
 
         {actions}
-
-        {status && (
-          <span aria-live="polite" style={{ ...canvasType.chip, color: shell.muted, paddingRight: 4 }}>
-            {status}
-          </span>
-        )}
       </div>
 
       <AnimatePresence initial={false}>
@@ -146,7 +141,12 @@ export function StageHeader({
         .stage-header-toggle { top: 14px; }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .stage-header-toggle { top: 84px; } }
       `}</style>
-      <div data-hold className="stage-header-toggle" style={{ position: 'absolute', right: 16, pointerEvents: 'auto' }}>
+      <div data-hold className="stage-header-toggle" style={{ position: 'absolute', right: 16, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+        {status && (
+          <span aria-live="polite" style={{ ...canvasType.chip, color: shell.muted }}>
+            {status}
+          </span>
+        )}
         <ThemeToggleButton theme={theme} onToggle={toggle} />
       </div>
     </div>

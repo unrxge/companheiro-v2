@@ -65,7 +65,7 @@ export function useCanvas(
   ref: RefObject<HTMLDivElement | null>,
   frame: Frame,
   world: World,
-  opts: { initialCentre?: Point | null; minZoom?: number } = {},
+  opts: { initialCentre?: Point | null; minZoom?: number; home?: Point } = {},
 ): Canvas {
   const [pan, setPanRaw] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoomRaw] = useState(1)
@@ -77,6 +77,8 @@ export function useCanvas(
   const floor = useRef(opts.minZoom ?? ZOOM.min)
   floor.current = opts.minZoom ?? ZOOM.min
   const clampK = useCallback((k: number) => Math.max(floor.current, clampZoom(k)), [])
+  const home = useRef<Point>(opts.home ?? { x: 0, y: 0 })
+  home.current = opts.home ?? { x: 0, y: 0 }
   const glide = useRef<number | null>(null)
   const placed = useRef(false)
 
@@ -136,8 +138,8 @@ export function useCanvas(
   const resetView = useCallback(() => {
     stopGlide()
     const { frame: f, world: w } = live.current
-    if (f.w === 0) { setZoomRaw(1); setPanRaw({ x: 0, y: 0 }); return }
-    animateTo(clampPan({ x: 0, y: 0 }, 1, w, f), 1)
+    if (f.w === 0) { setZoomRaw(1); setPanRaw(home.current); return }
+    animateTo(clampPan(home.current, 1, w, f), 1)
   }, [animateTo, stopGlide])
 
   useEffect(() => stopGlide, [stopGlide])
@@ -147,7 +149,7 @@ export function useCanvas(
     if (placed.current || frame.w === 0) return
     placed.current = true
     if (opts.initialCentre) jumpTo(opts.initialCentre)
-    else setPanRaw(clampPan({ x: 0, y: 0 }, 1, world, frame))
+    else setPanRaw(clampPan(home.current, 1, world, frame))
   }, [frame, world, jumpTo, opts.initialCentre])
 
   // A resize, or a world that grew, must not strand the view outside the edges.
