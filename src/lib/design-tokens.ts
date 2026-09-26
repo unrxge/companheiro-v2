@@ -114,12 +114,13 @@ export const columnHue: Record<BoardColumn, Hue> = {
   completed: 'violet',
 }
 
-/** The five steps every piece walks. `stage` in the DB maps onto these. */
-export const PIECE_JOURNEY = ['concept', 'write', 'test', 'post', 'reflect'] as const
+/** The six steps every piece walks. `stage` in the DB maps onto these. */
+export const PIECE_JOURNEY = ['concept', 'write', 'reimagine', 'test', 'post', 'reflect'] as const
 export type JourneyStep = (typeof PIECE_JOURNEY)[number]
 export const JOURNEY_LABELS: Record<JourneyStep, string> = {
   concept: 'Concept',
   write: 'Write',
+  reimagine: 'Reimagine',
   test: 'Test',
   post: 'Post',
   reflect: 'Reflect',

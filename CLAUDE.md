@@ -73,7 +73,7 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 1. **Check-in** (`/check-in`): Voice or text input, signals extraction (energy, arc, weather)
 2. **Idea Lab** (`/idea-lab`): Develop ideas from captures, conversation with Claude
 3. **Project Board** (`/project-board`): Kanban view (Queue/Active/Completed), task tracking per piece
-4. **Writing** (`/p/[project]/n/[piece]`): One page per piece: the sectioned editor, with the core concept, anchor lines, tasks and the writing assistant on its rail, and Test → Post → Reflect after the draft. `/write` only redirects here
+4. **Writing** (`/p/[project]/n/[piece]`): One page per piece: the sectioned editor, with the core concept, anchor lines, tasks and the writing assistant on its rail, and Reimagine → Test → Post → Reflect after the draft. `/write` only redirects here
 5. **Post-Publication** (`/post-publication`): Log reflections, feed insights back to Idea Lab
 
 ### API Route Patterns
