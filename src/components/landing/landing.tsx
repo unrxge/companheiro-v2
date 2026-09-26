@@ -555,7 +555,7 @@ export function Landing() {
   return (
     <MoodContext.Provider value={setMood}>
       <div style={vars} className="relative min-h-[100dvh] overflow-x-clip bg-[var(--ink)] font-[family-name:var(--font-geist-sans)] text-[var(--bone)]">
-        <Atmosphere mood={mood} intensity={1} />
+        <Atmosphere mood={mood} intensity={1} cycle={false} />
         <div className="relative z-[1]">
           <Nav />
           <main>

@@ -95,6 +95,9 @@ export const atmosphereHues: Record<Mood, [string, string, string]> = {
   neutral: ['#2a2622', '#1a1816', '#22201c'],
 }
 
+/** The order the shell walks the hue families when it fades through colour on its own. */
+export const atmosphereRing: readonly Hue[] = ['ember', 'ochre', 'verdant', 'tide', 'violet']
+
 // ── Vocabulary → hue ─────────────────────────────────────────────────────────
 export type Arc = 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
 export const arcHue: Record<Arc, Hue> = {
@@ -158,6 +161,11 @@ export const motion = {
   enterMs: 600,
   hoverMs: 150,
   atmosphereS: 52,
+  /** Shell colour cycle: rest on a hue family, then fade to the next. Full ring ≈ 2½ minutes. */
+  hueDwellS: 28,
+  hueFadeS: 12,
+  /** Each successive field starts its fade this much later, so the sky never swaps all at once. */
+  hueLagS: 3,
 } as const
 
 export const fonts = {
