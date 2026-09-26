@@ -26,7 +26,8 @@ export function FourQuestions({
 }: {
   answers: FourAnswers
   onChange(next: FourAnswers): void
-  onRead(): void
+  /** Called with the answers as they stand, dictation still being punctuated included. */
+  onRead(latest: FourAnswers): void
   busy: boolean
   error: string | null
 }) {
@@ -49,7 +50,7 @@ export function FourQuestions({
     onChange(next)
   }
 
-  const { isRecording, interimText, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, finish } = useDictation({
     onAppend: (text) => {
       const i = dictIndexRef.current
       const cur = answersRef.current[i]
@@ -65,19 +66,30 @@ export function FourQuestions({
 
   const last = index === FOUR_QUESTIONS.length - 1
   const current = answers[index]
-  const canAdvance = current.trim().length > 0 && !busy
+  // Words still being punctuated count: they belong to the question that was
+  // open when recording started.
+  const pendingHere = dictIndexRef.current === index ? interimText : ''
+  const canAdvance = (current.trim().length > 0 || pendingHere.trim().length > 0) && !busy
+
+  // Stop the mic and fold whatever it was still punctuating into its answer.
+  const settleDictation = () => {
+    const tail = finish()
+    if (!tail) return
+    const i = dictIndexRef.current
+    const cur = answersRef.current[i]
+    setAnswer(i, cur.trim() ? `${cur.replace(/\s+$/, '')} ${tail}` : tail)
+  }
 
   const go = (next: number) => {
-    if (isRecording) stopRecording()
-    clearInterim()
+    settleDictation()
     setIndex(next)
   }
 
   const advance = () => {
     if (!canAdvance) return
     if (last) {
-      if (isRecording) stopRecording()
-      onRead()
+      settleDictation()
+      onRead(answersRef.current)
     } else go(index + 1)
   }
 
@@ -102,10 +114,9 @@ export function FourQuestions({
       <TextArea
         key={index}
         value={current}
-        onChange={(v) => {
-          clearInterim()
-          setAnswer(index, v)
-        }}
+        // Dictation shows below the box rather than in it, so typing doesn't
+        // take it over: it keeps settling onto the end of the answer.
+        onChange={(v) => setAnswer(index, v)}
         placeholder="In your words"
         ariaLabel={FOUR_QUESTIONS[index]}
         voice

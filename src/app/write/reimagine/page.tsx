@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense, type CSSProperties } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 import { writeHrefForNode } from '@/components/widgets'
@@ -105,12 +106,14 @@ function ReimagineContent() {
   const [paletteIndex, setPaletteIndex] = useState(0)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
     getContext: () => inputTextRef.current.slice(-80),
   })
+  // What the box shows: typed text plus dictation still being punctuated.
+  const shownInput = inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
 
@@ -203,9 +206,12 @@ function ReimagineContent() {
 
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return
+    if (isLoading) return
+    // What's on screen, including words still being punctuated.
+    const text = joinText(inputText, finishDictation({ keepListening: true })).trim()
+    if (!text) return
 
-    const userMessage: Message = { role: 'user', content: inputText.trim() }
+    const userMessage: Message = { role: 'user', content: text }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputText('')
@@ -494,7 +500,7 @@ function ReimagineContent() {
         <div className="max-w-xl mx-auto w-full flex items-center gap-3">
           <textarea
             ref={textareaRef}
-            value={inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
+            value={shownInput}
             onChange={(e) => {
               clearInterim()
               setInputText(e.target.value)
@@ -502,7 +508,7 @@ function ReimagineContent() {
               e.target.style.height = e.target.scrollHeight + 'px'
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
+              if (e.key === 'Enter' && !e.shiftKey && shownInput.trim() && !isLoading) {
                 handleSend()
               }
             }}
@@ -538,7 +544,7 @@ function ReimagineContent() {
 
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!shownInput.trim() || isLoading}
             className="px-6 py-3.5 text-xs font-black tracking-widest uppercase flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
             style={{ ...glassPill(true), color: 'var(--ink)' }}
           >

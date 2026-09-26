@@ -45,11 +45,15 @@ export function NewProjectFlow() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const read = async () => {
+  // The inputs hand over their latest text when they have it, since dictation
+  // folded in on the way out hasn't reached this component's state yet.
+  const read = async (latest?: { brief?: string; answers?: FourAnswers }) => {
     setBusy(true)
     setError(null)
     try {
-      const draft = await api.projects.draftConcept(way === 'brief' ? { mode: 'brief', brief } : { mode: 'questions', answers })
+      const draft = await api.projects.draftConcept(
+        way === 'brief' ? { mode: 'brief', brief: latest?.brief ?? brief } : { mode: 'questions', answers: latest?.answers ?? answers },
+      )
       setStep({ kind: 'review', draft })
     } catch (e) {
       setError(errorLine(e, 'The draft did not arrive · try again'))
@@ -114,9 +118,9 @@ export function NewProjectFlow() {
                 })}
               </div>
               {way === 'brief' ? (
-                <BriefPaste value={brief} onChange={setBrief} onRead={() => void read()} busy={busy} error={error} />
+                <BriefPaste value={brief} onChange={setBrief} onRead={(latest) => void read({ brief: latest })} busy={busy} error={error} />
               ) : (
-                <FourQuestions answers={answers} onChange={setAnswers} onRead={() => void read()} busy={busy} error={error} />
+                <FourQuestions answers={answers} onChange={setAnswers} onRead={(latest) => void read({ answers: latest })} busy={busy} error={error} />
               )}
             </m.div>
           ) : (

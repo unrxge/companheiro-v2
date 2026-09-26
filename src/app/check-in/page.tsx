@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
@@ -92,7 +93,7 @@ export default function CheckInPage() {
   const [showJournalButton, setShowJournalButton] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
 
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -202,10 +203,13 @@ export default function CheckInPage() {
   }
 
   const handleSend = async () => {
-    if (!transcript.trim()) return
+    // Sending mid-sentence takes what's on screen, including the words still
+    // being punctuated, so none of it lands in the emptied box a moment later.
+    // The mic stays as it was.
+    const userText = joinText(transcript, finishDictation({ keepListening: true })).trim()
+    if (!userText) return
     setIsProcessing(true)
     setError(null)
-    const userText = transcript.trim()
     const priorHistory = messages.map((x) => ({ role: x.role, content: x.content }))
     setMessages((prev) => [...prev, { role: 'user', content: userText }])
     setTranscript('')
@@ -466,7 +470,7 @@ export default function CheckInPage() {
 
           {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error}</p>}
 
-          {transcript.trim() && (
+          {textareaValue.trim() && (
             <PrimaryButton onClick={handleSend} disabled={isProcessing} loading={isProcessing} loadingLabel="Processing…" full size="lg">
               Send
             </PrimaryButton>

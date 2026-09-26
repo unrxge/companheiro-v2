@@ -18,6 +18,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { htmlToPlainText } from '@/lib/rich-text'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
@@ -91,8 +92,10 @@ export function useWritingAssistant({
     return () => document.removeEventListener('visibilitychange', onHidden)
   }, [flushDistillation])
 
-  const send = useCallback(async () => {
-    const text = input.trim()
+  // `spoken` is dictation the box was still showing but hadn't settled into
+  // `input` yet; it's sent as part of this message.
+  const send = useCallback(async (spoken = '') => {
+    const text = joinText(input, spoken).trim()
     if (!text || busy || !nodeId) return
     setInput('')
     const prior = messagesRef.current
@@ -206,9 +209,11 @@ export function AssistantPanel({
     el.style.overflowY = el.scrollHeight + border > 160 ? 'auto' : 'hidden'
   }, [input, dictation.interimText])
 
+  const shownInput = input + (dictation.interimText ? ` ${dictation.interimText}` : '')
+
   const sendNow = () => {
-    if (dictation.isRecording) dictation.stopRecording()
-    void send()
+    if (busy || !shownInput.trim()) return
+    void send(dictation.finish())
   }
 
   return (
@@ -256,7 +261,7 @@ export function AssistantPanel({
           <textarea
             ref={box}
             aria-label="Ask about the words"
-            value={input + (dictation.interimText ? ` ${dictation.interimText}` : '')}
+            value={shownInput}
             rows={1}
             placeholder={mode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
             onChange={(e) => { dictation.clearInterim(); setInput(e.target.value) }}
@@ -267,12 +272,12 @@ export function AssistantPanel({
           <button
             type="button"
             onClick={sendNow}
-            disabled={busy || !input.trim()}
+            disabled={busy || !shownInput.trim()}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field, border: 'none',
-              cursor: busy || !input.trim() ? 'default' : 'pointer',
-              background: busy || !input.trim() ? alpha(t.textPrimary, 0.08) : t.inverseBg,
-              color: busy || !input.trim() ? t.textMuted : t.inverseText,
+              cursor: busy || !shownInput.trim() ? 'default' : 'pointer',
+              background: busy || !shownInput.trim() ? alpha(t.textPrimary, 0.08) : t.inverseBg,
+              color: busy || !shownInput.trim() ? t.textMuted : t.inverseText,
             }}
           >
             {busy ? '…' : 'Send'}

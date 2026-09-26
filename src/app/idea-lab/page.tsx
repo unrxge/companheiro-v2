@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { MicButton } from '@/components/ui/mic-button'
 import Link from 'next/link'
 import { motion as m, AnimatePresence } from 'motion/react'
@@ -220,7 +221,7 @@ export default function IdeaLabPage() {
   const isGenerateDisabled = (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
 
   // ── Bring an idea: one text box, two exits ────────────────────────────────
-  const { isRecording: isBringRecording, interimText: bringInterim, handleRecordToggle: toggleBringRecording, stopRecording: stopBringRecording, clearInterim: clearBringInterim } = useDictation({
+  const { isRecording: isBringRecording, interimText: bringInterim, handleRecordToggle: toggleBringRecording, clearInterim: clearBringInterim, finish: finishBringDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       setBringText((prev) => prev + (prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '') + text)
     }, []),
@@ -232,16 +233,22 @@ export default function IdeaLabPage() {
   const bringShown = bringText + (bringInterim ? (bringText && !bringText.endsWith(' ') && !bringText.endsWith('\n') ? ' ' : '') + bringInterim : '')
 
   const leaveBring = () => {
-    if (isBringRecording) stopBringRecording()
-    clearBringInterim()
+    finishBringDictation()
     setEntry('choosing')
+  }
+
+  // Stop the mic and fold whatever it was still punctuating into the box,
+  // so the idea is whole (and still there if the next step fails).
+  const takeBringText = () => {
+    const text = joinText(bringText, finishBringDictation()).trim()
+    setBringText(text)
+    return text
   }
 
   // Not settled yet: talk it through, opening with what they wrote.
   const talkItThrough = () => {
-    const text = bringShown.trim()
-    if (!text) return
-    if (isBringRecording) stopBringRecording()
+    if (!bringShown.trim()) return
+    const text = takeBringText()
     sessionStorage.setItem('brought_opening', text)
     router.push('/idea-lab/conceptualise?mode=bring')
   }
@@ -250,9 +257,8 @@ export default function IdeaLabPage() {
   // Straight into writing; the core concept can be built later from the board.
   const [isStarting, setIsStarting] = useState(false)
   const skipToWriting = async () => {
-    const text = bringShown.trim()
     if (isStarting) return
-    if (isBringRecording) stopBringRecording()
+    const text = takeBringText()
     setIsStarting(true)
     setError(null)
     try {

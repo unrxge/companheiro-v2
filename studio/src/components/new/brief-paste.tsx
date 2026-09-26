@@ -21,7 +21,8 @@ export function BriefPaste({
 }: {
   value: string
   onChange(next: string): void
-  onRead(): void
+  /** Called with the brief as it stands, dictation still being punctuated included. */
+  onRead(latest: string): void
   busy: boolean
   error: string | null
 }) {
@@ -29,26 +30,34 @@ export function BriefPaste({
   const valueRef = useRef(value)
   valueRef.current = value
 
-  const { isRecording, interimText, handleRecordToggle, clearInterim } = useDictation({
-    onAppend: (text) => {
-      const cur = valueRef.current
-      const next = cur.trim() ? `${cur.replace(/\s+$/, '')} ${text}` : text
-      valueRef.current = next
-      onChange(next)
-    },
+  const append = (text: string) => {
+    const cur = valueRef.current
+    const next = cur.trim() ? `${cur.replace(/\s+$/, '')} ${text}` : text
+    valueRef.current = next
+    onChange(next)
+  }
+
+  const { isRecording, interimText, handleRecordToggle, finish } = useDictation({
+    onAppend: append,
     getContext: () => valueRef.current.slice(-200),
   })
 
-  const canRead = value.trim().length > 0 && !busy
+  const canRead = (value.trim().length > 0 || interimText.trim().length > 0) && !busy
+
+  // Stop the mic, fold whatever it was still punctuating into the brief, read.
+  const read = () => {
+    const tail = finish()
+    if (tail) append(tail)
+    onRead(valueRef.current)
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <TextArea
         value={value}
-        onChange={(v) => {
-          clearInterim()
-          onChange(v)
-        }}
+        // Dictation shows below the box rather than in it, so typing doesn't
+        // take it over: it keeps settling onto the end of the brief.
+        onChange={onChange}
         placeholder="Paste a brief, a note to yourself, anything"
         ariaLabel="A brief"
         voice
@@ -59,7 +68,7 @@ export function BriefPaste({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canRead) {
             e.preventDefault()
-            onRead()
+            read()
           }
         }}
       />
@@ -72,7 +81,7 @@ export function BriefPaste({
           <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={busy} size={44} />
           <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'Listening' : 'Type or speak'}</span>
         </div>
-        <PrimaryButton onClick={onRead} disabled={!canRead} loading={busy} loadingLabel="Reading it">
+        <PrimaryButton onClick={read} disabled={!canRead} loading={busy} loadingLabel="Reading it">
           Read it
         </PrimaryButton>
       </div>

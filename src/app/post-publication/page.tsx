@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
@@ -48,7 +49,7 @@ function PostPublicationContent() {
   // Dictation lands in the last focused field, so the mic can sit outside the form.
   const lastFieldRef = useRef<Field>('what_it_opened')
 
-  const { isRecording, interimText, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       const field = focusedFieldRef.current ?? lastFieldRef.current
       setForm((prev) => {
@@ -76,12 +77,17 @@ function PostPublicationContent() {
 
   const handleSubmit = async () => {
     if (!pieceId && !nodeId) return
+    // Stop the mic and fold whatever it was still punctuating into its field.
+    const tail = finishDictation()
+    const field = focusedFieldRef.current ?? lastFieldRef.current
+    const answers = tail ? { ...formRef.current, [field]: joinText(formRef.current[field] || '', tail) } : formRef.current
+    if (tail) setForm(answers)
     setIsSubmitting(true)
     try {
       const res = await fetch('/api/post-publication/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nodeId ? { node_id: nodeId, ...form } : { piece_id: pieceId, ...form }),
+        body: JSON.stringify(nodeId ? { node_id: nodeId, ...answers } : { piece_id: pieceId, ...answers }),
       })
       const data = await res.json()
       if (data.success) router.push(nodeId ? `/read?node_id=${nodeId}` : `/read?piece_id=${pieceId}`)
@@ -136,7 +142,7 @@ function PostPublicationContent() {
                       <TextArea
                         voice
                         value={form[f.key]}
-                        onChange={(v) => { clearInterim(); setForm((p) => ({ ...p, [f.key]: v })) }}
+                        onChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
                         onFocus={() => { setFocusedField(f.key); lastFieldRef.current = f.key }}
                         onBlur={() => setFocusedField(null)}
                         placeholder={f.placeholder}

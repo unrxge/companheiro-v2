@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { readTextStream } from '@/lib/stream-client'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
@@ -34,7 +35,7 @@ export default function WelcomePage() {
   const [error, setError] = useState<string | null>(null)
   const startedRef = useRef(false)
 
-  const { isRecording, interimText, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, clearInterim, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text), []),
     getContext: () => inputRef.current.slice(-80),
   })
@@ -67,11 +68,13 @@ export default function WelcomePage() {
   }, [ask])
 
   const send = async () => {
-    if (!input.trim() || isLoading) return
-    const next: ThreadMessage[] = [...messages, { role: 'user', content: input.trim() }]
+    if (isLoading) return
+    // What's on screen, including words still being punctuated.
+    const text = joinText(input, finishDictation({ keepListening: true })).trim()
+    if (!text) return
+    const next: ThreadMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(next)
     setInput('')
-    clearInterim()
     await ask(next)
   }
 

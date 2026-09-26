@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -55,7 +56,7 @@ function ConceptualiseContent() {
   const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode)
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -217,13 +218,15 @@ function ConceptualiseContent() {
   }
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return
-    const userMessage: ThreadMessage = { role: 'user', content: inputText.trim() }
+    if (isLoading) return
+    // What's on screen, including words still being punctuated.
+    const text = joinText(inputText, finishDictation({ keepListening: true })).trim()
+    if (!text) return
+    const userMessage: ThreadMessage = { role: 'user', content: text }
     if (brought && !messages.some((x) => x.role === 'user')) broughtSeedRef.current = userMessage.content
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputText('')
-    clearInterim()
     await fetchAIResponse(updatedMessages, phase)
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { useRouter } from 'next/navigation'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -41,7 +42,7 @@ export default function ZoomOutPage() {
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
   const [trajectoryLoaded, setTrajectoryLoaded] = useState(false)
 
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim, finish: finishDictation } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -106,12 +107,14 @@ export default function ZoomOutPage() {
   }
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return
-    const userMessage: ThreadMessage = { role: 'user', content: inputText.trim() }
+    if (isLoading) return
+    // What's on screen, including words still being punctuated.
+    const text = joinText(inputText, finishDictation({ keepListening: true })).trim()
+    if (!text) return
+    const userMessage: ThreadMessage = { role: 'user', content: text }
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setInputText('')
-    clearInterim()
     setPendingAction(null)
     setConfirmation(null)
     await fetchAIResponse(updatedMessages)

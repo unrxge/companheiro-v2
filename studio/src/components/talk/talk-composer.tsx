@@ -7,10 +7,9 @@
 // recording on mount (the pill's press-and-hold, the phone bar's hold).
 
 import { useEffect, useRef, useState } from 'react'
-import { useTheme } from '@/components/theme/theme-provider'
 import { Composer } from '@/components/conversation/thread'
 import { useDictation } from '@/lib/use-dictation'
-import { canvasType } from '@/lib/studio/canvas-tokens'
+import { joinText } from '@/lib/dictation-text'
 import { TALK_COPY } from '@/lib/studio/talk/prompts'
 
 export type TalkInput = 'typed' | 'voice'
@@ -28,13 +27,12 @@ export function TalkComposer({
   placeholder?: string
   autoFocus?: boolean
 }) {
-  const { t } = useTheme()
   const [value, setValue] = useState('')
   const valueRef = useRef('')
   const voiceUsed = useRef(false)
   valueRef.current = value
 
-  const { isRecording, interimText, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, clearInterim, finish } = useDictation({
     onAppend: (text) => {
       voiceUsed.current = true
       setValue((v) => (v.trim().length > 0 ? `${v.replace(/\s+$/, '')} ${text}` : text))
@@ -52,27 +50,32 @@ export function TalkComposer({
     toggleRef.current()
   }, [autoDictate])
 
-  // never leave the microphone on after the composer unmounts
-  const stopRef = useRef(stopRecording)
-  stopRef.current = stopRecording
-  useEffect(() => () => { stopRef.current() }, [])
+  // (useDictation turns the microphone off itself when the composer unmounts.)
+
+  // What the box shows: typed text plus dictation still being punctuated,
+  // which can still change as the sentence goes on.
+  const shown = joinText(value, interimText)
 
   const send = () => {
-    const text = value.trim()
-    if (!text || disabled) return
-    if (isRecording) stopRecording()
-    const input: TalkInput = voiceUsed.current ? 'voice' : 'typed'
+    if (disabled || !shown.trim()) return
+    const spoken = finish()
+    const text = joinText(value, spoken).trim()
+    const input: TalkInput = voiceUsed.current || spoken ? 'voice' : 'typed'
     voiceUsed.current = false
     setValue('')
-    clearInterim()
     onSend(text, input)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <Composer
-        value={value}
-        onChange={(v) => { setValue(v); clearInterim() }}
+        value={shown}
+        onChange={(v) => {
+          // Typing takes whatever dictation was showing into the text; it was still spoken.
+          if (interimText) voiceUsed.current = true
+          setValue(v)
+          clearInterim()
+        }}
         onSend={send}
         disabled={disabled}
         placeholder={placeholder}
@@ -81,11 +84,6 @@ export function TalkComposer({
         sendLabel={TALK_COPY.send}
         autoFocus={autoFocus}
       />
-      {isRecording && interimText && (
-        <p aria-live="polite" style={{ ...canvasType.small, color: t.textMuted, margin: 0, whiteSpace: 'pre-wrap' }}>
-          {interimText}
-        </p>
-      )}
     </div>
   )
 }

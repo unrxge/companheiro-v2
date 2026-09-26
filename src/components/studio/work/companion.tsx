@@ -21,6 +21,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
+import { joinText } from '@/lib/dictation-text'
 import { Label } from '@/components/studio/work/bits'
 
 interface Line {
@@ -92,6 +93,8 @@ export function Companion({
     onAppend: (text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)),
     getContext: () => draftRef.current.slice(-200),
   })
+  // What the box shows: typed text plus dictation still being punctuated.
+  const shownDraft = draft + (dictation.interimText ? ` ${dictation.interimText}` : '')
 
   const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now()
 
@@ -175,9 +178,10 @@ export function Companion({
   }, [draft, dictation.interimText])
 
   const send = useCallback(async () => {
-    const text = draft.trim()
-    if (!text || busy) return
-    if (dictation.isRecording) dictation.stopRecording()
+    if (busy) return
+    // What's on screen, including words still being punctuated; the mic stops.
+    const text = joinText(draft, dictation.finish()).trim()
+    if (!text) return
     setDraft('')
     setError(null)
     setBusy(true)
@@ -296,7 +300,7 @@ export function Companion({
           <textarea
             ref={box}
             aria-label="Say something about the shape of this"
-            value={draft + (dictation.interimText ? ` ${dictation.interimText}` : '')}
+            value={shownDraft}
             rows={1}
             placeholder={mode === 'write' ? 'Ask for a suggestion…' : 'What are you turning over?'}
             onChange={(e) => { dictation.clearInterim(); setDraft(e.target.value) }}
@@ -317,12 +321,12 @@ export function Companion({
           <button
             type="button"
             onClick={() => void send()}
-            disabled={busy || !draft.trim()}
+            disabled={busy || !shownDraft.trim()}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field,
-              border: 'none', cursor: busy || !draft.trim() ? 'default' : 'pointer',
-              background: busy || !draft.trim() ? alpha(t.textPrimary, 0.08) : t.inverseBg,
-              color: busy || !draft.trim() ? t.textMuted : t.inverseText,
+              border: 'none', cursor: busy || !shownDraft.trim() ? 'default' : 'pointer',
+              background: busy || !shownDraft.trim() ? alpha(t.textPrimary, 0.08) : t.inverseBg,
+              color: busy || !shownDraft.trim() ? t.textMuted : t.inverseText,
             }}
           >
             {busy ? '…' : 'Send'}
