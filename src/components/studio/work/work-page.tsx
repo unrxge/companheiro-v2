@@ -639,7 +639,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           <style>{`
             .piece-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
             .piece-bar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-            .piece-bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+            .piece-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+            /* Flex, not block: an inline-flex tray inside a block wrapper picks up a line box and ends 2px taller than its neighbour. */
+            .piece-bar-switch { display: flex; align-items: center; }
             /* On a phone the view switch stays beside the trail and the buttons drop to their own row. */
             @media (max-width: 719px) {
               .piece-bar-tools { display: contents; }

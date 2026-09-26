@@ -131,16 +131,14 @@ Return as JSON:
       userPrompt = `Distil the core truth from this conviction statement: "${convictionStatement}"\n\nFull conversation for context:\n${conversationText}`;
     } else if (body.phase === 4) {
       systemPrompt = `You are completing a core concept document by:
-1. Generating goals for a Substack piece format
-2. Generating goals for short-form content format
-3. Identifying open threads from the full conversation that could be explored
+1. Generating suggestions for how this piece could be made — direction for the work itself, whatever it turns out to be (an essay, a script, a song, something else). Suggestions, not orders.
+2. Identifying open threads from the full conversation that could be explored
 
-Format each of the three fields as bullet points: one goal or thread per line, each line starting with "- ". Be succinct and precise — no filler, no restating the same point twice. 2-4 bullets per field is usually enough.
+Format each of the two fields as bullet points: one item per line, each line starting with "- ". Be succinct and precise — no filler, no restating the same point twice. 2-4 bullets per field is usually enough.
 
 Return as JSON:
 {
-  "substack_goals": "- ...\\n- ...",
-  "short_form_goals": "- ...\\n- ...",
+  "writing_goals": "- ...\\n- ...",
   "open_threads": "- ...\\n- ..."
 }`;
 
@@ -149,7 +147,7 @@ Return as JSON:
         .join("\n\n");
       const convictionStatement = getConfirmedField(body.confirmed_sections, "phase2", "conviction_statement");
 
-      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate format goals and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
+      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate the writing suggestions and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
     }
 
     // Phases 1-3 distil the conversation down to a sentence or two of real

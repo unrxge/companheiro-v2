@@ -12,8 +12,10 @@ interface SaveRequest {
   conviction_statement: string;
   emotional_journey: string;
   core_truth: string;
-  substack_goals: string;
-  short_form_goals: string;
+  /** Suggestions for how the piece is written. Stored in studio_nodes.substack_goals (a legacy column name). */
+  writing_goals: string;
+  /** No longer generated; kept so older clients that still send it don't fail. */
+  short_form_goals?: string;
   open_threads: string;
   conversation_history: Array<{ role: "user" | "assistant"; content: string }>;
   /** The idea as the person first brought it, when they came via "Bring an idea". */
@@ -192,7 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
           status: "open",
           emotional_journey: body.emotional_journey,
           core_truth: body.core_truth,
-          substack_goals: body.substack_goals,
+          substack_goals: body.writing_goals,
           short_form_goals: body.short_form_goals,
           open_threads: openThreadsArray,
           writing_ethos: null, // left blank for Gather to fill later
@@ -233,8 +235,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         conviction_statement: body.conviction_statement,
         emotional_journey: body.emotional_journey,
         core_truth: body.core_truth,
-        substack_goals: body.substack_goals,
-        short_form_goals: body.short_form_goals,
+        writing_goals: body.writing_goals,
       }),
     ])
 
@@ -339,8 +340,8 @@ async function completeExistingProject(
       intent: body.conviction_statement,
       emotional_journey: body.emotional_journey,
       core_truth: body.core_truth,
-      substack_goals: body.substack_goals,
-      short_form_goals: body.short_form_goals,
+      substack_goals: body.writing_goals,
+      ...(body.short_form_goals !== undefined ? { short_form_goals: body.short_form_goals } : {}),
       open_threads: toThreadArray(body.open_threads),
     })
     .eq("id", root.id);

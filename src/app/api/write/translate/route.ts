@@ -70,7 +70,7 @@ Keep it visual, conversational, and distinct from the written piece. The viewer 
       messages: [
         {
           role: "user",
-          content: `Here's a Substack piece:
+          content: `Here's the finished piece:
 
 ${pieceData.substack_draft}
 

@@ -158,8 +158,7 @@ function CoreConceptContent() {
         conviction_statement: sections.phase2.content.conviction_statement || '',
         emotional_journey: sections.phase2.content.emotional_journey || '',
         core_truth: sections.phase3.content.core_truth || '',
-        substack_goals: sections.phase4.content.substack_goals || '',
-        short_form_goals: sections.phase4.content.short_form_goals || '',
+        writing_goals: sections.phase4.content.writing_goals || '',
         open_threads: sections.phase4.content.open_threads || '',
         conversation_history: conversation,
         brought_idea: existingProjectId ? null : sessionStorage.getItem('brought_idea'),
@@ -218,10 +217,10 @@ function CoreConceptContent() {
   // The section's own label with the lock beside it, on one line — the badge
   // belongs to the heading, not to the card's corner where it crowds the text
   // underneath. minHeight keeps the row from growing when a section locks.
-  const sectionHead = (label: string, s: DocumentSection, opts?: { center?: boolean }) => (
+  const sectionHead = (label: string, s: DocumentSection, opts?: { center?: boolean; lock?: boolean }) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: opts?.center ? 'center' : 'space-between', gap: 12, minHeight: 24, marginBottom: opts?.center ? 0 : 10 }}>
       <Eyebrow>{label}</Eyebrow>
-      {s.status === 'confirmed' && lockedBadge}
+      {s.status === 'confirmed' && opts?.lock !== false && lockedBadge}
     </div>
   )
 
@@ -243,9 +242,10 @@ function CoreConceptContent() {
           {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, marginBottom: 12 }}>{error}</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {tasks.map((task, index) => (
-              <Card key={task.id ?? index} padding="12px 16px" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                  <span style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{task.title}</span>
+              <Card key={task.id ?? index} padding="12px 16px" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, flex: 1, minWidth: 0 }}>{task.title}</span>
+                {/* Fixed-width column so the label lines up whether the title takes one row or several. */}
+                <div style={{ width: 84, display: 'flex', justifyContent: 'flex-start', flexShrink: 0 }}>
                   <Pill>{task.type}</Pill>
                 </div>
                 <GhostButton size="sm" onClick={() => handleDeleteTask(task.id, index)}>Remove</GhostButton>
@@ -359,28 +359,21 @@ function CoreConceptContent() {
             { padding: '36px 28px' }
           )}
 
-          {/* Phase 4 — Format & threads */}
+          {/* Phase 4 — Writing suggestions & open threads, side by side */}
           {p4.status === 'pending' ? (
             phaseCard(p4, null)
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
                 <Card>
-                  <Eyebrow style={{ marginBottom: 10 }}>Writing suggestions</Eyebrow>
-                  {p4.status === 'confirmed' ? <DashedList text={p4.content.substack_goals || ''} /> : <TextArea bare value={p4.content.substack_goals || ''} onChange={(v) => handleEditContent('phase4', 'substack_goals', v)} placeholder={'- First suggestion\n- Second suggestion'} ariaLabel="Writing suggestions" style={bareStyle} />}
+                  {sectionHead('Writing suggestions', p4, { lock: false })}
+                  {p4.status === 'confirmed' ? <DashedList text={p4.content.writing_goals || ''} /> : <TextArea bare value={p4.content.writing_goals || ''} onChange={(v) => handleEditContent('phase4', 'writing_goals', v)} placeholder={'- First suggestion\n- Second suggestion'} ariaLabel="Writing suggestions" style={bareStyle} />}
                 </Card>
                 <Card>
-                  <Eyebrow style={{ marginBottom: 10 }}>Visuals suggestions</Eyebrow>
-                  {p4.status === 'confirmed' ? <DashedList text={p4.content.short_form_goals || ''} /> : <TextArea bare value={p4.content.short_form_goals || ''} onChange={(v) => handleEditContent('phase4', 'short_form_goals', v)} placeholder={'- First suggestion\n- Second suggestion'} ariaLabel="Visuals suggestions" style={bareStyle} />}
+                  {sectionHead('Open threads', p4)}
+                  {p4.status === 'confirmed' ? <DashedList text={p4.content.open_threads || ''} /> : <TextArea bare value={p4.content.open_threads || ''} onChange={(v) => handleEditContent('phase4', 'open_threads', v)} placeholder={'- Thread one\n- Thread two'} ariaLabel="Open threads" style={bareStyle} />}
                 </Card>
               </div>
-              <Card>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <Eyebrow>Open threads</Eyebrow>
-                  {p4.status === 'confirmed' && lockedBadge}
-                </div>
-                {p4.status === 'confirmed' ? <DashedList text={p4.content.open_threads || ''} /> : <TextArea bare value={p4.content.open_threads || ''} onChange={(v) => handleEditContent('phase4', 'open_threads', v)} placeholder={'- Thread one\n- Thread two'} ariaLabel="Open threads" style={bareStyle} />}
-              </Card>
               {p4.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase4')} full>Confirm</QuietButton>}
             </div>
           )}

@@ -8,8 +8,7 @@ export interface CoreConcept {
   conviction_statement: string
   emotional_journey: string
   core_truth: string
-  substack_goals: string
-  short_form_goals: string
+  writing_goals: string
 }
 
 export interface GeneratedTask {
@@ -27,16 +26,15 @@ Idea: ${concept.one_sentence}
 Arc: ${concept.arc}
 Conviction: ${concept.conviction_statement}
 Core Truth: ${concept.core_truth}
-Substack Goals: ${concept.substack_goals}
-Short-form Goals: ${concept.short_form_goals}
+Writing suggestions: ${concept.writing_goals}
   `
 
   try {
     const response = await anthropic.messages.create({
       model: MODELS.fast,
       max_tokens: 2048,
-      system: `You are a creative project manager. Generate a task list for bringing an idea to publication.
-The list should flow from initial writing through to posting, balancing creation work (writing, conceptualizing, experimenting) with execution work (editing, formatting, scheduling).
+      system: `You are a creative project manager. Generate a task list for bringing an idea to a finished, shared piece of work. The medium may be writing, a script, a song or something else, so keep tasks true to what the concept describes.
+The list should flow from first making through to sharing it, balancing creation work (making, conceptualizing, experimenting) with execution work (editing, formatting, scheduling).
 Each task should be concrete and specific.
 Each task is labeled as either "creation" (conceptual/creative work) or "execution" (technical/logistical work).
 
