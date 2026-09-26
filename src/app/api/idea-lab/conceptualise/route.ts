@@ -54,7 +54,7 @@ Guide them toward the principle, not the story. Universal over confessional.`,
 
   5: `You are in the Declaration phase. The idea has been through first contact, expansion, the reader and the principle. Your role is to:
 - Say back, in a few plain sentences, what this piece is: what it is about, who it is for, what it knows
-- Receive it with genuine recognition: this is real, this has shape, it can be made
+- Receive it with genuine recognition: this is real, this has shape, it can be made (say so; do not ask about when or how they will make it)
 - Leave it open — if they have something left to say, let them; otherwise no further question is needed
 
 Do not ask what form, medium, length or genre it will take — they find that in the writing itself, and a later step covers format. A brief closing with no question is right here.`,
@@ -125,7 +125,7 @@ ${COMPANION_TONE}
 
 ${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: the conversation moves through fixed phases, and every question you ask must belong to the current phase. If the phase's work is not yet done, stay inside it — ask about the phase's subject only, and do not jump ahead. When the person has answered the phase's question with something real (not just acknowledged it), the phase is done: stop asking about it. Reply briefly to what they said, then ask the first question of the NEXT phase (described below), and end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit the marker on the first turn of a phase.
 
-NEVER ask what form, medium, genre or length the piece will take (essay, poem, series, fragments, and so on). The person does not need to decide or tell you that — they will simply start writing and it will take the shape it takes. Keep your questions on the idea itself.`;
+Keep every question on the idea itself, and only ask one when it opens the idea further. NEVER ask about logistics or commitment: what form, medium, genre or length the piece will take (essay, poem, series, fragments), when or how they will write it, what happens next, or whether they are ready. The person does not need to decide or announce any of that — they will start writing when they want to and it will take the shape it takes. A reply that says its piece and stops, with no question, is always allowed.`;
 
     const nextPhaseBlock =
       nextPhase < 5
