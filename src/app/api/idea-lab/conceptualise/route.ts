@@ -72,11 +72,6 @@ function hitTurnCap(messages: Message[], phase: number): boolean {
   return userTurns >= phase * MAX_USER_TURNS_PER_PHASE;
 }
 
-function lastAssistantMarked(messages: Message[]): boolean {
-  const last = [...messages].reverse().find((m) => m.role === "assistant");
-  return !!last && last.content.includes(PHASE_MARKER);
-}
-
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser();
@@ -101,8 +96,10 @@ export async function POST(request: NextRequest) {
     const currentPhase = body.phase;
     // Advance now if the previous assistant turn declared the phase complete
     // (the client keeps the marker in history), or if the cap was hit.
-    const shouldAdvance =
-      currentPhase < 5 && (lastAssistantMarked(body.messages) || hitTurnCap(body.messages, currentPhase));
+    // The marker no longer advances on the next request: the client is told to
+    // move on in the same response that carries it (see the meta below), so it
+    // already sends the new phase. Only the turn cap advances here.
+    const shouldAdvance = currentPhase < 5 && hitTurnCap(body.messages, currentPhase);
     const nextPhase = shouldAdvance ? Math.min(currentPhase + 1, 5) : currentPhase;
 
     const companionContext = await buildCompanionContext(auth);
@@ -126,9 +123,14 @@ export async function POST(request: NextRequest) {
 
 ${COMPANION_TONE}
 
-${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this phase's work is genuinely done — the person has answered the phase's question with something real, not just acknowledged it — end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit it on the first turn of a phase.`;
+${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: the conversation moves through fixed phases, and every question you ask must belong to the current phase. If the phase's work is not yet done, stay inside it — ask about the phase's subject only, and do not jump ahead. When the person has answered the phase's question with something real (not just acknowledged it), the phase is done: stop asking about it. Reply briefly to what they said, then ask the first question of the NEXT phase (described below), and end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit the marker on the first turn of a phase.`;
 
-    const volatileSystemBlock = `${PHASE_PROMPTS[nextPhase]}${questionContext}${broughtContext}`;
+    const nextPhaseBlock =
+      nextPhase < 5
+        ? `\n\nNEXT PHASE (only if you are emitting ${PHASE_MARKER} this turn — then your closing question must come from here, not from the current phase):\n${PHASE_PROMPTS[nextPhase + 1]}`
+        : "";
+
+    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to
@@ -153,11 +155,17 @@ ${companionContext ? companionContext + "\n\n" : ""}PHASE COMPLETION: when this 
         ],
         messages: claudeMessages,
       },
-      (fullText) => ({
-        phase: nextPhase,
-        readyToAdvance: nextPhase === 5,
-        phaseComplete: fullText.includes(PHASE_MARKER),
-      })
+      (fullText) => {
+        const complete = fullText.includes(PHASE_MARKER);
+        // On completion the reply already asks the next phase's question, so
+        // the client moves to that phase now.
+        const reportedPhase = complete ? Math.min(nextPhase + 1, 5) : nextPhase;
+        return {
+          phase: reportedPhase,
+          readyToAdvance: reportedPhase === 5,
+          phaseComplete: complete,
+        };
+      }
     );
   } catch (error) {
     console.error("Conceptualise route error:", error);
