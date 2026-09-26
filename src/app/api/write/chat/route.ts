@@ -9,6 +9,7 @@ import { recallEchoes } from "@/lib/recall";
 import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
+import { normaliseRules } from "@/lib/studio/nodes-db";
 
 interface ActiveSection {
   id: string;
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       supabase
         .from("studio_nodes")
         .select(
-          "title, intent, emotional_journey, core_truth, substack_goals, open_threads, body, writing_ethos"
+          "title, intent, emotional_journey, core_truth, substack_goals, open_threads, body, writing_ethos, rules, project_id"
         )
         .eq("id", body.node_id)
         .eq("user_id", user.id)
@@ -90,9 +91,18 @@ export async function POST(request: NextRequest) {
     }
     const pieceData = { ...pieceRow, conviction_statement: pieceRow.intent };
 
-    const [companionContext, echoes] = await Promise.all([
+
+    const [companionContext, echoes, { data: projectRow }] = await Promise.all([
       buildCompanionContext(auth),
       recallEchoes(auth, `${pieceData.title || ""} ${body.message}`),
+      // The project carries the half of the core concept that isn't on the
+      // piece: its theme, its vision, and the rules the person set for it.
+      supabase
+        .from("studio_projects")
+        .select("intent, thematic_territory, rules")
+        .eq("id", pieceRow.project_id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
     ]);
 
     const section = body.active_section;
@@ -164,7 +174,7 @@ ${
     ? `- They highlighted a specific sentence or passage — that is the ENTIRE scope of this edit. Return ONLY the rewritten version of that highlighted passage, not the surrounding text and not the rest of the section. It gets spliced back into exactly where the highlight was; anything outside it must stay untouched, so don't include it.`
     : `- No specific passage was highlighted, so this is a full-section edit — return the section's complete revised text, not a fragment. It replaces the section wholesale on approval.`
 }
-- Preserve the ethos of their voice; weave in their intent and adapt their wording to fit into the standard of phenomenal storytelling. If anchor lines are allocated to this section, work them in naturally — they're precious to the writer and must not be dropped or ignored.
+- Every proposal answers to THE CORE CONCEPT: it carries the journey beat this section is for, keeps their stated goals and rules, and serves the conviction and core truth. Preserve the ethos of their voice; weave in their intent and adapt their wording to fit into the standard of phenomenal storytelling. If anchor lines are allocated to this section, work them in naturally — they're precious to the writer and must not be dropped or ignored.
 - Consistency is non-negotiable: the tone, style, and storyline must read as a continuation of THE PIECE SO FAR, not a fresh take on the topic in isolation. If your proposed text would contradict or ignore something already established above, don't propose it — raise the tension in chat instead.
 - When the ask is a localized tweak, don't just splice the new fragment into untouched surroundings without checking it still reads clean — a transition that no longer connects, a reference to phrasing you just changed, a beat that now repeats or contradicts. But do not rewrite anything beyond what was actually asked for, especially when a specific passage was highlighted.
 - Let the length be whatever the moment needs — a tightened sentence or a full redraft.
@@ -184,6 +194,28 @@ ${
     // when the piece's own fields or its preceding sections actually change.
     // Cached at the 1h TTL (prompt-cache.ts) so pausing to think between
     // messages doesn't mean rebuilding and rebilling all of this every turn.
+    const liveRules = (raw: unknown) =>
+      normaliseRules(raw).filter((r) => !r.retired_at).map((r) => r.text);
+    const rules = [...liveRules(projectRow?.rules), ...liveRules(pieceRow.rules)];
+    const openThreads = Array.isArray(pieceRow.open_threads)
+      ? (pieceRow.open_threads as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      : [];
+    const projectVision = projectRow?.intent?.trim() && projectRow.intent.trim() !== pieceData.conviction_statement?.trim()
+      ? projectRow.intent.trim()
+      : null;
+    const conceptLines = [
+      `Title: ${pieceData.title || "(untitled)"}`,
+      projectRow?.thematic_territory ? `Theme: ${projectRow.thematic_territory}` : null,
+      `Conviction — what the piece is for: ${pieceData.conviction_statement || "(not provided)"}`,
+      projectVision ? `The project's wider vision: ${projectVision}` : null,
+      `Core truth — the thing underneath it: ${pieceData.core_truth || "(not provided)"}`,
+      `Emotional journey — the path the audience should travel, beat by beat:\n${pieceData.emotional_journey || "(not provided)"}`,
+      pieceData.writing_ethos ? `Their ethos for it: ${pieceData.writing_ethos}` : null,
+      `Their goals for how it's written: ${pieceData.substack_goals || "(not provided)"}`,
+      openThreads.length ? `Open threads they left themselves to explore:\n${openThreads.map((x) => `- ${x}`).join("\n")}` : null,
+      rules.length ? `Rules they set for this work (hold to these unless they change them):\n${rules.map((x) => `- ${x}`).join("\n")}` : null,
+    ].filter(Boolean).join("\n");
+
     const stableSystemBlock = `You are Companheiro, sitting beside a writer while they work on a piece.
 
 ${COMPANION_TONE}
@@ -192,12 +224,16 @@ ${PROSE_STANDARD}
 
 ${STORY_STRUCTURE}
 
-${companionContext ? companionContext + "\n\n" : ""}THE PIECE:
-Title: ${pieceData.title || "(untitled)"}
-${pieceData.writing_ethos ? `Their ethos for it: ${pieceData.writing_ethos}\n` : ""}Conviction: ${pieceData.conviction_statement || "(not provided)"}
-Emotional Journey: ${pieceData.emotional_journey || "(not provided)"}
-Core Truth: ${pieceData.core_truth || "(not provided)"}
-Writing suggestions: ${pieceData.substack_goals || "(not provided)"}
+${companionContext ? companionContext + "\n\n" : ""}THE CORE CONCEPT — the document they built before writing a word. It is the brief for everything you say here:
+${conceptLines}
+
+HOW THE CONCEPT SHAPES YOU:
+- Read every question, every section and every line through it. Before you answer, know which part of the concept is in play: which beat of the journey this section carries, which goal or rule applies, how it serves the conviction and the core truth.
+- Your observations measure the writing against their own intentions, not against a generic idea of good writing. "This paragraph is doing what the second beat asks — the audience feels the doubt before it's named" is worth more than any craft note that would be true of any piece.
+- Name the concept when it's what's actually at stake, in their own words: the beat, the goal, the truth. Don't recite it back or tick through it like a checklist; once it's in play, let it inform the reply rather than headline it.
+- When the writing drifts from the concept, say so — it's often the most useful thing you can notice. Then leave open which one should move: sometimes the draft has found something truer than the plan, and the concept is what needs revising. Their conviction outranks the document; the document is how you know what the conviction was.
+- Anything you write or propose must serve the concept: it carries the beat this section is meant to carry, honours their goals and rules, and moves toward the core truth rather than around it. If a line you're tempted to offer doesn't, don't offer it.
+- An open thread they left themselves is theirs to pick up. When a moment in the draft is where one could be woven in, point at it once; never push.
 
 ${precedingBlock}
 
