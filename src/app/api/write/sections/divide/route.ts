@@ -3,6 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
+import { htmlToPlainText } from '@/lib/rich-text'
 import { bodyPatch, resyncNodeBody } from '@/lib/studio/write-nodes'
 import { logUsage } from '@/lib/usage-log'
 
@@ -83,7 +84,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const prose = (piece?.body || '').trim()
+    // A piece written as one part keeps its words as HTML; cut plain text, or a boundary can land inside a tag.
+    const prose = htmlToPlainText(piece?.body || '').trim()
     if (!prose) return NextResponse.json({ error: 'Nothing written to divide yet.' }, { status: 400 })
 
     const targetBeats =

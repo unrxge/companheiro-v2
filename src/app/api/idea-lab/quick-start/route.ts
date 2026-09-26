@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
+import { wordCount } from "@/lib/studio/tree";
 
 // "Bring an idea" → "Skip to writing": the idea is already clear, so no
 // conversation and no core-concept document up front. Creates the project
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
         status: "open",
         open_threads: [],
         body: text,
+        extent: wordCount(text),
       })
       .select("id")
       .single();

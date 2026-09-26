@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { htmlToPlainText } from '@/lib/rich-text'
 import { requireUser } from '@/lib/supabase/route'
 import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!root) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
-    const piece = { ...root, substack_draft: root.body, conviction_statement: root.intent }
+    const piece = { ...root, substack_draft: htmlToPlainText(root.body || ''), conviction_statement: root.intent }
 
     const draft = (piece.substack_draft || '').trim()
     if (!draft) return NextResponse.json({ error: 'No draft to reimagine' }, { status: 400 })

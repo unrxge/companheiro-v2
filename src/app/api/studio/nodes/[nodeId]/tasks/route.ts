@@ -1,5 +1,5 @@
-// POST /api/studio/nodes/:nodeId/tasks — add a task to a piece's checklist.
-// PATCH — toggle a task's status. DELETE — remove a task.
+// GET /api/studio/nodes/:nodeId/tasks — a piece's checklist.
+// POST — add a task. PATCH — toggle a task's status. DELETE — remove a task.
 //
 // studio_tasks mirrors the main app's `tasks` table (migration 007), with
 // node_id replacing piece_id. This is the Studio-side equivalent of
@@ -15,6 +15,21 @@ type Params = { params: Promise<{ nodeId: string }> }
 
 const TASK_TYPES = new Set(['creation', 'execution'])
 const TASK_STATUSES = new Set(['pending', 'complete'])
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  const { nodeId } = await params
+  return withAuth(async (auth) => {
+    const node = await requireNode(auth, nodeId)
+    const { data, error } = await auth.supabase
+      .from('studio_tasks')
+      .select('id, title, type, status, is_writing_related')
+      .eq('node_id', node.id)
+      .eq('user_id', auth.user.id)
+      .order('order', { ascending: true })
+    if (error) throw fromDbError(error)
+    return NextResponse.json({ success: true, tasks: data ?? [] })
+  })
+}
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { nodeId } = await params

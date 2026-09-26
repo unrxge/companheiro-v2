@@ -87,6 +87,18 @@ export function useWork(projectId: string) {
   const api = useMemo(() => ({
     reload: load,
 
+    /** Re-reads the tree in place, without the "opening…" state — for a route that writes the rows itself (shaping, dividing). */
+    refresh: async () => {
+      try {
+        const res = await work.tree(projectId)
+        if (!alive.current) return
+        setProject(res.project)
+        setTree(res.tree)
+      } catch {
+        // what is on screen stays
+      }
+    },
+
     /** Same shape as editNode/editThread: applied locally first, so renaming
      *  the project, editing its vision, or moving its title block never
      *  flashes the whole board back to "opening…" the way a reload would. */
@@ -113,7 +125,7 @@ export function useWork(projectId: string) {
       await guard(() => work.patchNode(id, {
         title: patch.title, intent: patch.intent, beat: patch.beat,
         stands_whole: patch.stands_whole, body: patch.body, status: patch.status,
-        rules: patch.rules, board_x: patch.board_x, board_y: patch.board_y,
+        rules: patch.rules, board_x: patch.board_x, board_y: patch.board_y, is_locked: patch.is_locked,
       }))
     },
 

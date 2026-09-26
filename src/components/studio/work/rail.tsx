@@ -15,7 +15,7 @@ import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
-export type RailKey = 'intent' | 'rules' | 'companion'
+export type RailKey = 'intent' | 'concept' | 'rules' | 'anchors' | 'tasks' | 'companion'
 
 const icon = (path: ReactNode) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
@@ -25,20 +25,29 @@ const icon = (path: ReactNode) => (
 
 export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
   { key: 'intent', label: 'What this is for', icon: icon(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /></>) },
+  { key: 'concept', label: 'The core concept', icon: icon(<><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" /></>) },
   { key: 'rules', label: 'The rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
+  { key: 'anchors', label: 'Anchor lines', icon: icon(<path d="M6 4h12v16l-6-4-6 4z" />) },
+  { key: 'tasks', label: 'Tasks', icon: icon(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 12l2 2 4-4" /></>) },
   { key: 'companion', label: 'Talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },
 ]
+
+/** What a part or a thread has to itself; the rest belong to a whole piece. */
+export const PART_TOOLS: RailKey[] = ['intent', 'rules', 'companion']
 
 export function Rail({
   open,
   onOpen,
   counts,
+  tools,
   hidden = false,
 }: {
   open: RailKey | null
   onOpen: (key: RailKey | null) => void
   /** A small number on an icon, when there is something in it worth knowing. */
   counts?: Partial<Record<RailKey, number>>
+  /** Which tools to draw; all of them by default. */
+  tools?: RailKey[]
   hidden?: boolean
 }) {
   const { t } = useTheme()
@@ -51,7 +60,7 @@ export function Rail({
         zIndex: 40, display: 'flex', flexDirection: 'column', gap: 10,
       }}
     >
-      {RAIL_TOOLS.map((tool) => {
+      {RAIL_TOOLS.filter((tool) => !tools || tools.includes(tool.key)).map((tool) => {
         const active = open === tool.key
         const count = counts?.[tool.key]
         return (
@@ -171,10 +180,17 @@ export function Drawer({
   if (!open) return null
 
   return (
+    <>
+    {/* Below the Dock breakpoint the Dock sits along the bottom, so the panel stops above it. */}
+    <style>{`
+      .rail-drawer { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
+      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { bottom: 16px; } }
+    `}</style>
     <aside
       aria-label={title}
+      className="rail-drawer"
       style={{
-        position: 'fixed', right: 62, top: 64, bottom: 16, width: 'min(420px, calc(100vw - 96px))',
+        position: 'fixed', right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))',
         zIndex: 39, display: 'flex', flexDirection: 'column', overflow: 'hidden',
         background: t.containerBg, border: `1px solid ${t.divider}`,
         borderRadius: radius.card, boxShadow: t.containerShadow,
@@ -202,5 +218,6 @@ export function Drawer({
       </header>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 20 }}>{children}</div>
     </aside>
+    </>
   )
 }

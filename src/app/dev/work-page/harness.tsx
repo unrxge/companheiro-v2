@@ -7,6 +7,21 @@ import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-
 import { SettingsButton } from '@/components/settings/settings-sheet'
 
 const NOW = '2026-09-25T10:00:00.000Z'
+const IDEA = 'A morning where nothing was asked of me, and how strange it was to notice.'
+const LONG = `${IDEA} The kettle took its time and I let it. There was a window, and in it a light I had stopped seeing years ago, the kind that arrives sideways and asks nothing back.\n\nI thought about how much of my life is arranged around being needed, and how quiet it gets when the needing stops for an hour. It was not peace, exactly. It was closer to standing in a room after everyone has left, listening to what the walls do without them.\n\nBy the time the tea was cool I had understood something small and difficult: that I had been mistaking usefulness for being alive, and that the two only look alike from the outside. Nobody had asked me for anything, and I was still here.`
+
+interface MockNode {
+  id: string; user_id: string; project_id: string; parent_id: string | null; position: number
+  title: string; intent: string; beat: string; stands_whole: boolean; rules: unknown[]
+  body: string; extent: number; status: string; board_x: number | null; board_y: number | null
+  writing_ethos: string | null; emotional_journey: string | null; core_truth: string | null
+  substack_goals: string | null; short_form_goals: string | null; open_threads: string[] | null
+  short_form_script: string | null; is_locked: boolean; created_at: string; updated_at: string
+}
+
+const plain = (html: string) => html.replace(/<\/p>/g, '\n\n').replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '').trim()
+const words = (html: string) => plain(html).split(/\s+/).filter(Boolean).length
+const paragraphs = (text: string) => text.split(/\n{2,}/).map((p) => `<p>${p}</p>`).join('')
 
 function project(intent: string, board: boolean) {
   return {
@@ -19,44 +34,141 @@ function project(intent: string, board: boolean) {
   }
 }
 
-function node(body: string, concept: boolean) {
+function node(id: string, parent: string | null, position: number, title: string, beat: string, body: string, extra: Partial<MockNode> = {}): MockNode {
   return {
-    id: 'node-1', user_id: 'u', project_id: 'demo', parent_id: null, position: 0, title: 'Untitled', intent: body,
-    beat: '', stands_whole: true, rules: [], body: body ? `<p>${body}</p>` : '', extent: body ? body.split(/\s+/).length : 0,
-    status: 'open', board_x: null, board_y: null, writing_ethos: null, emotional_journey: null, core_truth: concept ? 'A morning that asks nothing of me.' : null,
-    substack_goals: null, short_form_goals: null, open_threads: [], short_form_script: null, is_locked: false,
-    created_at: NOW, updated_at: NOW,
+    id, user_id: 'u', project_id: 'demo', parent_id: parent, position, title, intent: '', beat, stands_whole: true, rules: [],
+    body, extent: words(body), status: 'open', board_x: null, board_y: null, writing_ethos: null, emotional_journey: null,
+    core_truth: null, substack_goals: null, short_form_goals: null, open_threads: [], short_form_script: null, is_locked: false,
+    created_at: NOW, updated_at: NOW, ...extra,
   }
 }
 
-const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean }
+
+const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
 // Installed at import so it is in place before any child effect fetches.
-function installMock(text: string, concept: boolean, board: boolean, slow: boolean) {
+function installMock(o: Opts) {
   const w = window as unknown as { __workMock?: boolean }
   if (w.__workMock) return
   w.__workMock = true
   const real = window.fetch.bind(window)
-  window.fetch = (input, init) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
-    const path = url.replace(location.origin, '')
-    if (path === '/api/studio/projects/demo/tree') return Promise.resolve(json({ project: project(text, board), tree: { nodes: [node(text, concept)], threads: [], tags: [], open_checks: [] } }))
-    if (path.startsWith('/api/studio/projects/demo/open')) return Promise.resolve(json({ success: true }))
-    if (path.startsWith('/api/studio/assistant-lock')) return Promise.resolve(json({ lockedUntil: null }))
-    if (path.startsWith('/api/settings')) return Promise.resolve(json({ settings: { dictation_lang: null, sunday_letter: false, onboarded_at: NOW }, email: 'you@example.com' }))
-    if (path.startsWith('/api/billing/status')) return Promise.resolve(json({ subscription: { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false }, access: 'uncapped', usage: null }))
-    // ?slow=1 holds every write open so the "Saving…" state can be looked at.
-    if (path.startsWith('/api/studio/') && init?.method && init.method !== 'GET') return new Promise((r) => setTimeout(() => r(json({ success: true })), slow ? 20000 : 0))
+
+  const concept: Partial<MockNode> = o.concept
+    ? {
+        intent: 'Rest is not the absence of worth.',
+        core_truth: 'Being needed is not the same as being alive.',
+        emotional_journey: 'Arrival: the kettle before the day\nThe pull toward usefulness\nWhat the quiet holds\nSettling into it',
+        substack_goals: 'Keep it in the first person. Let the room be a character.',
+        short_form_goals: 'Morning light, a kettle, an empty chair.',
+        open_threads: ['Who is the “I” without the asking?'],
+      }
+    : { intent: o.text }
+  const nodes: MockNode[] = [node('node-1', null, 0, 'Untitled', '', o.sectioned ? plain(LONG) : (o.text ? paragraphs(o.text) : ''), concept)]
+  if (o.sectioned) {
+    const [a, b, c] = LONG.split(/\n{2,}/)
+    nodes.push(node('part-1', 'node-1', 0, 'Arrival', 'calm', paragraphs(a)), node('part-2', 'node-1', 1, 'The pull', 'restless', paragraphs(b)), node('part-3', 'node-1', 2, 'Settling', 'tender', paragraphs(c)))
+  }
+  const tasks: Array<{ id: string; title: string; type: string; status: string; is_writing_related: boolean | null }> = [
+    { id: 't1', title: 'Find the first line', type: 'creation', status: 'pending', is_writing_related: true },
+    { id: 't2', title: 'Read it aloud once', type: 'creation', status: 'complete', is_writing_related: true },
+    { id: 't3', title: 'Post on Sunday', type: 'execution', status: 'pending', is_writing_related: false },
+  ]
+  const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
+  let seq = 100
+
+  const resync = (parentId: string | null) => {
+    while (parentId) {
+      const parent = nodes.find((n) => n.id === parentId)
+      if (!parent) break
+      const kids = nodes.filter((n) => n.parent_id === parentId).sort((a, b) => a.position - b.position)
+      parent.body = kids.map((k) => plain(k.body)).filter(Boolean).join('\n\n')
+      parentId = parent.parent_id
+    }
+  }
+  const sectionsOf = (id: string) => nodes.filter((n) => n.parent_id === id).sort((a, b) => a.position - b.position)
+    .map((n) => ({ id: n.id, position: n.position, label: n.title || null, intended_emotion: n.beat || null, content: n.body, is_locked: n.is_locked }))
+
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const path = new URL(url, location.origin).pathname
+    const method = (init?.method ?? 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+    const write = async <T,>(fn: () => T): Promise<T> => {
+      if (o.slow) await new Promise((r) => setTimeout(r, 20000))
+      return fn()
+    }
+
+    if (path === '/api/studio/projects/demo/tree') return json({ project: project(o.text, o.board), tree: { nodes, threads: [], tags: [], open_checks: [] } })
+    if (path.startsWith('/api/studio/projects/demo/open')) return json({ success: true })
+    if (path.startsWith('/api/studio/assistant-lock')) return json({ lockedUntil: null })
+    if (path.startsWith('/api/settings')) return json({ settings: { dictation_lang: null, sunday_letter: false, onboarded_at: NOW }, email: 'you@example.com' })
+    if (path.startsWith('/api/billing/status')) return json({ subscription: { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false }, access: 'uncapped', usage: null })
+
+    if (/^\/api\/studio\/nodes\/[^/]+\/tasks$/.test(path)) {
+      if (method === 'GET') return json({ success: true, tasks })
+      if (method === 'POST') return write(() => { const t = { id: `t${++seq}`, title: body.title, type: body.type ?? 'creation', status: 'pending', is_writing_related: null }; tasks.push(t); return json({ success: true, task: t }, 201) })
+      if (method === 'PATCH') return write(() => { const t = tasks.find((x) => x.id === body.task_id); if (t) t.status = body.status; return json({ success: true }) })
+    }
+    if (path === '/api/write/anchor-lines') {
+      if (method === 'GET') return json({ anchorLines: lines })
+      if (method === 'POST') return write(() => {
+        const kids = sectionsOf(body.node_id)
+        const l = { id: `l${++seq}`, section_id: body.section_id ?? kids[Math.min(1, kids.length - 1)]?.id ?? null, text: body.text }
+        lines.push(l)
+        return json({ anchorLine: l })
+      })
+      if (method === 'DELETE') return write(() => { const i = lines.findIndex((l) => l.id === body.id); if (i >= 0) lines.splice(i, 1); return json({ success: true }) })
+    }
+    if (path === '/api/write/sections/seed' && method === 'POST') return write(() => {
+      const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
+      beats.forEach(([title, beat], i) => nodes.push(node(`seed-${++seq}`, body.node_id, i, title, beat, '')))
+      return json({ sections: sectionsOf(body.node_id), suggestions: beats.map(() => '') })
+    })
+    if (path === '/api/write/sections/divide' && method === 'POST') return write(() => {
+      const root = nodes.find((n) => n.id === body.node_id)!
+      const text = plain(root.body)
+      for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].parent_id === root.id) nodes.splice(i, 1)
+      const chunks = text.split(/\n{2,}/).filter(Boolean)
+      ;(chunks.length > 1 ? chunks : [text]).forEach((c, i) => nodes.push(node(`div-${++seq}`, root.id, i, ['Arrival', 'The pull', 'Settling'][i] ?? `Section ${i + 1}`, '', c)))
+      resync(root.id)
+      return json({ sections: sectionsOf(root.id) })
+    })
+    if (path === '/api/studio/projects/demo/nodes' && method === 'POST') return write(() => {
+      const kids = nodes.filter((n) => n.parent_id === (body.parent_id ?? null))
+      const n = node(`n-${++seq}`, body.parent_id ?? null, kids.length, '', '', '')
+      nodes.push(n)
+      return json({ node: n }, 201)
+    })
+    const reorder = path.match(/^\/api\/studio\/nodes\/([^/]+)\/reorder$/)
+    if (reorder && method === 'POST') return write(() => { (body.ids as string[]).forEach((id, i) => { const n = nodes.find((x) => x.id === id); if (n) n.position = i }); resync(reorder[1]); return json({ nodes: sectionsOf(reorder[1]) }) })
+    const one = path.match(/^\/api\/studio\/nodes\/([^/]+)$/)
+    if (one && method === 'PATCH') return write(() => {
+      const n = nodes.find((x) => x.id === one[1])
+      if (!n) return json({ error: 'gone' }, 404)
+      Object.assign(n, Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)))
+      if (typeof body.body === 'string') { n.extent = words(body.body); resync(n.parent_id) }
+      return json({ node: n })
+    })
+    if (one && method === 'DELETE') return write(() => {
+      const n = nodes.find((x) => x.id === one[1])
+      const parent = n?.parent_id ?? null
+      for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].id === one[1] || nodes[i].parent_id === one[1]) nodes.splice(i, 1)
+      resync(parent)
+      return json(null, 204)
+    })
+    if (path.startsWith('/api/studio/') && method !== 'GET') return write(() => json({ success: true }))
     return real(input, init)
   }
 }
 
 function Inner() {
   const params = useSearchParams()
-  // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind.
-  const text = params.get('empty') ? '' : 'A morning where nothing was asked of me, and how strange it was to notice.'
-  // ?concept=1 is a piece that came through the Idea Lab conversation, so it has a core concept.
-  if (typeof window !== 'undefined') installMock(text, !!params.get('concept'), !!params.get('board'), !!params.get('slow'))
+  const on = (k: string) => !!params.get(k)
+  // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind. ?long=1 has a full draft.
+  const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow') }
+  if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {
     return (
@@ -67,7 +179,7 @@ function Inner() {
     )
   }
   // ?board=1 is the project board a lone piece opens onto after "Create a project from this piece".
-  if (params.get('board')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
+  if (on('board')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
   return <WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} />
 }
 

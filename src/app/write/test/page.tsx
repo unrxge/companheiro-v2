@@ -6,7 +6,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
-import { JourneyNavNode } from '@/components/widgets'
+import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface CoverageItem {
@@ -75,7 +75,7 @@ function TestContent() {
 
   return (
     <PageShell mood="ochre" maxWidth={820}>
-      <PageHeader eyebrow="Write · Test" title="Read cold" subtitle="Your finished draft, read against what you set out to make." size="md" back={`/write?node_id=${nodeId}`} />
+      <PageHeader eyebrow="Write · Test" title="Read cold" subtitle="Your finished draft, read against what you set out to make." size="md" back={writeHrefForNode({ projectId, nodeId })} />
 
       <Container>
         <div style={{ marginBottom: 22 }}>

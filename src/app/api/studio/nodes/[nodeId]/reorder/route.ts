@@ -8,6 +8,7 @@ import {
   requireProject, withAuth,
 } from '@/lib/studio/db'
 import { NODE_COLS, normaliseNode, requireNode } from '@/lib/studio/nodes-db'
+import { resyncFrom } from '@/lib/studio/write-nodes'
 
 type Params = { params: Promise<{ nodeId: string }> }
 
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         .eq('user_id', auth.user.id)
       if (upErr) throw fromDbError(upErr)
     }
+
+    await resyncFrom(auth, parent.id)
 
     const { data: fresh, error: freshErr } = await auth.supabase
       .from('studio_nodes')

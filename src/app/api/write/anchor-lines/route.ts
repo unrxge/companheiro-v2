@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { logUsage } from '@/lib/usage-log'
 
+// GET    ?node_id= -> the anchor lines for the piece's project (same scoping as /api/write/sections).
 // POST   -> add an anchor line under a piece's root node_id. If no section_id
 //           given, AI places it into the best-fitting existing section (a
 //           child studio_node).
@@ -11,6 +12,39 @@ import { logUsage } from '@/lib/usage-log'
 //
 // Writes to studio_anchor_lines (migration 006): project_id + nullable
 // node_id, mirroring anchor_lines' piece_id + nullable section_id.
+
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await requireUser()
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const nodeId = request.nextUrl.searchParams.get('node_id')
+    if (!nodeId) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
+
+    const { supabase, user } = auth
+    const { data: root } = await supabase
+      .from('studio_nodes')
+      .select('project_id')
+      .eq('id', nodeId)
+      .eq('user_id', user.id)
+      .single()
+    if (!root) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
+
+    const { data } = await supabase
+      .from('studio_anchor_lines')
+      .select('id, node_id, text')
+      .eq('project_id', root.project_id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+
+    return NextResponse.json({
+      anchorLines: (data ?? []).map((l) => ({ id: l.id, section_id: l.node_id, text: l.text })),
+    })
+  } catch (error) {
+    console.error('anchor-lines GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

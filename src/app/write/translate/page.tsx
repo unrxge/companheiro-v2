@@ -6,7 +6,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { TextArea } from '@/components/ui/field'
-import { JourneyNavNode } from '@/components/widgets'
+import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
 interface PieceData {
@@ -103,7 +103,7 @@ function TranslateContent() {
         title={piece?.title || 'Translate'}
         subtitle="Long-form to short-form. The draft stays as it is; the script is yours to shape."
         size="md"
-        back={`/write?node_id=${nodeId}`}
+        back={writeHrefForNode({ projectId: piece?.project_id ?? null, nodeId })}
         actions={script ? <PrimaryButton size="sm" onClick={handleMarkReady} loading={isSaving} loadingLabel="Saving…">Ready to post →</PrimaryButton> : undefined}
       />
 

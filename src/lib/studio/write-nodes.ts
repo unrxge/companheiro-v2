@@ -102,3 +102,18 @@ export async function resyncNodeBody(auth: AuthedContext, rootNodeId: string): P
     .eq('id', rootNodeId)
     .eq('user_id', user.id)
 }
+
+/** After a change under `parentId`, refreshes that node's flattened body and every ancestor's, so Test, Reimagine and Translate read the words as they now are. */
+export async function resyncFrom(auth: AuthedContext, parentId: string | null): Promise<void> {
+  let current = parentId
+  for (let hops = 0; current && hops < 8; hops++) {
+    await resyncNodeBody(auth, current)
+    const { data } = await auth.supabase
+      .from('studio_nodes')
+      .select('parent_id')
+      .eq('id', current)
+      .eq('user_id', auth.user.id)
+      .maybeSingle()
+    current = (data as { parent_id: string | null } | null)?.parent_id ?? null
+  }
+}

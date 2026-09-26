@@ -30,6 +30,11 @@ export function JourneyNav({ pieceId, step, compact = false }: { pieceId: string
   return <StageRibbon step={step} compact={compact} hrefFor={(s) => journeyHref(s, pieceId)} />
 }
 
+/** The writing page for a piece: its own page in the project when the project is known, the old Write page otherwise. */
+export function writeHrefForNode({ projectId, nodeId }: { projectId: string | null; nodeId: string }): string {
+  return projectId ? `/p/${projectId}/n/${nodeId}` : `/write?node_id=${nodeId}`
+}
+
 /**
  * Where each journey step lives for a piece created through the node/thread
  * model (Phase 3 of the Project Board -> Studio migration, extended in
@@ -44,7 +49,7 @@ export function journeyHrefForNode(
     case 'concept':
       return projectId ? `/p/${projectId}` : null
     case 'write':
-      return `/write?node_id=${nodeId}`
+      return writeHrefForNode({ projectId, nodeId })
     case 'test':
       return `/write/test?node_id=${nodeId}`
     case 'shape':

@@ -13,7 +13,7 @@
 // Depth is never presented. A project opens as its pieces; parts appear inside
 // a piece when the work asks for them; nothing here is hard-coded to a depth.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { Dock } from '@/components/shell/dock'
@@ -27,15 +27,16 @@ import { alpha, radius, shell } from '@/lib/design-tokens'
 import { LEVELS } from '@/lib/studio/levels'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
-import { appearancesOf, extentOf, findNode, newRule, pathTo, rulesInForce } from '@/lib/studio/tree'
+import { appearancesOf, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
 import { Board, type BoardActions } from '@/components/studio/work/board'
 import { Studio } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
 import { LockModal } from '@/components/studio/work/lock-modal'
-import { CompanionLauncher, Drawer, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
+import { CompanionLauncher, Drawer, PART_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
 import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/studio/work/bits'
+import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
 
 export type Focus =
   | { kind: 'project' }
@@ -123,8 +124,15 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
   const readOnly = project?.status !== 'active'
 
+  // A whole piece (not a part of one) carries the Write page's tools with it.
+  const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
+  const tools = usePieceTools(isRootPiece && node ? node.id : null)
+  const [shaping, setShaping] = useState<'shape' | 'divide' | null>(null)
+  const [shapeNote, setShapeNote] = useState<string | null>(null)
+  const flushRef = useRef<(() => Promise<void>) | null>(null)
+
   const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
-  useEffect(() => { setCheckNote(null) }, [focusKey])
+  useEffect(() => { setCheckNote(null); setShapeNote(null) }, [focusKey])
 
   const appearancesFor = useCallback((threadId: string) => appearancesOf(roots, threadId), [roots])
 
@@ -209,7 +217,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       await api.editNode(first.id, {
         title: target.title || '', body: target.body, beat: target.beat, status: target.status,
       })
-      await api.editNode(target.id, { body: '', status: 'open' })
+      await api.editNode(target.id, { status: 'open' })
     }
   }, [api])
 
@@ -224,6 +232,44 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     if (additions.length) await setProjectField({ rules: [...projectRules, ...additions] })
     await api.removeThread(th.id)
   }, [api, projectRules, setProjectField])
+
+  /** Shaping and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
+  const reshape = useCallback(async (kind: 'shape' | 'divide', pieceId: string, alreadyParts = false) => {
+    if (shaping) return
+    if (kind === 'divide' && alreadyParts) {
+      const ok = await confirm({
+        title: 'Cut the draft along its beats?',
+        body: 'The words stay exactly as they are, in order. The parts are cut again, so their names, and where anchor lines were placed, start over.',
+        confirmLabel: 'Divide',
+      })
+      if (!ok) return
+    }
+    setShaping(kind)
+    setShapeNote(null)
+    try {
+      await flushRef.current?.()
+      const res = await fetch(kind === 'shape' ? '/api/write/sections/seed' : '/api/write/sections/divide', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: pieceId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setShapeNote(typeof data.error === 'string' ? data.error : 'That did not work. Try again in a moment.')
+        return
+      }
+      await api.refresh()
+      await tools.reloadLines()
+    } catch {
+      setShapeNote('That did not work. Try again in a moment.')
+    } finally {
+      setShaping(null)
+    }
+  }, [api, confirm, shaping, tools])
+
+  /** Everything typed is saved first, so Test reads the draft as it stands. */
+  const readyForTest = useCallback(async (pieceId: string) => {
+    await flushRef.current?.()
+    router.push(`/write/test?node_id=${pieceId}`)
+  }, [router])
 
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
@@ -411,6 +457,21 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         />
       )}
 
+      {rail === 'concept' && scopeNode && <ConceptPanel node={scopeNode} projectId={projectId} />}
+
+      {rail === 'anchors' && scopeNode && (
+        <AnchorsPanel
+          lines={tools.lines}
+          parts={scopeNode.children.map((c, i) => ({ id: c.id, label: c.title || `Part ${i + 1}` }))}
+          onAdd={(text) => tools.addLine(text)}
+          onRemove={(id) => void tools.removeLine(id)}
+        />
+      )}
+
+      {rail === 'tasks' && (
+        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} />
+      )}
+
       {rail === 'companion' && (
         <Companion
           projectId={projectId}
@@ -502,7 +563,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     : node?.title || 'Untitled'
 
   const isLone = !!node && lonePiece?.id === node.id
-  const offerFullStudio = !!node && !node.parent_id
+  const words = node ? (node.children.length > 0 ? node.children.reduce((n, c) => n + wordCount(c.body), 0) : wordCount(node.body)) : 0
+  const pendingTasks = tools.tasks.filter((x) => isWritingTask(x) && x.status === 'pending').length
 
   return (
     <PageShell mood="tide">
@@ -550,18 +612,11 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             />
             {focus.kind === 'node' && node && (
               <div className="piece-bar-tools">
-                {(offerFullStudio || isLone) && (
+                {isLone && (
                   <div className="piece-bar-actions">
-                    {offerFullStudio && (
-                      <QuietButton size="sm" onClick={() => router.push(`/write?node_id=${node.id}`)}>
-                        {node.body.trim() || node.children.length > 0 ? 'Resume writing' : 'Begin writing'}
-                      </QuietButton>
-                    )}
-                    {isLone && (
-                      <GhostButton size="sm" onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
-                        Create a project from this piece
-                      </GhostButton>
-                    )}
+                    <GhostButton size="sm" onClick={() => void makeProject()} loading={makingProject} loadingLabel="Creating…">
+                      Create a project from this piece
+                    </GhostButton>
                   </div>
                 )}
                 <div className="piece-bar-switch">
@@ -593,7 +648,26 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               onSelectionChange={setSelection}
               proposal={proposal}
               onProposalHandled={() => setProposal(null)}
+              lines={tools.lines}
+              onAddLine={(text, partId) => void tools.addLine(text, partId)}
+              onRemoveLine={(id) => void tools.removeLine(id)}
+              flushRef={flushRef}
               disabled={readOnly}
+            />
+          )}
+          {focus.kind === 'node' && node && isRootPiece && (
+            <PieceFooter
+              projectId={projectId}
+              nodeId={node.id}
+              words={words}
+              canShape={!readOnly && node.children.length === 0 && words === 0 && !!(node.emotional_journey || node.core_truth || node.intent)}
+              canDivide={!readOnly && words > 30 && !node.children.some((c) => c.is_locked)}
+              sectioned={node.children.length > 0}
+              busy={shaping}
+              note={shapeNote}
+              onShape={() => void reshape('shape', node.id)}
+              onDivide={() => void reshape('divide', node.id, node.children.length > 0)}
+              onReady={() => void readyForTest(node.id)}
             />
           )}
           {focus.kind === 'node' && !node && <Empty line="That part is gone." />}
@@ -617,7 +691,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         open={rail}
         onOpen={setRail}
         hidden={focus.kind === 'thread'}
-        counts={{ rules: liveRuleCount }}
+        tools={isRootPiece ? undefined : PART_TOOLS}
+        counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />
       {companionDrawer}
     </PageShell>

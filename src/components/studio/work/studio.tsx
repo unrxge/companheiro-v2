@@ -24,10 +24,11 @@ import { SectionEditor, SectionToolbar, type SectionSelection } from '@/componen
 import { SectionDock } from '@/components/studio/work/section-dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
-import { plainTextToHtml } from '@/lib/rich-text'
+import { ensureHtml, plainTextToHtml } from '@/lib/rich-text'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
 import type { ProposedEdit } from '@/components/studio/work/companion'
 import { InlineField, ThreadChips } from '@/components/studio/work/bits'
+import { PartLines, type AnchorLine } from '@/components/studio/work/write-tools'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 
 const SAVE_AFTER_MS = 900
@@ -51,6 +52,10 @@ export function Studio({
    *  as a pending edit. Cleared by calling onProposalHandled once consumed. */
   proposal,
   onProposalHandled,
+  lines = [],
+  onAddLine,
+  onRemoveLine,
+  flushRef,
   disabled = false,
 }: {
   node: TreeNode
@@ -68,6 +73,12 @@ export function Studio({
   onSelectionChange?: (selection: { nodeId: string; text: string } | null) => void
   proposal?: ProposedEdit | null
   onProposalHandled?: () => void
+  /** Anchor lines, by the part they were placed in. */
+  lines?: AnchorLine[]
+  onAddLine?: (text: string, partId: string) => void
+  onRemoveLine?: (id: string) => void
+  /** Handed a function that saves whatever is still waiting, for a caller about to leave the page. */
+  flushRef?: React.MutableRefObject<(() => Promise<void>) | null>
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -75,6 +86,7 @@ export function Studio({
   const sectioned = node.children.length > 0
 
   const [focused, setFocused] = useState<string | null>(null)
+  const [openLines, setOpenLines] = useState<string | null>(null)
   const [, bump] = useState(0)
   const editors = useRef<Record<string, Editor | null>>({})
   const articles = useRef<Record<string, HTMLElement | null>>({})
@@ -111,6 +123,8 @@ export function Studio({
   // card instead. Either way nothing is persisted until Approve runs.
   useEffect(() => {
     if (!proposal) return
+    // A locked part is never touched, whoever is asking.
+    if (parts.find((p) => p.id === proposal.node_id)?.is_locked) { onProposalHandled?.(); return }
     const editor = editors.current[proposal.node_id]
     if (editor && proposal.anchor_text && selection.current?.partId === proposal.node_id) {
       const { from, to } = selection.current
@@ -183,6 +197,19 @@ export function Studio({
     timers.current = {}
   }, [])
 
+  const flushNow = useCallback(async () => {
+    const jobs = Object.entries(pending.current).map(([id, html]) => Promise.resolve(latestEdit.current(id, { body: html })))
+    pending.current = {}
+    for (const timer of Object.values(timers.current)) clearTimeout(timer)
+    timers.current = {}
+    await Promise.all(jobs)
+  }, [])
+  useEffect(() => {
+    if (!flushRef) return
+    flushRef.current = flushNow
+    return () => { flushRef.current = null }
+  }, [flushRef, flushNow])
+
   // Nothing typed is ever left behind when the page goes away.
   useEffect(() => () => { flushAll() }, [flushAll])
   useEffect(() => {
@@ -225,6 +252,14 @@ export function Studio({
     void latestEdit.current(id, { body: next })
   }, [])
 
+  /** Locking seals a part: nothing edits it, the companion's suggestions included, until it is opened again. */
+  const toggleLock = (part: TreeNode) => {
+    flushOne(part.id)
+    if (pendingWhole?.partId === part.id) setPendingWhole(null)
+    if (pendingInline?.partId === part.id) setPendingInline(null)
+    void onEdit(part.id, { is_locked: !part.is_locked })
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
       {!disabled && (
@@ -254,6 +289,7 @@ export function Studio({
 
       {parts.map((part, i) => {
         const isFocused = focused === part.id
+        const partLines = lines.filter((l) => l.section_id === part.id)
         return (
           <article
             key={part.id}
@@ -292,6 +328,24 @@ export function Studio({
                 <span style={{ ...canvasType.chip, color: t.textMuted, flexShrink: 0 }}>{part.extent}w</span>
                 {!disabled && (
                   <>
+                    {sectioned && onAddLine && (
+                      <HeaderAction
+                        label="The lines placed in this part"
+                        tone={openLines === part.id ? t.textPrimary : t.textMuted}
+                        onClick={() => setOpenLines(openLines === part.id ? null : part.id)}
+                      >
+                        Lines{partLines.length > 0 ? ` (${partLines.length})` : ''}
+                      </HeaderAction>
+                    )}
+                    {sectioned && (
+                      <HeaderAction
+                        label={part.is_locked ? 'Unlock this part' : 'Lock this part: nothing edits it while it is'}
+                        tone={part.is_locked ? t.verdant : t.textMuted}
+                        onClick={() => toggleLock(part)}
+                      >
+                        {part.is_locked ? 'Locked' : 'Lock'}
+                      </HeaderAction>
+                    )}
                     <HeaderAction
                       label={
                         part.status === 'done'
@@ -311,10 +365,14 @@ export function Studio({
               </header>
             )}
 
+            {!flow && sectioned && openLines === part.id && onAddLine && onRemoveLine && (
+              <PartLines lines={partLines} onAdd={(text) => onAddLine(text, part.id)} onRemove={onRemoveLine} />
+            )}
+
             <div style={{ padding: flow ? '0 16px' : '0 16px 10px', fontSize: 17 }}>
               <SectionEditor
-                content={part.body}
-                editable={!disabled}
+                content={ensureHtml(part.body)}
+                editable={!disabled && !part.is_locked}
                 placeholder={i === 0 ? 'Write…' : ''}
                 onChange={(html) => change(part.id, html)}
                 onFocus={() => setFocused(part.id)}
@@ -322,7 +380,7 @@ export function Studio({
                 onReady={(editor) => { editors.current[part.id] = editor }}
                 onTransaction={() => bump((n) => n + 1)}
                 onSelectionChange={(sel) => handleSelection(part.id, sel)}
-                textColor={t.textPrimary}
+                textColor={part.is_locked ? t.textSecondary : t.textPrimary}
                 className={flow && i > 0 ? 'flow-continued' : undefined}
               />
               {pendingInline?.partId === part.id && (

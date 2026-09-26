@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { htmlToPlainText } from '@/lib/rich-text'
 import { anthropic } from "@/lib/anthropic";
 import { MODELS } from "@/lib/models";
 import { createRouteClient } from "@/lib/supabase/route";
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Translate
       .eq("id", body.node_id)
       .eq("user_id", userId)
       .single();
-    const pieceData = nodeRow ? { substack_draft: nodeRow.body, short_form_goals: nodeRow.short_form_goals, conviction_statement: nodeRow.intent, core_truth: nodeRow.core_truth } : null;
+    const pieceData = nodeRow ? { substack_draft: htmlToPlainText(nodeRow.body || ''), short_form_goals: nodeRow.short_form_goals, conviction_statement: nodeRow.intent, core_truth: nodeRow.core_truth } : null;
 
     if (pieceError || !pieceData || !pieceData.substack_draft) {
       return NextResponse.json(

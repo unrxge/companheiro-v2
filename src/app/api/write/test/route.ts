@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { htmlToPlainText } from '@/lib/rich-text'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { aiGate, pickModel } from '@/lib/billing/fair-use'
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestRespo
       .single()
 
     if (!root) return NextResponse.json({ ...empty, error: 'Piece not found' }, { status: 404 })
-    const piece = { ...root, substack_draft: root.body, conviction_statement: root.intent }
+    const piece = { ...root, substack_draft: htmlToPlainText(root.body || ''), conviction_statement: root.intent }
 
     // Scoped by project_id, same caveat as write/sections' anchor-line read:
     // if a project ever holds more than one root piece, this isn't scoped

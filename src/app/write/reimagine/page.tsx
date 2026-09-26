@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, Suspense, type CSSProperties 
 import { useDictation } from '@/lib/use-dictation'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { readTextStream } from '@/lib/stream-client'
+import { writeHrefForNode } from '@/components/widgets'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -86,6 +87,7 @@ function ReimagineContent() {
   const router = useRouter()
   const nodeId = searchParams.get('node_id')
 
+  const [projectId, setProjectId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const inputTextRef = useRef('')
@@ -118,6 +120,10 @@ function ReimagineContent() {
       return
     }
     fetchAIResponse([])
+    fetch(`/api/write/node?node_id=${nodeId}`)
+      .then((res) => res.json())
+      .then((data) => { if (data.success) setProjectId(data.piece.project_id) })
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])
 
@@ -317,7 +323,7 @@ function ReimagineContent() {
       </div>
 
       <button
-        onClick={() => router.push(`/write?node_id=${nodeId}`)}
+        onClick={() => nodeId && router.push(writeHrefForNode({ projectId, nodeId }))}
         className="fixed top-6 left-6 z-30 px-4 py-2 text-xs font-bold uppercase tracking-widest"
         style={{ ...glassPill(), color: 'var(--muted)' }}
       >

@@ -9,6 +9,7 @@ import {
 } from '@/lib/studio/db'
 import { NODE_COLS, clampText, extentFor, normaliseNode, normaliseRules, requireNode } from '@/lib/studio/nodes-db'
 import type { NodeStatus } from '@/lib/studio/node-types'
+import { resyncFrom } from '@/lib/studio/write-nodes'
 
 type Params = { params: Promise<{ nodeId: string }> }
 const STATUSES: NodeStatus[] = ['open', 'drafted', 'done']
@@ -28,6 +29,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.intent !== undefined) patch.intent = clampText(body.intent, 'intent', 'intent')
     if (body.beat !== undefined) patch.beat = clampText(body.beat, 'beat', 'beat')
     if (body.stands_whole !== undefined) patch.stands_whole = body.stands_whole === true
+    if (body.is_locked !== undefined) patch.is_locked = body.is_locked === true
     if (body.rules !== undefined) patch.rules = normaliseRules(body.rules)
     if (body.body !== undefined) {
       const html = clampText(body.body, 'body', 'body')
@@ -58,7 +60,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .select(NODE_COLS)
       .single()
     if (error) throw fromDbError(error)
-    return NextResponse.json({ node: normaliseNode(data) })
+    const saved = normaliseNode(data)
+    // A part's words are also kept flattened on the piece above it, which is what Test reads.
+    if (body.body !== undefined && saved.parent_id) await resyncFrom(auth, saved.parent_id)
+    return NextResponse.json({ node: saved })
   })
 }
 
@@ -74,6 +79,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       .eq('id', node.id)
       .eq('user_id', auth.user.id)
     if (error) throw fromDbError(error)
+    if (node.parent_id) await resyncFrom(auth, node.parent_id)
     return noContent()
   })
 }
