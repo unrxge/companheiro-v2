@@ -287,9 +287,7 @@ function ConceptualiseContent() {
 
       <Container fill flush padding={0}>
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${t.divider}`, flexShrink: 0 }}>
-          <div style={{ maxWidth: 420 }}>
-            <PhaseDots phase={phase} labels={PHASE_LABELS} />
-          </div>
+          <PhaseDots phase={phase} labels={PHASE_LABELS} />
         </div>
 
         <div ref={threadRef} className="conceptualise-thread" style={{ flex: 1, overflowY: 'auto', padding: '28px 24px' }}>

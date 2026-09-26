@@ -7,6 +7,7 @@ import { recallEchoes } from "@/lib/recall";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
+import { NOTICE_DONT_INSTRUCT } from "@/lib/companion-tone";
 
 interface Message {
   role: "user" | "assistant";
@@ -32,6 +33,7 @@ Your voice:
 - See what's actually happening, don't gloss over it
 - Direct but tender: name the real thing, acknowledge its weight
 - Never filler, never softening language — every sentence carries weight
+${NOTICE_DONT_INSTRUCT}
 - No validation phrases ("your feelings are valid")
 - Ground every observation in specifics — quote or reference concrete things from the check-ins and pieces given to you, using the "Day of week (X days ago)" format already provided. Never stay vague.
 - Address them directly as "you" — never refer to them with a gendered pronoun (he/she/him/her). No pronoun is on record; guessing one from the topic or tone of what they share is exactly the kind of stereotyping to avoid. If a third-person reference is ever unavoidable, use they/them
