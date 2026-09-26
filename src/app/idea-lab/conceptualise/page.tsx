@@ -282,7 +282,6 @@ function ConceptualiseContent() {
         title="Conceptualise"
         size="md"
         back="/idea-lab"
-        actions={readyToAdvance && phase === 5 ? <PrimaryButton size="sm" onClick={handleDeclare}>Declare this idea</PrimaryButton> : undefined}
       />
 
       <Container fill flush padding={0}>
@@ -309,6 +308,11 @@ function ConceptualiseContent() {
             <Thread messages={messages} streaming={isLoading}>
               {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
             </Thread>
+            {readyToAdvance && phase === 5 && !isLoading && messages.length > 0 && (
+              <div>
+                <PrimaryButton onClick={handleDeclare}>Declare this idea</PrimaryButton>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>
