@@ -140,7 +140,7 @@ function ConceptualiseContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current)
     programmaticScrollTimer.current = setTimeout(() => { programmaticScrollRef.current = false }, 800)
-  }, [messages, isLoading, inputText])
+  }, [messages, isLoading])
 
   const saveDraft = (finalMessages: ThreadMessage[], savedPhase: number, savedReadyToAdvance: boolean) => {
     if (!finalMessages.some((x) => x.role === 'user')) return

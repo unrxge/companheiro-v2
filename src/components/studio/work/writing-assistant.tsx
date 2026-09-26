@@ -6,7 +6,7 @@
 // Reflect, a proposed rewrite in Suggest that lands as a pending edit to
 // approve or reject. It uses the same route the Write page did.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { Label } from '@/components/studio/work/bits'
@@ -196,7 +196,7 @@ export function AssistantPanel({
   const passage = active && selection?.nodeId === active.id ? selection.text : null
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [messages, busy])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = box.current
     if (!el) return
     el.style.height = 'auto'

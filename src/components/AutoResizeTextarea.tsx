@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface AutoResizeTextareaProps {
   value: string
@@ -30,7 +30,7 @@ export default function AutoResizeTextarea({
     setLang(navigator.language || 'en')
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     el.style.height = 'auto'

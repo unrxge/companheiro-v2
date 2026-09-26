@@ -14,7 +14,7 @@
 // One conversation per altitude: the whole project has its own, and so does
 // every part.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -167,7 +167,7 @@ export function Companion({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flushChatDistillation])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = box.current
     if (!el) return
     el.style.height = 'auto'

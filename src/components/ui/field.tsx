@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { fonts, radius } from '@/lib/design-tokens'
 
@@ -67,7 +67,7 @@ export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, vo
   const [focused, setFocused] = useState(false)
   const s = useFieldStyle(bare, voice, focused)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     el.style.height = 'auto'
