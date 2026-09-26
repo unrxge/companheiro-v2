@@ -9,9 +9,7 @@ import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
-import { useTerritories } from '@/hooks/useTerritories'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
-import { isFilled, slotShort } from '@/lib/territories'
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
@@ -59,7 +57,6 @@ function CoreConceptContent() {
   // address bar can update after this page's first effect has already run.
   const projectParam = useSearchParams().get('project')
   const { t } = useTheme()
-  const territories = useTerritories()
 
   const [conversation, setConversation] = useState<ConversationMessage[]>([])
   const [sections, setSections] = useState<Record<string, DocumentSection>>({
@@ -218,9 +215,18 @@ function CoreConceptContent() {
 
   const lockedBadge = <Pill hue="verdant" dot>Locked</Pill>
 
+  // The section's own label with the lock beside it, on one line — the badge
+  // belongs to the heading, not to the card's corner where it crowds the text
+  // underneath. minHeight keeps the row from growing when a section locks.
+  const sectionHead = (label: string, s: DocumentSection, opts?: { center?: boolean }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: opts?.center ? 'center' : 'space-between', gap: 12, minHeight: 24, marginBottom: opts?.center ? 0 : 10 }}>
+      <Eyebrow>{label}</Eyebrow>
+      {s.status === 'confirmed' && lockedBadge}
+    </div>
+  )
+
   const phaseCard = (s: DocumentSection, children: React.ReactNode, extra?: React.CSSProperties) => (
     <Card style={{ position: 'relative', opacity: s.status === 'pending' ? 0.45 : 1, boxShadow: s.status === 'pending' ? 'none' : undefined, backgroundColor: s.status === 'pending' ? t.cardBgInner : undefined, transition: 'opacity 0.3s', ...extra }}>
-      {s.status === 'confirmed' && <div style={{ position: 'absolute', top: 16, right: 16 }}>{lockedBadge}</div>}
       {isLoading && s.status === 'pending' && <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>Generating…</p>}
       {s.status !== 'pending' && children}
     </Card>
@@ -289,7 +295,7 @@ function CoreConceptContent() {
             p1,
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
-                <Eyebrow style={{ marginBottom: 10 }}>Idea in one sentence</Eyebrow>
+                {sectionHead('Idea in one sentence', p1)}
                 {p1.status === 'confirmed' ? (
                   <p style={{ ...typeRoles.h2, fontSize: 22, color: t.textPrimary }}>{p1.content.one_sentence}</p>
                 ) : (
@@ -308,14 +314,12 @@ function CoreConceptContent() {
                   </div>
                 </div>
                 <div>
-                  <Eyebrow style={{ marginBottom: 10 }}>Territory</Eyebrow>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {territories.slots.filter(isFilled).map((slot) => (
-                      <Pill key={slot.key} hue={territories.hue(slot.key)} selected={p1.content.thematic_territory === slot.key || p1.content.thematic_territory === slotShort(slot)} onClick={p1.status === 'confirmed' ? undefined : () => handleEditContent('phase1', 'thematic_territory', slot.key)} size="md">
-                        {slotShort(slot)}
-                      </Pill>
-                    ))}
-                  </div>
+                  <Eyebrow style={{ marginBottom: 10 }}>Theme</Eyebrow>
+                  {p1.status === 'confirmed' ? (
+                    <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary }}>{p1.content.thematic_territory}</p>
+                  ) : (
+                    <TextField value={p1.content.thematic_territory || ''} onChange={(v) => handleEditContent('phase1', 'thematic_territory', v)} placeholder="What this piece is about…" ariaLabel="Theme" />
+                  )}
                 </div>
               </div>
               {p1.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase1')} full disabled={!p1.content.one_sentence || !p1.content.arc}>Confirm</QuietButton>}
@@ -327,7 +331,7 @@ function CoreConceptContent() {
             p2,
             <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
               <div>
-                <Eyebrow style={{ marginBottom: 10 }}>Conviction statement</Eyebrow>
+                {sectionHead('Conviction statement', p2)}
                 <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
                   <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, minHeight: '2em', opacity: 0.6 }} />
                   <TextArea bare value={p2.content.conviction_statement || ''} onChange={(v) => handleEditContent('phase2', 'conviction_statement', v)} disabled={p2.status === 'confirmed'} placeholder="Your conviction about this work…" ariaLabel="Conviction" style={{ fontSize: 16, lineHeight: 1.65, fontWeight: 500 }} />
@@ -337,7 +341,7 @@ function CoreConceptContent() {
                 <Eyebrow style={{ marginBottom: 10 }}>Emotional journey</Eyebrow>
                 {p2.content.emotional_journey && <JourneyCurve text={p2.content.emotional_journey} />}
                 <div style={{ marginTop: p2.content.emotional_journey ? 12 : 0 }}>
-                  <TextArea bare value={p2.content.emotional_journey || ''} onChange={(v) => handleEditContent('phase2', 'emotional_journey', v)} disabled={p2.status === 'confirmed'} placeholder="Describe the emotional arc, one beat per line…" ariaLabel="Emotional journey" style={{ ...bareStyle, color: t.textSecondary }} />
+                  <TextArea bare value={p2.content.emotional_journey || ''} onChange={(v) => handleEditContent('phase2', 'emotional_journey', v)} disabled={p2.status === 'confirmed'} placeholder={'One beat per line: a short label — what the audience goes through'} ariaLabel="Emotional journey" style={{ ...bareStyle, color: t.textSecondary }} />
                 </div>
               </div>
               {p2.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase2')} full disabled={!p2.content.conviction_statement || !p2.content.emotional_journey}>Confirm</QuietButton>}
@@ -348,7 +352,7 @@ function CoreConceptContent() {
           {phaseCard(
             p3,
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center' }}>
-              <Eyebrow>Core truth</Eyebrow>
+              {sectionHead('Core truth', p3, { center: true })}
               <TextArea bare value={p3.content.core_truth || ''} onChange={(v) => handleEditContent('phase3', 'core_truth', v)} disabled={p3.status === 'confirmed'} placeholder="The core truth at the heart of this work…" ariaLabel="Core truth" style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.02em', textAlign: 'center', maxWidth: 560 }} />
               {p3.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase3')}>Confirm</QuietButton>}
             </div>,

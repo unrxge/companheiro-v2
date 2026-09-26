@@ -43,8 +43,9 @@ const SAMPLE_DAYS: WeatherDay[] = Array.from({ length: 30 }, (_, i) => {
   }
 })
 
-const PHASES = ['First Contact', 'Expansion', 'The Reader', 'The Principle', 'Declaration']
+const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 
+const LONG_JOURNEY = 'Recognition in the body — a familiar defeat, felt before it is named\nThe cost of the chase — the chaos is not incidental\nRawer ground\nWhat the screen takes — validation as a slow tax\nA truth held twice — purpose and terror together\nUnresolved, and recognised — the tension is the shared place'
 const JOURNEY = 'Arrival: the kettle before the day\nThe pull toward speed\nWhat slowness keeps noticing\nA morning that holds you\nThe body sets the pace'
 
 export default function DesignGalleryPage() {
@@ -227,6 +228,10 @@ export default function DesignGalleryPage() {
           <Card>
             <p style={label}>JourneyCurve · hover a beat</p>
             <JourneyCurve text={JOURNEY} />
+          </Card>
+          <Card>
+            <p style={label}>JourneyCurve · short summaries, any number of beats</p>
+            <JourneyCurve text={LONG_JOURNEY} />
           </Card>
           <Card>
             <p style={label}>PhaseDots · Conceptualise</p>

@@ -23,7 +23,7 @@ interface Draft {
   brought?: boolean
 }
 
-const PHASE_LABELS = ['First Contact', 'Expansion', 'The Reader', 'The Principle', 'Declaration']
+const PHASE_LABELS = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 const PHASE_MARKER = '<phase_complete/>'
 
 function ConceptualiseContent() {

@@ -164,7 +164,7 @@ export function VisionFinder() {
 
 // ── Movements: find it, hold it, talk to it ──────────────────────────────────
 
-const PHASES = ['First Contact', 'Expansion', 'The Reader', 'The Principle', 'Declaration']
+const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 
 function FindVisual() {
   const { t } = useTheme()

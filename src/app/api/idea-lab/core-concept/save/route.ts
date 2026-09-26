@@ -3,13 +3,12 @@ import { createRouteClient } from "@/lib/supabase/route";
 import { generateTasks } from "@/lib/generate-tasks";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
-import { getUserTerritories } from "@/lib/territories-server";
-import { resolveTerritoryKey } from "@/lib/territories";
 
 interface SaveRequest {
   one_sentence: string;
   arc: string;
-  thematic_territory: string;
+  /** The piece's own theme, free text (not one of the person's territory keys). */
+  thematic_territory?: string;
   conviction_statement: string;
   emotional_journey: string;
   core_truth: string;
@@ -56,11 +55,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const body: SaveRequest = await request.json();
 
     // Validate required fields
-    if (!body.one_sentence || !body.arc || !body.thematic_territory) {
+    if (!body.one_sentence || !body.arc) {
       console.error('Validation failed - missing required fields:', {
         one_sentence: !!body.one_sentence,
         arc: !!body.arc,
-        thematic_territory: !!body.thematic_territory,
       })
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
@@ -81,19 +79,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
 
     const userId = userData.user.id;
 
-    // Normalise arc and thematic territory to valid enum values
+    // Normalise the arc to its enum values. The theme is whatever this piece
+    // is about, in the person's own words — it is deliberately not matched
+    // against their territories, which are for captures and prompts.
     const normalisedArc = normaliseArc(body.arc);
-    const territories = await getUserTerritories({ supabase, user: userData.user });
-    const normalisedTerritory = resolveTerritoryKey(body.thematic_territory, territories) ?? body.thematic_territory;
-    console.log('Normalised values:', {
-      original_arc: body.arc,
-      normalised_arc: normalisedArc,
-      original_territory: body.thematic_territory,
-      normalised_territory: normalisedTerritory,
-    })
+    const theme = (body.thematic_territory ?? "").trim().slice(0, 80) || null;
 
     if (body.project_id) {
-      return await completeExistingProject(supabase, userId, body, normalisedArc, normalisedTerritory);
+      return await completeExistingProject(supabase, userId, body, normalisedArc, theme);
     }
 
     // Generate the poetic title that will represent this idea/piece
@@ -138,7 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
           intent: body.conviction_statement,
           rules: [],
           arc: normalisedArc,
-          thematic_territory: normalisedTerritory,
+          thematic_territory: theme,
           shelf_stage: "active",
           canvas_version: 1,
           composed_at: null,
@@ -300,7 +293,7 @@ async function completeExistingProject(
   userId: string,
   body: SaveRequest,
   arc: string,
-  territory: string,
+  territory: string | null,
 ): Promise<NextResponse<SaveResponse>> {
   const projectId = body.project_id as string;
   const { data: root, error: rootError } = await supabase

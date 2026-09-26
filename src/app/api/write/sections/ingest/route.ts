@@ -56,7 +56,7 @@ async function seedSections(
     max_tokens: 900,
     system: withLanguage(`You are Companheiro, turning a piece's intended emotional journey into a section skeleton the writer will draft into.
 
-Break the emotional journey into an ordered set of 3-6 sections. Each section is a beat of the piece with:
+Break the emotional journey into an ordered set of sections — one per beat when the journey lists its beats line by line (up to 9), otherwise 3-6. Each section is a beat of the piece with:
 - "label": a short, evocative name for the beat (2-4 words)
 - "intended_emotion": the single feeling this beat should carry (one or two words)
 
@@ -81,7 +81,7 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
 
   const cleaned = textBlock.text.replace(/```json\n?|\n?```/g, '').trim()
   const parsed = JSON.parse(cleaned) as { sections?: Array<{ label?: string; intended_emotion?: string }> }
-  const beats = (parsed.sections || []).slice(0, 6)
+  const beats = (parsed.sections || []).slice(0, 9)
   if (beats.length === 0) throw new Error('No sections generated')
 
   const rows = beats.map((b, i) => ({

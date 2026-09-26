@@ -4,7 +4,6 @@ import { requireUser } from "@/lib/supabase/route";
 import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { MODELS } from "@/lib/models";
 import { withLanguage } from "@/lib/language";
-import { getUserTerritories, territoryPromptList } from "@/lib/territories-server";
 import { logUsage } from "@/lib/usage-log";
 
 interface ConversationMessage {
@@ -37,6 +36,20 @@ function getConfirmedField(
   }
 }
 
+// A multi-line field (the emotional journey) sometimes arrives with real
+// newlines inside the JSON string instead of an escaped \n, which JSON.parse rejects.
+function escapeNewlinesInStrings(json: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    if (inString && ch === "\\") { out += ch + (json[i + 1] ?? ""); i++; continue; }
+    if (ch === '"') inString = !inString;
+    out += inString && ch === "\n" ? "\\n" : ch;
+  }
+  return out;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<GenerateResponse>> {
   try {
     const auth = await requireUser();
@@ -56,18 +69,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateR
     let userPrompt = "";
 
     if (body.phase === 1) {
-      const territories = await getUserTerritories(auth);
       systemPrompt = `You are distilling the core idea from a conceptualisation conversation. Your task is to:
 1. Generate a one-sentence idea statement that captures the essence of what they want to create
 2. Infer the arc (Breakaway, Beginning, Expansion, Integration) based on the conversation
-3. Choose the thematic territory from this person's own territories — return the key exactly as written:
-${territoryPromptList(territories)}
+3. Name the theme this particular piece is about, in your own words: a short phrase of one to five words, in sentence case (for example "Chasing validation" or "The weight of inheritance"). Let the piece itself decide it. Do not reach for a category, a pillar, or a stock label — the person may be exploring something far from anything they have made before.
 
 Return as JSON:
 {
   "one_sentence": "...",
   "arc": "Breakaway" | "Beginning" | "Expansion" | "Integration",
-  "thematic_territory": "<one of the keys above>"
+  "thematic_territory": "<the theme, one to five words>"
 }`;
 
       const conversationText = body.conversation_history
@@ -79,14 +90,18 @@ Return as JSON:
       systemPrompt = `You are distilling a conviction statement and emotional journey from a conceptualisation conversation.
 
 Conviction statement: the single belief or stance driving this piece — what the writer is standing for, in their own words.
-Emotional journey: the arc of feeling the reader should move through, start to end.
+Emotional journey: the arc of feeling the audience moves through, start to end. The audience is whoever receives the work, however they meet it (reading it, hearing it, seeing it), so describe what they feel, not the medium.
 
-Preserve the person's own voice and language from the conversation — this is a distillation of what they already said, not an invention. Keep each to 2-4 sentences.
+Write the emotional journey as an ordered list of beats, one beat per line, each in exactly this shape:
+Short label — one sentence on what the audience feels or goes through here
+The label is a summary of one to six words ("Recognition in the body", "The cost of the chase", "Held without resolution"). Use as many beats as this piece's real journey has — commonly three to seven — and do not pad or trim to hit a number. Separate the lines with \\n inside the JSON string.
+
+Preserve the person's own voice and language from the conversation — this is a distillation of what they already said, not an invention. Keep the conviction statement to 2-4 sentences.
 
 Return as JSON:
 {
   "conviction_statement": "...",
-  "emotional_journey": "..."
+  "emotional_journey": "Label — sentence\\nLabel — sentence\\nLabel — sentence"
 }`;
 
       const conversationText = body.conversation_history
@@ -177,7 +192,7 @@ Return as JSON:
 
       // Try to parse as-is first
       try {
-        content = JSON.parse(cleanedText);
+        content = JSON.parse(escapeNewlinesInStrings(cleanedText));
       } catch {
         // If truncated, attempt to close the JSON by finding the last complete field
         console.log("Parse failed, attempting truncation fix...");

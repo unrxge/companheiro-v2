@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 Rules:
 - You are assigning each contiguous stretch of the existing text to the beat it belongs to, in order.
 - Follow the intended emotional journey. ${
-        targetBeats ? 'Use these existing beats as the sections, in order:' : 'Derive 3-6 natural beats from the emotional journey.'
+        targetBeats ? 'Use these existing beats as the sections, in order:' : 'Derive the natural beats from the emotional journey — one per beat when it lists them line by line (up to 9), otherwise 3-6.'
       }
 - For each section, "starts_with" is the first 6-10 words of that section, copied EXACTLY verbatim from the prose (character for character, same punctuation) — this is how the split point is located. The first section's starts_with should match the very beginning of the prose.
 
