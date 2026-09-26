@@ -46,7 +46,7 @@ function normaliseArc(raw: string): string {
 // lane) plus one root studio_nodes row (parent_id null — the piece itself,
 // carrying every Gather/Shape/Write/Test field Write mode reads). This is the
 // Phase 3 rewiring of Idea Lab's creation flow off pieces/ideas and onto the
-// node/thread model (see studio/supabase/migrations/007_project_arc_and_tasks.sql
+// node/thread model (see supabase/migrations/032_project_arc_and_tasks.sql
 // for the arc/thematic_territory + studio_tasks schema this depends on).
 //
 // Deliberately does NOT touch pieces/ideas/tasks — those tables and the old

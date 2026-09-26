@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/section-dock.tsx — every part of this piece,
+// src/components/studio/work/section-dock.tsx — every part of this piece,
 // without leaving it.
 //
 // Floating and centred at the bottom, the same glass as the formatting

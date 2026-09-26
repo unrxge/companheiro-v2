@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/surface/travel.tsx — moving between the three levels.
+// src/components/studio/surface/travel.tsx — moving between the three levels.
 //
 //   level 3  the shelf     every project, lying on the desk
 //   level 2  the board     one project, its pieces, the threads under them

@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/new/four-questions.tsx — lane H (10.2). The second way
+// src/components/studio/new/four-questions.tsx — lane H (10.2). The second way
 // in: the four questions one at a time, each answered typed or by voice,
 // `next`; the last one reads `read it`. Answers live in the parent so a
 // switch back to the brief and forth loses nothing.

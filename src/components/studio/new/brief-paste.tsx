@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/new/brief-paste.tsx — lane H (10.2). The first way in:
+// src/components/studio/new/brief-paste.tsx — lane H (10.2). The first way in:
 // one large textarea (`paste a brief, a note to yourself, anything`), typed or
 // dictated, then `read it`. Nothing here is saved anywhere.
 

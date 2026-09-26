@@ -1,4 +1,4 @@
-// studio/src/lib/studio/work-api.ts — typed fetch wrappers for the node tree.
+// src/lib/studio/work-api.ts — typed fetch wrappers for the node tree.
 
 import { ApiError } from '@/lib/studio/api-client'
 import type {

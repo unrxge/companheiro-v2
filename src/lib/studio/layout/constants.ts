@@ -1,4 +1,4 @@
-// studio/src/lib/studio/layout/constants.ts — layout constants (7.0) plus the two
+// src/lib/studio/layout/constants.ts — layout constants (7.0) plus the two
 // rounding helpers every layout module shares. World px. Pure; isomorphic.
 
 export const U = 8

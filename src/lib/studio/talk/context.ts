@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/context.ts — the only path from the project into a
+// src/lib/studio/talk/context.ts — the only path from the project into a
 // prompt (8.4, D-059). `readable()` is the choke point: it accepts a block and
 // returns a CompanionReadable or null, and nothing else about a block ever reaches
 // a model — no url, no asset id, no storage path, no swatch, no draft prose.

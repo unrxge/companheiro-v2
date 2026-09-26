@@ -1,4 +1,4 @@
-// studio/src/lib/studio/db.ts — route-side helpers (section 4 "helper
+// src/lib/studio/db.ts — route-side helpers (section 4 "helper
 // conventions"). Every query goes through auth.supabase so RLS applies; the
 // service role is never used. Storage paths never leave this module: assets
 // reach the client as signed urls (D-059).

@@ -1,4 +1,4 @@
-// studio/src/lib/studio/registry.ts — one TypeSpec per block type (D-011…D-014,
+// src/lib/studio/registry.ts — one TypeSpec per block type (D-011…D-014,
 // region per 7.2, library copy from the brief's block table). Pure data; no React.
 // Object class and accent come from canvas-tokens so the two never disagree.
 

@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/vision-block.tsx — the project itself, as a
+// src/components/studio/work/vision-block.tsx — the project itself, as a
 // block on the board.
 //
 // The title, the ethos it's for, and the rules that can catch you used to

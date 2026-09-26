@@ -1,4 +1,4 @@
-// studio/src/lib/studio/canvas-tokens.ts — canvas-only tokens. Extends design-tokens.ts; never re-declares shell/surfaces.
+// src/lib/studio/canvas-tokens.ts — canvas-only tokens. Extends design-tokens.ts; never re-declares shell/surfaces.
 import { alpha, fonts, radius, shell, type Theme, type Tokens } from '@/lib/design-tokens'
 import type { BlockType, Hue, ObjectClass } from '@/lib/studio/types'
 

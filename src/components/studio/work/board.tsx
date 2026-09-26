@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/board.tsx — level 2, the board.
+// src/components/studio/work/board.tsx — level 2, the board.
 //
 // Everything on it can be picked up and put down: the pieces, the threads'
 // hubs, and the project's own vision block. A piece or a hub with no hand

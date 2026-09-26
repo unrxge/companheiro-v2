@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/surface/stage.tsx — the frame the canvases stand in.
+// src/components/studio/surface/stage.tsx — the frame the canvases stand in.
 //
 // Full window, atmosphere behind, no bone container: at levels 3 and 2 the
 // work is the page. Chrome floats over the canvas as glass, and everything on

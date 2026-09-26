@@ -1,4 +1,4 @@
-// studio/src/lib/studio/concept.ts — lane H. Pure helpers around the concept:
+// src/lib/studio/concept.ts — lane H. Pure helpers around the concept:
 // the revision diff summary the revisions drawer shows, constraint line
 // splitting, and the validation that turns the model's draft-concept JSON into
 // a `DraftConceptResponse` the person can trust (anchor candidates and compass

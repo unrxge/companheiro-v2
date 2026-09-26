@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/storyline.tsx — one part of the work seen whole.
+// src/components/studio/work/storyline.tsx — one part of the work seen whole.
 //
 // The blocks are its parts, laid out left to right in reading order and sized
 // by extent, so pacing is visible: a part four times the size of everything

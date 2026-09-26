@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/piece-card.tsx — one piece, on the board.
+// src/components/studio/work/piece-card.tsx — one piece, on the board.
 //
 // Deliberately large. A piece of work is not a row in a list, and the card is
 // sized so that one of them plus three quarters of the next fills the window:

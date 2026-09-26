@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/new/new-project-flow.tsx — lane H (10.2, D-061). One
+// src/components/studio/new/new-project-flow.tsx — lane H (10.2, D-061). One
 // screen: two ways in (a brief, or four questions) → `read it` →
 // POST /projects/draft-concept → the review → `make the project` →
 // POST /projects → the canvas. Nothing is persisted before the last press; a

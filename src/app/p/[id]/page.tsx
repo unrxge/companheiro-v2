@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/app/p/[id]/page.tsx — the project. Opens at the outermost
+// src/app/p/[id]/page.tsx — the project. Opens at the outermost
 // altitude, or straight into the work when there is only one piece and nothing
 // running across it yet.
 

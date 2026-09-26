@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/rules.tsx — rules and what happens when one is
+// src/components/studio/work/rules.tsx — rules and what happens when one is
 // broken.
 //
 // A rule is checkable in a way a description of a vision never is. Rules fire

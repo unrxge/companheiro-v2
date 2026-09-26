@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/sort.ts — the silent sorter (8.2, 8.3, D-057, D-066).
+// src/lib/studio/talk/sort.ts — the silent sorter (8.2, 8.3, D-057, D-066).
 // MODELS.fast, 700 tokens, temperature 0, JSON only. Runs concurrently with the
 // reply; the route awaits it in buildMeta with a 12 s ceiling. A model failure
 // THROWS (so the entry keeps sorted_at null and the sweep retries); a garbage

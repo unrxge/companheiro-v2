@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/surface/surface.tsx — the bounded canvas.
+// src/components/studio/surface/surface.tsx — the bounded canvas.
 //
 // Level 3 (the shelf) and level 2 (the board) both stand on this. It is a
 // window onto a world with edges: you drag the ground to move, roll to move,

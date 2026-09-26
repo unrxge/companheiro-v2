@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/studio.tsx — the writing, and nothing else.
+// src/components/studio/work/studio.tsx — the writing, and nothing else.
 //
 // A piece and all its parts on one surface, each part a box you write straight
 // into. This is the writing module from the main app, carried over: the focused

@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/lib/studio/use-work.ts — the whole work in one hook: loads the
+// src/lib/studio/use-work.ts — the whole work in one hook: loads the
 // tree once, then applies every edit locally first so nothing on screen waits
 // for a round trip. A failed write reloads rather than guessing.
 

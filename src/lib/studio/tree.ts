@@ -1,4 +1,4 @@
-// studio/src/lib/studio/tree.ts — pure helpers over the node tree.
+// src/lib/studio/tree.ts — pure helpers over the node tree.
 // No React, no fetch: everything here is testable on its own.
 
 import type { Appearance, Rule, ThreadTag, TreeNode, WorkNode } from '@/lib/studio/node-types'

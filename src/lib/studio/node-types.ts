@@ -1,4 +1,4 @@
-// studio/src/lib/studio/node-types.ts — the nested work model.
+// src/lib/studio/node-types.ts — the nested work model.
 //
 // A node contains nodes. Nothing here knows about "layers": an essay is one
 // level deep, an album three, a film series four, and the same shapes carry

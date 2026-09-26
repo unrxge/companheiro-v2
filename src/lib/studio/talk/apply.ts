@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/apply.ts — validate and apply a sort (8.5, D-054,
+// src/lib/studio/talk/apply.ts — validate and apply a sort (8.5, D-054,
 // D-055, D-058). All writes go through auth.supabase (RLS). Arrival rects come
 // from lane F's nextArrival at insert time and are stored: the row's x/y is the
 // one truth. `sweepUnsorted` is what /open calls for entries a closed tab left

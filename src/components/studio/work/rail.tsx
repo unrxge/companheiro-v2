@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/rail.tsx — the right rail and the drawer behind it.
+// src/components/studio/work/rail.tsx — the right rail and the drawer behind it.
 //
 // What the thing is for, the rules that can catch you, and the companion.
 // The threads are NOT here: what runs across the work belongs beside the work,

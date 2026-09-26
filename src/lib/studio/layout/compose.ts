@@ -1,4 +1,4 @@
-// studio/src/lib/studio/layout/compose.ts — initial composition (7.2). Pure and
+// src/lib/studio/layout/compose.ts — initial composition (7.2). Pure and
 // isomorphic: used by POST /projects (composeNew), the client's first measured
 // composition and composeAuto (7.5), and tidy (7.3). World px; every x/y/w is
 // snapped to 8, every h is ceil8.

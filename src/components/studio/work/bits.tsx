@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/bits.tsx — the small shared pieces every altitude
+// src/components/studio/work/bits.tsx — the small shared pieces every altitude
 // uses: the trail you climbed down, an inline field that saves on blur, the
 // chips that mark a part's threads, and the "what this owes" line.
 

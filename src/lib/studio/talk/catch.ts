@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/catch.ts — the catch (8.6, D-056). The sort only
+// src/lib/studio/talk/catch.ts — the catch (8.6, D-056). The sort only
 // flags candidates; MODELS.deep confirms and writes the sentence in the companion
 // voice. One catch per (refusal, entry); never a second for the same refusal within
 // 30 days while one is unmarked or marked right; at most ONE catch per talk.

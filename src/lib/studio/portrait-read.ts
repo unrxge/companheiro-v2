@@ -1,4 +1,4 @@
-// studio/src/lib/portrait-read.ts — READ ONLY view of the main app's portrait
+// src/lib/studio/portrait-read.ts — READ ONLY view of the main app's portrait
 // (D-051). Copied from the main app's lib/portrait.ts: getActivePortrait and
 // formatPortraitForPrompt only. The studio never writes to portrait_entries,
 // never distils, never adds an enum value. Own rows only, under RLS.

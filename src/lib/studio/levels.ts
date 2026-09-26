@@ -1,4 +1,4 @@
-// studio/src/lib/studio/levels.ts — the three altitudes, named once.
+// src/lib/studio/levels.ts — the three altitudes, named once.
 //
 // Everything in the studio happens at one of three levels. Naming them here
 // means the code, the comments and the interface all say the same words.

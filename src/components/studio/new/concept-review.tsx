@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/new/concept-review.tsx — lane H (10.2, D-061). The
+// src/components/studio/new/concept-review.tsx — lane H (10.2, D-061). The
 // review screen: the model drafted a definition from the person's words; the
 // person edits every part of it before anything exists. Title input, body
 // textarea, constraints as lines (add / remove), anchor lines as checkboxes

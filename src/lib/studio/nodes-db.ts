@@ -1,4 +1,4 @@
-// studio/src/lib/studio/nodes-db.ts — server-side helpers for the node tree.
+// src/lib/studio/nodes-db.ts — server-side helpers for the node tree.
 
 import type { AuthedContext } from '@/lib/supabase/route'
 import { badRequest, fromDbError, isRecord, isString, notFound } from '@/lib/studio/db'

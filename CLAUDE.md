@@ -60,6 +60,12 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 
 ---
 
+## Language
+
+- The owner uses the app in English. Don't single out Portuguese (or any one language) for special prompts, examples or handling: whatever language support exists must apply equally to all languages.
+
+---
+
 ## Code Structure
 
 ### Authentication & Authorization

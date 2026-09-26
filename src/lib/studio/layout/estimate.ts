@@ -1,4 +1,4 @@
-// studio/src/lib/studio/layout/estimate.ts — height heuristic (7.1). Deterministic,
+// src/lib/studio/layout/estimate.ts — height heuristic (7.1). Deterministic,
 // shared by the create route, the talk route and the client; used only when a
 // measured height is unknown. Pure; isomorphic; no DOM.
 //

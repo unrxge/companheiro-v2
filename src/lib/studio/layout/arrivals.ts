@@ -1,4 +1,4 @@
-// studio/src/lib/studio/layout/arrivals.ts — edge arrival (7.4, D-036). Pure and
+// src/lib/studio/layout/arrivals.ts — edge arrival (7.4, D-036). Pure and
 // isomorphic; the talk route computes the rect at insert time and stores it, so the
 // row's x/y are the single truth and the client draws arrivals exactly there.
 //

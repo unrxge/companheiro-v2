@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/prompts.ts — the talk prompts (8.3). Every system
+// src/lib/studio/talk/prompts.ts — the talk prompts (8.3). Every system
 // string is assembled by the caller as withLanguage([COMPANION_TONE, ROLE, context,
 // ask?].join('\n\n')): COMPANION_TONE first, withLanguage() last (D-065). Nothing
 // here mentions blocks, the canvas, scores or word counts; the six principles are

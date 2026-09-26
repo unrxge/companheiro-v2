@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/lock-modal.tsx — the write-lock's own dialog.
+// src/components/studio/work/lock-modal.tsx — the write-lock's own dialog.
 //
 // Picks a duration and locks the companion to Reflect for that stretch,
 // everywhere, including the main app — extend-only, the same commitment

@@ -21,9 +21,9 @@ test('only punctuation and case may change', () => {
 })
 
 test('accented words are compared as words', () => {
-  assert.ok(wordsUnchanged('não sei o que pensar', 'Não sei o que pensar.'))
-  // Before this was Unicode-aware, "não" and "no" both reduced to "no".
-  assert.ok(!wordsUnchanged('não sei', 'no sei'))
+  assert.ok(wordsUnchanged('the café was naïve', 'The café was naïve.'))
+  // Before this was Unicode-aware, "café" and "caf" both reduced to "caf".
+  assert.ok(!wordsUnchanged('café', 'caf'))
 })
 
 test('joining or splitting words is rejected, so word counts stay aligned', () => {

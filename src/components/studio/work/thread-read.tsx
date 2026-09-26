@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/thread-read.tsx — one thread, read straight
+// src/components/studio/work/thread-read.tsx — one thread, read straight
 // through, with everything else stripped out.
 //
 // Screenwriters call it a character pass and novelists a thread read; both do

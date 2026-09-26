@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/app/p/[id]/thread/[threadId]/page.tsx — one thread, read straight
+// src/app/p/[id]/thread/[threadId]/page.tsx — one thread, read straight
 // through, with everything it does not touch removed.
 
 import { use } from 'react'

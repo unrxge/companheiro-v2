@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/app/p/[id]/n/[nodeId]/page.tsx — one part of the work. It shows
+// src/app/p/[id]/n/[nodeId]/page.tsx — one part of the work. It shows
 // its parts when it has them and its words when it does not; the same route
 // covers every altitude, because nothing here is hard-coded to a depth.
 

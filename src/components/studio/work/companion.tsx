@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/companion.tsx — talking the work through.
+// src/components/studio/work/companion.tsx — talking the work through.
 //
 // Reflect is the default and, at the whole-project altitude, the only mode:
 // it is given the shape and never the prose, so it cannot quietly start

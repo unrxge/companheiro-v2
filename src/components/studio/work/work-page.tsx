@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/work-page.tsx — levels 2 and 1 of one project.
+// src/components/studio/work/work-page.tsx — levels 2 and 1 of one project.
 //
 //   level 2  the board    a canvas: the pieces across it, the threads beneath
 //   level 1  the writing  a page: one piece, its parts, and nothing else

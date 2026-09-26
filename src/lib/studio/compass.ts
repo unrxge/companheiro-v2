@@ -1,4 +1,4 @@
-// studio/src/lib/studio/compass.ts — the compass lifecycle (8.7, D-052, D-058).
+// src/lib/studio/compass.ts — the compass lifecycle (8.7, D-052, D-058).
 // Nothing becomes active without one of the person's verbs; talk only proposes.
 
 import type { AuthedContext } from '@/lib/supabase/route'

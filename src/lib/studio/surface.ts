@@ -1,4 +1,4 @@
-// studio/src/lib/studio/surface.ts — the maths behind the two canvases.
+// src/lib/studio/surface.ts — the maths behind the two canvases.
 //
 // Level 3 (the shelf) and level 2 (the project board) are both bounded
 // canvases: you pan and zoom, but the world has edges, and you can never

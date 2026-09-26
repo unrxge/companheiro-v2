@@ -1,4 +1,4 @@
-// studio/src/lib/studio/since.ts — since you were here (8.8, D-032). Deterministic:
+// src/lib/studio/since.ts — since you were here (8.8, D-032). Deterministic:
 // no model, no clock other than `now`. The since block (C), the phone strip (B)
 // and the shelf card (A) all render what this returns; the talk drawer (G)
 // recomputes it locally on every meta frame.

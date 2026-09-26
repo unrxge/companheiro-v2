@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/components/work/thread-card.tsx — a thread, opened.
+// src/components/studio/work/thread-card.tsx — a thread, opened.
 //
 // Nothing on the board explains itself in words until you ask it to. This is
 // where a thread does: what it is, what colour it runs in, which pieces it

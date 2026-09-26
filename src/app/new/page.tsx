@@ -1,6 +1,6 @@
 'use client'
 
-// studio/src/app/new/page.tsx — project creation (10.2, D-061, lane H). One
+// src/app/new/page.tsx — project creation (10.2, D-061, lane H). One
 // screen, two ways in (a brief, or four questions), a review of the drafted
 // concept, then `make the project`. Nothing is persisted before that press.
 

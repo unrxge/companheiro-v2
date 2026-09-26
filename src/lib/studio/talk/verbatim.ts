@@ -1,4 +1,4 @@
-// studio/src/lib/studio/talk/verbatim.ts — verbatim in code (D-055). Every update
+// src/lib/studio/talk/verbatim.ts — verbatim in code (D-055). Every update
 // text, commitment text, decision text and compass evidence quote must be a
 // normalised substring of the person's entry or it is dropped. Pure; no deps.
 //

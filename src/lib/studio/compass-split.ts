@@ -1,4 +1,4 @@
-// studio/src/lib/studio/compass-split.ts — the PURE half of the compass
+// src/lib/studio/compass-split.ts — the PURE half of the compass
 // lifecycle: decay windows and the split the drawer, the compass block and the
 // talk context all agree on. Kept apart from compass.ts because that module
 // reaches for the request-scoped supabase client (next/headers) and so cannot

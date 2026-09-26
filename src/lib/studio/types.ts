@@ -1,4 +1,4 @@
-// studio/src/lib/studio/types.ts — the one contract client and server share.
+// src/lib/studio/types.ts — the one contract client and server share.
 // World units are canvas px at zoom 1. Grid unit U = 8 (D-001).
 
 export const U = 8 as const

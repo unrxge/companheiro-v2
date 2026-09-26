@@ -1,4 +1,4 @@
-// studio/src/lib/studio/api-client.ts — typed fetch wrappers for every route
+// src/lib/studio/api-client.ts — typed fetch wrappers for every route
 // in section 4, including routes other lanes build. Streaming routes return the
 // Response so the caller can readTextStream() it. Non-2xx → ApiError.
 
