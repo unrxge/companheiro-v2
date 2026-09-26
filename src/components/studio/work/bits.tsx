@@ -209,6 +209,52 @@ export function Empty({ line }: { line: string }) {
   return <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{line}</p>
 }
 
+/** The piece's title, edited where it is shown. Saves when it loses focus, like every field here. */
+export function TitleField({ value, onCommit }: { value: string; onCommit: (next: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  const [focused, setFocused] = useState(false)
+  useEffect(() => { if (!focused) setDraft(value) }, [value, focused])
+  const commit = () => {
+    setFocused(false)
+    const next = draft.trim()
+    if (next !== value.trim()) onCommit(next)
+  }
+  const face: React.CSSProperties = { gridArea: '1 / 1', font: 'inherit', letterSpacing: 'inherit', color: 'inherit', textAlign: 'inherit', padding: 0, margin: 0 }
+  // The field sits over a hidden copy of its own text in one grid cell, so it is as wide as its title and as tall as it wraps.
+  return (
+    <div style={{ display: 'grid', maxWidth: '100%' }}>
+      <span aria-hidden style={{ ...face, visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{draft || 'Untitled'}{'\u00a0'}</span>
+      <textarea
+        rows={1}
+        aria-label="The title of this piece"
+        value={draft}
+        placeholder="Untitled"
+        onChange={(e) => setDraft(e.target.value.replace(/\n/g, ' '))}
+        onFocus={() => setFocused(true)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
+        style={{ ...face, width: '100%', height: '100%', minWidth: 0, background: 'transparent', border: 'none', outline: 'none', resize: 'none', overflow: 'hidden', overflowWrap: 'anywhere' }}
+      />
+    </div>
+  )
+}
+
+/** An upright window under 1080px wide (a phone, an iPad held upright) has no room for a panel beside the words. */
+export function useStackedLayout(): boolean {
+  const [stacked, setStacked] = useState(false)
+  useEffect(() => {
+    const check = () => setStacked(window.innerHeight >= window.innerWidth && window.innerWidth < 1080)
+    check()
+    window.addEventListener('resize', check)
+    window.addEventListener('orientationchange', check)
+    return () => {
+      window.removeEventListener('resize', check)
+      window.removeEventListener('orientationchange', check)
+    }
+  }, [])
+  return stacked
+}
+
 /** True when the window is wide enough to hold the work and an open drawer
  *  side by side. Below it the drawer simply covers the page, which is the
  *  right answer on a narrow screen. */

@@ -348,7 +348,7 @@ export function Companion({
  *  so the motion still reads as "toward" it even though it's visually
  *  separate. Ported from the main app's write assistant, minus the duration
  *  picker itself (that lives in the modal onRequestLock opens). */
-function ModeSwitch({
+export function ModeSwitch({
   mode, onChange, locked, lockedUntil, onRequestLock,
 }: {
   mode: CompanionMode

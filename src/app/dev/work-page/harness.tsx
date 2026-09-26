@@ -120,6 +120,46 @@ function installMock(o: Opts) {
       })
       if (method === 'DELETE') return write(() => { const i = lines.findIndex((l) => l.id === body.id); if (i >= 0) lines.splice(i, 1); return json({ success: true }) })
     }
+    if (path === '/api/write/node' && method === 'GET') {
+      const root = nodes.find((n) => n.id === url.split('node_id=')[1]?.split('&')[0]) ?? nodes[0]
+      return json({ success: true, piece: { id: root.id, project_id: 'demo', title: root.title, tasks: [] }, lone_piece: true })
+    }
+    if (path === '/api/write/distill' || path === '/api/write/activity') return json({ success: true })
+    if (path === '/api/write/chat' && method === 'POST') {
+      ;(window as unknown as { __lastChat?: unknown }).__lastChat = body
+      const asked = String(body.message || '')
+      const proposes = body.assistant_mode === 'write' && /rewrite/i.test(asked) && body.active_section
+      const saw = `(saw: ${body.active_section?.label ?? 'no part'}; ${body.preceding_sections?.length ?? 0} before; ${body.active_section?.anchor_lines?.length ?? 0} lines${body.selected_text ? '; a selection' : ''})`
+      const reply = proposes
+        ? `Here is a tighter version. ${saw}\n<proposed_edit>\nThe kettle took its time, and I let it.\n</proposed_edit>`
+        : `What is that sentence trying to say underneath the words? ${saw}`
+      const meta = { lockedMode: null, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
+      const enc = new TextEncoder()
+      const chunks = reply.match(/[\s\S]{1,24}/g) ?? [reply]
+      return new Response(new ReadableStream({
+        async start(c) {
+          for (const ch of chunks) { c.enqueue(enc.encode(ch)); await new Promise((r) => setTimeout(r, 30)) }
+          c.enqueue(enc.encode(`\u001e${JSON.stringify(meta)}`))
+          c.close()
+        },
+      }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
+    }
+    if (path === '/api/write/sections/ingest' && method === 'POST') return write(() => {
+      const root = nodes.find((n) => n.id === body.node_id)!
+      const text = plain(root.body)
+      const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
+      beats.forEach(([title, beat], i) => nodes.push(node(`ing-${++seq}`, root.id, i, title, beat, '')))
+      const kids = sectionsOf(root.id)
+      const full = words(text) >= 100 || text.split(/\n{2,}/).length >= 2
+      if (full) {
+        text.split(/\n{2,}/).forEach((para, i) => { const k = nodes.find((n) => n.id === kids[i % kids.length].id)!; k.body = paragraphs(`${plain(k.body)}\n\n${para}`.trim()); k.extent = words(k.body) })
+        resync(root.id)
+        return json({ type: 'draft', sections: sectionsOf(root.id) })
+      }
+      const made = text.split(/[.!?]+/).map((x) => x.trim()).filter((x) => x.split(/\s+/).length >= 2).map((x, i) => ({ id: `l${++seq}`, section_id: kids[i % kids.length].id, text: x }))
+      lines.push(...made)
+      return json({ type: 'loose', sections: kids, anchorLines: made })
+    })
     if (path === '/api/write/sections/seed' && method === 'POST') return write(() => {
       const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
       beats.forEach(([title, beat], i) => nodes.push(node(`seed-${++seq}`, body.node_id, i, title, beat, '')))

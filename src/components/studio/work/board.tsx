@@ -76,9 +76,6 @@ export interface BoardProject {
 
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
-  /** Straight into the full Write studio for this piece — a different
-   *  destination from openPiece, which stays on the board's own surface. */
-  beginWriting: (id: string) => void
   addPiece: () => void
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
@@ -566,7 +563,6 @@ export function Board({
                 targeted={targeted}
                 disabled={disabled}
                 onOpen={(el) => actions.openPiece(piece.id, el)}
-                onWrite={() => actions.beginWriting(piece.id)}
                 onRename={(title) => actions.renamePiece(piece.id, title)}
                 onRemove={() => actions.removePiece(piece)}
                 onMove={(d) => move(piece.id, d)}

@@ -33,6 +33,14 @@ import { GhostButton, QuietButton } from '@/components/ui/buttons'
 
 const SAVE_AFTER_MS = 900
 
+/** What a caller can ask of the writing surface from outside it. */
+export interface StudioHandle {
+  /** Saves whatever is still waiting, for a caller about to leave or to act on the saved text. */
+  flush: () => Promise<void>
+  /** Brings a part into view without moving the caret. */
+  reveal: (partId: string) => void
+}
+
 export function Studio({
   /** The piece. Its children are the parts; a piece with none writes as one. */
   node,
@@ -55,7 +63,10 @@ export function Studio({
   lines = [],
   onAddLine,
   onRemoveLine,
-  flushRef,
+  onFocusChange,
+  placeholders,
+  handle,
+  dockHidden = false,
   disabled = false,
 }: {
   node: TreeNode
@@ -77,8 +88,13 @@ export function Studio({
   lines?: AnchorLine[]
   onAddLine?: (text: string, partId: string) => void
   onRemoveLine?: (id: string) => void
-  /** Handed a function that saves whatever is still waiting, for a caller about to leave the page. */
-  flushRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  /** Which part the caret is in, as it changes. */
+  onFocusChange?: (partId: string) => void
+  /** Guidance to show in an empty part, by part id. */
+  placeholders?: Record<string, string>
+  handle?: React.MutableRefObject<StudioHandle | null>
+  /** Leaves the part dock out while something else is using the bottom of the screen. */
+  dockHidden?: boolean
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -205,10 +221,13 @@ export function Studio({
     await Promise.all(jobs)
   }, [])
   useEffect(() => {
-    if (!flushRef) return
-    flushRef.current = flushNow
-    return () => { flushRef.current = null }
-  }, [flushRef, flushNow])
+    if (!handle) return
+    handle.current = {
+      flush: flushNow,
+      reveal: (partId) => { articles.current[partId]?.scrollIntoView({ behavior: 'smooth', block: 'center' }) },
+    }
+    return () => { handle.current = null }
+  }, [handle, flushNow])
 
   // Nothing typed is ever left behind when the page goes away.
   useEffect(() => () => { flushAll() }, [flushAll])
@@ -373,9 +392,9 @@ export function Studio({
               <SectionEditor
                 content={ensureHtml(part.body)}
                 editable={!disabled && !part.is_locked}
-                placeholder={i === 0 ? 'Write…' : ''}
+                placeholder={placeholders?.[part.id] || (i === 0 ? 'Write…' : '')}
                 onChange={(html) => change(part.id, html)}
-                onFocus={() => setFocused(part.id)}
+                onFocus={() => { setFocused(part.id); onFocusChange?.(part.id) }}
                 onBlur={() => flushOne(part.id)}
                 onReady={(editor) => { editors.current[part.id] = editor }}
                 onTransaction={() => bump((n) => n + 1)}
@@ -425,7 +444,7 @@ export function Studio({
         </button>
       )}
 
-      {sectioned && (
+      {sectioned && !dockHidden && (
         <SectionDock
           parts={parts}
           threads={threads}

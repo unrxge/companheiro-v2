@@ -15,7 +15,7 @@ import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
-export type RailKey = 'intent' | 'concept' | 'rules' | 'anchors' | 'tasks' | 'companion'
+export type RailKey = 'intent' | 'concept' | 'rules' | 'anchors' | 'tasks' | 'assistant' | 'companion'
 
 const icon = (path: ReactNode) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
@@ -29,6 +29,7 @@ export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
   { key: 'rules', label: 'The rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
   { key: 'anchors', label: 'Anchor lines', icon: icon(<path d="M6 4h12v16l-6-4-6 4z" />) },
   { key: 'tasks', label: 'Tasks', icon: icon(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 12l2 2 4-4" /></>) },
+  { key: 'assistant', label: 'Writing assistant', icon: icon(<path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" />) },
   { key: 'companion', label: 'Talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },
 ]
 
@@ -161,11 +162,14 @@ export function Drawer({
   open,
   title,
   onClose,
+  sheet = false,
   children,
 }: {
   open: boolean
   title: string
   onClose: () => void
+  /** Rises from the bottom instead, so the words stay in view above it. */
+  sheet?: boolean
   children: ReactNode
 }) {
   const { t } = useTheme()
@@ -183,17 +187,18 @@ export function Drawer({
     <>
     {/* Below the Dock breakpoint the Dock sits along the bottom, so the panel stops above it. */}
     <style>{`
-      .rail-drawer { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
-      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { bottom: 16px; } }
+      .rail-drawer, .rail-sheet { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
+      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { bottom: 16px; } .rail-sheet { bottom: 0; } }
     `}</style>
     <aside
       aria-label={title}
-      className="rail-drawer"
+      className={sheet ? 'rail-sheet' : 'rail-drawer'}
       style={{
-        position: 'fixed', right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))',
-        zIndex: 39, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        background: t.containerBg, border: `1px solid ${t.divider}`,
-        borderRadius: radius.card, boxShadow: t.containerShadow,
+        position: 'fixed', zIndex: 39, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        background: t.containerBg, border: `1px solid ${t.divider}`, boxShadow: t.containerShadow,
+        ...(sheet
+          ? { left: 0, right: 0, height: '50vh', borderRadius: '20px 20px 0 0' }
+          : { right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
       }}
     >
       <header

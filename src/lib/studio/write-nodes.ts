@@ -1,16 +1,8 @@
-// Server-side helpers for Write mode's five modes (Gather/Shape/Write/Test/
-// Reimagine) once repointed onto the node/thread model (Phase 3 of the
-// Project Board -> Studio migration). A "piece" here is always a root
-// studio_node (parent_id null); its Write-mode "sections" are that node's
-// children, ordered by position — the same rows Studio's own canvas UI
-// (components/studio/work/studio.tsx) renders as "parts".
-//
-// This module intentionally talks to studio_nodes directly with plain
-// supabase calls, the same way the pre-Phase-3 /api/write/* routes talked
-// directly to pieces/piece_sections, rather than going through
-// lib/studio/nodes-db.ts's requireNode/NODE_COLS helpers — those are shared
-// with Studio's own canvas API and this module has no reason to couple to
-// them beyond the column names, which are the same either way.
+// Server-side helpers for the write routes (seed, divide, ingest, anchor
+// lines, and the flattened draft that Test, Reimagine and Translate read).
+// A "piece" is a root studio_node (parent_id null); what the Write page called
+// its sections are that node's children, ordered by position, the same rows
+// the writing page renders as parts.
 
 import type { AuthedContext } from '../supabase/route'
 import { htmlToPlainText } from '../rich-text'
@@ -22,52 +14,6 @@ import { wordCount } from './tree'
  *  reproduced here since Write mode's routes write studio_nodes directly. */
 export function bodyPatch(html: string): { body: string; extent: number } {
   return { body: html, extent: wordCount(html) }
-}
-
-/** A child node as Write mode's five modes see it — the same shape
- *  piece_sections used to have, sourced from studio_nodes instead. */
-export interface WriteSection {
-  id: string
-  position: number
-  label: string | null // studio_nodes.title
-  intended_emotion: string | null // studio_nodes.beat
-  content: string // studio_nodes.body (Tiptap HTML)
-  is_locked: boolean
-}
-
-const SECTION_SELECT = 'id, position, title, beat, body, is_locked'
-
-interface SectionRow {
-  id: string
-  position: number
-  title: string | null
-  beat: string | null
-  body: string | null
-  is_locked: boolean
-}
-
-function toSection(row: SectionRow): WriteSection {
-  return {
-    id: row.id,
-    position: row.position,
-    label: row.title || null,
-    intended_emotion: row.beat || null,
-    content: row.body || '',
-    is_locked: row.is_locked,
-  }
-}
-
-export async function loadWriteSections(
-  { supabase, user }: AuthedContext,
-  nodeId: string
-): Promise<WriteSection[]> {
-  const { data } = await supabase
-    .from('studio_nodes')
-    .select(SECTION_SELECT)
-    .eq('parent_id', nodeId)
-    .eq('user_id', user.id)
-    .order('position', { ascending: true })
-  return ((data as SectionRow[] | null) || []).map(toSection)
 }
 
 // Recomputes the root node's `body` as the ordered concatenation of its

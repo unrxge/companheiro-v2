@@ -29,14 +29,16 @@ import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-typ
 import { useWork } from '@/lib/studio/use-work'
 import { appearancesOf, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
 import { Board, type BoardActions } from '@/components/studio/work/board'
-import { Studio } from '@/components/studio/work/studio'
+import { Studio, type StudioHandle } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
 import { LockModal } from '@/components/studio/work/lock-modal'
 import { CompanionLauncher, Drawer, PART_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
-import { Empty, InlineField, Label, Trail, useRoomBeside } from '@/components/studio/work/bits'
+import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
+import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
+import { useWritingTimeTracker } from '@/lib/use-writing-time'
 
 export type Focus =
   | { kind: 'project' }
@@ -127,12 +129,30 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   // A whole piece (not a part of one) carries the Write page's tools with it.
   const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
   const tools = usePieceTools(isRootPiece && node ? node.id : null)
-  const [shaping, setShaping] = useState<'shape' | 'divide' | null>(null)
+  const [shaping, setShaping] = useState<'shape' | 'place' | 'divide' | null>(null)
   const [shapeNote, setShapeNote] = useState<string | null>(null)
-  const flushRef = useRef<(() => Promise<void>) | null>(null)
+  const studio = useRef<StudioHandle | null>(null)
+  const stacked = useStackedLayout()
+  const sheeted = rail === 'assistant' && stacked
+  const [activePartId, setActivePartId] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<Record<string, string>>({})
+  const chat = useWritingAssistant({
+    nodeId: isRootPiece && node ? node.id : null,
+    parts: node && isRootPiece ? (node.children.length > 0 ? node.children : [node]) : [],
+    activePartId,
+    selection,
+    lines: tools.lines,
+    lockedUntil,
+    onProposedEdit: setProposal,
+    onClearSelection: () => setSelection(null),
+  })
+  // Time spent writing feeds the Inner Weather strip on days with no check-in.
+  useWritingTimeTracker(focus.kind === 'node' && !!node)
+  // With the assistant up as a sheet, the part being written is brought into the visible half.
+  useEffect(() => { if (sheeted && activePartId) studio.current?.reveal(activePartId) }, [sheeted, activePartId])
 
   const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
-  useEffect(() => { setCheckNote(null); setShapeNote(null) }, [focusKey])
+  useEffect(() => { setCheckNote(null); setShapeNote(null); setActivePartId(null); setSuggestions({}) }, [focusKey])
 
   const appearancesFor = useCallback((threadId: string) => appearancesOf(roots, threadId), [roots])
 
@@ -233,8 +253,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     await api.removeThread(th.id)
   }, [api, projectRules, setProjectField])
 
-  /** Shaping and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
-  const reshape = useCallback(async (kind: 'shape' | 'divide', pieceId: string, alreadyParts = false) => {
+  /** Shaping, placing and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
+  const reshape = useCallback(async (kind: 'shape' | 'place' | 'divide', pieceId: string, alreadyParts = false) => {
     if (shaping) return
     if (kind === 'divide' && alreadyParts) {
       const ok = await confirm({
@@ -247,17 +267,28 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     setShaping(kind)
     setShapeNote(null)
     try {
-      await flushRef.current?.()
-      const res = await fetch(kind === 'shape' ? '/api/write/sections/seed' : '/api/write/sections/divide', {
+      await studio.current?.flush()
+      const res = await fetch(`/api/write/sections/${kind === 'shape' ? 'seed' : kind === 'place' ? 'ingest' : 'divide'}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: pieceId }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         setShapeNote(typeof data.error === 'string' ? data.error : 'That did not work. Try again in a moment.')
         return
       }
+      // Loose guidance for each empty part, shown until something is written in it.
+      if (kind === 'shape' && Array.isArray(data.sections) && Array.isArray(data.suggestions)) {
+        setSuggestions(Object.fromEntries(
+          (data.sections as Array<{ id: string }>).map((s, i) => [s.id, String(data.suggestions[i] ?? '')]).filter(([, v]) => v),
+        ))
+      }
       await api.refresh()
       await tools.reloadLines()
+      if (kind === 'place') {
+        setShapeNote(data.type === 'loose'
+          ? 'Your notes are now anchor lines, placed in the sections that suit them.'
+          : 'Your draft has been placed across the sections drawn from its emotional journey.')
+      }
     } catch {
       setShapeNote('That did not work. Try again in a moment.')
     } finally {
@@ -267,13 +298,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
   /** Everything typed is saved first, so Test reads the draft as it stands. */
   const readyForTest = useCallback(async (pieceId: string) => {
-    await flushRef.current?.()
+    await studio.current?.flush()
     router.push(`/write/test?node_id=${pieceId}`)
   }, [router])
 
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
-    beginWriting: (id) => router.push(`/write?node_id=${id}`),
     addPiece: () => void api.addNode(null),
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
@@ -388,7 +418,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
   const companionDrawer = (
     <>
-    <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)}>
+    <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)} sheet={sheeted}>
       {rail === 'intent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <InlineField
@@ -470,6 +500,17 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
       {rail === 'tasks' && (
         <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} />
+      )}
+
+      {rail === 'assistant' && scopeNode && isRootPiece && (
+        <AssistantPanel
+          chat={chat}
+          selection={selection}
+          onClearSelection={() => setSelection(null)}
+          lockedUntil={lockedUntil}
+          onRequestLock={() => setLockModalOpen(true)}
+          disabled={readOnly}
+        />
       )}
 
       {rail === 'companion' && (
@@ -570,7 +611,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     <PageShell mood="tide">
       <PageHeader
         eyebrow={null}
-        title={headerTitle}
+        title={isRootPiece && node && !readOnly ? (
+          <TitleField key={node.id} value={node.title} onCommit={(title) => void api.editNode(node.id, { title })} />
+        ) : headerTitle}
         size="md"
         actions={
           <span
@@ -587,6 +630,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         padding={26}
         style={{
           paddingRight: rail && roomBeside ? 478 : 70,
+          paddingBottom: sheeted ? 'calc(50vh + 96px)' : undefined,
           transition: 'padding-right 200ms ease',
         }}
       >
@@ -648,10 +692,13 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               onSelectionChange={setSelection}
               proposal={proposal}
               onProposalHandled={() => setProposal(null)}
+              onFocusChange={setActivePartId}
+              placeholders={suggestions}
               lines={tools.lines}
               onAddLine={(text, partId) => void tools.addLine(text, partId)}
               onRemoveLine={(id) => void tools.removeLine(id)}
-              flushRef={flushRef}
+              handle={studio}
+              dockHidden={sheeted}
               disabled={readOnly}
             />
           )}
@@ -661,11 +708,13 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               nodeId={node.id}
               words={words}
               canShape={!readOnly && node.children.length === 0 && words === 0 && !!(node.emotional_journey || node.core_truth || node.intent)}
-              canDivide={!readOnly && words > 30 && !node.children.some((c) => c.is_locked)}
+              canPlace={!readOnly && node.children.length === 0 && words > 0 && !!node.emotional_journey?.trim()}
+              canDivide={!readOnly && words > 30 && !node.children.some((c) => c.is_locked) && !(node.children.length === 0 && !!node.emotional_journey?.trim())}
               sectioned={node.children.length > 0}
               busy={shaping}
               note={shapeNote}
               onShape={() => void reshape('shape', node.id)}
+              onPlace={() => void reshape('place', node.id)}
               onDivide={() => void reshape('divide', node.id, node.children.length > 0)}
               onReady={() => void readyForTest(node.id)}
             />
@@ -690,7 +739,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       <Rail
         open={rail}
         onOpen={setRail}
-        hidden={focus.kind === 'thread'}
+        hidden={focus.kind === 'thread' || sheeted}
         tools={isRootPiece ? undefined : PART_TOOLS}
         counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />

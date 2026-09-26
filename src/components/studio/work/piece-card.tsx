@@ -23,7 +23,6 @@ export function PieceCard({
   width,
   height,
   onOpen,
-  onWrite,
   onRename,
   onRemove,
   onMove,
@@ -37,10 +36,6 @@ export function PieceCard({
   width: number
   height: number
   onOpen: (el: HTMLElement | null) => void
-  /** Straight into the full Write studio (five modes: write, test, translate,
-   *  reimagine, anchor lines) — a different surface from `onOpen`, which
-   *  drops into this same node's inline view here on the board. */
-  onWrite: () => void
   onRename: (title: string) => void
   onRemove: () => void
   onMove: (delta: -1 | 1) => void
@@ -199,13 +194,11 @@ export function PieceCard({
         )}
         {node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
 
-        {/* the one way off the board and into the full Write studio — the
-           same "Begin/Resume" language Project Board used for this exact
-           action, kept on the right so it never competes with the counts. */}
+        {/* Begin/Resume writing: the plain way into the piece, kept on the right so it never competes with the counts. */}
         <button
           type="button"
           data-hold
-          onClick={(e) => { e.stopPropagation(); onWrite() }}
+          onClick={(e) => { e.stopPropagation(); onOpen(card.current) }}
           aria-label={`${words > 0 ? 'Resume' : 'Begin'} writing ${node.title || 'this piece'}`}
           style={{
             marginLeft: 'auto', flexShrink: 0, ...canvasType.chip, fontSize: 12, fontWeight: 600,

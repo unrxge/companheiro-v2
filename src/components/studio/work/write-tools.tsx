@@ -352,17 +352,19 @@ export function PartLines({ lines, onAdd, onRemove }: {
  * Test once there is a draft to read.
  */
 export function PieceFooter({
-  projectId, nodeId, words, canShape, canDivide, sectioned, busy, note, onShape, onDivide, onReady,
+  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onReady,
 }: {
   projectId: string
   nodeId: string
   words: number
   canShape: boolean
+  canPlace: boolean
   canDivide: boolean
   sectioned: boolean
-  busy: 'shape' | 'divide' | null
+  busy: 'shape' | 'place' | 'divide' | null
   note: string | null
   onShape: () => void
+  onPlace: () => void
   onDivide: () => void
   onReady: () => void
 }) {
@@ -370,11 +372,16 @@ export function PieceFooter({
   const ready = words > 100
   return (
     <div style={{ maxWidth: widths.reading, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {(canShape || canDivide) && (
+      {(canShape || canPlace || canDivide) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 16px' }}>
           {canShape && (
             <GhostButton size="sm" onClick={onShape} loading={busy === 'shape'} loadingLabel="Shaping…">
               Shape into sections
+            </GhostButton>
+          )}
+          {canPlace && (
+            <GhostButton size="sm" onClick={onPlace} loading={busy === 'place'} loadingLabel="Placing…">
+              Place it in the sections
             </GhostButton>
           )}
           {canDivide && (

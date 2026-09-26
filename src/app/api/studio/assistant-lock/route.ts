@@ -1,10 +1,9 @@
-// GET/POST /api/studio/assistant-lock — the same commitment device as the
-// main app's write mode: lock the companion to reflect-only for a stretch of
-// time, for anyone who wants no AI prose at all while they write.
+// GET/POST /api/studio/assistant-lock — the commitment device: lock the
+// companion and the writing assistant to reflect-only for a stretch of time,
+// for anyone who wants no AI prose at all while they write.
 //
-// Lives on user_settings, the same table and column the main app's
-// /api/write/assistant-lock uses — one Supabase project behind both apps,
-// so a lock started in either one holds in both. No migration needed here.
+// Lives on user_settings (assistant_write_locked_until), which both chat
+// routes re-check on every request. No migration needed here.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { badRequest, isRecord, readJson, unauthorized } from '@/lib/studio/db'

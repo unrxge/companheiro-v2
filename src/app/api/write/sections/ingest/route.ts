@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser, AuthedContext } from '@/lib/supabase/route'
+import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
@@ -108,6 +109,8 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const gated = await aiGate(auth)
+    if (gated) return gated
     const { supabase, user } = auth
 
     const { node_id } = await req.json()
