@@ -263,6 +263,22 @@ export function Studio({
     if (!reopening && !sectioned && onFinished) onFinished()
   }, [onFinished, sectioned])
 
+  /** One control for a sectioned part: finishing it also seals it, reopening does both in reverse. */
+  const sealPart = useCallback(async (part: TreeNode) => {
+    const sealing = !part.is_locked
+    if (timers.current[part.id]) { clearTimeout(timers.current[part.id]); delete timers.current[part.id] }
+    const typed = pending.current[part.id]
+    if (typed !== undefined) {
+      delete pending.current[part.id]
+      await latestEdit.current(part.id, { body: typed })
+    }
+    if (sealing) {
+      if (pendingWhole?.partId === part.id) setPendingWhole(null)
+      if (pendingInline?.partId === part.id) setPendingInline(null)
+    }
+    await latestEdit.current(part.id, { status: sealing ? 'done' : 'open', is_locked: sealing })
+  }, [pendingWhole, pendingInline])
+
   const flushOne = useCallback((id: string) => {
     if (timers.current[id]) { clearTimeout(timers.current[id]); delete timers.current[id] }
     const next = pending.current[id]
@@ -270,14 +286,6 @@ export function Studio({
     delete pending.current[id]
     void latestEdit.current(id, { body: next })
   }, [])
-
-  /** Locking seals a part: nothing edits it, the companion's suggestions included, until it is opened again. */
-  const toggleLock = (part: TreeNode) => {
-    flushOne(part.id)
-    if (pendingWhole?.partId === part.id) setPendingWhole(null)
-    if (pendingInline?.partId === part.id) setPendingInline(null)
-    void onEdit(part.id, { is_locked: !part.is_locked })
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
@@ -344,7 +352,6 @@ export function Studio({
                   </span>
                 )}
                 <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />
-                <span style={{ ...canvasType.chip, color: t.textMuted, flexShrink: 0 }}>{part.extent}w</span>
                 {!disabled && (
                   <>
                     {sectioned && onAddLine && (
@@ -356,26 +363,23 @@ export function Studio({
                         Lines{partLines.length > 0 ? ` (${partLines.length})` : ''}
                       </HeaderAction>
                     )}
-                    {sectioned && (
+                    {sectioned ? (
                       <HeaderAction
-                        label={part.is_locked ? 'Unlock this part' : 'Lock this part: nothing edits it while it is'}
-                        tone={part.is_locked ? t.verdant : t.textMuted}
-                        onClick={() => toggleLock(part)}
+                        label={part.is_locked ? 'Finished and locked: nothing edits it. Click to reopen' : 'Finish this part and lock it'}
+                        tone={part.is_locked ? t.danger : t.verdant}
+                        onClick={() => void sealPart(part)}
                       >
-                        {part.is_locked ? 'Locked' : 'Lock'}
+                        {part.is_locked ? <LockIcon /> : <CheckIcon />}
+                      </HeaderAction>
+                    ) : (
+                      <HeaderAction
+                        label={part.status === 'done' ? 'This is done — reopen it' : 'Mark it done and go back out'}
+                        tone={part.status === 'done' ? t.verdant : t.textMuted}
+                        onClick={() => void finish(part)}
+                      >
+                        {part.status === 'done' ? 'Done' : 'Mark done'}
                       </HeaderAction>
                     )}
-                    <HeaderAction
-                      label={
-                        part.status === 'done'
-                          ? 'This is done — reopen it'
-                          : sectioned ? 'Mark this part done' : 'Mark it done and go back out'
-                      }
-                      tone={part.status === 'done' ? t.verdant : t.textMuted}
-                      onClick={() => void finish(part)}
-                    >
-                      {part.status === 'done' ? 'Done' : 'Mark done'}
-                    </HeaderAction>
                     {sectioned && (
                       <HeaderAction label="Delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
                     )}
@@ -459,6 +463,19 @@ export function Studio({
       )}
     </div>
   )
+}
+
+const iconProps = {
+  width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+  strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, style: { display: 'block' },
+} as const
+
+function CheckIcon() {
+  return <svg {...iconProps}><path d="M3 8.5l3.2 3.2L13 4.6" /></svg>
+}
+
+function LockIcon() {
+  return <svg {...iconProps}><rect x="3.5" y="7" width="9" height="6.5" rx="1.4" /><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" /></svg>
 }
 
 function HeaderAction({
