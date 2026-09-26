@@ -68,11 +68,20 @@ export function JourneyNavNode({
   nodeId,
   step,
   compact = false,
+  beforeNavigate,
 }: {
   projectId: string | null
   nodeId: string
   step: JourneyStep
   compact?: boolean
+  beforeNavigate?: () => Promise<void>
 }) {
-  return <StageRibbon step={step} compact={compact} hrefFor={(s) => journeyHrefForNode(s, { projectId, nodeId })} />
+  return (
+    <StageRibbon
+      step={step}
+      compact={compact}
+      hrefFor={(s) => journeyHrefForNode(s, { projectId, nodeId })}
+      beforeNavigate={beforeNavigate}
+    />
+  )
 }

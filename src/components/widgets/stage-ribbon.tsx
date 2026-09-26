@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { fonts, JOURNEY_LABELS, PIECE_JOURNEY, type JourneyStep } from '@/lib/design-tokens'
 
@@ -15,13 +16,18 @@ export function StageRibbon({
   compact = false,
   hrefFor,
   onSelect,
+  beforeNavigate,
 }: {
   step: JourneyStep
   compact?: boolean
   hrefFor?: (s: JourneyStep) => string | null
   onSelect?: (s: JourneyStep) => void
+  /** Awaited before a plain click follows a step's link — the writing page
+   *  uses it to save what's been typed before Test reads the draft. */
+  beforeNavigate?: () => Promise<void>
 }) {
   const { t } = useTheme()
+  const router = useRouter()
   const idx = PIECE_JOURNEY.indexOf(step)
   return (
     <div role="img" aria-label={`Stage: ${JOURNEY_LABELS[step]} (${idx + 1} of ${PIECE_JOURNEY.length})`}>
@@ -46,7 +52,18 @@ export function StageRibbon({
           const wrap: React.CSSProperties = { flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, cursor: interactive ? 'pointer' : undefined, padding: interactive ? '4px 0' : 0 }
           if (href) {
             return (
-              <Link key={s} href={href} aria-label={`Go to ${JOURNEY_LABELS[s]}`} style={wrap}>
+              <Link
+                key={s}
+                href={href}
+                aria-label={`Go to ${JOURNEY_LABELS[s]}`}
+                style={wrap}
+                onClick={beforeNavigate ? (e) => {
+                  // Leave modified clicks (new tab, new window) to the browser.
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+                  e.preventDefault()
+                  void beforeNavigate().finally(() => router.push(href))
+                } : undefined}
+              >
                 {bar}
               </Link>
             )

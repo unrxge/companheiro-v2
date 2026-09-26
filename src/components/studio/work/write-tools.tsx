@@ -348,11 +348,10 @@ export function PartLines({ lines, onAdd, onRemove }: {
 
 /**
  * Under the writing: shaping the piece into sections, where the piece stands
- * on its way (Write · Test · Shape · Post · Reflect), and the step that opens
- * Test once there is a draft to read.
+ * on its way (Write · Test · Shape · Post · Reflect).
  */
 export function PieceFooter({
-  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onReady,
+  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onLeave,
 }: {
   projectId: string
   nodeId: string
@@ -366,10 +365,10 @@ export function PieceFooter({
   onShape: () => void
   onPlace: () => void
   onDivide: () => void
-  onReady: () => void
+  /** Saves what's been typed; awaited before the ribbon carries you to another step. */
+  onLeave: () => Promise<void>
 }) {
   const { t } = useTheme()
-  const ready = words > 100
   return (
     <div style={{ maxWidth: widths.reading, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
       {(canShape || canPlace || canDivide) && (
@@ -394,13 +393,10 @@ export function PieceFooter({
       {note && <p role="status" style={{ ...canvasType.small, color: t.textMuted, margin: 0, padding: '0 16px' }}>{note}</p>}
 
       <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, padding: '20px 16px 0', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <JourneyNavNode projectId={projectId} nodeId={nodeId} step="write" />
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ ...canvasType.small, color: t.textMuted }}>
-            {words} {words === 1 ? 'word' : 'words'}{!ready && ' · Test opens at 100'}
-          </span>
-          {ready && <QuietButton size="sm" onClick={onReady}>This draft is ready →</QuietButton>}
-        </div>
+        <JourneyNavNode projectId={projectId} nodeId={nodeId} step="write" beforeNavigate={onLeave} />
+        <span style={{ ...canvasType.small, color: t.textMuted }}>
+          {words} {words === 1 ? 'word' : 'words'}
+        </span>
       </div>
     </div>
   )

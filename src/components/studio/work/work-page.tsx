@@ -297,10 +297,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   }, [api, confirm, shaping, tools])
 
   /** Everything typed is saved first, so Test reads the draft as it stands. */
-  const readyForTest = useCallback(async (pieceId: string) => {
+  const saveBeforeLeaving = useCallback(async () => {
     await studio.current?.flush()
-    router.push(`/write/test?node_id=${pieceId}`)
-  }, [router])
+  }, [])
 
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
@@ -735,7 +734,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               onShape={() => void reshape('shape', node.id)}
               onPlace={() => void reshape('place', node.id)}
               onDivide={() => void reshape('divide', node.id, node.children.length > 0)}
-              onReady={() => void readyForTest(node.id)}
+              onLeave={saveBeforeLeaving}
             />
           )}
           {focus.kind === 'node' && !node && <Empty line="That part is gone." />}
