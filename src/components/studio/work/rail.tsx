@@ -12,6 +12,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
+import { useDockAway } from '@/components/shell/page-shell'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
@@ -173,6 +174,7 @@ export function Drawer({
   children: ReactNode
 }) {
   const { t } = useTheme()
+  const dockAway = useDockAway()
 
   useEffect(() => {
     if (!open) return
@@ -185,14 +187,17 @@ export function Drawer({
 
   return (
     <>
-    {/* Below the Dock breakpoint the Dock sits along the bottom, so the panel stops above it. */}
+    {/* Below the Dock breakpoint the Dock sits along the bottom, so the panel stops above it, unless the Dock has stepped away. */}
     <style>{`
-      .rail-drawer, .rail-sheet { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
+      .rail-drawer, .rail-sheet { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); transition: bottom .2s ease; }
+      .rail-drawer[data-dock-away] { bottom: 16px; }
+      .rail-sheet[data-dock-away] { bottom: 0; }
       @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { bottom: 16px; } .rail-sheet { bottom: 0; } }
     `}</style>
     <aside
       aria-label={title}
       className={sheet ? 'rail-sheet' : 'rail-drawer'}
+      data-dock-away={dockAway || undefined}
       style={{
         position: 'fixed', zIndex: 39, display: 'flex', flexDirection: 'column', overflow: 'hidden',
         background: t.containerBg, border: `1px solid ${t.divider}`, boxShadow: t.containerShadow,

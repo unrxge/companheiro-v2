@@ -53,16 +53,21 @@ export const DOCK_DESKTOP_MIN = 720
  * The one navigation. Top-centre on desktop, bottom-centre on phones (thumb
  * reach, and it never covers a page header). Replaces every bespoke back
  * button. Page-specific actions stay in the header cluster.
+ *
+ * It belongs to the page's header: `inPage` lets it scroll away with the page
+ * top from the Dock breakpoint up, and `away` fades it out (a phone's bottom
+ * dock has no other way to leave) while that header is off screen.
  */
-export function Dock({ hidden = false }: { hidden?: boolean }) {
+export function Dock({ hidden = false, away = false, inPage = false }: { hidden?: boolean; away?: boolean; inPage?: boolean }) {
   const pathname = usePathname() || ''
   if (hidden) return null
   return (
-    <nav aria-label="Main" className="dock">
+    <nav aria-label="Main" className={inPage ? 'dock dock-in-page' : 'dock'} data-away={away || undefined}>
       <style>{`
-        .dock { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 999px; background-color: rgba(13,12,11,0.74); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid ${shell.line}; box-shadow: 0 10px 30px rgba(0,0,0,0.45); max-width: calc(100vw - 24px); }
+        .dock { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 999px; background-color: rgba(13,12,11,0.74); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid ${shell.line}; box-shadow: 0 10px 30px rgba(0,0,0,0.45); max-width: calc(100vw - 24px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear 0s; }
         .dock { bottom: max(14px, env(safe-area-inset-bottom)); top: auto; }
-        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .dock { top: 14px; bottom: auto; } }
+        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .dock { top: 14px; bottom: auto; } .dock-in-page { position: absolute; } }
+        .dock[data-away] { opacity: 0; transform: translateX(-50%) translateY(10px); visibility: hidden; pointer-events: none; transition-delay: 0s, 0s, .2s; }
         .dock-seat { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; height: 40px; padding: 0 14px; border-radius: 999px; color: ${shell.muted}; text-decoration: none; font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; transition: color .2s, background-color .2s; -webkit-tap-highlight-color: transparent; }
         .dock-seat:hover, .dock-seat[aria-current="page"] { color: ${shell.text}; background-color: ${shell.fillHover}; }
         .dock-seat:focus-visible { outline: 2px solid #d2552f; outline-offset: 2px; }

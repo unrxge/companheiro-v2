@@ -1,5 +1,6 @@
 'use client'
 
+import { createContext, useContext, useEffect, useState } from 'react'
 import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Atmosphere } from '@/components/shell/atmosphere'
@@ -7,6 +8,25 @@ import { Dock } from '@/components/shell/dock'
 import { IconButton } from '@/components/ui/icon-button'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { fonts, motion, radius, shell, type as typeRoles, widths, type Mood } from '@/lib/design-tokens'
+
+/** How a PageHeader lets its PageShell know which element to watch. */
+const HeaderSlot = createContext<((el: HTMLElement | null) => void) | null>(null)
+
+/** True while the page's header is off screen and the Dock has stepped aside with it. */
+const DockAway = createContext(false)
+export const useDockAway = () => useContext(DockAway)
+
+/** Is any part of this element on screen? True until it can be measured. */
+function useInView(el: HTMLElement | null): boolean {
+  const [inView, setInView] = useState(true)
+  useEffect(() => {
+    if (!el || typeof IntersectionObserver === 'undefined') { setInView(true); return }
+    const watch = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting))
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [el])
+  return inView
+}
 
 // ── PageShell ────────────────────────────────────────────────────────────────
 /**
@@ -29,6 +49,8 @@ export function PageShell({
   dock?: boolean
   children: React.ReactNode
 }) {
+  const [header, setHeader] = useState<HTMLElement | null>(null)
+  const headerInView = useInView(header)
   return (
     <div
       style={{
@@ -70,9 +92,11 @@ export function PageShell({
           minHeight: fill ? 0 : undefined,
         }}
       >
-        {children}
+        <HeaderSlot.Provider value={setHeader}>
+          <DockAway.Provider value={!headerInView}>{children}</DockAway.Provider>
+        </HeaderSlot.Provider>
       </div>
-      {dock && <Dock />}
+      {dock && <Dock inPage away={!headerInView} />}
     </div>
   )
 }
@@ -102,9 +126,11 @@ export function PageHeader({
   size?: 'lg' | 'md'
 }) {
   const { theme, toggle } = useTheme()
+  const watchedBy = useContext(HeaderSlot)
   const titleStyle = size === 'lg' ? typeRoles.display : { ...typeRoles.h2, fontSize: '24px' }
   return (
     <m.header
+      ref={watchedBy}
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: motion.enterMs / 1000, ease: 'easeOut' }}
