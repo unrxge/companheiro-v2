@@ -348,7 +348,7 @@ export function PartLines({ lines, onAdd, onRemove }: {
 
 /**
  * Under the writing: shaping the piece into sections, where the piece stands
- * on its way (Write · Test · Shape · Post · Reflect).
+ * on its way (Write · Test · Post · Reflect).
  */
 export function PieceFooter({
   projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onLeave,

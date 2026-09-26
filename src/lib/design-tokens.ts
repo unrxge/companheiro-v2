@@ -114,14 +114,13 @@ export const columnHue: Record<BoardColumn, Hue> = {
   completed: 'violet',
 }
 
-/** The six steps every piece walks. `stage` in the DB maps onto these. */
-export const PIECE_JOURNEY = ['concept', 'write', 'test', 'shape', 'post', 'reflect'] as const
+/** The five steps every piece walks. `stage` in the DB maps onto these. */
+export const PIECE_JOURNEY = ['concept', 'write', 'test', 'post', 'reflect'] as const
 export type JourneyStep = (typeof PIECE_JOURNEY)[number]
 export const JOURNEY_LABELS: Record<JourneyStep, string> = {
   concept: 'Concept',
   write: 'Write',
   test: 'Test',
-  shape: 'Shape',
   post: 'Post',
   reflect: 'Reflect',
 }
@@ -133,8 +132,9 @@ export function journeyStepFromStage(stage: string | null | undefined): JourneyS
       return 'concept'
     case 'writing':
       return 'write'
+    // Shape (translate/reimagine) was removed; a piece that reached it has been tested.
     case 'translating':
-      return 'shape'
+      return 'test'
     case 'executing':
       return 'post'
     case 'posted':

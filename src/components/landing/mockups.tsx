@@ -297,7 +297,7 @@ const NODES: BoardNode[] = [
   { id: 'plates', kind: 'piece', x: 600, y: 36, w: 214, h: 104, title: 'My Mother’s Plates', medium: 'Essay', step: 'write' },
   { id: 'room', kind: 'piece', x: 842, y: 150, w: 214, h: 104, title: 'The Room I Never Used', medium: 'Song', step: 'test' },
   { id: 'ready', kind: 'piece', x: 600, y: 262, w: 214, h: 104, title: 'Ready', medium: 'Short film', step: 'concept' },
-  { id: 'chairs', kind: 'piece', x: 842, y: 408, w: 214, h: 104, title: 'Before Opening', medium: 'Photo series', step: 'shape' },
+  { id: 'chairs', kind: 'piece', x: 842, y: 408, w: 214, h: 104, title: 'Before Opening', medium: 'Photo series', step: 'test' },
 ]
 const EDGES: [string, string][] = [
   ['waiting', 'plates'],
@@ -485,7 +485,7 @@ export function LeftOffMockup() {
   const pieces: { title: string; medium: string; step: JourneyStep }[] = [
     { title: 'My Mother’s Plates', medium: 'Essay', step: 'write' },
     { title: 'The Room I Never Used', medium: 'Song', step: 'test' },
-    { title: 'Before Opening', medium: 'Photo series', step: 'shape' },
+    { title: 'Before Opening', medium: 'Photo series', step: 'test' },
   ]
   return (
     <Container padding={16}>

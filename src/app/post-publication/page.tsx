@@ -97,7 +97,7 @@ function PostPublicationContent() {
 
   return (
     <PageShell mood="violet" maxWidth={760}>
-      <PageHeader eyebrow="Write · Post" title={piece?.title || 'Post-publication'} subtitle="It is out. Before it goes quiet, say what it opened and what it left open." size="md" back={nodeId ? `/write/translate?node_id=${nodeId}` : `/write/translate?piece_id=${pieceId}`} />
+      <PageHeader eyebrow="Write · Post" title={piece?.title || 'Post-publication'} subtitle="It is out. Before it goes quiet, say what it opened and what it left open." size="md" back={nodeId ? `/write/test?node_id=${nodeId}` : `/write/test?piece_id=${pieceId}`} />
 
       <Container>
         <div style={{ marginBottom: 22 }}>

@@ -12,8 +12,6 @@ export function journeyHref(step: JourneyStep, pieceId: string): string {
       return `/write?piece_id=${pieceId}`
     case 'test':
       return `/write/test?piece_id=${pieceId}`
-    case 'shape':
-      return `/write/translate?piece_id=${pieceId}`
     case 'post':
       return `/post-publication?piece_id=${pieceId}`
     case 'reflect':
@@ -23,7 +21,7 @@ export function journeyHref(step: JourneyStep, pieceId: string): string {
 
 /**
  * The piece journey as navigation: every step is a link. Used in the header
- * of Write, Test, Shape (Translate/Reimagine), Post and the Reading room, so
+ * of Write, Test, Post and the Reading room, so
  * the back half of the loop is always one tap away.
  */
 export function JourneyNav({ pieceId, step, compact = false }: { pieceId: string; step: JourneyStep; compact?: boolean }) {
@@ -38,7 +36,7 @@ export function writeHrefForNode({ projectId, nodeId }: { projectId: string | nu
 /**
  * Where each journey step lives for a piece created through the node/thread
  * model (Phase 3 of the Project Board -> Studio migration, extended in
- * Phase 4) — a root studio_node rather than a `pieces` row. All six steps
+ * Phase 4) — a root studio_node rather than a `pieces` row. All five steps
  * are clickable now that /post-publication and /read understand node_id too.
  */
 export function journeyHrefForNode(
@@ -52,8 +50,6 @@ export function journeyHrefForNode(
       return writeHrefForNode({ projectId, nodeId })
     case 'test':
       return `/write/test?node_id=${nodeId}`
-    case 'shape':
-      return `/write/translate?node_id=${nodeId}`
     case 'post':
       return `/post-publication?node_id=${nodeId}`
     case 'reflect':

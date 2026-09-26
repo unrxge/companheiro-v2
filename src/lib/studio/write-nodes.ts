@@ -1,5 +1,5 @@
 // Server-side helpers for the write routes (seed, divide, ingest, anchor
-// lines, and the flattened draft that Test, Reimagine and Translate read).
+// lines, and the flattened draft that Test reads).
 // A "piece" is a root studio_node (parent_id null); what the Write page called
 // its sections are that node's children, ordered by position, the same rows
 // the writing page renders as parts.
@@ -49,7 +49,7 @@ export async function resyncNodeBody(auth: AuthedContext, rootNodeId: string): P
     .eq('user_id', user.id)
 }
 
-/** After a change under `parentId`, refreshes that node's flattened body and every ancestor's, so Test, Reimagine and Translate read the words as they now are. */
+/** After a change under `parentId`, refreshes that node's flattened body and every ancestor's, so Test reads the words as they now are. */
 export async function resyncFrom(auth: AuthedContext, parentId: string | null): Promise<void> {
   let current = parentId
   for (let hops = 0; current && hops < 8; hops++) {

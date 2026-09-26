@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
-import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
+import { PrimaryButton, GhostButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
@@ -158,8 +158,7 @@ function TestContent() {
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 6 }}>
-              <PrimaryButton href={`/write/translate?node_id=${nodeId}`}>Shape it: translate →</PrimaryButton>
-              <QuietButton href={`/write/reimagine?node_id=${nodeId}`}>Reimagine</QuietButton>
+              <PrimaryButton href={`/post-publication?node_id=${nodeId}`}>Post it →</PrimaryButton>
               <GhostButton onClick={runTest}>Test again</GhostButton>
             </div>
           </div>
