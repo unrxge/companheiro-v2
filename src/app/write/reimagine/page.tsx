@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, Suspense, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useDictation } from '@/lib/use-dictation'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
+import { useTheme } from '@/components/theme/theme-provider'
+import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
+import { PrimaryButton, GhostButton } from '@/components/ui/buttons'
+import { Pill } from '@/components/ui/pill'
+import { Thread, Composer, type ThreadMessage } from '@/components/conversation/thread'
 import { writeHrefForNode } from '@/components/widgets'
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
+import { shell, type as typeRoles, widths } from '@/lib/design-tokens'
 
 interface PendingLens {
   lens: string
@@ -24,71 +26,14 @@ function energyIndexFor(word?: string): number {
   return idx === -1 ? 1 : idx
 }
 
-type Style = CSSProperties & Record<string, string | number | undefined>
-
-// Deep hues drifting on the ink shell — one per meaning colour, so a palette
-// swap reads as a change of mood, not a change of product. Picked at random
-// on every click, anywhere on the scene.
-const PALETTES: { bg: string; ink: string; muted: string; accent: string; blobs: [string, string, string] }[] = [
-  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#e0674a', blobs: ['#6f2a1a', '#3a2a1a', '#1e3b5c'] },
-  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#39a875', blobs: ['#2d5a3a', '#1e3b5c', '#3a2a1a'] },
-  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#8a7cea', blobs: ['#3a2a6a', '#1e3b5c', '#2d3a5a'] },
-  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#bf8a30', blobs: ['#5a3f14', '#6f2a1a', '#2d3a2a'] },
-  { bg: '#0d0c0b', ink: '#ece9e2', muted: '#aaa59c', accent: '#4f9ad6', blobs: ['#1e3b5c', '#2d5a3a', '#3a2a6a'] },
-]
-
-const KEYFRAMES = `
-@keyframes reimagineWiggle { 0%,100% { transform: translateX(0); } 25% { transform: translateX(2px); } 75% { transform: translateX(-2px); } }
-@keyframes reimagineRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes blobDrift1 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(8vw, 6vh) scale(1.15); } 100% { transform: translate(-4vw, 10vh) scale(0.95); } }
-@keyframes blobDrift2 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-10vw,-4vh) scale(1.1); } 100% { transform: translate(6vw,-8vh) scale(0.9); } }
-@keyframes blobDrift3 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(5vw,-10vh) scale(1.2); } 100% { transform: translate(-8vw,4vh) scale(1); } }
-
-.reimagine-scene, .reimagine-scene * {
-  transition: color 1.4s cubic-bezier(0.4,0,0.2,1), background-color 1.4s cubic-bezier(0.4,0,0.2,1),
-    border-color 1.4s cubic-bezier(0.4,0,0.2,1), box-shadow 1.4s cubic-bezier(0.4,0,0.2,1),
-    text-shadow 1.4s cubic-bezier(0.4,0,0.2,1);
-}
-`
-
-// Paper on coal — the same surface language as every other screen, no glass.
-const cardBase: Style = {
-  backgroundColor: '#231f1b',
-  boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)',
-  border: 'none',
-}
-
-function glassPill(tinted = false): Style {
-  return {
-    ...cardBase,
-    backgroundColor: tinted ? 'var(--accent)' : '#231f1b',
-    color: tinted ? '#ffffff' : undefined,
-    borderRadius: '9999px',
-  }
-}
-
-function glassCard(): Style {
-  return {
-    ...cardBase,
-    borderRadius: '28px',
-  }
-}
-
-function headingGlow(): Style {
-  return { color: 'var(--ink)' }
-}
-
-function bodyGlow(): Style {
-  return { color: 'var(--ink)' }
-}
-
 function ReimagineContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { t } = useTheme()
   const nodeId = searchParams.get('node_id')
 
   const [projectId, setProjectId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<ThreadMessage[]>([])
   const [inputText, setInputText] = useState('')
   const inputTextRef = useRef('')
   inputTextRef.current = inputText
@@ -96,22 +41,17 @@ function ReimagineContent() {
   const [error, setError] = useState<string | null>(null)
 
   const [pendingLens, setPendingLens] = useState<PendingLens | null>(null)
-  const [lensVisible, setLensVisible] = useState(false)
   const [energyIndex, setEnergyIndex] = useState(1)
-  const [energyPulsing, setEnergyPulsing] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [output, setOutput] = useState('')
   const [copied, setCopied] = useState(false)
-  const [paletteIndex, setPaletteIndex] = useState(0)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
     getContext: () => inputTextRef.current.slice(-80),
   })
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -128,37 +68,10 @@ function ReimagineContent() {
   }, [nodeId])
 
   useEffect(() => {
-    if (threadRef.current) {
-      threadRef.current.scrollTop = threadRef.current.scrollHeight
-    }
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
   }, [messages, pendingLens, output])
 
-  useEffect(() => {
-    if (!pendingLens) {
-      setLensVisible(false)
-      return
-    }
-    setLensVisible(false)
-    const t = setTimeout(() => setLensVisible(true), 20)
-    return () => clearTimeout(t)
-  }, [pendingLens])
-
-  const nudgeEnergy = (index: number) => {
-    setEnergyIndex(index)
-    setEnergyPulsing(true)
-    setTimeout(() => setEnergyPulsing(false), 200)
-  }
-
-  const pickNextPalette = () => {
-    setPaletteIndex((prev) => {
-      if (PALETTES.length <= 1) return prev
-      let next = prev
-      while (next === prev) next = Math.floor(Math.random() * PALETTES.length)
-      return next
-    })
-  }
-
-  const fetchAIResponse = async (conversationHistory: Message[]) => {
+  const fetchAIResponse = async (conversationHistory: ThreadMessage[]) => {
     setIsLoading(true)
     setError(null)
 
@@ -201,12 +114,10 @@ function ReimagineContent() {
     }
   }
 
-
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
 
-    const userMessage: Message = { role: 'user', content: inputText.trim() }
-    const updatedMessages = [...messages, userMessage]
+    const updatedMessages: ThreadMessage[] = [...messages, { role: 'user', content: inputText.trim() }]
     setMessages(updatedMessages)
     setInputText('')
     setPendingLens(null)
@@ -248,314 +159,82 @@ function ReimagineContent() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const lastIdx = messages.length - 1
-  const last = messages[lastIdx]
-  const secondLast = messages[lastIdx - 1]
-  const stageStartIdx =
-    last?.role === 'assistant' && secondLast?.role === 'user' ? lastIdx - 1 : lastIdx
-  const trail = messages.slice(0, Math.max(stageStartIdx, 0))
-  const stage = messages.slice(Math.max(stageStartIdx, 0))
-
-  const palette = PALETTES[paletteIndex]
-  const cssVars: Style = {
-    '--ink': palette.ink,
-    '--muted': palette.muted,
-    '--accent': palette.accent,
-    '--bg': palette.bg,
-    '--blob1': palette.blobs[0],
-    '--blob2': palette.blobs[1],
-    '--blob3': palette.blobs[2],
-  }
+  if (!nodeId) return null
 
   return (
-    <div
-      className="relative h-screen overflow-hidden reimagine-scene"
-      style={{ ...cssVars, backgroundColor: 'var(--bg)' }}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).tagName === 'TEXTAREA') return
-        pickNextPalette()
-      }}
-    >
-      <style>{KEYFRAMES}</style>
+    <PageShell mood="violet" maxWidth={widths.conversation + 160} fill>
+      <PageHeader
+        eyebrow="Write · Shape"
+        title="Reimagine"
+        subtitle="Find a lens for the piece, then see it rewritten through it. The draft stays as it is."
+        size="md"
+        back={writeHrefForNode({ projectId, nodeId })}
+      />
 
-      {/* Slow-drifting, heavily blurred color washes — the whole point of
-          the scene, and the thing that carries each palette swap. */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: '58vw',
-            height: '58vw',
-            top: '-14%',
-            left: '-16%',
-            backgroundColor: 'var(--blob1)',
-            filter: 'blur(90px)',
-            opacity: 0.6,
-            animation: 'blobDrift1 34s ease-in-out infinite alternate',
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: '50vw',
-            height: '50vw',
-            bottom: '-14%',
-            right: '-10%',
-            backgroundColor: 'var(--blob2)',
-            filter: 'blur(90px)',
-            opacity: 0.55,
-            animation: 'blobDrift2 40s ease-in-out infinite alternate',
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: '42vw',
-            height: '42vw',
-            top: '30%',
-            left: '55%',
-            backgroundColor: 'var(--blob3)',
-            filter: 'blur(100px)',
-            opacity: 0.5,
-            animation: 'blobDrift3 46s ease-in-out infinite alternate',
-          }}
-        />
-      </div>
+      <Container fill flush padding={0}>
+        <div ref={threadRef} className="reimagine-scroll" style={{ flex: 1, overflowY: 'auto', padding: '28px 24px' }}>
+          <style>{`.reimagine-scroll::-webkit-scrollbar { display: none; } .reimagine-scroll { scrollbar-width: none; }`}</style>
+          <div style={{ maxWidth: widths.conversation, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <Thread messages={messages} streaming={isLoading}>
+              <AnimatePresence>
+                {pendingLens && !isLoading && (
+                  <m.div key="lens" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.35 }}>
+                    <Card>
+                      <Eyebrow style={{ marginBottom: 10 }}>The lens</Eyebrow>
+                      <p style={{ ...typeRoles.quote, color: t.textPrimary, marginBottom: 16 }}>{pendingLens.lens}</p>
 
-      <button
-        onClick={() => nodeId && router.push(writeHrefForNode({ projectId, nodeId }))}
-        className="fixed top-6 left-6 z-30 px-4 py-2 text-xs font-bold uppercase tracking-widest"
-        style={{ ...glassPill(), color: 'var(--muted)' }}
-      >
-        ‹ Back
-      </button>
+                      <Eyebrow style={{ marginBottom: 8 }}>Energy</Eyebrow>
+                      <div role="radiogroup" aria-label="Energy" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                        {ENERGY_SCALE.map((label, i) => (
+                          <Pill key={label} size="md" hue="violet" selected={i === energyIndex} onClick={() => setEnergyIndex(i)}>
+                            {label}
+                          </Pill>
+                        ))}
+                      </div>
 
-      <div ref={threadRef} className="relative z-10 h-full overflow-y-auto px-6 pt-24 pb-44">
-        <div className="max-w-xl mx-auto w-full space-y-10">
-          {trail.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {trail.map((msg, i) => (
-                <span
-                  key={i}
-                  className="inline-block text-xs font-bold px-3 py-1.5"
-                  style={{ ...glassPill(), color: msg.role === 'user' ? 'var(--ink)' : 'var(--muted)' }}
-                >
-                  {msg.content}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div key={stageStartIdx} className="text-center" style={{ animation: 'reimagineRise 0.6s ease-out both' }}>
-            <p
-              className="text-[11px] font-black uppercase tracking-[0.3em] mb-4"
-              style={{ color: 'var(--accent)', textShadow: '0 0 16px currentColor' }}
-            >
-              The Vision
-            </p>
-
-            {stage.map((msg, i) =>
-              msg.role === 'assistant' ? (
-                <p
-                  key={i}
-                  className="text-2xl md:text-4xl font-bold leading-[1.2] tracking-tight whitespace-pre-wrap"
-                  style={headingGlow()}
-                >
-                  {msg.content}
-                </p>
-              ) : (
-                <p
-                  key={i}
-                  className="inline-block text-sm font-medium italic whitespace-pre-wrap mt-4 px-4 py-2"
-                  style={{ ...glassPill(), ...bodyGlow() }}
-                >
-                  {msg.content}
-                </p>
-              )
-            )}
-
-            {isLoading && (
-              <p className="text-2xl font-black mt-3" style={{ color: 'var(--muted)' }}>
-                ···
-              </p>
-            )}
-          </div>
-
-          {pendingLens && !isLoading && (
-            <div
-              className="text-center"
-              style={{
-                opacity: lensVisible ? 1 : 0,
-                transform: lensVisible ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.5s ease-out, transform 0.5s ease-out',
-              }}
-            >
-              <div className="w-10 h-px mx-auto mb-6" style={{ backgroundColor: 'var(--ink)', opacity: 0.3 }} />
-              <p
-                className="text-[11px] font-black uppercase tracking-[0.3em] mb-4"
-                style={{ color: 'var(--accent)', textShadow: '0 0 16px currentColor' }}
-              >
-                The Lens
-              </p>
-              <p className="text-xl md:text-2xl font-bold leading-snug" style={headingGlow()}>
-                {pendingLens.lens}
-              </p>
-
-              <div className="flex items-center justify-center gap-3 mt-6">
-                {ENERGY_SCALE.map((label, i) => {
-                  const active = i === energyIndex
-                  return (
-                    <button key={label} onClick={() => nudgeEnergy(i)} className="flex flex-col items-center gap-2">
-                      <span
-                        className="rounded-full transition-transform duration-200"
-                        style={{
-                          width: 14,
-                          height: 14,
-                          backgroundColor: active ? 'var(--accent)' : 'transparent',
-                          border: `2px solid ${active ? 'var(--accent)' : 'var(--muted)'}`,
-                          boxShadow: active ? '0 0 14px var(--accent)' : 'none',
-                          transform: active && energyPulsing ? 'scale(1.3)' : 'scale(1)',
-                        }}
-                      />
-                      <span
-                        className="text-[9px] font-bold uppercase tracking-widest"
-                        style={{ color: active ? 'var(--accent)' : 'var(--muted)' }}
-                      >
-                        {label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              <button
-                onClick={runReimagine}
-                disabled={isGenerating}
-                className="mt-7 px-8 py-3 text-xs font-black tracking-[0.25em] uppercase disabled:opacity-50"
-                style={{ ...glassPill(true), color: 'var(--ink)' }}
-              >
-                {isGenerating ? 'Reimagining…' : output ? 'Run it again' : 'Run it'}
-              </button>
-              <p className="text-xs font-medium mt-3" style={{ color: 'var(--muted)' }}>
-                keep talking below any time to change the lens
-              </p>
-            </div>
-          )}
-
-          {(output || isGenerating) && (
-            <div>
-              <div className="w-10 h-px mx-auto mb-6" style={{ backgroundColor: 'var(--ink)', opacity: 0.3 }} />
-              <div className="flex items-center justify-between mb-4">
-                <p
-                  className="text-[11px] font-black uppercase tracking-[0.3em]"
-                  style={{ color: 'var(--accent)', textShadow: '0 0 16px currentColor' }}
-                >
-                  The Result
-                </p>
-                {output && !isGenerating && (
-                  <button
-                    onClick={copyOutput}
-                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-widest"
-                    style={{ ...glassPill(), color: 'var(--muted)' }}
-                  >
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
+                      <PrimaryButton onClick={runReimagine} loading={isGenerating} loadingLabel="Reimagining…" full>
+                        {output ? 'Run it again' : 'Reimagine it'}
+                      </PrimaryButton>
+                      <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center', marginTop: 10 }}>or keep talking below to change the lens</p>
+                    </Card>
+                  </m.div>
                 )}
-              </div>
+              </AnimatePresence>
 
-              {output ? (
-                <div className="p-6" style={glassCard()}>
-                  <p className="text-lg leading-relaxed whitespace-pre-wrap" style={bodyGlow()}>
-                    {output}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xl font-bold" style={{ color: 'var(--muted)' }}>
-                  reimagining···
-                </p>
+              {(output || isGenerating) && (
+                <Card>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <Eyebrow>Reimagined</Eyebrow>
+                    {output && !isGenerating && <GhostButton size="sm" onClick={copyOutput}>{copied ? 'Copied' : 'Copy'}</GhostButton>}
+                  </div>
+                  {output ? (
+                    <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.7, color: t.textPrimary, whiteSpace: 'pre-wrap', margin: 0 }}>{output}</p>
+                  ) : (
+                    <p style={{ ...typeRoles.small, color: t.textMuted, margin: 0 }}>Reimagining…</p>
+                  )}
+                </Card>
               )}
-            </div>
-          )}
+
+              {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
+            </Thread>
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 px-4 py-2" style={glassPill()}>
-          <p className="text-xs font-bold" style={{ color: 'var(--accent)' }}>
-            {error}
-          </p>
-        </div>
-      )}
-
-      <div
-        className="fixed bottom-0 left-0 right-0 z-20 px-6 py-6"
-        style={{ background: `linear-gradient(to top, ${palette.bg} 60%, transparent)` }}
-      >
-        <div className="max-w-xl mx-auto w-full flex items-center gap-3">
-          <textarea
-            ref={textareaRef}
-            value={inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
-            onChange={(e) => {
-              clearInterim()
-              setInputText(e.target.value)
-              e.target.style.height = 'auto'
-              e.target.style.height = e.target.scrollHeight + 'px'
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && inputText.trim() && !isLoading) {
-                handleSend()
-              }
-            }}
-            placeholder="say what it wants to become…"
-            disabled={isLoading}
-            rows={1}
-            className="flex-1 px-5 py-3.5 text-base font-medium outline-none disabled:opacity-50"
-            style={{ ...glassPill(), color: 'var(--ink)', resize: 'none', overflowY: 'auto', maxHeight: '120px' }}
-          />
-
-          <button
-            onClick={handleRecordToggle}
-            disabled={isLoading}
-            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-            className={`relative w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-              isLoading ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-            }`}
-            style={{
-              ...glassPill(isRecording),
-              boxShadow: isRecording ? `${cardBase.boxShadow}, 0 0 24px var(--accent)` : cardBase.boxShadow,
-            }}
-          >
-            <span
-              className="block rounded-full"
-              style={{
-                width: 9,
-                height: 9,
-                backgroundColor: isRecording ? 'var(--accent)' : 'var(--ink)',
-                animation: isRecording ? 'reimagineWiggle 0.5s ease-in-out infinite' : 'none',
-              }}
+        <div style={{ padding: '14px 24px 18px', borderTop: `1px solid ${t.divider}`, flexShrink: 0 }}>
+          <div style={{ maxWidth: widths.conversation, margin: '0 auto' }}>
+            <Composer
+              value={inputText + (dictationInterim ? (inputText && !inputText.endsWith(' ') ? ' ' : '') + dictationInterim : '')}
+              onChange={(v) => { clearInterim(); setInputText(v) }}
+              onSend={handleSend}
+              disabled={isLoading}
+              placeholder="Say what it wants to become…"
+              recording={isRecording}
+              onToggleRecording={handleRecordToggle}
             />
-          </button>
-
-          <button
-            onClick={handleSend}
-            disabled={!inputText.trim() || isLoading}
-            className="px-6 py-3.5 text-xs font-black tracking-widest uppercase flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{ ...glassPill(true), color: 'var(--ink)' }}
-          >
-            Send
-          </button>
+          </div>
         </div>
-
-        {isRecording && (
-          <p
-            className="text-xs font-bold uppercase tracking-widest mt-3 text-center"
-            style={{ color: 'var(--accent)', textShadow: '0 0 12px currentColor' }}
-          >
-            Listening
-          </p>
-        )}
-      </div>
-    </div>
+      </Container>
+    </PageShell>
   )
 }
 
@@ -563,8 +242,8 @@ export default function ReimaginePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5eefc' }}>
-          <p style={{ color: '#a78bc4' }}>Loading...</p>
+        <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: shell.muted }}>Loading…</p>
         </div>
       }
     >
