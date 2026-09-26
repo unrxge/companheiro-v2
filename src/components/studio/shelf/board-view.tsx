@@ -18,6 +18,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { LEVELS } from '@/lib/studio/levels'
 import { shell, widths } from '@/lib/design-tokens'
 import type { BoardItem } from '@/lib/studio/shelf-view'
+import { WorkingDots } from '@/components/ui/working'
 
 export type BoardState =
   | { status: 'loading' }
@@ -67,7 +68,7 @@ export function BoardView({
           </div>
 
           <div className="board-canvas" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0 }}>
-            {state.status === 'loading' && <Middle>opening the project board…</Middle>}
+            {state.status === 'loading' && <Middle><span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><WorkingDots /> opening the project board…</span></Middle>}
 
             {state.status === 'error' && (
               <Middle>

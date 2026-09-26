@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
 import { PrimaryButton, QuietButton, GhostButton, DangerButton } from '@/components/ui/buttons'
+import { Working, WorkingDots } from '@/components/ui/working'
 import { TextField, TextArea } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { MicButton } from '@/components/ui/mic-button'
@@ -152,6 +153,18 @@ export default function DesignGalleryPage() {
               <IconButton ariaLabel="Example icon button" onClick={() => {}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={shell.text} strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               </IconButton>
+            </div>
+          </Card>
+          <Card>
+            <p style={label}>Working · anything the app is doing in the background</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Working label="Reading the whole thing…" patientAfter={4} />
+              <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
+              <p style={{ ...typeRoles.ui, color: t.textPrimary, margin: 0 }}>A reply on its way <WorkingDots color={t.violet} /></p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <GhostButton size="sm" onClick={() => {}} loading loadingLabel="Reading it…">Check</GhostButton>
+                <QuietButton size="sm" onClick={() => {}} loading loadingLabel="Capturing…">Capture</QuietButton>
+              </div>
             </div>
           </Card>
           <Card>

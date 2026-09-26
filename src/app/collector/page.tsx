@@ -9,6 +9,7 @@ import { Pill } from '@/components/ui/pill'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { useTerritories } from '@/hooks/useTerritories'
 import { arcHue, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { Working } from '@/components/ui/working'
 
 interface CaptureResult {
   id: string
@@ -148,7 +149,7 @@ export default function CollectorPage() {
               <Eyebrow style={{ marginBottom: 12 }}>Previously captured</Eyebrow>
               <Card padding="4px 20px">
                 {isLoadingPrevious ? (
-                  <p style={{ ...typeRoles.small, color: t.textMuted, padding: '12px 0' }}>Loading…</p>
+                  <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} style={{ padding: '12px 0' }} />
                 ) : previousCaptures.length === 0 ? (
                   <p style={{ ...typeRoles.small, color: t.textSecondary, padding: '12px 0' }}>Nothing captured yet.</p>
                 ) : (

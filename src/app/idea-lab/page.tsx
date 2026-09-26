@@ -16,6 +16,7 @@ import { UnderlineLink } from '@/components/ui/underline-link'
 import { useTerritories } from '@/hooks/useTerritories'
 import { alpha, arcHue, radius, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
+import { WorkingDots } from '@/components/ui/working'
 
 interface Capture {
   id: string
@@ -364,7 +365,7 @@ export default function IdeaLabPage() {
                   </div>
                   <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center' }}>
                     Already clear in your head?{' '}
-                    <UnderlineLink onClick={skipToWriting} color={t.ember}>{isStarting ? 'Starting…' : 'Skip straight to writing'}</UnderlineLink>
+                    <UnderlineLink onClick={skipToWriting} color={t.ember}>{isStarting ? <><WorkingDots /> Starting…</> : 'Skip straight to writing'}</UnderlineLink>
                   </p>
                   {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, textAlign: 'center' }}>{error}</p>}
                 </div>

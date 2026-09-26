@@ -10,6 +10,7 @@ import { UnderlineLink } from '@/components/ui/underline-link'
 import { JourneyNav, JourneyNavNode, JourneyCurve } from '@/components/widgets'
 import { useTerritories } from '@/hooks/useTerritories'
 import { arcHue, journeyStepFromStage, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { WorkingDots } from '@/components/ui/working'
 
 interface Reflection {
   thread: string | null
@@ -98,7 +99,7 @@ function ReadContent() {
 
       <Container>
         {isLoading || !piece ? (
-          <p style={{ ...typeRoles.small, color: t.textMuted }}>{isLoading ? 'Loading…' : 'Piece not found.'}</p>
+          <p style={{ ...typeRoles.small, color: t.textMuted }}>{isLoading ? <><WorkingDots /> Loading…</> : 'Piece not found.'}</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -192,7 +193,7 @@ export default function ReadPage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted }}>Loading…</p>
+          <p style={{ color: shell.muted }}><WorkingDots /> Loading…</p>
         </div>
       }
     >

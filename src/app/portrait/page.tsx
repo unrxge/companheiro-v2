@@ -10,6 +10,7 @@ import { Pill } from '@/components/ui/pill'
 import { FacetCloud } from '@/components/widgets'
 import { formatDateAsRelative } from '@/lib/dates'
 import { type as typeRoles } from '@/lib/design-tokens'
+import { Working } from '@/components/ui/working'
 
 interface PortraitEntry {
   id: string
@@ -113,7 +114,7 @@ export default function PortraitPage() {
         </div>
 
         {isLoading ? (
-          <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+          <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
         ) : entries.length === 0 ? (
           <Card>
             <p style={{ ...typeRoles.ui, color: t.textSecondary }}>

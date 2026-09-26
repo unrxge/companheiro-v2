@@ -13,6 +13,7 @@ import { ModalDialog } from '@/components/ui/modal-dialog'
 import { ProportionBar, WeatherStrip } from '@/components/widgets'
 import { shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
+import { Working, WorkingDots } from '@/components/ui/working'
 
 interface ActivePiece {
   id: string
@@ -224,7 +225,7 @@ function HomeContent() {
             <Card>
               <Eyebrow style={{ marginBottom: 16 }}>In progress</Eyebrow>
               {isLoading ? (
-                <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+                <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
               ) : activePieces.length === 0 ? (
                 <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the project board.</p>
               ) : (
@@ -305,7 +306,7 @@ function HomeContent() {
 
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.divider}`, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 {isLoadingCaptures ? (
-                  <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+                  <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
                 ) : recentCaptures.length === 0 ? (
                   <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing captured yet.</p>
                 ) : (
@@ -377,7 +378,7 @@ export default function HomePage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted }}>Loading…</p>
+          <p style={{ color: shell.muted }}><WorkingDots /> Loading…</p>
         </div>
       }
     >

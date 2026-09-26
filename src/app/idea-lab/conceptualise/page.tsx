@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Thread, Composer, type ThreadMessage } from '@/components/conversation/thread'
 import { PhaseDots } from '@/components/widgets'
 import { shell, type as typeRoles, widths } from '@/lib/design-tokens'
+import { WorkingDots } from '@/components/ui/working'
 
 interface Draft {
   id: string
@@ -242,7 +243,7 @@ function ConceptualiseContent() {
     return (
       <PageShell mood="ember" maxWidth={widths.conversation}>
         <PageHeader eyebrow="Idea Lab" title="Conceptualise" size="md" back="/idea-lab" />
-        <p style={{ ...typeRoles.small, color: shell.muted }}>Loading…</p>
+        <p style={{ ...typeRoles.small, color: shell.muted }}><WorkingDots /> Loading…</p>
       </PageShell>
     )
   }
@@ -340,7 +341,7 @@ export default function ConceptualisePage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted, fontSize: 14 }}>Loading…</p>
+          <p style={{ color: shell.muted, fontSize: 14 }}><WorkingDots /> Loading…</p>
         </div>
       }
     >

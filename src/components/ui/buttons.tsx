@@ -3,6 +3,7 @@
 import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { fonts, radius } from '@/lib/design-tokens'
+import { WorkingDots } from '@/components/ui/working'
 
 type Size = 'sm' | 'md' | 'lg'
 
@@ -23,7 +24,8 @@ interface BaseProps {
 const PAD: Record<Size, string> = { sm: '8px 14px', md: '11px 18px', lg: '14px 24px' }
 const FS: Record<Size, number> = { sm: 12, md: 13, lg: 15 }
 
-function base(size: Size, full: boolean, disabled: boolean): React.CSSProperties {
+/** Busy reads as alive, not as unavailable: near-full opacity and a progress cursor. */
+function base(size: Size, full: boolean, disabled: boolean, loading = false): React.CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
@@ -38,15 +40,15 @@ function base(size: Size, full: boolean, disabled: boolean): React.CSSProperties
     fontSize: FS[size],
     letterSpacing: '-0.01em',
     lineHeight: 1.2,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.4 : 1,
+    cursor: loading ? 'progress' : disabled ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.85 : disabled ? 0.4 : 1,
     textDecoration: 'none',
     whiteSpace: 'nowrap',
     transition: 'opacity 0.15s ease, background-color 0.2s ease, color 0.2s ease',
   }
 }
 
-function Pressable({ style, disabled, href, onClick, children, ariaLabel, type = 'button' }: BaseProps & { style: React.CSSProperties }) {
+function Pressable({ style, disabled, loading, href, onClick, children, ariaLabel, type = 'button' }: BaseProps & { style: React.CSSProperties }) {
   const hover = disabled ? {} : { scale: 1.015 }
   const tap = disabled ? {} : { scale: 0.985 }
   if (href && !disabled) {
@@ -57,7 +59,7 @@ function Pressable({ style, disabled, href, onClick, children, ariaLabel, type =
     )
   }
   return (
-    <m.button type={type} onClick={onClick} disabled={disabled} aria-label={ariaLabel} style={style} whileHover={hover} whileTap={tap}>
+    <m.button type={type} onClick={onClick} disabled={disabled} aria-label={ariaLabel} aria-busy={loading || undefined} style={style} whileHover={hover} whileTap={tap}>
       {children}
     </m.button>
   )
@@ -68,8 +70,8 @@ export function PrimaryButton(props: BaseProps) {
   const { t } = useTheme()
   const { size = 'md', full = false, disabled = false, loading = false, loadingLabel, children, style } = props
   return (
-    <Pressable {...props} disabled={disabled || loading} style={{ ...base(size, full, disabled || loading), backgroundColor: t.ember, color: '#ffffff', ...style }}>
-      {loading ? loadingLabel ?? children : children}
+    <Pressable {...props} disabled={disabled || loading} style={{ ...base(size, full, disabled || loading, loading), backgroundColor: t.ember, color: '#ffffff', ...style }}>
+      {loading ? <Busy label={loadingLabel ?? children} /> : children}
     </Pressable>
   )
 }
@@ -79,8 +81,8 @@ export function QuietButton(props: BaseProps) {
   const { t } = useTheme()
   const { size = 'md', full = false, disabled = false, loading = false, loadingLabel, children, style } = props
   return (
-    <Pressable {...props} disabled={disabled || loading} style={{ ...base(size, full, disabled || loading), backgroundColor: t.inverseBg, color: t.inverseText, ...style }}>
-      {loading ? loadingLabel ?? children : children}
+    <Pressable {...props} disabled={disabled || loading} style={{ ...base(size, full, disabled || loading, loading), backgroundColor: t.inverseBg, color: t.inverseText, ...style }}>
+      {loading ? <Busy label={loadingLabel ?? children} /> : children}
     </Pressable>
   )
 }
@@ -93,9 +95,9 @@ export function GhostButton(props: BaseProps) {
     <Pressable
       {...props}
       disabled={disabled || loading}
-      style={{ ...base(size, full, disabled || loading), backgroundColor: 'transparent', color: t.textSecondary, boxShadow: `inset 0 0 0 1px ${t.divider}`, ...style }}
+      style={{ ...base(size, full, disabled || loading, loading), backgroundColor: 'transparent', color: t.textSecondary, boxShadow: `inset 0 0 0 1px ${t.divider}`, ...style }}
     >
-      {loading ? loadingLabel ?? children : children}
+      {loading ? <Busy label={loadingLabel ?? children} /> : children}
     </Pressable>
   )
 }
@@ -108,9 +110,18 @@ export function DangerButton(props: BaseProps) {
     <Pressable
       {...props}
       disabled={disabled || loading}
-      style={{ ...base(size, full, disabled || loading), backgroundColor: t.soft.danger, color: t.danger, ...style }}
+      style={{ ...base(size, full, disabled || loading, loading), backgroundColor: t.soft.danger, color: t.danger, ...style }}
     >
-      {loading ? loadingLabel ?? children : children}
+      {loading ? <Busy label={loadingLabel ?? children} /> : children}
     </Pressable>
+  )
+}
+
+function Busy({ label }: { label: React.ReactNode }) {
+  return (
+    <>
+      <WorkingDots />
+      <span>{label}</span>
+    </>
   )
 }

@@ -10,6 +10,7 @@ import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { Working } from '@/components/ui/working'
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
@@ -224,9 +225,11 @@ function CoreConceptContent() {
     </div>
   )
 
+  // Phases generate in order, so the one being drawn out is the first still pending.
+  const generating = isLoading ? Object.values(sections).find((x) => x.status === 'pending') : undefined
   const phaseCard = (s: DocumentSection, children: React.ReactNode, extra?: React.CSSProperties) => (
-    <Card style={{ position: 'relative', opacity: s.status === 'pending' ? 0.45 : 1, boxShadow: s.status === 'pending' ? 'none' : undefined, backgroundColor: s.status === 'pending' ? t.cardBgInner : undefined, transition: 'opacity 0.3s', ...extra }}>
-      {isLoading && s.status === 'pending' && <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>Generating…</p>}
+    <Card style={{ position: 'relative', opacity: s.status === 'pending' && s !== generating ? 0.45 : 1, boxShadow: s.status === 'pending' ? 'none' : undefined, backgroundColor: s.status === 'pending' ? t.cardBgInner : undefined, transition: 'opacity 0.3s', ...extra }}>
+      {s === generating && <Working size="sm" label={`Drawing out ${s.title.toLowerCase()}…`} patientNote={null} />}
       {s.status !== 'pending' && children}
     </Card>
   )

@@ -39,6 +39,7 @@ import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStacked
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
 import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
+import { WorkingDots } from '@/components/ui/working'
 
 export type Focus =
   | { kind: 'project' }
@@ -462,8 +463,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
 
           {scopeNode && !readOnly && (
             <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} disabled={checking}>
-                {checking ? 'Reading…' : 'Check it against the rules'}
+              <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} loading={checking} loadingLabel="Reading it…">
+                Check it against the rules
               </GhostButton>
               <button
                 type="button"
@@ -676,7 +677,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
                           cursor: makingProject ? 'default' : 'pointer', opacity: makingProject ? 0.6 : 1,
                         }}
                       >
-                        {makingProject ? 'Creating…' : 'Create a project from this piece'}
+                        {makingProject ? <><WorkingDots /> Creating…</> : 'Create a project from this piece'}
                       </button>
                     </div>
                   </div>

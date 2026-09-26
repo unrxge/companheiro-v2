@@ -6,6 +6,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
+import { Working, WorkingDots } from '@/components/ui/working'
 import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 
@@ -84,7 +85,7 @@ function TestContent() {
 
         {isLoading ? (
           <Card>
-            <p style={{ ...typeRoles.ui, color: t.textSecondary }}>Reading the whole thing…</p>
+            <Working label="Reading the whole thing, against what you set out to make…" patientNote="A full draft takes a little while to read properly. It is still going." />
           </Card>
         ) : error ? (
           <Card>
@@ -159,7 +160,7 @@ function TestContent() {
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 6 }}>
               <PrimaryButton href={`/post-publication?node_id=${nodeId}`}>Post it →</PrimaryButton>
-              <GhostButton onClick={runTest}>Test again</GhostButton>
+              <GhostButton onClick={runTest} loading={isLoading}>Test again</GhostButton>
             </div>
           </div>
         ) : null}
@@ -173,7 +174,7 @@ export default function WriteTestPage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted }}>Loading…</p>
+          <p style={{ color: shell.muted }}><WorkingDots /> Loading…</p>
         </div>
       }
     >

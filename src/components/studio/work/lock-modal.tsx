@@ -61,8 +61,8 @@ export function LockModal({
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
           <GhostButton size="sm" onClick={onClose}>Never mind</GhostButton>
-          <PrimaryButton size="sm" onClick={() => onConfirm(total)} disabled={busy || total <= 0}>
-            {busy ? 'Locking…' : `Lock for ${hours ? `${hours}h ` : ''}${minutes}m`}
+          <PrimaryButton size="sm" onClick={() => onConfirm(total)} disabled={total <= 0} loading={busy} loadingLabel="Locking…">
+            {`Lock for ${hours ? `${hours}h ` : ''}${minutes}m`}
           </PrimaryButton>
         </div>
       </div>

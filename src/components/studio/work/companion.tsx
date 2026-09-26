@@ -22,6 +22,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
 import { Label } from '@/components/studio/work/bits'
+import { WorkingDots } from '@/components/ui/working'
 
 interface Line {
   id: string
@@ -266,8 +267,8 @@ export function Companion({
           </div>
         )}
 
-        {lines.map((line) => (
-          <div key={line.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {lines.map((line, i) => (
+          <div key={line.id} role={busy && i === lines.length - 1 ? 'status' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ ...canvasType.chip, color: line.role === 'person' ? t.textMuted : t.violet }}>
               {line.role === 'person' ? 'You' : 'Companheiro'}
             </span>
@@ -277,7 +278,8 @@ export function Companion({
                 color: line.role === 'person' ? t.textSecondary : t.textPrimary,
               }}
             >
-              {line.text || (busy ? '…' : '')}
+              {line.text}
+              {busy && line.role === 'companion' && i === lines.length - 1 && <>{line.text ? ' ' : null}<WorkingDots color={t.violet} /></>}
             </p>
           </div>
         ))}
@@ -317,6 +319,7 @@ export function Companion({
           <button
             type="button"
             onClick={() => void send()}
+            aria-busy={busy || undefined}
             disabled={busy || !draft.trim()}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field,
@@ -325,7 +328,7 @@ export function Companion({
               color: busy || !draft.trim() ? t.textMuted : t.inverseText,
             }}
           >
-            {busy ? '…' : 'Send'}
+            {busy ? <WorkingDots /> : 'Send'}
           </button>
         </div>
       )}

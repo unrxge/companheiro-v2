@@ -10,6 +10,7 @@ import { TextArea, TextField } from '@/components/ui/field'
 import { MicButton } from '@/components/ui/mic-button'
 import { JourneyNav, JourneyNavNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
+import { Working, WorkingDots } from '@/components/ui/working'
 
 interface PieceData {
   title: string
@@ -105,7 +106,7 @@ function PostPublicationContent() {
         </div>
 
         {isLoading ? (
-          <p style={{ ...typeRoles.small, color: t.textMuted }}>Loading…</p>
+          <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Card>
@@ -164,7 +165,7 @@ export default function PostPublicationPage() {
     <Suspense
       fallback={
         <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted }}>Loading…</p>
+          <p style={{ color: shell.muted }}><WorkingDots /> Loading…</p>
         </div>
       }
     >

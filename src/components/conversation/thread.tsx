@@ -6,6 +6,7 @@ import { MicButton } from '@/components/ui/mic-button'
 import { PrimaryButton } from '@/components/ui/buttons'
 import { TextArea } from '@/components/ui/field'
 import { fonts, radius } from '@/lib/design-tokens'
+import { WorkingDots } from '@/components/ui/working'
 
 /** Structural markers kept in history for the server but never shown. */
 const HIDDEN_MARKERS = ['<phase_complete/>']
@@ -78,7 +79,7 @@ export function Thread({
         )
       })}
       {streaming && messages[messages.length - 1]?.role !== 'assistant' && (
-        <p style={{ fontFamily: fonts.ui, fontSize: 14, color: aiColor, margin: 0 }}>…</p>
+        <p role="status" aria-label="Replying" style={{ fontFamily: fonts.ui, fontSize: 16, color: aiColor, margin: 0 }}><WorkingDots /></p>
       )}
       {children}
     </div>

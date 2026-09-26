@@ -18,6 +18,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { htmlToPlainText } from '@/lib/rich-text'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
+import { WorkingDots } from '@/components/ui/working'
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
@@ -240,14 +241,26 @@ export function AssistantPanel({
             </p>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ ...canvasType.chip, color: m.role === 'user' ? t.textMuted : t.violet }}>{m.role === 'user' ? 'You' : 'Companheiro'}</span>
-            <p style={{ ...canvasType.body, margin: 0, whiteSpace: 'pre-wrap', color: m.role === 'user' ? t.textSecondary : t.textPrimary }}>
-              {m.content || (busy ? '…' : '')}
-            </p>
+        {messages.map((m, i) => {
+          // While a reply is on its way the dots trail it: before the first word,
+          // between words, and while a proposed edit streams in unseen.
+          const waiting = busy && m.role === 'assistant' && i === messages.length - 1
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ ...canvasType.chip, color: m.role === 'user' ? t.textMuted : t.violet }}>{m.role === 'user' ? 'You' : 'Companheiro'}</span>
+              <p style={{ ...canvasType.body, margin: 0, whiteSpace: 'pre-wrap', color: m.role === 'user' ? t.textSecondary : t.textPrimary }}>
+                {m.content}
+                {waiting && <>{m.content ? ' ' : null}<WorkingDots color={t.violet} /></>}
+              </p>
+            </div>
+          )
+        })}
+        {busy && messages[messages.length - 1]?.role === 'user' && (
+          <div role="status" aria-label="Companheiro is replying" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ ...canvasType.chip, color: t.violet }}>Companheiro</span>
+            <p style={{ ...canvasType.body, margin: 0 }}><WorkingDots color={t.violet} /></p>
           </div>
-        ))}
+        )}
         <div ref={bottom} />
       </div>
 
@@ -267,6 +280,7 @@ export function AssistantPanel({
           <button
             type="button"
             onClick={sendNow}
+            aria-busy={busy || undefined}
             disabled={busy || !input.trim()}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field, border: 'none',
@@ -275,7 +289,7 @@ export function AssistantPanel({
               color: busy || !input.trim() ? t.textMuted : t.inverseText,
             }}
           >
-            {busy ? '…' : 'Send'}
+            {busy ? <WorkingDots /> : 'Send'}
           </button>
         </div>
       )}

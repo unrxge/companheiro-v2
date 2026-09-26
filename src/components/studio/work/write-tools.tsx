@@ -272,8 +272,8 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
         />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
-          <GhostButton size="sm" onClick={() => void add()} disabled={!draft.trim() || placing}>
-            {placing ? 'Placing…' : 'Add'}
+          <GhostButton size="sm" onClick={() => void add()} disabled={!draft.trim()} loading={placing} loadingLabel="Placing…">
+            Add
           </GhostButton>
         </div>
       </div>
