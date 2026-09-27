@@ -8,6 +8,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Thread, Composer, type ThreadMessage } from '@/components/conversation/thread'
 import { SectionEditor } from '@/components/writing/section-editor'
 import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
@@ -180,6 +181,7 @@ function ReimagineContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { t } = useTheme()
+  const confirm = useConfirm()
   const nodeId = searchParams.get('node_id')
 
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -206,12 +208,13 @@ function ReimagineContent() {
   const takesRef = useRef(takes)
   takesRef.current = takes
   const [active, setActive] = useState<Record<string, number>>({})
-  const [undo, setUndo] = useState<Record<string, string | undefined>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [running, setRunning] = useState<Set<string>>(new Set())
   const [takeError, setTakeError] = useState<Record<string, string | undefined>>({})
   const [runError, setRunError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [unsaved, setUnsaved] = useState<Set<string>>(new Set())
+  const [savingPart, setSavingPart] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState<string | null>(null)
   const takesSectionRef = useRef<HTMLDivElement>(null)
 
   const blocks = useMemo(() => {
@@ -247,51 +250,50 @@ function ReimagineContent() {
   }, [nodeId])
 
   // ── saving your own words back into the draft ──
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const dirty = useRef<Set<string>>(new Set())
+  // Edits stay on this page until "Save changes"; only then do they reach the draft.
   const bodyFor = (partId: string) => (segmentsRef.current[partId] ?? []).map((s) => s.html).join('')
 
-  const persist = useCallback(async (partId: string) => {
-    clearTimeout(timers.current[partId])
-    if (!dirty.current.has(partId)) return
-    dirty.current.delete(partId)
-    setSaving(true)
+  const saveChanges = async (partId: string) => {
+    setSavingPart(partId)
     try {
-      await fetch(`/api/studio/nodes/${partId}`, {
+      const body = bodyFor(partId)
+      const res = await fetch(`/api/studio/nodes/${partId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: bodyFor(partId) }),
+        body: JSON.stringify({ body }),
       })
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      setParts((prev) => prev?.map((p) => (p.id === partId ? { ...p, body } : p)) ?? prev)
+      setUnsaved((prev) => { const next = new Set(prev); next.delete(partId); return next })
+      setJustSaved(partId)
+      setTimeout(() => setJustSaved((cur) => (cur === partId ? null : cur)), 1600)
     } catch (err) {
       console.error('Failed to save:', err)
-      dirty.current.add(partId)
+      setRunError("Your changes didn't save. Try again.")
     } finally {
-      setSaving(false)
+      setSavingPart(null)
     }
-  }, [])
+  }
 
-  const flushAll = useCallback(async () => {
-    await Promise.all([...dirty.current].map((id) => persist(id)))
-  }, [persist])
+  /** Before leaving the takes: offer to save anything edited but not yet saved. */
+  const settleUnsaved = async () => {
+    if (unsaved.size === 0) return
+    const save = await confirm({
+      title: 'Save your changes to the draft?',
+      body: 'You edited your own words here but haven’t saved them yet.',
+      confirmLabel: 'Save changes',
+      cancelLabel: 'Discard them',
+    })
+    if (save) await Promise.all([...unsaved].map((id) => saveChanges(id)))
+    else setUnsaved(new Set())
+  }
 
   useEffect(() => {
-    const onHide = () => {
-      for (const id of dirty.current) {
-        fetch(`/api/studio/nodes/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body: bodyFor(id) }),
-          keepalive: true,
-        }).catch(() => {})
-      }
-      dirty.current.clear()
-    }
-    window.addEventListener('pagehide', onHide)
-    return () => {
-      window.removeEventListener('pagehide', onHide)
-      void flushAll()
-    }
-  }, [flushAll])
+    if (unsaved.size === 0) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsaved])
 
   const setSegmentHtml = (partId: string, key: string, html: string) => {
     setSegments((prev) => {
@@ -301,9 +303,7 @@ function ReimagineContent() {
       segmentsRef.current = next
       return next
     })
-    dirty.current.add(partId)
-    clearTimeout(timers.current[partId])
-    timers.current[partId] = setTimeout(() => void persist(partId), 900)
+    setUnsaved((prev) => (prev.has(partId) ? prev : new Set([...prev, partId])))
   }
 
   // ── the lens conversation ──
@@ -465,40 +465,24 @@ function ReimagineContent() {
     setTakes({})
     takesRef.current = {}
     setActive({})
-    setUndo({})
+    setUnsaved(new Set())
     void generate(built.targets)
     setTimeout(() => takesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
   }
 
-  /** Back to choosing: your edits are already in the draft, so the parts pick them up; the takes are cleared. */
+  /** Back to choosing: saved edits are already in the parts; the takes are cleared. */
   const chooseAgain = async () => {
-    await flushAll()
-    setParts((prev) => prev?.map((p) => (segmentsRef.current[p.id] ? { ...p, body: bodyFor(p.id) } : p)) ?? prev)
+    await settleUnsaved()
     setTargets(null)
     setSegments({})
     setTakes({})
     setActive({})
-    setUndo({})
+    setUnsaved(new Set())
     setSelection(new Set())
   }
 
-  const applyTake = (target: Target) => {
-    const take = takes[target.key]?.[active[target.key] ?? 0]
-    if (!take || take.streaming || !take.text.trim()) return
-    const current = segments[target.partId]?.find((s) => s.key === target.key)?.html ?? ''
-    setUndo((prev) => ({ ...prev, [target.key]: current }))
-    setSegmentHtml(target.partId, target.key, plainTextToHtml(take.text))
-  }
-
-  const undoUse = (target: Target) => {
-    const prev = undo[target.key]
-    if (prev === undefined) return
-    setSegmentHtml(target.partId, target.key, prev)
-    setUndo((u) => ({ ...u, [target.key]: undefined }))
-  }
-
   const goTest = async () => {
-    await flushAll()
+    await settleUnsaved()
     router.push(`/write/test?node_id=${nodeId}`)
   }
 
@@ -519,14 +503,9 @@ function ReimagineContent() {
       <PageHeader
         eyebrow="Write · Reimagine"
         title="Reimagine"
-        subtitle="See the piece, or any part of it, through a different lens. Your draft only changes when you use a take or edit your own words."
+        subtitle="See the piece, or any part of it, through a different lens. Your draft only changes when you save your own edits."
         size="md"
         back={writeHrefForNode({ projectId, nodeId })}
-        actions={
-          <span aria-live="polite" style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, opacity: saving ? 1 : 0, transition: 'opacity 160ms ease' }}>
-            Saving…
-          </span>
-        }
       />
 
       <Container>
@@ -538,7 +517,7 @@ function ReimagineContent() {
         `}</style>
 
         <div style={{ marginBottom: 26 }}>
-          <JourneyNavNode projectId={projectId} nodeId={nodeId} step="reimagine" beforeNavigate={flushAll} />
+          <JourneyNavNode projectId={projectId} nodeId={nodeId} step="reimagine" beforeNavigate={settleUnsaved} />
         </div>
 
         {loadError ? (
@@ -634,8 +613,8 @@ function ReimagineContent() {
 
             {/* 2 · the lens */}
             <section>
-              <Eyebrow style={{ marginBottom: 10 }}>2 · The lens</Eyebrow>
-              <div style={{ maxWidth: widths.conversation }}>
+              <Eyebrow style={{ marginBottom: 10, textAlign: 'center' }}>2 · The lens</Eyebrow>
+              <div style={{ maxWidth: widths.conversation, margin: '0 auto' }}>
                 <Thread messages={messages} streaming={talking}>
                   {talkError && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{talkError}</p>}
                 </Thread>
@@ -688,7 +667,7 @@ function ReimagineContent() {
               <section ref={takesSectionRef} style={{ scrollMarginTop: 24 }}>
                 <Eyebrow style={{ marginBottom: 6 }}>3 · Takes</Eyebrow>
                 <p style={{ ...typeRoles.small, color: t.textMuted, margin: '0 0 16px' }}>
-                  Your own words are on the left and save to the draft as you edit them. Use a take to drop it in whole, or borrow what you like from it and write it your way.
+                  Your own words are on the left. Borrow whatever lands from the take and work it into your draft your way, then save your changes.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   {targets.map((target) => {
@@ -697,7 +676,7 @@ function ReimagineContent() {
                     const take = list[idx]
                     const seg = segments[target.partId]?.find((s) => s.key === target.key)
                     const busy = running.has(target.key)
-                    const used = undo[target.key] !== undefined
+                    const dirtyPart = unsaved.has(target.partId)
                     return (
                       <Card key={target.key}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -718,13 +697,16 @@ function ReimagineContent() {
                                 <SectionEditor
                                   content={seg.html}
                                   editable
-                                  onChange={(html) => {
-                                    setSegmentHtml(target.partId, target.key, html)
-                                    if (used) setUndo((u) => ({ ...u, [target.key]: undefined }))
-                                  }}
+                                  onChange={(html) => setSegmentHtml(target.partId, target.key, html)}
                                   textColor={t.textPrimary}
                                 />
                               )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                              <QuietButton size="sm" onClick={() => void saveChanges(target.partId)} disabled={!dirtyPart} loading={savingPart === target.partId} loadingLabel="Saving…">
+                                Save changes
+                              </QuietButton>
+                              {justSaved === target.partId && !dirtyPart && <span style={{ ...typeRoles.small, fontSize: 12, color: t.verdant }}>Saved to your draft</span>}
                             </div>
                           </div>
                           <div>
@@ -735,16 +717,6 @@ function ReimagineContent() {
                               </p>
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                              {used ? (
-                                <>
-                                  <span style={{ ...typeRoles.small, fontSize: 12, color: t.verdant }}>In your draft</span>
-                                  <GhostButton size="sm" onClick={() => undoUse(target)}>Undo</GhostButton>
-                                </>
-                              ) : (
-                                <QuietButton size="sm" onClick={() => applyTake(target)} disabled={!take || take.streaming || !take.text.trim()}>
-                                  Use this
-                                </QuietButton>
-                              )}
                               <GhostButton size="sm" onClick={() => void generate([target])} disabled={busy || !lens.trim()} loading={busy} loadingLabel="Reimagining…">
                                 Another take
                               </GhostButton>
