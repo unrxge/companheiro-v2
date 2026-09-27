@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { TextField } from '@/components/ui/field'
 import { Eyebrow } from '@/components/shell/page-shell'
 import { type as typeRoles } from '@/lib/design-tokens'
+import { readAttribution } from '@/lib/attribution'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -18,6 +19,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [checkEmail, setCheckEmail] = useState(false)
+  const [heardFrom, setHeardFrom] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +43,12 @@ export default function SignupPage() {
       const { data, error: err } = await createClient().auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo: `${window.location.origin}/login` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          // Filed by a database trigger (migration 026) for the owner's
+          // /admin view of where people come from. Optional, never shown.
+          data: { attribution: { ...readAttribution(), heard_from: heardFrom.trim().slice(0, 300) || undefined } },
+        },
       })
       if (err) {
         setError(err.message)
@@ -77,6 +84,10 @@ export default function SignupPage() {
           <div>
             <Eyebrow style={{ marginBottom: 6 }}>Password</Eyebrow>
             <TextField type="password" value={password} onChange={setPassword} ariaLabel="Password" placeholder="At least 8 characters" />
+          </div>
+          <div>
+            <Eyebrow style={{ marginBottom: 6 }}>How did you hear about us? <span style={{ textTransform: 'none', letterSpacing: 0, opacity: 0.7 }}>(optional)</span></Eyebrow>
+            <TextField value={heardFrom} onChange={setHeardFrom} ariaLabel="How did you hear about us? (optional)" placeholder="A friend, a post, a podcast…" />
           </div>
           {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
           <PrimaryButton type="submit" disabled={loading || !email || !password} loading={loading} loadingLabel="Creating…" full size="lg">

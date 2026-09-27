@@ -6,9 +6,12 @@
 // fails.
 //
 // It also feeds the fair-use meter (lib/billing/fair-use.ts), which is why
-// every call site passes the user it's spending on.
+// every call site passes the user it's spending on, and the per-call
+// monitoring record (lib/ops/ai-calls.ts). `extra` lands in that record's
+// context: pass labels and counts only (phase, mode, sizes), never text.
 import { after } from 'next/server'
 import { meterUsage } from './billing/fair-use'
+import { callInfo, recordAiCall } from './ops/ai-calls'
 
 export interface UsageLike {
   input_tokens?: number | null
@@ -26,7 +29,12 @@ export function logUsage(
 ): void {
   logUsageLine(route, model, usage, extra)
   if (!usage) return
-  const record = () => meterUsage(userId, model, usage)
+  const info = callInfo.get(usage)
+  const record = () =>
+    Promise.all([
+      meterUsage(userId, model, usage),
+      recordAiCall({ userId, route, model, usage, info, extra }),
+    ])
   try {
     // Runs after the response is sent, so metering adds no latency.
     after(record)

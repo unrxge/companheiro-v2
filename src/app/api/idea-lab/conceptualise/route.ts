@@ -167,7 +167,8 @@ Keep every question on the idea itself, and only ask one when it opens the idea 
           readyToAdvance: reportedPhase === 5,
           phaseComplete: complete,
         };
-      }
+      },
+      { phase: nextPhase }
     );
   } catch (error) {
     console.error("Conceptualise route error:", error);

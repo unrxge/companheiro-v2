@@ -316,6 +316,18 @@ ${editInstructions}`;
           },
         };
       }
+,
+      {
+        mode: assistantMode,
+        trimmed: history.trimmed,
+        parts: {
+          companion_context: companionContext?.length ?? 0,
+          core_concept: conceptLines.length,
+          preceding_sections: precedingBlock?.length ?? 0,
+          archive_echoes: echoes?.length ?? 0,
+          focused_section: sectionBlock?.length ?? 0,
+        },
+      }
     );
   } catch (error) {
     console.error("Chat error:", error);

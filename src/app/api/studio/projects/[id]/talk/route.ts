@@ -168,7 +168,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           console.error('[studio] talk meta failed:', e)
           return emptyMeta()
         }
-      }
+      },
+      { kind: body.kind }
     )
   } catch (e) {
     return errorResponse(e)

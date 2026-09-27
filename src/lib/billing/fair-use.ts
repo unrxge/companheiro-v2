@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminClient } from '@/lib/supabase/admin'
 import type { AuthedContext } from '@/lib/supabase/route'
 import type { UsageLike } from '@/lib/usage-log'
 import type { Subscription } from './access'
@@ -155,19 +155,11 @@ export function pickModel(auth: Pick<AuthedContext, 'user'>, requested: string):
   return lighter.has(auth.user) ? MODELS.fast : requested
 }
 
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!key) return null
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
-
 // Adds one call's cost to the person's current period. Never throws — a
 // metering failure must not fail the request that already succeeded.
 export async function meterUsage(userId: string, model: string, usage: UsageLike): Promise<void> {
   try {
-    const db = admin()
+    const db = adminClient()
     if (!db) return
     const { data: sub } = await db
       .from('subscriptions')

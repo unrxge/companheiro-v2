@@ -18,6 +18,7 @@ import { Atmosphere } from '@/components/shell/atmosphere'
 import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
 import { useTheme } from '@/components/theme/theme-provider'
+import { useAttributedHref } from '@/lib/attribution'
 import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, VisionFinder } from './mockups'
 
@@ -57,9 +58,10 @@ function useSectionMood(ref: React.RefObject<Element | null>, mood: Mood) {
 // ── Shared pieces ────────────────────────────────────────────────────────────
 
 function BeginButton() {
+  const href = useAttributedHref(SIGNUP)
   return (
     <Link
-      href={SIGNUP}
+      href={href}
       className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[var(--bone)] px-6 py-3 text-[15px] font-semibold text-[var(--ink)] transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
     >
       Begin
@@ -410,9 +412,10 @@ const PLANS = [
 
 function PlanButton({ lead }: { lead: boolean }) {
   const { t } = useTheme()
+  const href = useAttributedHref(SIGNUP)
   return (
     <Link
-      href={SIGNUP}
+      href={href}
       className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
       style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
     >

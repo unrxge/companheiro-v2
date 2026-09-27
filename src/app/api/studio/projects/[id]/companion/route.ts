@@ -311,6 +311,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
         return meta
       },
+      { mode: assistantMode },
     )
   })
 }

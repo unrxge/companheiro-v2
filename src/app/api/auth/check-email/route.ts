@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isDisposableEmail, normaliseEmail } from '@/lib/billing/email'
+import { recordOpsEvent } from '@/lib/ops/ai-calls'
 
 /**
  * POST /api/auth/check-email — asked by the signup page before it creates
@@ -14,6 +15,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'That doesn’t look like an email address.' }, { status: 400 })
   }
   if (isDisposableEmail(email)) {
+    // Counted for /admin, by domain only.
+    await recordOpsEvent('signup_blocked', 'auth/check-email', 'disposable address', {
+      domain: email.split('@').pop()?.toLowerCase().slice(0, 80) ?? null,
+    })
     return NextResponse.json(
       { ok: false, error: 'Please use an address you’ll keep. Temporary inboxes can’t receive what we send later, like receipts or a way back into your account.' },
       { status: 400 }
