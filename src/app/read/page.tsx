@@ -133,7 +133,7 @@ function ReadContent() {
               </article>
             </Card>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {piece.emotional_journey && (
                 <Card>
                   <Eyebrow style={{ marginBottom: 12 }}>The journey it was written to take</Eyebrow>
