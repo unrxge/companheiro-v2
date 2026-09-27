@@ -21,6 +21,8 @@ interface ConceptualiseRequest {
   question?: string;
   /** The person arrived with an idea they already carry ("Bring an idea"). */
   brought?: boolean;
+  /** The person is arriving from a check-in that surfaced creative energy. */
+  checkInHandover?: boolean;
 }
 
 const PHASE_PROMPTS: Record<number, string> = {
@@ -112,6 +114,14 @@ export async function POST(request: NextRequest) {
     // spark. Receive what's worked out, find what's still unresolved.
     const broughtContext = body.brought
       ? `\nTHE PERSON BROUGHT THIS IDEA WITH THEM:\nThey've already been carrying it, maybe for a while. Don't re-explain it to them or start it from zero. Receive what they've worked out, notice what's settled and what's still loose, and spend your questions on the loose parts. If a phase's work is already answered by what they brought, complete it quickly.`
+      : ''
+
+    // The first user message contains the full check-in conversation. Use it
+    // to do a warm handover: name the creative spark that surfaced there and
+    // open Phase 1 from that specific place — don't summarise or reflect the
+    // check-in back, just step through the door it opened.
+    const checkInHandoverContext = body.checkInHandover
+      ? `\nARRIVING FROM A CHECK-IN:\nThe first message contains what the person just shared in their check-in, in full. Read it and find what is alive — the specific thing that feels worth making into something. Your opening response should do three things: name what you noticed from the check-in that wants to become a piece of work, acknowledge the transition from reflection into making (briefly, without ceremony), and open Phase 1 from that exact place with one question about the idea itself. Do not summarise or recite the check-in back. Do not mention that you read a check-in — just begin where it left off.`
       : '';
 
     // Stable across most of a conceptualise session — only companionContext
@@ -132,7 +142,7 @@ Keep every question on the idea itself, and only ask one when it opens the idea 
         ? `\n\nNEXT PHASE (only if you are emitting ${PHASE_MARKER} this turn — then your closing question must come from here, not from the current phase):\n${PHASE_PROMPTS[nextPhase + 1]}`
         : "";
 
-    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}`;
+    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}${checkInHandoverContext}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to

@@ -35,9 +35,8 @@ function ConceptualiseContent() {
   const seed = searchParams.get('seed')
   const question = searchParams.get('question')
   const resumeId = searchParams.get('resume')
-  // "Bring an idea": the person opens the conversation with an idea they
-  // already carry, instead of answering a summoned question.
   const bringMode = searchParams.get('mode') === 'bring'
+  const checkInMode = searchParams.get('mode') === 'checkin'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -51,9 +50,10 @@ function ConceptualiseContent() {
   const [brought, setBrought] = useState(bringMode)
   const broughtSeedRef = useRef<string | null>(null)
 
-  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode)
+  const [checkInHandover, setCheckInHandover] = useState<{ entry: string; conversation: string } | null>(null)
+  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode && !checkInMode)
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
-  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode)
+  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode)
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
@@ -73,6 +73,28 @@ function ConceptualiseContent() {
       const seedMessage: ThreadMessage = { role: 'user', content: seed }
       setMessages([seedMessage])
       fetchAIResponse([seedMessage], 1)
+      return
+    }
+    if (checkInMode) {
+      const raw = sessionStorage.getItem('check_in_handover')
+      sessionStorage.removeItem('check_in_handover')
+      if (raw) {
+        try {
+          const handover: { entry: string; conversation: string } = JSON.parse(raw)
+          setCheckInHandover(handover)
+          // A hidden seed gives the API a valid first user turn without
+          // showing a synthetic message bubble in the thread.
+          const hiddenSeed: ThreadMessage = {
+            role: 'user',
+            content: `From my check-in:\n\n${handover.conversation}`,
+            _hidden: true,
+          }
+          setMessages([hiddenSeed])
+          fetchAIResponse([hiddenSeed], 1, true)
+        } catch {
+          // Malformed storage — fall through to a normal fresh start
+        }
+      }
       return
     }
     // Opened from the Idea Lab's "Bring an idea" box: that text is the first turn.
@@ -121,7 +143,7 @@ function ConceptualiseContent() {
     }
     checkDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed, resumeId, bringMode])
+  }, [seed, resumeId, bringMode, checkInMode])
 
   useEffect(() => {
     const container = threadRef.current
@@ -152,14 +174,14 @@ function ConceptualiseContent() {
     }).catch((err) => console.error('Failed to autosave draft:', err))
   }
 
-  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number) => {
+  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number, checkInHandoverMode?: boolean) => {
     setIsLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
@@ -297,6 +319,12 @@ function ConceptualiseContent() {
               <Card>
                 <Eyebrow style={{ marginBottom: 8, color: t.ember }}>Your prompt</Eyebrow>
                 <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{activeQuestion}</p>
+              </Card>
+            )}
+            {checkInHandover && (
+              <Card>
+                <Eyebrow style={{ marginBottom: 8, color: t.ember }}>From your check-in</Eyebrow>
+                <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{checkInHandover.entry}</p>
               </Card>
             )}
             {brought && messages.length === 0 && (

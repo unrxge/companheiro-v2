@@ -19,6 +19,8 @@ export function displayContent(content: string): string {
 export interface ThreadMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Kept in history for the server but never rendered to the person. */
+  _hidden?: boolean
 }
 
 /**
@@ -48,9 +50,9 @@ export function Thread({
   const veilTo = onShell ? '#0d0c0b' : t.containerBg
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      {messages.map((msg, i) => {
+      {messages.filter((msg) => !msg._hidden).map((msg, i) => {
         const isUser = msg.role === 'user'
-        const isStreamingLast = streaming && i === messages.length - 1 && !isUser
+        const isStreamingLast = streaming && i === messages.filter((m) => !m._hidden).length - 1 && !isUser
         const right = align === 'split' && isUser
         return (
           <m.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ display: 'flex', justifyContent: right ? 'flex-end' : 'flex-start' }}>
@@ -78,7 +80,7 @@ export function Thread({
           </m.div>
         )
       })}
-      {streaming && messages[messages.length - 1]?.role !== 'assistant' && (
+      {streaming && messages.filter((m) => !m._hidden)[messages.filter((m) => !m._hidden).length - 1]?.role !== 'assistant' && (
         <p role="status" aria-label="Replying" style={{ fontFamily: fonts.ui, fontSize: 16, color: aiColor, margin: 0 }}><WorkingDots /></p>
       )}
       {children}

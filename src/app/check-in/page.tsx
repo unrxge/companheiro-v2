@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useDictation } from '@/lib/use-dictation'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -64,6 +65,7 @@ const CHECK_IN_TYPE_LABELS: Record<CheckInType, string> = {
 }
 
 export default function CheckInPage() {
+  const router = useRouter()
   const { t } = useTheme()
 
   const [inputMode, setInputMode] = useState<'mic' | 'keyboard' | null>(null)
@@ -585,7 +587,17 @@ export default function CheckInPage() {
                     Journal prompt
                   </GhostButton>
                 )}
-                {signals?.creative_readiness && <QuietButton href="/idea-lab">Take it to the Lab →</QuietButton>}
+                {signals?.creative_readiness && (
+                  <QuietButton onClick={() => {
+                    sessionStorage.setItem('check_in_handover', JSON.stringify({
+                      entry: initialEntry,
+                      conversation: fullConversationText(),
+                    }))
+                    router.push('/idea-lab/conceptualise?mode=checkin')
+                  }}>
+                    Take it to the Lab →
+                  </QuietButton>
+                )}
               </m.div>
             )}
 
