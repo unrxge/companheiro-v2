@@ -75,6 +75,10 @@ function safeUrl(raw: string): URL | null {
     host.endsWith('.local') ||
     host.endsWith('.internal') ||
     /^127\./.test(host) ||
+    // Link-local, including the cloud metadata address 169.254.169.254.
+    /^169\.254\./.test(host) ||
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) ||
+    /^\[(fc|fd|fe80)/i.test(host) ||
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||

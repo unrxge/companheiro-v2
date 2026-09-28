@@ -13,6 +13,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { BillingCard } from '@/components/settings/billing-card'
 import { DICTATION_LANGS, setDictationLangCache, type UserSettings } from '@/lib/settings'
 import { radius, type as typeRoles } from '@/lib/design-tokens'
+import { LEGAL_PAGES } from '@/lib/legal'
 
 /** Gear button for a page header. Opens the sheet. */
 export function SettingsButton() {
@@ -176,6 +177,11 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           </div>
           {error && <p style={{ ...typeRoles.small, color: t.danger, marginTop: 8 }}>{error}</p>}
         </Card>
+        <nav aria-label="Legal" style={{ ...typeRoles.small, fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+          {LEGAL_PAGES.map((p) => (
+            <a key={p.href} href={p.href} target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}>{p.label}</a>
+          ))}
+        </nav>
         <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'right' }}>{saving ? 'Saving…' : ' '}</p>
       </div>
     </ModalDialog>

@@ -145,6 +145,11 @@ export function BillingCard() {
             <div style={label}>Direction — €{PRICE.direction[interval]}{interval === 'yearly' ? '/yr' : '/mo'}</div>
             <PrimaryButton size="sm" onClick={() => subscribe('direction')} loading={busy === 'direction'} loadingLabel="Starting…">Subscribe</PrimaryButton>
           </div>
+          <p style={{ ...hint, marginTop: 10 }}>
+            Renews automatically each {interval === 'yearly' ? 'year' : 'month'} until you cancel, which you can do here at any time. Full refund if you cancel within 14 days of your first payment. By subscribing you agree to the{' '}
+            <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'underline' }}>Terms</a> and{' '}
+            <a href="/refunds" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'underline' }}>refund policy</a>.
+          </p>
         </>
       )}
 

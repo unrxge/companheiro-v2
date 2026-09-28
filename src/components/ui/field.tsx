@@ -40,7 +40,7 @@ function useFieldStyle(bare: boolean, voice: boolean, focused: boolean): React.C
   }
 }
 
-export function TextField({ value, onChange, placeholder, disabled, ariaLabel, voice = false, bare = false, style, onKeyDown, onFocus, onBlur, autoFocus, type = 'text' }: CommonProps & { type?: 'text' | 'url' | 'email' | 'password' }) {
+export function TextField({ value, onChange, placeholder, disabled, ariaLabel, voice = false, bare = false, style, onKeyDown, onFocus, onBlur, autoFocus, type = 'text', autoComplete }: CommonProps & { type?: 'text' | 'url' | 'email' | 'password'; /** WCAG 1.3.5: lets browsers and password managers fill the field. */ autoComplete?: string }) {
   const [focused, setFocused] = useState(false)
   const s = useFieldStyle(bare, voice, focused)
   return (
@@ -51,6 +51,7 @@ export function TextField({ value, onChange, placeholder, disabled, ariaLabel, v
       placeholder={placeholder}
       disabled={disabled}
       aria-label={ariaLabel}
+      autoComplete={autoComplete}
       onKeyDown={onKeyDown}
       // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus={autoFocus}

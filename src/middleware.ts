@@ -10,6 +10,8 @@ function hasSessionCookie(request: NextRequest): boolean {
   )
 }
 
+const LEGAL_PATHS = new Set(['/terms', '/privacy', '/cookies', '/refunds', '/accessibility', '/legal'])
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isAuthPage = pathname === '/login' || pathname === '/signup'
@@ -19,9 +21,11 @@ export function middleware(request: NextRequest) {
   // `/` is the public landing page when signed out; the page itself sends
   // signed-in visitors on to /home.
   const isLanding = pathname === '/'
+  // Legal pages must be readable before anyone signs up.
+  const isLegal = LEGAL_PATHS.has(pathname)
   const isAuthenticated = hasSessionCookie(request)
 
-  if (!isAuthenticated && !isAuthPage && !isResetPage && !isLanding) {
+  if (!isAuthenticated && !isAuthPage && !isResetPage && !isLanding && !isLegal) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     return NextResponse.redirect(loginUrl)

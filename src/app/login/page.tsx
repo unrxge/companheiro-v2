@@ -51,13 +51,13 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <Eyebrow style={{ marginBottom: 6 }}>Email</Eyebrow>
-          <TextField type="email" value={email} onChange={setEmail} ariaLabel="Email" autoFocus />
+          <TextField type="email" value={email} onChange={setEmail} ariaLabel="Email" autoComplete="email" autoFocus />
         </div>
         <div>
           <Eyebrow style={{ marginBottom: 6 }}>Password</Eyebrow>
-          <TextField type="password" value={password} onChange={setPassword} ariaLabel="Password" />
+          <TextField type="password" value={password} onChange={setPassword} ariaLabel="Password" autoComplete="current-password" />
         </div>
-        {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
+        {error && <p role="alert" style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
         <PrimaryButton type="submit" disabled={loading || !email || !password} loading={loading} loadingLabel="Signing in…" full size="lg">
           Sign in
         </PrimaryButton>

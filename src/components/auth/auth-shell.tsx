@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, Container, Card } from '@/components/shell/page-shell'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
+import { LEGAL_PAGES } from '@/lib/legal'
 
 /** Auth screens: atmosphere, no dock, one card, the wordmark above. */
 export function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode }) {
@@ -20,6 +21,11 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
           <Card>{children}</Card>
           {footer && <div style={{ marginTop: 16, ...typeRoles.small, color: t.textSecondary, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>{footer}</div>}
         </Container>
+        <nav aria-label="Legal" style={{ marginTop: 20, ...typeRoles.small, fontSize: 12, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {LEGAL_PAGES.slice(0, 4).map((p) => (
+            <Link key={p.href} href={p.href} style={{ color: shell.muted }}>{p.label}</Link>
+          ))}
+        </nav>
       </div>
     </PageShell>
   )

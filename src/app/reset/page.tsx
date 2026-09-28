@@ -73,9 +73,9 @@ export default function ResetPage() {
         <form onSubmit={update} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <Eyebrow style={{ marginBottom: 6 }}>New password</Eyebrow>
-            <TextField type="password" value={password} onChange={setPassword} ariaLabel="New password" placeholder="At least 8 characters" autoFocus />
+            <TextField type="password" value={password} onChange={setPassword} ariaLabel="New password" autoComplete="new-password" placeholder="At least 8 characters" autoFocus />
           </div>
-          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
+          {error && <p role="alert" style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
           <PrimaryButton type="submit" disabled={loading || !password} loading={loading} loadingLabel="Saving…" full size="lg">Save and continue</PrimaryButton>
         </form>
       </AuthShell>
@@ -93,9 +93,9 @@ export default function ResetPage() {
         <form onSubmit={request} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <Eyebrow style={{ marginBottom: 6 }}>Email</Eyebrow>
-            <TextField type="email" value={email} onChange={setEmail} ariaLabel="Email" autoFocus />
+            <TextField type="email" value={email} onChange={setEmail} ariaLabel="Email" autoComplete="email" autoFocus />
           </div>
-          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
+          {error && <p role="alert" style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
           <PrimaryButton type="submit" disabled={loading || !email} loading={loading} loadingLabel="Sending…" full size="lg">Send reset link</PrimaryButton>
         </form>
       )}

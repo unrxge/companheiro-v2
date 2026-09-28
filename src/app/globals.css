@@ -134,6 +134,15 @@ body {
   }
 }
 
+/* Keyboard focus must always be visible (WCAG 2.4.7). Many controls set
+   `outline: none` inline for mouse users; :focus-visible only fires for
+   keyboard navigation, and !important beats those inline styles. Text
+   fields are left out: they show focus with their own border and caret. */
+:where(a, button, summary, select, [role="button"], [role="radio"], [role="tab"], [role="menuitem"], [role="checkbox"], [role="switch"], input[type="checkbox"], input[type="radio"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid #e0674a !important;
+  outline-offset: 2px;
+}
+
 /* Prevent iOS from auto-zooming into inputs and textareas.
    Safari zooms when font-size < 16px; this overrides smaller sizes site-wide. */
 @media screen and (max-width: 768px) {

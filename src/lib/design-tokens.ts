@@ -41,7 +41,9 @@ const surfaces = {
     cardBgInner: '#f3f0e9',
     textPrimary: '#1a1815',
     textSecondary: '#5f5b54',
-    textMuted: '#807b72',
+    // Muted text is still body text: both values clear WCAG AA (4.5:1) on
+    // every card, inner card, input and container surface of their theme.
+    textMuted: '#6a665f',
     divider: '#dfdad0',
     inputBg: '#f1eee7',
     inputBorder: '#dcd7cc',
@@ -57,7 +59,7 @@ const surfaces = {
     cardBgInner: '#2a2620',
     textPrimary: '#ece9e2',
     textSecondary: '#aaa59c',
-    textMuted: '#7d786f',
+    textMuted: '#928e86',
     divider: '#352f29',
     inputBg: '#1c1916',
     inputBorder: '#352f29',
@@ -69,8 +71,8 @@ const surfaces = {
 
 // ── Meaning palette (validated for colour-vision separation, both themes) ───
 const meaning = {
-  light: { ember: '#d2552f', verdant: '#2f9e6b', violet: '#6f5fd8', ochre: '#c9932a', tide: '#3b8bd0', danger: '#d13f3f' },
-  dark: { ember: '#e0674a', verdant: '#39a875', violet: '#8a7cea', ochre: '#bf8a30', tide: '#4f9ad6', danger: '#e05656' },
+  light: { ember: '#d2552f', verdant: '#2f9e6b', violet: '#6f5fd8', ochre: '#c9932a', tide: '#3b8bd0', danger: '#c23b3b' },
+  dark: { ember: '#e0674a', verdant: '#39a875', violet: '#8a7cea', ochre: '#bf8a30', tide: '#4f9ad6', danger: '#e36969' },
 } as const
 
 export type MeaningKey = keyof typeof meaning.light

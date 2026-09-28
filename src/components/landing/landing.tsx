@@ -19,6 +19,7 @@ import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
 import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
+import { LEGAL_PAGES } from '@/lib/legal'
 import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, VisionFinder } from './mockups'
 
@@ -460,8 +461,9 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
 
 const PRICING_FACTS = [
   { title: '30 days free', body: 'No card needed to start.' },
-  { title: 'Pause when life is full', body: 'Up to three months, paying nothing. Everything waits.' },
-  { title: 'Pay what you can', body: 'If the price is out of reach, Practice costs \u20ac3 to \u20ac6 a month.' },
+  // Every line here must be something the product actually does today.
+  { title: 'Cancel whenever', body: 'From Settings, in a moment. A full refund if you cancel within 14 days of your first payment.' },
+  { title: 'Your work stays yours', body: 'If you stop paying, everything you made stays readable and exportable.' },
 ]
 
 function Pricing() {
@@ -503,6 +505,12 @@ function Pricing() {
           </div>
         </Container>
       </Reveal>
+
+      <p className="mt-4 text-[13px] text-[var(--muted)]">
+        Plans renew automatically until you cancel. Fair-use limits apply. See the{' '}
+        <Link href="/terms#plans" className="underline underline-offset-4 hover:text-[var(--bone)]">Terms</Link> and{' '}
+        <Link href="/refunds" className="underline underline-offset-4 hover:text-[var(--bone)]">refund policy</Link>.
+      </p>
 
       <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
         {PRICING_FACTS.map((f, i) => (
@@ -546,9 +554,17 @@ function Footer() {
   return (
     <footer className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 border-t border-[var(--line)] px-4 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 text-[13px] text-[var(--muted)] md:flex-row md:items-center md:justify-between md:px-8">
       <span>&copy; {new Date().getFullYear()} Companheiro</span>
-      <Link href={LOGIN} className="self-start transition-colors hover:text-[var(--bone)] md:self-auto">
-        Log in
-      </Link>
+      <nav aria-label="Legal">
+        <ul className="flex flex-wrap gap-x-5 gap-y-2">
+          {LEGAL_PAGES.map((p) => (
+            <li key={p.href}>
+              <Link href={p.href} className="transition-colors hover:text-[var(--bone)]">
+                {p.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </footer>
   )
 }
