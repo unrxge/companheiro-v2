@@ -123,7 +123,7 @@ const icon = (path: React.ReactNode) => (
  * scrolling away with the page. Renders inert (not hidden) when no editor is
  * focused, so its position never jumps.
  */
-export function SectionToolbar({ editor }: { editor: Editor | null }) {
+export function SectionToolbar({ editor, onHistory }: { editor: Editor | null; onHistory?: () => void }) {
   const disabled = !editor
   const is = (name: string, attrs?: Record<string, unknown>) => !!editor?.isActive(name, attrs)
   const run = (fn: (editor: Editor) => void) => {
@@ -170,6 +170,15 @@ export function SectionToolbar({ editor }: { editor: Editor | null }) {
       >
         {icon(<path d="M4 5v14M10 6l6 6-6 6" />)}
       </ToolbarButton>
+      {onHistory && (
+        <>
+          <ToolbarDivider />
+          {/* Works with nothing focused: it's about the whole piece, not the caret. */}
+          <ToolbarButton label="Document history" onClick={onHistory}>
+            {icon(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>)}
+          </ToolbarButton>
+        </>
+      )}
     </div>
   )
 }

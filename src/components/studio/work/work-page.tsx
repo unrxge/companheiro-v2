@@ -40,6 +40,7 @@ import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, use
 import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { WorkingDots } from '@/components/ui/working'
+import { HistoryPanel } from '@/components/studio/work/history-panel'
 
 export type Focus =
   | { kind: 'project' }
@@ -64,6 +65,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const { state, project, tree, roots, api, saving, tagFor } = useWork(projectId)
   const [view, setView] = useState<View>('write')
   const [rail, setRail] = useState<RailKey | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
   const roomBeside = useRoomBeside()
@@ -487,7 +489,9 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         />
       )}
 
-      {rail === 'concept' && scopeNode && <ConceptPanel node={scopeNode} projectId={projectId} />}
+      {rail === 'concept' && scopeNode && (
+        <ConceptPanel node={scopeNode} projectId={projectId} conversationLog={project?.conceptualisation_log} />
+      )}
 
       {rail === 'anchors' && scopeNode && (
         <AnchorsPanel
@@ -717,6 +721,8 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               onAddLine={(text, partId) => void tools.addLine(text, partId)}
               onRemoveLine={(id) => void tools.removeLine(id)}
               handle={studio}
+              // Saved first, so the history compares against what's actually on the page.
+              onHistory={() => void Promise.resolve(studio.current?.flush()).then(() => setHistoryOpen(true))}
               dockHidden={sheeted}
               disabled={readOnly}
             />
@@ -763,6 +769,16 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />
       {companionDrawer}
+      {historyOpen && node && (
+        <HistoryPanel
+          nodeId={node.id}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={async () => {
+            await api.refresh()
+            setHistoryOpen(false)
+          }}
+        />
+      )}
     </PageShell>
   )
 }

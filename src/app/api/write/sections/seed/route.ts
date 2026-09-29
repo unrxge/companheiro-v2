@@ -5,6 +5,7 @@ import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
+import { snapshotPiece } from '@/lib/studio/revisions'
 
 // Derives an editable section skeleton (child studio_nodes under node_id)
 // from the root node's emotional_journey (each beat -> one section, with a
@@ -86,6 +87,9 @@ Emotional journey: ${piece.emotional_journey || '(not defined — infer an hones
     if (beats.length === 0) {
       return NextResponse.json({ error: 'No sections generated' }, { status: 500 })
     }
+
+    // The piece as it was before shaping, kept in its history.
+    await snapshotPiece(auth, node_id, 'restructure', { force: true })
 
     // If regenerating, clear the old skeleton first.
     if (force) {

@@ -13,6 +13,7 @@ import { Label } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
+import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 
 export interface AnchorLine { id: string; section_id: string | null; text: string }
 export interface PieceTask {
@@ -111,8 +112,32 @@ function useFieldStyle(): React.CSSProperties {
 
 // ── the core concept ─────────────────────────────────────────────────────────
 
-export function ConceptPanel({ node, projectId }: { node: TreeNode; projectId: string }) {
+export function ConceptPanel({ node, projectId, conversationLog }: {
+  node: TreeNode
+  projectId: string
+  /** The Idea Lab back-and-forth the concept came out of, kept on the project. */
+  conversationLog?: ConversationLogMessage[] | null
+}) {
   const { t } = useTheme()
+  const [showLog, setShowLog] = useState(false)
+  const hasLog = !!conversationLog && conversationLog.some((m) => m.content?.trim())
+  const conversation = hasLog && (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowLog(true)}
+        style={{
+          ...canvasType.small, alignSelf: 'flex-start', padding: 0, background: 'none', border: 'none',
+          color: t.ember, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3,
+        }}
+      >
+        Read the conversation that shaped this
+      </button>
+      {showLog && conversationLog && (
+        <ConversationLogModal messages={conversationLog} onClose={() => setShowLog(false)} title="How this idea took shape" />
+      )}
+    </>
+  )
   const fields = [
     { label: 'Emotional journey', text: node.emotional_journey ?? '', strong: false },
     { label: 'Core truth', text: node.core_truth ?? '', strong: true },
@@ -132,6 +157,7 @@ export function ConceptPanel({ node, projectId }: { node: TreeNode; projectId: s
         <Link href={`/idea-lab/core-concept?project=${projectId}`} style={{ ...canvasType.small, color: t.ember, textDecoration: 'none' }}>
           Build the core concept →
         </Link>
+        {conversation}
       </div>
     )
   }
@@ -159,6 +185,7 @@ export function ConceptPanel({ node, projectId }: { node: TreeNode; projectId: s
           </ul>
         </div>
       )}
+      {conversation}
     </div>
   )
 }

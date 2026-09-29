@@ -5,6 +5,7 @@ import { aiGate } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
+import { snapshotPiece } from '@/lib/studio/revisions'
 
 // Discerns whether the user's brought text is a full draft or loose fragments,
 // then either distributes the draft across the emotional-journey sections
@@ -127,6 +128,9 @@ export async function POST(req: NextRequest) {
 
     const draft = (piece.body || '').trim()
     if (!draft) return NextResponse.json({ error: 'No draft to ingest' }, { status: 400 })
+
+    // The piece as it was before its draft was placed, kept in its history.
+    await snapshotPiece(auth, node_id, 'restructure', { force: true })
 
     // Load or seed sections
     const { data: existing } = await supabase

@@ -10,6 +10,7 @@ import {
 import { NODE_COLS, clampText, extentFor, normaliseNode, normaliseRules, requireNode } from '@/lib/studio/nodes-db'
 import type { NodeStatus } from '@/lib/studio/node-types'
 import { resyncFrom } from '@/lib/studio/write-nodes'
+import { snapshotFor, snapshotPiece } from '@/lib/studio/revisions'
 
 type Params = { params: Promise<{ nodeId: string }> }
 const STATUSES: NodeStatus[] = ['open', 'drafted', 'done']
@@ -51,6 +52,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       patch[axis] = Math.round(body[axis] as number)
     }
     if (Object.keys(patch).length === 0) return NextResponse.json({ node })
+    // The first save of an editing stretch records the piece as it was before it.
+    if (patch.body !== undefined && patch.body !== node.body) {
+      if (node.parent_id) await snapshotFor(auth, node.parent_id, 'edit')
+      else await snapshotPiece(auth, node.id, 'edit')
+    }
 
     const { data, error } = await auth.supabase
       .from('studio_nodes')
@@ -73,6 +79,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const node = await requireNode(auth, nodeId)
     const project = await requireProject(auth, node.project_id)
     assertProjectWritable(project)
+    // Removing a part of a piece is kept in its history; removing a whole piece takes its history with it.
+    if (node.parent_id) await snapshotFor(auth, node.parent_id, 'remove', { force: true })
     const { error } = await auth.supabase
       .from('studio_nodes')
       .delete()

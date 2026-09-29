@@ -6,6 +6,7 @@ import { MODELS } from '@/lib/models'
 import { htmlToPlainText } from '@/lib/rich-text'
 import { bodyPatch, resyncNodeBody } from '@/lib/studio/write-nodes'
 import { logUsage } from '@/lib/usage-log'
+import { snapshotPiece } from '@/lib/studio/revisions'
 
 // Divides freely-written prose (the root node's flattened body) across the
 // piece's intended structure, replacing its children (sections) with the
@@ -143,6 +144,9 @@ ${prose}
       // of the text (starts_with) never lands in the database.
       content: prose.slice(boundaries[i], i === beatMeta.length - 1 ? prose.length : boundaries[i + 1]),
     }))
+
+    // The piece as it was before dividing, kept in its history.
+    await snapshotPiece(auth, node_id, 'restructure', { force: true })
 
     // Replace existing sections (children) with the divided set.
     await supabase.from('studio_nodes').delete().eq('parent_id', node_id).eq('user_id', user.id)

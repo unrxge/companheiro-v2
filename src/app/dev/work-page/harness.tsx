@@ -23,13 +23,17 @@ const plain = (html: string) => html.replace(/<\/p>/g, '\n\n').replace(/<br\s*\/
 const words = (html: string) => plain(html).split(/\s+/).filter(Boolean).length
 const paragraphs = (text: string) => text.split(/\n{2,}/).map((p) => `<p>${p}</p>`).join('')
 
-function project(intent: string, board: boolean) {
+function project(intent: string, board: boolean, concept = false) {
   return {
     id: 'demo', user_id: 'u', title: 'Untitled', intent, rules: [], arc: null, thematic_territory: null,
     status: 'active', shelf_stage: 'active', resting_until: null, completed_at: null, completion_note: null,
     viewport: { x: 0, y: 0, zoom: 1 }, shelf_x: null, shelf_y: null, vision_x: null, vision_y: null,
     settings: { snap: true, grid: false, sizes: true, board }, auto_layout: true, composed_at: null,
-    conceptualisation_log: null, canvas_version: 1, last_opened_at: NOW, opened_before_at: NOW,
+    conceptualisation_log: concept ? [
+      { role: 'assistant', content: 'What is the morning asking you to notice?' },
+      { role: 'user', content: 'That nobody needed me, and I did not know what to do with my hands.' },
+      { role: 'assistant', content: 'So the piece is about the gap between being useful and being here.<phase_complete/>' },
+    ] : null, canvas_version: 1, last_opened_at: NOW, opened_before_at: NOW,
     created_at: NOW, updated_at: NOW,
   }
 }
@@ -89,6 +93,31 @@ function installMock(o: Opts) {
   const sectionsOf = (id: string) => nodes.filter((n) => n.parent_id === id).sort((a, b) => a.position - b.position)
     .map((n) => ({ id: n.id, position: n.position, label: n.title || null, intended_emotion: n.beat || null, content: n.body, is_locked: n.is_locked }))
 
+  // Document history, the same rules as lib/studio/revisions.ts: a version is
+  // the piece before an editing stretch (one per ten minutes), or before a
+  // reshape, removal or restore.
+  const revisions: Array<{ id: string; created_at: string; reason: string; word_count: number; parts: unknown[] }> = []
+  const pieceParts = () => {
+    const out: Array<{ id: string; parent_id: string | null; position: number; title: string; beat: string; body: string; is_leaf: boolean }> = []
+    const walk = (n: MockNode) => {
+      const kids = nodes.filter((k) => k.parent_id === n.id).sort((a, b) => a.position - b.position)
+      out.push({ id: n.id, parent_id: n.parent_id, position: n.position, title: n.title, beat: n.beat, body: kids.length ? '' : n.body, is_leaf: !kids.length })
+      kids.forEach(walk)
+    }
+    const root = nodes.find((n) => n.id === 'node-1')
+    if (root) walk(root)
+    return out
+  }
+  const snap = (reason: string, force = false) => {
+    const last = revisions[0]
+    if (!force && last && Date.now() - new Date(last.created_at).getTime() < 600_000) return
+    const parts = pieceParts()
+    const wc = parts.filter((p) => p.is_leaf).reduce((n, p) => n + words(p.body), 0)
+    if (!wc && reason === 'edit') return
+    revisions.unshift({ id: `rev-${++seq}`, created_at: new Date(Date.now() - (reason === 'edit' ? 0 : 0)).toISOString(), reason, word_count: wc, parts: JSON.parse(JSON.stringify(parts)) })
+  }
+  ;(window as unknown as { __snap?: typeof snap }).__snap = snap
+
   window.fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const path = new URL(url, location.origin).pathname
@@ -99,7 +128,7 @@ function installMock(o: Opts) {
       return fn()
     }
 
-    if (path === '/api/studio/projects/demo/tree') return json({ project: project(o.text, o.board), tree: { nodes, threads: [], tags: [], open_checks: [] } })
+    if (path === '/api/studio/projects/demo/tree') return json({ project: project(o.text, o.board, o.concept), tree: { nodes, threads: [], tags: [], open_checks: [] } })
     if (path.startsWith('/api/studio/projects/demo/open')) return json({ success: true })
     if (path.startsWith('/api/studio/assistant-lock')) return json({ lockedUntil: null })
     if (path.startsWith('/api/settings')) return json({ settings: { dictation_lang: null, sunday_letter: false, onboarded_at: NOW }, email: 'you@example.com' })
@@ -124,6 +153,29 @@ function installMock(o: Opts) {
       const root = nodes.find((n) => n.id === url.split('node_id=')[1]?.split('&')[0]) ?? nodes[0]
       return json({ success: true, piece: { id: root.id, project_id: 'demo', title: root.title, tasks: [] }, lone_piece: true })
     }
+    if (path === '/api/write/history') {
+      const q = new URL(url, location.origin).searchParams
+      if (method === 'GET' && q.get('revision_id')) {
+        const r = revisions.find((x) => x.id === q.get('revision_id'))
+        return r ? json({ revision: { ...r, piece_id: 'node-1' } }) : json({ error: 'Not found' }, 404)
+      }
+      if (method === 'GET') return json({ piece_id: 'node-1', revisions: revisions.map(({ parts: _p, ...m }) => m), current: pieceParts() })
+      if (method === 'POST') return write(() => {
+        const r = revisions.find((x) => x.id === body.revision_id)
+        if (!r) return json({ error: 'Not found' }, 404)
+        snap('restore', true)
+        const parts = r.parts as ReturnType<typeof pieceParts>
+        const keep = new Set(parts.map((p) => p.id))
+        for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].id !== 'node-1' && !keep.has(nodes[i].id)) nodes.splice(i, 1)
+        for (const p of parts) {
+          const n = nodes.find((x) => x.id === p.id)
+          if (n) { if (p.is_leaf) { n.body = p.body; n.extent = words(p.body) } if (p.id !== 'node-1') { n.title = p.title; n.beat = p.beat; n.position = p.position; n.parent_id = p.parent_id } }
+          else nodes.push(node(p.id, p.parent_id, p.position, p.title, p.beat, p.body))
+        }
+        resync('node-1')
+        return json({ ok: true })
+      })
+    }
     if (path === '/api/write/distill' || path === '/api/write/activity') return json({ success: true })
     if (path === '/api/write/chat' && method === 'POST') {
       ;(window as unknown as { __lastChat?: unknown }).__lastChat = body
@@ -144,6 +196,7 @@ function installMock(o: Opts) {
         },
       }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
+    if ((path === '/api/write/sections/seed' || path === '/api/write/sections/divide' || path === '/api/write/sections/ingest') && method === 'POST') snap('restructure', true)
     if (path === '/api/write/sections/ingest' && method === 'POST') return write(() => {
       const root = nodes.find((n) => n.id === body.node_id)!
       const text = plain(root.body)
@@ -183,6 +236,8 @@ function installMock(o: Opts) {
     const reorder = path.match(/^\/api\/studio\/nodes\/([^/]+)\/reorder$/)
     if (reorder && method === 'POST') return write(() => { (body.ids as string[]).forEach((id, i) => { const n = nodes.find((x) => x.id === id); if (n) n.position = i }); resync(reorder[1]); return json({ nodes: sectionsOf(reorder[1]) }) })
     const one = path.match(/^\/api\/studio\/nodes\/([^/]+)$/)
+    if (one && method === 'PATCH' && typeof body.body === 'string') snap('edit')
+    if (one && method === 'DELETE') snap('remove', true)
     if (one && method === 'PATCH') return write(() => {
       const n = nodes.find((x) => x.id === one[1])
       if (!n) return json({ error: 'gone' }, 404)

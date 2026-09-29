@@ -66,6 +66,7 @@ export function Studio({
   onFocusChange,
   placeholders,
   handle,
+  onHistory,
   dockHidden = false,
   disabled = false,
 }: {
@@ -93,6 +94,8 @@ export function Studio({
   /** Guidance to show in an empty part, by part id. */
   placeholders?: Record<string, string>
   handle?: React.MutableRefObject<StudioHandle | null>
+  /** Opens the piece's document history, from a button at the end of the toolbar. */
+  onHistory?: () => void
   /** Leaves the part dock out while something else is using the bottom of the screen. */
   dockHidden?: boolean
   disabled?: boolean
@@ -309,7 +312,7 @@ export function Studio({
               maxWidth: 'calc(100vw - 24px)', overflowX: 'auto',
             }}
           >
-            <SectionToolbar editor={focused ? editors.current[focused] ?? null : null} />
+            <SectionToolbar editor={focused ? editors.current[focused] ?? null : null} onHistory={onHistory} />
           </div>
         </div>
       )}
