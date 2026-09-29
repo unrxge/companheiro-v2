@@ -3,29 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light only">
-<title>You've been invited</title>
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>You’ve been invited</title>
+<style>
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+  body, .bg { background:#0d0c0b !important; }
+  @media (max-width:520px) { .pad { padding:28px 20px !important; } .outer { padding:24px 12px !important; } .h1 { font-size:26px !important; } }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#f6f4ef;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">An invitation to Companheiro.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f4ef;">
-  <tr><td align="center" style="padding:40px 16px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
-      <tr><td style="padding:0 4px 20px;font-family:Georgia,'Times New Roman',serif;font-size:20px;color:#111110;letter-spacing:0.2px;">Companheiro</td></tr>
-      <tr><td style="background:#ffffff;border:1px solid #e8e5de;border-radius:18px;padding:36px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr><td style="font-size:22px;line-height:1.3;font-weight:600;color:#111110;padding-bottom:14px;">You've been invited to Companheiro</td></tr>
-          <tr><td style="font-size:15px;line-height:1.65;color:#3d3b37;padding-bottom:22px;">Someone has invited you to join Companheiro, a companion for reflection and creative work. Accept to set up your account.</td></tr>
-          <tr><td style="padding:8px 0 28px;">
-            <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#10B981;color:#0b0b0a;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;">Accept the invitation</a>
-          </td></tr>
-          <tr><td style="font-size:13px;line-height:1.6;color:#6b6963;padding-bottom:4px;">If the button doesn't work, copy this link into your browser:</td></tr>
-          <tr><td style="font-size:12px;line-height:1.6;word-break:break-all;padding-bottom:24px;"><a href="{{ .ConfirmationURL }}" style="color:#0f8a63;">{{ .ConfirmationURL }}</a></td></tr>
-          <tr><td style="border-top:1px solid #eeebe4;padding-top:18px;font-size:13px;line-height:1.6;color:#8a8780;">If you weren't expecting this, you can ignore it; nothing happens unless you accept.</td></tr>
+<body class="bg" style="margin:0;padding:0;background:#0d0c0b;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0d0c0b;">An invitation to Companheiro.</div>
+<table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" bgcolor="#0d0c0b" style="background:#0d0c0b;background-image:radial-gradient(ellipse at 50% 0%, #6f2a1a 0%, #171512 38%, #0d0c0b 72%);">
+  <tr><td align="center" class="outer" style="padding:48px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+      <tr><td style="padding:0 4px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:middle;"><img src="https://companheiro.app/email-logo.png" width="32" height="32" alt="" style="display:block;border:0;"></td>
+          <td style="vertical-align:middle;padding-left:12px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#928e86;">Companheiro</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding:0 4px 24px;">
+        <div style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#928e86;padding-bottom:10px;">Invitation</div>
+        <div class="h1" style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:32px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:#ece9e2;">You’ve been invited</div>
+        <div style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#928e86;padding-top:10px;">A companion for reflection and creative work.</div>
+      </td></tr>
+      <tr><td bgcolor="#161412" style="background:#161412;border-radius:24px;padding:12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td bgcolor="#231f1b" class="pad" style="background:#231f1b;border-radius:16px;padding:32px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#ece9e2;padding-bottom:20px;">Someone has invited you to join Companheiro. Accept to set up your account and begin.</td></tr>
+                <tr><td style="padding:4px 0 24px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ece9e2" style="border-radius:12px;">
+                    <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 24px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0d0c0b;text-decoration:none;border-radius:12px;">Accept invitation</a>
+                  </td></tr></table>
+                </td></tr>
+                <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#928e86;padding-bottom:4px;">Or paste this link into your browser:</td></tr>
+                <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;word-break:break-all;padding-bottom:4px;"><a href="{{ .ConfirmationURL }}" style="color:#aaa59c;text-decoration:underline;">{{ .ConfirmationURL }}</a></td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="padding:18px 16px 10px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#aaa59c;">Weren’t expecting this? Ignore it; nothing happens unless you accept.</td></tr>
         </table>
       </td></tr>
-      <tr><td style="padding:20px 4px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9a978f;">
-        Sent by Companheiro · <a href="{{ .SiteURL }}" style="color:#9a978f;">companheiro.app</a>
+      <tr><td align="center" style="padding:28px 4px 0;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#928e86;">
+        <a href="{{ .SiteURL }}" style="color:#928e86;text-decoration:none;">companheiro.app</a>
+        &nbsp;·&nbsp; <a href="https://companheiro.app/privacy" style="color:#928e86;text-decoration:none;">Privacy</a>
+        &nbsp;·&nbsp; <a href="https://companheiro.app/terms" style="color:#928e86;text-decoration:none;">Terms</a>
       </td></tr>
     </table>
   </td></tr>
