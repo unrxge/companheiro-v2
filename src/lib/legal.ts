@@ -33,14 +33,14 @@ export const LEGAL = {
 } as const
 
 /** Shown at the top of every legal page. Bump when the text changes materially. */
-export const LEGAL_UPDATED = '28 September 2026'
+export const LEGAL_UPDATED = '29 September 2026'
 
 /**
  * Stored with each new account (auth user metadata) so there is a record of
  * which version someone agreed to. Bump when Terms or Privacy change in a way
  * people should be told about.
  */
-export const LEGAL_VERSION = '2026-09-28'
+export const LEGAL_VERSION = '2026-09-29'
 
 export const LEGAL_PAGES = [
   { href: '/terms', label: 'Terms' },

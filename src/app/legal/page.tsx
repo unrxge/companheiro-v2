@@ -30,7 +30,7 @@ export default function BusinessDetailsPage() {
 
       <H2 id="policies">Policies</H2>
       <p>
-        <A href="/terms">Terms of Service</A> · <A href="/privacy">Privacy Policy</A> · <A href="/cookies">Cookie Policy</A> ·{' '}
+        <A href="/terms">Terms and Conditions</A> · <A href="/privacy">Privacy Policy</A> · <A href="/cookies">Cookie Policy</A> ·{' '}
         <A href="/refunds">Refunds &amp; cancellation</A> · <A href="/accessibility">Accessibility</A>
       </p>
     </LegalPage>

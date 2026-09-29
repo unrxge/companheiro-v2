@@ -30,7 +30,12 @@ export default function PrivacyPage() {
       <H3>Account details</H3>
       <UL>
         <li>Your email address and a password (stored only as a one-way hash by our authentication provider; we never see it).</li>
+        <li>
+          If you sign in with Apple or Google, the email address (and, if they share it, your name) that they pass to us. With Apple you can choose to hide
+          your real address; we then receive a private relay address instead. We never receive your Apple or Google password.
+        </li>
         <li>Settings you choose, such as theme, dictation language and whether the weekly letter is on.</li>
+        <li>Which version of our Terms and this policy you agreed to when you created your account, and when.</li>
         <li>
           Optionally, how you heard about us, and any campaign tag in the link you arrived from (for example <code>utm_source</code>). This is carried in
           the page address, not in a cookie.
@@ -51,8 +56,9 @@ export default function PrivacyPage() {
       <H3 id="sensitive">Information about your wellbeing</H3>
       <p>
         Check-ins and reflections can reveal how you are feeling, and sometimes things about your mental or physical health. The law treats this as
-        special-category data. We process it only because you give explicit consent when you create your account, and only to provide the companion to you.
-        You can withdraw that consent at any time by deleting the entries concerned or your whole account. Companheiro is not a medical or therapeutic
+        special-category data. We process it on the basis of your consent, which you give when you create your account and agree to our{' '}
+        <A href="/terms#wellbeing">Terms</A>, and only to provide the companion to you. You can withdraw that consent at any time by deleting the entries
+        concerned or your whole account, or simply by not writing about your health. Companheiro is not a medical or therapeutic
         service (see <A href="/terms#not-therapy">our Terms</A>).
       </p>
       <H3>Billing and usage</H3>
@@ -80,7 +86,7 @@ export default function PrivacyPage() {
           confirmation and password reset.
         </li>
         <li>
-          <strong>To process information about your wellbeing</strong> (explicit consent, UK/EU GDPR article 9(2)(a)).
+          <strong>To process information about your wellbeing</strong> (your consent, UK/EU GDPR article 9(2)(a)), given when you create your account.
         </li>
         <li>
           <strong>To keep the service secure, fair and affordable</strong> (legitimate interests): preventing abuse and repeated free trials, fair-use limits,
@@ -111,6 +117,12 @@ export default function PrivacyPage() {
           Sign-in emails to you are sent by Supabase.
         </li>
       </UL>
+      <H3>Sign in with Apple or Google</H3>
+      <p>
+        If you choose to, Apple or Google confirm who you are and pass us your email address. They act as independent controllers under their own privacy
+        policies (<A href="https://www.apple.com/legal/privacy/">Apple</A>, <A href="https://policies.google.com/privacy">Google</A>) and learn that you
+        signed in to Companheiro. We share nothing else with them.
+      </p>
       <H3>Payments</H3>
       <p>
         Subscriptions are sold through <strong>Stripe Managed Payments</strong>. Stripe acts as the reseller (merchant of record): it takes your payment

@@ -3,17 +3,18 @@ import { LegalPage, H2, UL, A, Email, Identity } from '@/components/legal/legal-
 import { CRISIS_DIRECTORY_URL } from '@/lib/crisis-resources'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service',
+  title: 'Terms and Conditions',
   description: 'The agreement between you and Companheiro: what the service is, what it is not, plans, payment, your work and your rights.',
   alternates: { canonical: '/terms' },
 }
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Service" current="/terms">
+    <LegalPage title="Terms and Conditions" current="/terms">
       <p>
         These terms are the agreement between you and the person or business behind Companheiro (&ldquo;we&rdquo;, &ldquo;us&rdquo;), named below. By
-        creating an account you agree to them. If you are a consumer, nothing here takes away rights the law of your country gives you.
+        creating an account or signing in, whether with email, Apple or Google, you agree to them and to our{' '}
+        <A href="/privacy">Privacy Policy</A>. If you are a consumer, nothing here takes away rights the law of your country gives you.
       </p>
       <Identity />
 
@@ -31,14 +32,24 @@ export default function TermsPage() {
         danger, contact your local emergency number, someone you trust, or a helpline via <A href={CRISIS_DIRECTORY_URL}>findahelpline.com</A>.
       </p>
 
-      <H2 id="account">3. Your account</H2>
+      <H2 id="wellbeing">3. Information about how you are</H2>
+      <p>
+        Check-ins, conversations and reflections often include how you are feeling, and can include information about your mental or physical health.
+        By using Companheiro you agree that we process this, together with everything else you write, to provide the companion to you: it is stored in your
+        account and sent to our AI provider to generate replies, as set out in the <A href="/privacy#sensitive">Privacy Policy</A>. It is never used for
+        anything else, never sold and never used to train AI models. You can delete any entry, or your whole account, at any time, which withdraws that
+        agreement for what you delete. If you don&rsquo;t want information about your health processed this way, please don&rsquo;t include it.
+      </p>
+
+      <H2 id="account">4. Your account</H2>
       <UL>
-        <li>You must be 18 or over.</li>
+        <li>You must be 18 or over. By creating an account you confirm that you are.</li>
+        <li>You can sign in with an email address and password, or with your Apple or Google account.</li>
         <li>One account per person. Keep your password to yourself; you are responsible for what happens under your account.</li>
         <li>Give a real email address you can receive mail at. We use it for sign-in, security and important notices about your account.</li>
       </UL>
 
-      <H2 id="plans">4. Free trial, plans and payment</H2>
+      <H2 id="plans">5. Free trial, plans and payment</H2>
       <UL>
         <li>
           New accounts get a 30-day free trial of the companion. No payment card is needed and nothing is charged automatically when it ends. One free trial
@@ -64,14 +75,14 @@ export default function TermsPage() {
         </li>
       </UL>
 
-      <H2 id="fair-use">5. Fair use</H2>
+      <H2 id="fair-use">6. Fair use</H2>
       <p>
         Every plan includes generous use of the companion for one person&rsquo;s own creative work. Because each reply has a real cost, plans have monthly
         fair-use limits. We let you know as you approach the limit; if you reach it, the companion pauses until your next billing period. <strong>Your own work is never locked</strong>: you can always read, edit and export it. Automated or scripted use, reselling
         access, or sharing an account is not fair use.
       </p>
 
-      <H2 id="your-work">6. Your work stays yours</H2>
+      <H2 id="your-work">7. Your work stays yours</H2>
       <UL>
         <li>You keep all rights in everything you write, upload or make with Companheiro.</li>
         <li>
@@ -86,7 +97,7 @@ export default function TermsPage() {
         <li>You can export everything at any time from Settings.</li>
       </UL>
 
-      <H2 id="acceptable-use">7. Acceptable use</H2>
+      <H2 id="acceptable-use">8. Acceptable use</H2>
       <p>Please don&rsquo;t use Companheiro to:</p>
       <UL>
         <li>upload material you don&rsquo;t have the right to use, or that infringes someone else&rsquo;s copyright or privacy;</li>
@@ -100,7 +111,7 @@ export default function TermsPage() {
         work.
       </p>
 
-      <H2 id="ours">8. Our part</H2>
+      <H2 id="ours">9. Our part</H2>
       <p>
         The Companheiro software, design, name and logo belong to us. We will provide the service with reasonable care and skill. We aim to keep it available
         but cannot promise it will never be interrupted, and we may change or improve features over time. If we make a change that significantly reduces what
@@ -110,7 +121,7 @@ export default function TermsPage() {
         We back up the database, but please keep your own copies of work that matters to you (Settings → Export).
       </p>
 
-      <H2 id="liability">9. Liability</H2>
+      <H2 id="liability">10. Liability</H2>
       <UL>
         <li>
           Nothing in these terms limits liability for death or personal injury caused by negligence, for fraud, or anything else that cannot be limited by
@@ -126,20 +137,20 @@ export default function TermsPage() {
         </li>
       </UL>
 
-      <H2 id="ending">10. Ending the agreement</H2>
+      <H2 id="ending">11. Ending the agreement</H2>
       <p>
         You can stop at any time by cancelling your plan and, if you want, deleting your account in Settings. We may end the service for everyone with at
         least 60 days&rsquo; notice, in which case you can export your work and will be refunded any amount paid for the period after it ends.
       </p>
 
-      <H2 id="law">11. Law and disputes</H2>
+      <H2 id="law">12. Law and disputes</H2>
       <p>
         These terms are governed by the law of England and Wales. If you are a consumer, you also keep the protection of the mandatory laws of the country
         where you live, and you can bring a claim in the courts there. If something goes wrong, please write to us first at <Email /> — we will try to put it
         right.
       </p>
 
-      <H2 id="changes">12. Changes to these terms</H2>
+      <H2 id="changes">13. Changes to these terms</H2>
       <p>
         We will give you at least 30 days&rsquo; notice by email or in the app before a change that affects you materially. If you don&rsquo;t agree, you can
         cancel before it takes effect.

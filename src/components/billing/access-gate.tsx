@@ -8,6 +8,7 @@ import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { CONTACT_EMAIL } from '@/lib/site'
+import { LEGAL_PAGES } from '@/lib/legal'
 
 // Must match GATE_HEADER in lib/billing/fair-use.ts (not imported: that
 // module is server-only).
@@ -16,7 +17,7 @@ const SEEN_KEY = 'companheiro:trial-ended-seen'
 const NEAR_KEY = 'companheiro:near-limit-seen'
 const NEAR_SHARE = 0.8
 const NEAR_VISIBLE_MS = 12_000
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset']
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', ...LEGAL_PAGES.map((p) => p.href as string)]
 
 type Reason = 'trial_ended' | 'fair_use'
 
