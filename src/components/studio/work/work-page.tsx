@@ -490,7 +490,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       )}
 
       {rail === 'concept' && scopeNode && (
-        <ConceptPanel node={scopeNode} projectId={projectId} theme={project?.thematic_territory} conversationLog={project?.conceptualisation_log} />
+        <ConceptPanel node={scopeNode} projectId={projectId} conversationLog={project?.conceptualisation_log} />
       )}
 
       {rail === 'anchors' && scopeNode && (

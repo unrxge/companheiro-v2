@@ -83,6 +83,16 @@ export function JourneyCurve({ text, height = 64 }: { text: string; height?: num
     })
   }, [stages, n, H])
 
+  // On touch there's no hover: a tap on a step opens its text, a tap anywhere else closes it.
+  useEffect(() => {
+    if (hovered === null) return
+    const close = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setHovered(null); setPos(null) }
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [hovered])
+
   if (n === 0) return null
 
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
@@ -125,7 +135,7 @@ export function JourneyCurve({ text, height = 64 }: { text: string; height?: num
         <path d={`${d} L ${pts[pts.length - 1].x} ${H + 2} L ${pts[0].x} ${H + 2} Z`} fill="url(#journeyFill)" />
         <path d={d} fill="none" stroke={t.divider} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         {pts.map((p, i) => (
-          <g key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} style={{ cursor: 'default' }}>
+          <g key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} onClick={() => enter(i)} style={{ cursor: 'default' }}>
             <circle cx={p.x} cy={p.y} r={18} fill="transparent" />
             <circle cx={p.x} cy={p.y} r={hovered === i ? 6 : 4} fill={t[p.hue]} stroke={t.cardBg} strokeWidth={2} style={{ transition: 'r 0.15s' }} />
           </g>
@@ -135,7 +145,7 @@ export function JourneyCurve({ text, height = 64 }: { text: string; height?: num
       {compact ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 16px', marginTop: 10 }}>
           {stages.map((s, i) => (
-            <span key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} style={{ ...labelStyle(i), display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <span key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} onClick={() => enter(i)} style={{ ...labelStyle(i), display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: t[pts[i].hue], flexShrink: 0 }} />
               {s.label}
             </span>
@@ -144,7 +154,7 @@ export function JourneyCurve({ text, height = 64 }: { text: string; height?: num
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, marginTop: 8 }}>
           {stages.map((s, i) => (
-            <span key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} style={{ ...labelStyle(i), textAlign: 'center', padding: '0 4px' }}>
+            <span key={i} onMouseEnter={() => enter(i)} onMouseLeave={leave} onClick={() => enter(i)} style={{ ...labelStyle(i), textAlign: 'center', padding: '0 4px' }}>
               {s.label}
             </span>
           ))}

@@ -113,11 +113,9 @@ function useFieldStyle(): React.CSSProperties {
 
 // ── the core concept ─────────────────────────────────────────────────────────
 
-export function ConceptPanel({ node, projectId, theme, conversationLog }: {
+export function ConceptPanel({ node, projectId, conversationLog }: {
   node: TreeNode
   projectId: string
-  /** The project's theme, from the core concept's first phase. */
-  theme?: string | null
   /** The Idea Lab back-and-forth the concept came out of, kept on the project. */
   conversationLog?: ConversationLogMessage[] | null
 }) {
@@ -128,10 +126,8 @@ export function ConceptPanel({ node, projectId, theme, conversationLog }: {
   const conviction = (node.intent ?? '').trim()
   const journey = (node.emotional_journey ?? '').trim()
   const truth = (node.core_truth ?? '').trim()
-  const suggestions = (node.substack_goals ?? '').trim()
-  const visuals = (node.short_form_goals ?? '').trim()
   const stillOpen = (node.open_threads ?? []).filter((x) => x && x.trim())
-  const hasConcept = !!(journey || truth || suggestions || visuals || stillOpen.length)
+  const hasConcept = !!(journey || truth || stillOpen.length)
 
   const conversation = (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -175,40 +171,10 @@ export function ConceptPanel({ node, projectId, theme, conversationLog }: {
 
   const body: React.CSSProperties = { ...typeRoles.ui, fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0 }
 
-  // The same document the core concept page locks, read-only: cards per phase,
-  // the journey drawn as a curve, the lists dashed.
+  // The locked core concept, read-only: the truth first, then the conviction,
+  // then the journey as its curve (hover or tap a step for its sentence).
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {(conviction || theme) && (
-        <Card inner padding={18}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {theme && (
-              <div>
-                <Eyebrow style={{ marginBottom: 8 }}>Theme</Eyebrow>
-                <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, margin: 0 }}>{theme}</p>
-              </div>
-            )}
-            {conviction && (
-              <div>
-                <Eyebrow style={{ marginBottom: 10 }}>Conviction</Eyebrow>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
-                  <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, opacity: 0.6 }} />
-                  <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.65, fontWeight: 500, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{conviction}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {journey && (
-        <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 10 }}>Emotional journey</Eyebrow>
-          <JourneyCurve text={journey} />
-          <p style={{ ...body, marginTop: 12, whiteSpace: 'pre-line' }}>{journey}</p>
-        </Card>
-      )}
-
       {truth && (
         <Card inner padding="26px 20px">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
@@ -218,10 +184,20 @@ export function ConceptPanel({ node, projectId, theme, conversationLog }: {
         </Card>
       )}
 
-      {suggestions && (
+      {conviction && (
         <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 4 }}>Writing suggestions</Eyebrow>
-          <DashedList lines={suggestions.split('\n')} />
+          <Eyebrow style={{ marginBottom: 10 }}>Conviction</Eyebrow>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+            <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, opacity: 0.6 }} />
+            <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.65, fontWeight: 500, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{conviction}</p>
+          </div>
+        </Card>
+      )}
+
+      {journey && (
+        <Card inner padding={18}>
+          <Eyebrow style={{ marginBottom: 10 }}>Emotional journey</Eyebrow>
+          <JourneyCurve text={journey} />
         </Card>
       )}
 
@@ -232,12 +208,6 @@ export function ConceptPanel({ node, projectId, theme, conversationLog }: {
         </Card>
       )}
 
-      {visuals && (
-        <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 8 }}>Visuals suggestions</Eyebrow>
-          <p style={{ ...body, whiteSpace: 'pre-line' }}>{visuals}</p>
-        </Card>
-      )}
 
       <div style={{ paddingTop: 8 }}>{conversation}</div>
     </div>
