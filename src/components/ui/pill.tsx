@@ -1,7 +1,7 @@
 'use client'
 
 import { useTheme } from '@/components/theme/theme-provider'
-import { fonts, type MeaningKey } from '@/lib/design-tokens'
+import { fonts, onColor, type MeaningKey } from '@/lib/design-tokens'
 
 /**
  * A small coloured label. Colour means something (arc, status, danger);
@@ -31,6 +31,10 @@ export function Pill({
   const color = hue === 'neutral' ? t.textSecondary : t[hue]
   const bg = hue === 'neutral' ? t.cardBgInner : t.soft[hue]
   const isSolid = solid || selected
+  // The fill and its text are chosen as a pair: neutral inverts with the theme
+  // (ink on paper, paper on coal), a hue takes whichever of white/ink reads on it.
+  const solidBg = hue === 'neutral' ? t.inverseBg : t[hue]
+  const solidText = hue === 'neutral' ? t.inverseText : onColor(solidBg)
   const s: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -43,8 +47,8 @@ export function Pill({
     padding: size === 'sm' ? '4px 10px' : '7px 14px',
     borderRadius: 999,
     whiteSpace: 'nowrap',
-    color: isSolid ? '#ffffff' : color,
-    backgroundColor: isSolid ? (hue === 'neutral' ? t.inverseBg : t[hue]) : bg,
+    color: isSolid ? solidText : color,
+    backgroundColor: isSolid ? solidBg : bg,
     border: 'none',
     cursor: onClick ? 'pointer' : undefined,
     transition: 'background-color 0.15s ease, color 0.15s ease',

@@ -16,7 +16,6 @@ import {
   StageRibbon,
   WeatherStrip,
   PhaseDots,
-  FacetCloud,
   SignalCards,
   JourneyCurve,
   ThreadMap,
@@ -253,19 +252,6 @@ export default function DesignGalleryPage() {
               <GhostButton size="sm" onClick={() => setPhase((p) => Math.max(1, p - 1))}>Back</GhostButton>
               <GhostButton size="sm" onClick={() => setPhase((p) => Math.min(5, p + 1))}>Advance</GhostButton>
             </div>
-          </Card>
-          <Card>
-            <p style={label}>FacetCloud · the portrait</p>
-            <FacetCloud
-              facets={[
-                { id: '1', statement: 'circles back to the body', weight: 1, freshness: 1, onClick: () => {} },
-                { id: '2', statement: 'needs a question, not advice', weight: 0.6, freshness: 0.9, onClick: () => {} },
-                { id: '3', statement: 'writes from anger first', weight: 0.5, freshness: 0.7, onClick: () => {} },
-                { id: '4', statement: 'avoids mornings', weight: 0.2, freshness: 0.4, onClick: () => {} },
-                { id: '5', statement: 'ideas arrive as titles', weight: 0.4, freshness: 0.85, onClick: () => {} },
-              ]}
-            />
-            <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 12 }}>Size is reinforcement, opacity is freshness. The cap and the decay become visible.</p>
           </Card>
           <Card style={{ gridColumn: '1 / -1' }}>
             <p style={label}>ThreadMap · published pieces and the threads between them</p>

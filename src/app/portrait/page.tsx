@@ -1,13 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
-import { DangerButton, GhostButton } from '@/components/ui/buttons'
-import { ModalDialog } from '@/components/ui/modal-dialog'
+import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
+import { GhostButton } from '@/components/ui/buttons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { Pill } from '@/components/ui/pill'
-import { FacetCloud } from '@/components/widgets'
 import { formatDateAsRelative } from '@/lib/dates'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
@@ -35,6 +32,19 @@ const KIND_HUE: Record<PortraitEntry['kind'], 'tide' | 'ochre' | 'ember' | 'verd
 }
 
 const DECAY_DAYS = 150
+/** Rows a section shows before it folds, and how many each "Show more" adds. */
+const PAGE_SIZE = 10
+/** Days left before retirement at which a row starts saying it is fading. */
+const FADING_WITHIN_DAYS = 45
+
+function daysUntilRetired(lastReinforcedAt: string): number {
+  const elapsed = (Date.now() - new Date(lastReinforcedAt).getTime()) / 86_400_000
+  return Math.max(0, Math.ceil(DECAY_DAYS - elapsed))
+}
+
+/** Folds a long section: the last rows fade into the card rather than stopping at a hard edge. */
+const FADE = 'linear-gradient(to bottom, #000 calc(100% - 96px), transparent 100%)'
+const FADE_STYLE: React.CSSProperties = { maskImage: FADE, WebkitMaskImage: FADE }
 
 export default function PortraitPage() {
   const { t } = useTheme()
@@ -43,8 +53,7 @@ export default function PortraitPage() {
   const [entries, setEntries] = useState<PortraitEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [retiringId, setRetiringId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<PortraitEntry | null>(null)
-  const [view, setView] = useState<'facets' | 'list'>('facets')
+  const [shown, setShown] = useState<Partial<Record<PortraitEntry['kind'], number>>>({})
 
   useEffect(() => {
     fetchEntries()
@@ -70,7 +79,6 @@ export default function PortraitPage() {
       const res = await fetch('/api/portrait/retire', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (res.ok) {
         setEntries((prev) => prev.filter((e) => e.id !== id))
-        if (selected?.id === id) setSelected(null)
       }
     } catch (err) {
       console.error('Failed to retire entry:', err)
@@ -78,21 +86,6 @@ export default function PortraitPage() {
       setRetiringId(null)
     }
   }
-
-  const facets = useMemo(() => {
-    const max = Math.max(1, ...entries.map((e) => e.reinforcement_count))
-    const now = Date.now()
-    return entries.map((e) => {
-      const days = (now - new Date(e.last_reinforced_at).getTime()) / 86_400_000
-      return {
-        id: e.id,
-        statement: e.statement,
-        weight: e.reinforcement_count / max,
-        freshness: Math.max(0, 1 - days / DECAY_DAYS),
-        onClick: () => setSelected(e),
-      }
-    })
-  }, [entries])
 
   const grouped = (Object.keys(KIND_LABELS) as PortraitEntry['kind'][])
     .map((kind) => ({ kind, items: entries.filter((e) => e.kind === kind) }))
@@ -103,15 +96,9 @@ export default function PortraitPage() {
       <PageHeader eyebrow="Companheiro" title="My portrait" subtitle="Only what you have confirmed. It shapes how the companion approaches you, never its voice." />
 
       <Container>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-          <p style={{ ...typeRoles.small, color: t.textSecondary, maxWidth: '58ch' }}>
-            Size is how often a facet has been reinforced. Fading means it has not come up in a while and will retire on its own at {DECAY_DAYS} days. Tap one to see it, or forget it.
-          </p>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Pill hue="neutral" selected={view === 'facets'} onClick={() => setView('facets')} size="md">Facets</Pill>
-            <Pill hue="neutral" selected={view === 'list'} onClick={() => setView('list')} size="md">List</Pill>
-          </div>
-        </div>
+        <p style={{ ...typeRoles.small, color: t.textSecondary, maxWidth: '58ch', marginBottom: 18 }}>
+          Each line has been reinforced the number of times shown. One that has not come up in a while starts to fade, and retires on its own at {DECAY_DAYS} days. Forget any of them at any time.
+        </p>
 
         {isLoading ? (
           <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
@@ -121,57 +108,48 @@ export default function PortraitPage() {
               Nothing confirmed yet. As you check in, develop ideas, write and zoom out, the system may occasionally ask if a pattern it has noticed feels true. What you confirm shows up here.
             </p>
           </Card>
-        ) : view === 'facets' ? (
-          <Card padding="32px 24px">
-            <FacetCloud facets={facets} />
-          </Card>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {grouped.map(({ kind, items }) => (
-              <Card key={kind}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t[KIND_HUE[kind]] }} />
-                  <Eyebrow>{KIND_LABELS[kind]}</Eyebrow>
-                </div>
-                {items.map((entry, index) => (
-                  <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '16px 0', borderBottom: index < items.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
-                      <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 4 }}>
-                        Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
-                      </p>
-                    </div>
-                    <GhostButton size="sm" onClick={() => handleRetire(entry.id)} disabled={retiringId === entry.id} loading={retiringId === entry.id} loadingLabel="Forgetting…">Forget this</GhostButton>
+            {grouped.map(({ kind, items }) => {
+              const limit = shown[kind] ?? PAGE_SIZE
+              const visible = items.slice(0, limit)
+              const remaining = items.length - visible.length
+              return (
+                <Card key={kind}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t[KIND_HUE[kind]] }} />
+                    <Eyebrow>{KIND_LABELS[kind]}</Eyebrow>
                   </div>
-                ))}
-              </Card>
-            ))}
+                  <div style={remaining > 0 ? FADE_STYLE : undefined}>
+                    {visible.map((entry, index) => {
+                      const left = daysUntilRetired(entry.last_reinforced_at)
+                      return (
+                        <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '16px 0', borderBottom: index < visible.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
+                            <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 4 }}>
+                              Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
+                              {left <= FADING_WITHIN_DAYS && <> · Fading, retires in {left} {left === 1 ? 'day' : 'days'}</>}
+                            </p>
+                          </div>
+                          <GhostButton size="sm" onClick={() => handleRetire(entry.id)} disabled={retiringId === entry.id} loading={retiringId === entry.id} loadingLabel="Forgetting…">Forget this</GhostButton>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {remaining > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}>
+                      <GhostButton size="sm" onClick={() => setShown((prev) => ({ ...prev, [kind]: limit + PAGE_SIZE }))}>
+                        Show {Math.min(PAGE_SIZE, remaining)} more · {remaining} left
+                      </GhostButton>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         )}
       </Container>
-
-      {selected && (
-        <ModalDialog
-          onClose={() => setSelected(null)}
-          title={KIND_LABELS[selected.kind]}
-          subtitle={<span>Reinforced {selected.reinforcement_count}× · last {formatDateAsRelative(selected.last_reinforced_at)}</span>}
-          maxWidth="520px"
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-              <GhostButton onClick={() => setSelected(null)}>Close</GhostButton>
-              <DangerButton onClick={() => handleRetire(selected.id)} loading={retiringId === selected.id} loadingLabel="Forgetting…">Forget this</DangerButton>
-            </div>
-          }
-        >
-          <Card>
-            <p style={{ ...typeRoles.quote, color: t.textPrimary }}>{selected.statement}</p>
-            <Divider style={{ margin: '16px 0 12px' }} />
-            <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>
-              This facet adapts which questions the companion asks and when it challenges you. It never changes its tone.
-            </p>
-          </Card>
-        </ModalDialog>
-      )}
     </PageShell>
   )
 }

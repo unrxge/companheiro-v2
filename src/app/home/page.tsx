@@ -11,7 +11,7 @@ import { UnderlineLink } from '@/components/ui/underline-link'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { ProportionBar, WeatherStrip } from '@/components/widgets'
-import { shell, type as typeRoles, type Mood } from '@/lib/design-tokens'
+import { shell, onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working, WorkingDots } from '@/components/ui/working'
 
@@ -299,7 +299,7 @@ function HomeContent() {
                   }}
                 />
                 {captureError && <p style={{ ...typeRoles.small, fontSize: 11, color: t.danger }}>{captureError}</p>}
-                <QuietButton onClick={handleQuickCapture} disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())} loading={isCapturing} loadingLabel="Capturing…" full style={justCaptured ? { backgroundColor: t.verdant, color: '#fff' } : undefined}>
+                <QuietButton onClick={handleQuickCapture} disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())} loading={isCapturing} loadingLabel="Capturing…" full style={justCaptured ? { backgroundColor: t.verdant, color: onColor(t.verdant) } : undefined}>
                   {justCaptured ? 'Captured ✓' : 'Capture'}
                 </QuietButton>
               </div>
