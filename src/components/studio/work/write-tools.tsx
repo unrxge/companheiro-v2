@@ -162,8 +162,19 @@ export function ConceptPanel({ node, projectId, conversationLog }: {
     )
   }
 
+  // The piece's conviction is its intent; shown first, as the Write page always did.
+  const conviction = (node.intent ?? '').trim()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {conviction && (
+        <div>
+          <Label style={{ marginBottom: 8 }}>Conviction</Label>
+          <p style={{ ...canvasType.small, fontSize: 14, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line', color: t.textSecondary }}>
+            {conviction}
+          </p>
+        </div>
+      )}
       {fields.map((f) => (
         <div key={f.label}>
           <Label style={{ marginBottom: 8 }}>{f.label}</Label>

@@ -33,7 +33,7 @@ import { Studio, type StudioHandle } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
 import { LockModal } from '@/components/studio/work/lock-modal'
-import { CompanionLauncher, Drawer, PART_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
+import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
 import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
@@ -765,7 +765,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
         open={rail}
         onOpen={setRail}
         hidden={focus.kind === 'thread' || sheeted}
-        tools={isRootPiece ? undefined : PART_TOOLS}
+        tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
         counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />
       {companionDrawer}
