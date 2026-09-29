@@ -31,8 +31,8 @@ export default function PrivacyPage() {
       <UL>
         <li>Your email address and a password (stored only as a one-way hash by our authentication provider; we never see it).</li>
         <li>
-          If you sign in with Apple or Google, the email address (and, if they share it, your name) that they pass to us. With Apple you can choose to hide
-          your real address; we then receive a private relay address instead. We never receive your Apple or Google password.
+          If you sign in with Google, the email address (and, if Google shares it, your name) that Google passes to us. We never receive your Google
+          password.
         </li>
         <li>Settings you choose, such as theme, dictation language and whether the weekly letter is on.</li>
         <li>Which version of our Terms and this policy you agreed to when you created your account, and when.</li>
@@ -117,11 +117,10 @@ export default function PrivacyPage() {
           Sign-in emails to you are sent by Supabase.
         </li>
       </UL>
-      <H3>Sign in with Apple or Google</H3>
+      <H3>Sign in with Google</H3>
       <p>
-        If you choose to, Apple or Google confirm who you are and pass us your email address. They act as independent controllers under their own privacy
-        policies (<A href="https://www.apple.com/legal/privacy/">Apple</A>, <A href="https://policies.google.com/privacy">Google</A>) and learn that you
-        signed in to Companheiro. We share nothing else with them.
+        If you choose to, Google confirms who you are and passes us your email address. Google acts as an independent controller under{' '}
+        <A href="https://policies.google.com/privacy">its own privacy policy</A> and learns that you signed in to Companheiro. We share nothing else with them.
       </p>
       <H3>Payments</H3>
       <p>

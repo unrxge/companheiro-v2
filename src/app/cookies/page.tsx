@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 // consent banner BEFORE it is set, under PECR reg 6 / ePrivacy art 5(3).
 const ROWS: { name: string; kind: string; purpose: string; lasts: string }[] = [
   { name: 'sb-…-auth-token', kind: 'Cookie (first-party)', purpose: 'Keeps you signed in. Set by our sign-in provider, Supabase.', lasts: 'Until you sign out, refreshed while you use the app' },
-  { name: 'sb-…-auth-token-code-verifier', kind: 'Cookie (first-party)', purpose: 'Holds a one-time check while you sign in with Apple or Google, so the sign-in can only be finished in the browser that started it.', lasts: 'Until the sign-in finishes' },
+  { name: 'sb-…-auth-token-code-verifier', kind: 'Cookie (first-party)', purpose: 'Holds a one-time check while you sign in with Google, so the sign-in can only be finished in the browser that started it.', lasts: 'Until the sign-in finishes' },
   { name: 'companheiro-card-theme', kind: 'Local storage', purpose: 'Remembers the light or dark theme you picked.', lasts: 'Until you clear it' },
   { name: 'companheiro-dictation-lang', kind: 'Local storage', purpose: 'Remembers the language the microphone listens for.', lasts: 'Until you clear it' },
   { name: 'handover and draft keys', kind: 'Session storage', purpose: 'Carries what you just wrote from one step to the next (for example from a check-in into an idea).', lasts: 'Until you close the tab' },

@@ -1,14 +1,14 @@
 'use client'
 
 // The one page for signing in and creating an account (/login; /signup
-// redirects here with mode=create). Apple and Google sign in or register in
-// the same step, so the mode switch only changes what the email form does.
+// redirects here with mode=create). Google signs in or registers in the same
+// step, so the mode switch only changes what the email form does.
 //
 // Agreement is by the sentence under the buttons (no tick boxes, at the
 // owner's request): age, AI processing and wellbeing data are covered in the
 // Terms and Privacy Policy it links to. The accepted version is stored on the
 // auth user as `consent` (here for email sign-up, in /api/auth/callback for
-// Apple and Google).
+// Google).
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -27,7 +27,7 @@ import type { OAuthProvider } from '@/lib/auth-providers'
 
 type Mode = 'signin' | 'create'
 
-const PROVIDER_NAME: Record<OAuthProvider, string> = { apple: 'Apple', google: 'Google' }
+const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google' }
 
 export function AuthForm({ initialMode, providers, oauthFailed }: { initialMode: Mode; providers: OAuthProvider[]; oauthFailed: boolean }) {
   const router = useRouter()
@@ -53,7 +53,7 @@ export function AuthForm({ initialMode, providers, oauthFailed }: { initialMode:
     const callback = new URL('/api/auth/callback', window.location.origin)
     for (const [k, v] of Object.entries(readAttribution())) if (v) callback.searchParams.set(k, v)
     const { error: err } = await createClient().auth.signInWithOAuth({ provider, options: { redirectTo: callback.toString() } })
-    // On success the browser is already on its way to Apple or Google.
+    // On success the browser is already on its way to Google.
     if (err) {
       setError(`Couldn’t reach ${PROVIDER_NAME[provider]}. Please try again, or use your email.`)
       setOauthBusy(null)

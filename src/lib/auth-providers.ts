@@ -5,13 +5,13 @@
 // → Sign In / Providers), with no redeploy, and never shows while switching it
 // on is still pending (Supabase would answer the click with a raw JSON error).
 
-export type OAuthProvider = 'apple' | 'google'
+export type OAuthProvider = 'google'
 
-const ORDER: OAuthProvider[] = ['apple', 'google']
+const ORDER: OAuthProvider[] = ['google']
 
 export async function enabledProviders(): Promise<OAuthProvider[]> {
-  // Local dev shows both so the page can be laid out and checked; clicking
-  // one only works once the provider is enabled in the Supabase project.
+  // Local dev always shows the button so the page can be laid out and
+  // checked; clicking it only works once Google is enabled in Supabase.
   if (process.env.NODE_ENV === 'development') return ORDER
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

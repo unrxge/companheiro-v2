@@ -3,7 +3,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { adminClient } from '@/lib/supabase/admin'
 import { LEGAL_VERSION } from '@/lib/legal'
 
-// Where Apple and Google send people back to (the `redirectTo` given to
+// Where Google sends people back to (the `redirectTo` given to
 // signInWithOAuth on /login). Supabase has already verified them with the
 // provider; this swaps the one-time code for a session cookie. It lives under
 // /api so middleware (which sends signed-out visitors to /login) leaves it alone.
@@ -14,7 +14,7 @@ import { LEGAL_VERSION } from '@/lib/legal'
 
 const ATTRIBUTION_KEYS = ['source', 'medium', 'campaign', 'ref', 'via', 'landing'] as const
 const LIMITS: Record<(typeof ATTRIBUTION_KEYS)[number], number> = { source: 80, medium: 80, campaign: 120, ref: 80, via: 120, landing: 200 }
-// Long enough to cover a slow trip through Apple or Google, short enough that
+// Long enough to cover a slow trip through Google, short enough that
 // a returning account never looks new.
 const NEW_ACCOUNT_MS = 15 * 60_000
 
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
   const code = url.searchParams.get('code')
   if (!code) {
-    // The person cancelled at Apple/Google, or the provider refused.
+    // The person cancelled at Google, or Google refused.
     if (url.searchParams.get('error')) console.warn('oauth callback:', url.searchParams.get('error_description') ?? url.searchParams.get('error'))
     return fail()
   }
