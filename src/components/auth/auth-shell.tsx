@@ -17,11 +17,17 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
           <h1 style={{ ...typeRoles.display, color: shell.text }}>{title}</h1>
           {subtitle && <p style={{ ...typeRoles.ui, fontSize: 14, color: shell.muted, marginTop: 10, maxWidth: '40ch' }}>{subtitle}</p>}
         </div>
-        <Container>
+        {/* Spacing accounts for the shadows, not just the boxes: the card's
+            shadow drops 12px and blurs 28px, so the footer starts clear of
+            it; the container's is heavier still (30px/70px), so the legal
+            links sit further out. Margins go after the type spread, which
+            resets margin to 0. The bottom padding is trimmed by the footer
+            line's half-leading so the text looks as inset as the card. */}
+        <Container padding={footer ? '24px 24px 21px' : 24}>
           <Card>{children}</Card>
-          {footer && <div style={{ marginTop: 16, ...typeRoles.small, color: t.textSecondary, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>{footer}</div>}
+          {footer && <div style={{ ...typeRoles.small, marginTop: 22, color: t.textSecondary, display: 'flex', gap: '6px 14px', flexWrap: 'wrap', justifyContent: 'center' }}>{footer}</div>}
         </Container>
-        <nav aria-label="Legal" style={{ marginTop: 20, ...typeRoles.small, fontSize: 12, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <nav aria-label="Legal" style={{ ...typeRoles.small, marginTop: 32, fontSize: 12, display: 'flex', gap: '6px 14px', flexWrap: 'wrap', justifyContent: 'center' }}>
           {LEGAL_PAGES.slice(0, 4).map((p) => (
             <Link key={p.href} href={p.href} style={{ color: shell.muted }}>{p.label}</Link>
           ))}
