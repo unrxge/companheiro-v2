@@ -44,8 +44,8 @@ export default function TermsPage() {
       <H2 id="account">4. Your account</H2>
       <UL>
         <li>You must be 18 or over. By creating an account you confirm that you are.</li>
-        <li>You can sign in with an email address and password, or with your Google account.</li>
-        <li>One account per person. Keep your password to yourself; you are responsible for what happens under your account.</li>
+        <li>You sign in with a link we email to you, or with your Google account.</li>
+        <li>One account per person. Keep access to your email and Google account to yourself; you are responsible for what happens under your account.</li>
         <li>Give a real email address you can receive mail at. We use it for sign-in, security and important notices about your account.</li>
       </UL>
 

@@ -7,14 +7,15 @@ import { shell, type as typeRoles } from '@/lib/design-tokens'
 import { LEGAL_PAGES } from '@/lib/legal'
 
 /** Auth screens: atmosphere, no dock, one card, the wordmark above. */
-export function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode }) {
+/** `wide` gives the column room for a one-line title on desktop (it may still wrap on phones). */
+export function AuthShell({ title, subtitle, children, footer, wide = false }: { title: string; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean }) {
   const { t } = useTheme()
   return (
-    <PageShell mood="ember" intensity={0.9} maxWidth={440} dock={false}>
+    <PageShell mood="ember" intensity={0.9} maxWidth={wide ? 520 : 440} dock={false}>
       <div style={{ minHeight: 'calc(100dvh - 120px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <div style={{ marginBottom: 24 }}>
           <p style={{ ...typeRoles.eyebrow, color: shell.muted, marginBottom: 10 }}>Companheiro</p>
-          <h1 style={{ ...typeRoles.display, color: shell.text }}>{title}</h1>
+          <h1 className={wide ? 'md:whitespace-nowrap' : undefined} style={{ ...typeRoles.display, color: shell.text }}>{title}</h1>
           {subtitle && <p style={{ ...typeRoles.ui, fontSize: 14, color: shell.muted, marginTop: 10, maxWidth: '40ch' }}>{subtitle}</p>}
         </div>
         {/* Spacing accounts for the shadows, not just the boxes: the card's
