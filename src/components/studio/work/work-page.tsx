@@ -262,7 +262,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     if (kind === 'divide' && alreadyParts) {
       const ok = await confirm({
         title: 'Cut the draft along its beats?',
-        body: 'The words stay exactly as they are, in order. The parts are cut again, so their names, and where anchor lines were placed, start over.',
+        body: 'The words stay exactly as they are, in order. The parts are cut again, so their names, and where fragments were placed, start over.',
         confirmLabel: 'Divide',
       })
       if (!ok) return
@@ -289,7 +289,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       await tools.reloadLines()
       if (kind === 'place') {
         setShapeNote(data.type === 'loose'
-          ? 'Your notes are now anchor lines, placed in the sections that suit them.'
+          ? 'Your notes are now fragments, placed in the sections that suit them.'
           : 'Your draft has been placed across the sections drawn from its emotional journey.')
       }
     } catch {
@@ -490,7 +490,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       )}
 
       {rail === 'concept' && scopeNode && (
-        <ConceptPanel node={scopeNode} projectId={projectId} conversationLog={project?.conceptualisation_log} />
+        <ConceptPanel node={scopeNode} projectId={projectId} theme={project?.thematic_territory} conversationLog={project?.conceptualisation_log} />
       )}
 
       {rail === 'anchors' && scopeNode && (

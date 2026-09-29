@@ -28,7 +28,7 @@ export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
   { key: 'intent', label: 'What this is for', icon: icon(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /></>) },
   { key: 'concept', label: 'The core concept', icon: icon(<><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" /></>) },
   { key: 'rules', label: 'The rules', icon: icon(<><path d="M5 4h14v16H5z" /><line x1="8.5" y1="9" x2="15.5" y2="9" /><line x1="8.5" y1="13" x2="15.5" y2="13" /><line x1="8.5" y1="17" x2="12" y2="17" /></>) },
-  { key: 'anchors', label: 'Anchor lines', icon: icon(<path d="M6 4h12v16l-6-4-6 4z" />) },
+  { key: 'anchors', label: 'Fragments', icon: icon(<path d="M6 4h12v16l-6-4-6 4z" />) },
   { key: 'tasks', label: 'Tasks', icon: icon(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 12l2 2 4-4" /></>) },
   { key: 'assistant', label: 'Writing assistant', icon: icon(<path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" />) },
   { key: 'companion', label: 'Talk it through', icon: icon(<><path d="M20 14a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3z" /></>) },

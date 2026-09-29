@@ -124,7 +124,7 @@ export function ThreadCard({
           <InlineField
             ariaLabel="What this thread is for"
             value={thread.intent}
-            placeholder="What is it holding? An anchor line, a constraint, something you must not forget…"
+            placeholder="What is it holding? A fragment, a constraint, something you must not forget…"
             multiline
             disabled={disabled}
             onCommit={(intent) => onEdit({ intent })}

@@ -359,11 +359,11 @@ export function Studio({
                   <>
                     {sectioned && onAddLine && (
                       <HeaderAction
-                        label="The lines placed in this part"
+                        label="The fragments placed in this part"
                         tone={openLines === part.id ? t.textPrimary : t.textMuted}
                         onClick={() => setOpenLines(openLines === part.id ? null : part.id)}
                       >
-                        Lines{partLines.length > 0 ? ` (${partLines.length})` : ''}
+                        Fragments{partLines.length > 0 ? ` (${partLines.length})` : ''}
                       </HeaderAction>
                     )}
                     {sectioned ? (

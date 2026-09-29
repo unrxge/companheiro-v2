@@ -6,12 +6,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { JourneyNavNode } from '@/components/widgets'
+import { JourneyCurve, JourneyNavNode } from '@/components/widgets'
+import { Card, Divider, Eyebrow } from '@/components/shell/page-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Label } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius, widths } from '@/lib/design-tokens'
+import { alpha, radius, type as typeRoles, widths } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 
@@ -112,41 +113,51 @@ function useFieldStyle(): React.CSSProperties {
 
 // ── the core concept ─────────────────────────────────────────────────────────
 
-export function ConceptPanel({ node, projectId, conversationLog }: {
+export function ConceptPanel({ node, projectId, theme, conversationLog }: {
   node: TreeNode
   projectId: string
+  /** The project's theme, from the core concept's first phase. */
+  theme?: string | null
   /** The Idea Lab back-and-forth the concept came out of, kept on the project. */
   conversationLog?: ConversationLogMessage[] | null
 }) {
   const { t } = useTheme()
   const [showLog, setShowLog] = useState(false)
   const hasLog = !!conversationLog && conversationLog.some((m) => m.content?.trim())
-  const conversation = hasLog && (
-    <>
-      <button
-        type="button"
-        onClick={() => setShowLog(true)}
-        style={{
-          ...canvasType.small, alignSelf: 'flex-start', padding: 0, background: 'none', border: 'none',
-          color: t.ember, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3,
-        }}
-      >
-        Read the conversation that shaped this
-      </button>
+
+  const conviction = (node.intent ?? '').trim()
+  const journey = (node.emotional_journey ?? '').trim()
+  const truth = (node.core_truth ?? '').trim()
+  const suggestions = (node.substack_goals ?? '').trim()
+  const visuals = (node.short_form_goals ?? '').trim()
+  const stillOpen = (node.open_threads ?? []).filter((x) => x && x.trim())
+  const hasConcept = !!(journey || truth || suggestions || visuals || stillOpen.length)
+
+  const conversation = (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      {hasLog ? (
+        <button
+          type="button"
+          onClick={() => setShowLog(true)}
+          style={{
+            ...canvasType.small, padding: 0, background: 'none', border: 'none',
+            color: t.ember, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3,
+          }}
+        >
+          Read the conversation that shaped this
+        </button>
+      ) : (
+        <span style={{ ...canvasType.chip, color: t.textMuted, textAlign: 'center' }}>
+          No Idea Lab conversation was kept for this piece.
+        </span>
+      )}
       {showLog && conversationLog && (
         <ConversationLogModal messages={conversationLog} onClose={() => setShowLog(false)} title="How this idea took shape" />
       )}
-    </>
+    </div>
   )
-  const fields = [
-    { label: 'Emotional journey', text: node.emotional_journey ?? '', strong: false },
-    { label: 'Core truth', text: node.core_truth ?? '', strong: true },
-    { label: 'Writing suggestions', text: node.substack_goals ?? '', strong: false },
-    { label: 'Visuals suggestions', text: node.short_form_goals ?? '', strong: false },
-  ].filter((f) => f.text.trim())
-  const stillOpen = (node.open_threads ?? []).filter((x) => x && x.trim())
 
-  if (fields.length === 0 && stillOpen.length === 0) {
+  if (!hasConcept) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>This piece started without a core concept.</p>
@@ -157,46 +168,96 @@ export function ConceptPanel({ node, projectId, conversationLog }: {
         <Link href={`/idea-lab/core-concept?project=${projectId}`} style={{ ...canvasType.small, color: t.ember, textDecoration: 'none' }}>
           Build the core concept →
         </Link>
-        {conversation}
+        {hasLog && conversation}
       </div>
     )
   }
 
-  // The piece's conviction is its intent; shown first, as the Write page always did.
-  const conviction = (node.intent ?? '').trim()
+  const body: React.CSSProperties = { ...typeRoles.ui, fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0 }
 
+  // The same document the core concept page locks, read-only: cards per phase,
+  // the journey drawn as a curve, the lists dashed.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      {conviction && (
-        <div>
-          <Label style={{ marginBottom: 8 }}>Conviction</Label>
-          <p style={{ ...canvasType.small, fontSize: 14, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line', color: t.textSecondary }}>
-            {conviction}
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {(conviction || theme) && (
+        <Card inner padding={18}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {theme && (
+              <div>
+                <Eyebrow style={{ marginBottom: 8 }}>Theme</Eyebrow>
+                <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, margin: 0 }}>{theme}</p>
+              </div>
+            )}
+            {conviction && (
+              <div>
+                <Eyebrow style={{ marginBottom: 10 }}>Conviction</Eyebrow>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+                  <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, opacity: 0.6 }} />
+                  <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.65, fontWeight: 500, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{conviction}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       )}
-      {fields.map((f) => (
-        <div key={f.label}>
-          <Label style={{ marginBottom: 8 }}>{f.label}</Label>
-          <p style={{ ...canvasType.small, fontSize: 14, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line', color: f.strong ? t.textPrimary : t.textSecondary, fontWeight: f.strong ? 500 : 400 }}>
-            {f.text}
-          </p>
+
+      {journey && (
+        <Card inner padding={18}>
+          <Eyebrow style={{ marginBottom: 10 }}>Emotional journey</Eyebrow>
+          <JourneyCurve text={journey} />
+          <p style={{ ...body, marginTop: 12, whiteSpace: 'pre-line' }}>{journey}</p>
+        </Card>
+      )}
+
+      {truth && (
+        <Card inner padding="26px 20px">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+            <Eyebrow>Core truth</Eyebrow>
+            <p style={{ ...typeRoles.ui, fontSize: 18, fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.02em', color: t.textPrimary, margin: 0 }}>{truth}</p>
+          </div>
+        </Card>
+      )}
+
+      {suggestions && (
+        <Card inner padding={18}>
+          <Eyebrow style={{ marginBottom: 4 }}>Writing suggestions</Eyebrow>
+          <DashedList lines={suggestions.split('\n')} />
+        </Card>
+      )}
+
+      {stillOpen.length > 0 && (
+        <Card inner padding={18}>
+          <Eyebrow style={{ marginBottom: 4 }}>Open threads</Eyebrow>
+          <DashedList lines={stillOpen} />
+        </Card>
+      )}
+
+      {visuals && (
+        <Card inner padding={18}>
+          <Eyebrow style={{ marginBottom: 8 }}>Visuals suggestions</Eyebrow>
+          <p style={{ ...body, whiteSpace: 'pre-line' }}>{visuals}</p>
+        </Card>
+      )}
+
+      <div style={{ paddingTop: 8 }}>{conversation}</div>
+    </div>
+  )
+}
+
+function DashedList({ lines }: { lines: string[] }) {
+  const { t } = useTheme()
+  const items = lines.map((l) => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean)
+  return (
+    <div>
+      {items.map((line, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', gap: 10, ...typeRoles.ui, fontSize: 14, lineHeight: 1.55, color: t.textPrimary, padding: '9px 0' }}>
+            <span style={{ color: t.ember, flexShrink: 0 }}>—</span>
+            <span>{line}</span>
+          </div>
+          {i < items.length - 1 && <Divider />}
         </div>
       ))}
-      {stillOpen.length > 0 && (
-        <div>
-          <Label style={{ marginBottom: 8 }}>Still open</Label>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {stillOpen.map((line, i) => (
-              <li key={i} style={{ ...canvasType.small, color: t.textSecondary, display: 'flex', gap: 10 }}>
-                <span aria-hidden style={{ color: t.textMuted }}>—</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {conversation}
     </div>
   )
 }
@@ -300,10 +361,10 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <textarea
-          aria-label="An anchor line"
+          aria-label="A fragment"
           value={draft}
-          rows={3}
-          placeholder="A line dear to you — we’ll place it…"
+          rows={5}
+          placeholder="A line, an image, a half-thought you don’t want to lose. Drop it here, however unfinished. We’ll find the section it belongs in, and the writing assistant will help you work it into the prose."
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void add() } }}
           style={{ ...field, width: '100%', resize: 'none' }}
@@ -316,7 +377,7 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
         </div>
       </div>
       {lines.length === 0 ? (
-        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>No anchor lines yet.</p>
+        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>No fragments yet.</p>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {lines.map((line) => (
@@ -359,7 +420,7 @@ export function PartLines({ lines, onAdd, onRemove }: {
   return (
     <div style={{ margin: '4px 0 6px 16px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, borderRadius: radius.widget, background: alpha(t.textPrimary, 0.04) }}>
       {lines.length === 0 ? (
-        <span style={{ ...canvasType.chip, color: t.textMuted }}>No lines placed here yet.</span>
+        <span style={{ ...canvasType.chip, color: t.textMuted }}>No fragments placed here yet.</span>
       ) : (
         lines.map((line) => (
           <div key={line.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
