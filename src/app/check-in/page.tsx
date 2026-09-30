@@ -658,10 +658,10 @@ export default function CheckInPage() {
                       <Eyebrow style={{ marginBottom: 8 }}>This sounds like it belongs to {belongs.title}</Eyebrow>
                       <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
                       <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <GhostButton size="sm" onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Adding…">
+                        <QuietButton onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Adding…">
                           Add it there
-                        </GhostButton>
-                        <QuietButton onClick={() => setBelongsState('dismissed')}>Leave it here</QuietButton>
+                        </QuietButton>
+                        <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
                         {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
                       </div>
                     </>

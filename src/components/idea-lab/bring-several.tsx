@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Eyebrow } from '@/components/shell/page-shell'
-import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons'
+import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
 import { MicButton } from '@/components/ui/mic-button'
 import { alpha, radius, type as typeRoles } from '@/lib/design-tokens'
@@ -144,15 +144,15 @@ export function BringSeveral({ captures, onBack }: { captures: CaptureLike[]; on
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {items.length < MAX_ITEMS && (
-          <QuietButton onClick={() => setItems((prev) => [...prev, { kind: '', text: '' }])}>+ Another thing</QuietButton>
+          <GhostButton size="sm" onClick={() => setItems((prev) => [...prev, { kind: '', text: '' }])}>+ Another thing</GhostButton>
         )}
-        {!full && <QuietButton onClick={() => setPicker(picker === 'pieces' ? null : 'pieces')}>From your writing</QuietButton>}
-        {!full && captures.length > 0 && <QuietButton onClick={() => setPicker(picker === 'captures' ? null : 'captures')}>From your Capture bank</QuietButton>}
+        {!full && <GhostButton size="sm" onClick={() => setPicker(picker === 'pieces' ? null : 'pieces')}>From your writing</GhostButton>}
+        {!full && captures.length > 0 && <GhostButton size="sm" onClick={() => setPicker(picker === 'captures' ? null : 'captures')}>From your Capture bank</GhostButton>}
       </div>
 
       {picker === 'pieces' && (pieces === null
         ? <p style={{ ...typeRoles.small, color: t.textMuted }}>Opening your writing…</p>
-        : pickerList(pieces.map((p) => ({ id: p.id, title: p.title, body: p.excerpt, kind: `Draft: ${p.title}`.slice(0, 40) })), 'Nothing written yet.'))}
+        : pickerList(pieces.map((p) => ({ id: p.id, title: p.title, body: p.excerpt, kind: `Draft, “${p.title.slice(0, 30)}”` })), 'Nothing written yet.'))}
       {picker === 'captures' && pickerList(
         captures.map((c) => ({ id: c.id, title: c.raw_input.slice(0, 80), body: c.unpacked, kind: 'Something I saved' })),
         'No captures yet.',

@@ -315,7 +315,7 @@ export default function IdeaLabPage() {
                 <>
                   <div>
                     <p style={{ ...typeRoles.h2, fontSize: 'clamp(22px, 3.4vw, 28px)', color: shell.text, marginBottom: 10 }}>Where are you starting from?</p>
-                    <p style={{ ...typeRoles.ui, fontSize: 14, color: shell.muted }}>Either way, you&apos;ll end with a core concept.</p>
+                    <p style={{ ...typeRoles.ui, fontSize: 14, color: shell.muted }}>Whichever you choose, you&apos;ll end with a core concept.</p>
                   </div>
                   <div className="idea-lab-entry">
                     {[

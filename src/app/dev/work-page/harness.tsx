@@ -47,7 +47,7 @@ function node(id: string, parent: string | null, position: number, title: string
   }
 }
 
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean }
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -80,6 +80,20 @@ function installMock(o: Opts) {
   ]
   const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
   let seq = 100
+  const threads: Array<Record<string, unknown>> = []
+  const tags: Array<{ node_id: string; thread_id: string; note: string }> = []
+  // ?pieces=1: a board of three pieces, for thread suggestions.
+  if (o.pieces) {
+    nodes.push(
+      node('node-2', null, 1, 'The Room I Never Used', '', paragraphs('Every house I have lived in had a room I never used, kept for a guest who never came.'), { intent: 'A song about rooms kept for later.' }),
+      node('node-3', null, 2, 'Before Opening', '', paragraphs('Empty café chairs, stacked, waiting for a day to start.'), { intent: 'Photographs of things waiting to be used.' }),
+    )
+  }
+  // Rules and proposals, the same lifecycle as lib/studio/rule-proposals.ts.
+  const projectRules: Array<{ id: string; text: string; created_at: string; retired_at: null }> = []
+  const proposals: Array<{ id: string; project_id: string; node_id: string | null; kind: string; statement: string; quote: string; source: string; created_at: string }> = []
+  const openChecks: unknown[] = []
+  let suggestions = [{ id: 'sg-1', name: 'Kept for later', intent: 'Things saved for a day that never comes.', piece_ids: ['node-1', 'node-2'], why: 'A room “kept for a guest who never came” and a morning when nobody needed you.' }]
 
   const resync = (parentId: string | null) => {
     while (parentId) {
@@ -128,7 +142,44 @@ function installMock(o: Opts) {
       return fn()
     }
 
-    if (path === '/api/studio/projects/demo/tree') return json({ project: project(o.text, o.board, o.concept), tree: { nodes, threads: [], tags: [], open_checks: [] } })
+    if (path === '/api/studio/projects/demo/tree') return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), rules: projectRules }, tree: { nodes, threads, tags, open_checks: openChecks } })
+    if (path === '/api/studio/projects/demo/proposals') {
+      const nodeId = new URL(url, location.origin).searchParams.get('node_id')
+      return json({ proposals: proposals.filter((p) => p.node_id === nodeId) })
+    }
+    const decide = path.match(/^\/api\/studio\/proposals\/([^/]+)$/)
+    if (decide && method === 'POST') return write(() => {
+      const i = proposals.findIndex((p) => p.id === decide[1])
+      if (i < 0) return json({ error: 'already answered' }, 409)
+      const [p] = proposals.splice(i, 1)
+      if (body.action !== 'keep') return json({ rule: null, target: null })
+      const rule = { id: `r-${++seq}`, text: body.text ?? p.statement, created_at: NOW, retired_at: null }
+      const target = p.node_id ? nodes.find((n) => n.id === p.node_id) : null
+      if (target) target.rules = [...target.rules, rule]
+      else projectRules.push(rule)
+      return json({ rule, target: target ? 'node' : 'project' })
+    })
+    const check = path.match(/^\/api\/studio\/nodes\/([^/]+)\/check$/)
+    if (check && method === 'POST') return write(() => {
+      const n = nodes.find((x) => x.id === check[1])
+      const rules = [...projectRules, ...((n?.rules ?? []) as typeof projectRules)]
+      if (!rules.length) return json({ checks: [], reason: 'no rules in force here' })
+      const c = { id: `c-${++seq}`, project_id: 'demo', node_id: check[1], source_node_id: null, source_thread_id: null, rule_id: rules[0].id, rule_text: rules[0].text, question: 'The last paragraph settles what the piece is waiting for. Does it still hold to this rule, or has the rule changed?', outcome: null, outcome_note: null, resolved_at: null, created_at: NOW }
+      openChecks.unshift(c)
+      return json({ checks: [c] })
+    })
+    if (path === '/api/studio/projects/demo/thread-suggestions' && method === 'POST') return write(() => {
+      if (body.action === 'read') return json({ suggestions: nodes.filter((n) => !n.parent_id).length >= 3 ? suggestions : [] })
+      const sg = suggestions.find((x) => x.id === body.id)
+      suggestions = suggestions.filter((x) => x.id !== body.id)
+      if (body.action === 'accept' && sg) {
+        const th = { id: `th-${++seq}`, user_id: 'u', project_id: 'demo', position: threads.length, name: sg.name, intent: sg.intent, rules: [], hue: 'tide', board_x: null, board_y: null, created_at: NOW, updated_at: NOW }
+        threads.push(th)
+        for (const id of sg.piece_ids) tags.push({ node_id: id, thread_id: th.id, note: '' })
+        return json({ thread_id: th.id })
+      }
+      return json({ ok: true })
+    })
     if (path.startsWith('/api/studio/projects/demo/open')) return json({ success: true })
     if (path.startsWith('/api/studio/assistant-lock')) return json({ lockedUntil: null })
     if (path.startsWith('/api/settings')) return json({ settings: { dictation_lang: null, sunday_letter: false, onboarded_at: NOW }, email: 'you@example.com' })
@@ -177,6 +228,17 @@ function installMock(o: Opts) {
       })
     }
     if (path === '/api/write/distill' || path === '/api/write/activity') return json({ success: true })
+    if (path === '/api/studio/projects/demo/companion') {
+      if (method === 'GET') return json({ messages: [] })
+      const said = String(body.message || '').match(/[^.!?]*\b(won['’]t|never|has to|no )[^.!?]*[.!?]?/i)?.[0]?.trim()
+      const heard = said ? [{ id: `pr-${++seq}`, project_id: 'demo', node_id: body.node_id ?? null, kind: 'refusal', statement: said.replace(/[.!?]$/, ''), quote: said, source: 'talk', created_at: NOW }] : []
+      proposals.push(...heard)
+      const enc = new TextEncoder()
+      const reply = 'Then the last piece can stop where the waiting stops. What would that look like?'
+      return new Response(new ReadableStream({
+        start(c) { c.enqueue(enc.encode(reply)); c.enqueue(enc.encode(`\u001e${JSON.stringify({ lockedMode: null, proposals: heard })}`)); c.close() },
+      }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
+    }
     if (path === '/api/write/chat' && method === 'POST') {
       ;(window as unknown as { __lastChat?: unknown }).__lastChat = body
       const asked = String(body.message || '')
@@ -185,7 +247,11 @@ function installMock(o: Opts) {
       const reply = proposes
         ? `Here is a tighter version. ${saw}\n<proposed_edit>\nThe kettle took its time, and I let it.\n</proposed_edit>`
         : `What is that sentence trying to say underneath the words? ${saw}`
-      const meta = { lockedMode: null, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
+      // A boundary said in passing becomes a proposal, quoted.
+      const said = asked.match(/[^.!?]*\b(won['’]t|never|has to|no )[^.!?]*[.!?]?/i)?.[0]?.trim()
+      const heard = said ? [{ id: `pr-${++seq}`, project_id: 'demo', node_id: body.node_id, kind: 'refusal', statement: said.replace(/[.!?]$/, ''), quote: said, source: 'talk', created_at: NOW }] : []
+      proposals.push(...heard)
+      const meta = { lockedMode: null, proposals: heard, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
       const enc = new TextEncoder()
       const chunks = reply.match(/[\s\S]{1,24}/g) ?? [reply]
       return new Response(new ReadableStream({
@@ -262,7 +328,7 @@ function Inner() {
   const on = (k: string) => !!params.get(k)
   // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind. ?long=1 has a full draft.
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow') }
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces') }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {
@@ -274,7 +340,7 @@ function Inner() {
     )
   }
   // ?board=1 is the project board a lone piece opens onto after "Create a project from this piece".
-  if (on('board')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
+  if (on('board') || on('pieces')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
   return <WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} />
 }
 
