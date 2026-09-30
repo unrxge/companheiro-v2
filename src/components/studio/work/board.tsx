@@ -14,7 +14,7 @@
 // more, it is a constraint on the project, and the board says so before it
 // lets you finish the last connection.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
@@ -110,6 +110,7 @@ export function Board({
   pieces,
   threads,
   checks,
+  notices = [],
   onResolveCheck,
   onAmendCheck,
   tagFor,
@@ -123,6 +124,9 @@ export function Board({
   /** Sits right under the title, side by side when there's more than one —
    *  never floating in the middle of the canvas on its own. */
   checks: RuleCheck[]
+  /** Other things waiting on an answer (suggested threads), shown in the
+   *  same row after the checks. Each carries its own key and backing. */
+  notices?: ReactElement[]
   onResolveCheck: (checkId: string, outcome: CheckOutcome, note?: string) => void
   onAmendCheck: (checkId: string, text: string) => void
   tagFor: (nodeId: string, threadId: string) => ThreadTag | undefined
@@ -159,7 +163,8 @@ export function Board({
   // Measured the same way as the vision panel above it — a guessed constant
   // either clipped a long question or left too much air under a short one.
   // However many rows that takes once notices are wrapping, not just one.
-  const noticeH = checks.length > 0 ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
+  const hasNotices = checks.length + notices.length > 0
+  const noticeH = hasNotices ? (noticesFrame.h || NOTICE_FALLBACK_H) : 0
   // The room the row itself gets — every notice in it wraps onto a new line
   // rather than shrink to fit, so this is the frame's own width, not any one
   // notice's. Kept separate from noticeW below: capping this the same way
@@ -173,11 +178,11 @@ export function Board({
   // its own text after the width cap went up: two collisions at once were
   // quietly splitting it in half. Two that both fit at this width sit side
   // by side (flexWrap below); past that, the next one drops to its own row.
-  const noticeW = checks.length > 0 ? Math.min(NOTICE_MAX_W, noticesRowMaxW) : 0
+  const noticeW = hasNotices ? Math.min(NOTICE_MAX_W, noticesRowMaxW) : 0
   // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
   // twice over. With no notices in the way, vision → pieces keeps the wider
   // GAP — that relationship was never the one asked to tighten.
-  const gapBelowVision = checks.length > 0 ? NOTICE_GAP + noticeH + NOTICE_GAP : GAP
+  const gapBelowVision = hasNotices ? NOTICE_GAP + noticeH + NOTICE_GAP : GAP
   // Pieces clear the title's own space — and the notices sitting under it,
   // when there are any — only while the title is still where it started.
   // Drag it away and the lane is free to rise back to its usual place.
@@ -261,7 +266,7 @@ export function Board({
     w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
     w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
-    if (checks.length > 0) {
+    if (hasNotices) {
       // The row's own full width, not one notice's — however many of them
       // fit side by side, the world has to have room for the row itself.
       w = growWorld(w, visionAt.x, visionAt.y + visionH + NOTICE_GAP, noticesRowMaxW, noticeH)
@@ -276,7 +281,7 @@ export function Board({
     }
     return w
   }, [
-    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, checks.length,
+    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, hasNotices,
     cardX, cardTop, addColW, addPieceH, addHelpH, noticesRowMaxW, noticeH,
   ])
 
@@ -507,7 +512,7 @@ export function Board({
            shrinking to fit. Measured for its real height, the same as the
            vision panel above it: a guessed height either clipped a long
            question or left the pieces below sitting on too much empty air. */}
-        {checks.length > 0 && (
+        {hasNotices && (
           <div
             ref={noticesRef}
             style={{
@@ -533,6 +538,15 @@ export function Board({
                   onResolve={(outcome, note) => onResolveCheck(check.id, outcome, note)}
                   onAmend={(text) => onAmendCheck(check.id, text)}
                 />
+              </div>
+            ))}
+            {notices.map((notice) => (
+              <div
+                key={notice.key}
+                data-hold
+                style={{ width: noticeW, background: t.containerBg, borderRadius: radius.widget, boxShadow: t.containerShadow }}
+              >
+                {notice}
               </div>
             ))}
           </div>

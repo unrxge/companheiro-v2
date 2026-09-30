@@ -41,6 +41,7 @@ import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/wr
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { WorkingDots } from '@/components/ui/working'
 import { HistoryPanel } from '@/components/studio/work/history-panel'
+import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
 
 export type Focus =
   | { kind: 'project' }
@@ -363,6 +364,12 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     await api.editProject({ settings: { board: true } })
     goProject()
   }, [api, goProject, project])
+  // Only on the board itself, and only once there are enough pieces for
+  // something to run across some of them without running across all.
+  const onBoard = focus.kind === 'project' && state.status === 'ready' && !singlePieceNode && roots.length >= 3 && !readOnly
+  const refreshTree = api.refresh
+  const threadIdeas = useThreadSuggestions(projectId, onBoard, useCallback(() => void refreshTree(), [refreshTree]))
+
   useEffect(() => {
     if (state.status !== 'ready' || !singlePieceNode) return
     router.replace(`/p/${projectId}/n/${singlePieceNode.id}`)
@@ -603,6 +610,15 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             pieces={roots}
             threads={tree.threads}
             checks={openChecks}
+            notices={threadIdeas.suggestions.map((sg) => (
+              <ThreadSuggestionCard
+                key={sg.id}
+                suggestion={sg}
+                pieceTitle={(id) => roots.find((r) => r.id === id)?.title || 'untitled'}
+                onAnswer={(action) => threadIdeas.answer(sg.id, action)}
+                disabled={readOnly}
+              />
+            ))}
             onResolveCheck={resolve}
             onAmendCheck={(id, text) => void amendRule(id, text)}
             tagFor={tagFor}
