@@ -8,6 +8,7 @@ import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { isSeveralOpening } from "@/lib/brought-several";
 
 interface Message {
   role: "user" | "assistant";
@@ -116,6 +117,14 @@ export async function POST(request: NextRequest) {
       ? `\nTHE PERSON BROUGHT THIS IDEA WITH THEM:\nThey've already been carrying it, maybe for a while. Don't re-explain it to them or start it from zero. Receive what they've worked out, notice what's settled and what's still loose, and spend your questions on the loose parts. If a phase's work is already answered by what they brought, complete it quickly.`
       : ''
 
+    // "Bring several things": the first message lays out separate things the
+    // person chose to put side by side. Recognised by its opening line, so it
+    // holds on every later turn and after a resume.
+    const firstUserTurn = body.messages.find((m) => m.role === "user")?.content;
+    const severalContext = isSeveralOpening(firstUserTurn)
+      ? `\nTHE PERSON BROUGHT SEVERAL SEPARATE THINGS (the first message lists them):\nThey chose to set these side by side because they suspect a link they cannot name yet. In your first reply, read them together and say, as a possibility and never a verdict, the one thing they might share, pointing at a few of their own words from different items. Then ask whether that is right. Never force a connection: if the honest reading is that they do not share anything, say so plainly and ask which one pulls hardest. If they share something but one item plainly does not belong, say which and let it go. Once they recognise what the things share, that shared thing is the idea the rest of this conversation develops; the items are evidence for it, not separate pieces to plan.`
+      : '';
+
     // The first user message contains the full check-in conversation. Use it
     // to do a warm handover: name the creative spark that surfaced there and
     // open Phase 1 from that specific place — don't summarise or reflect the
@@ -142,7 +151,7 @@ Keep every question on the idea itself, and only ask one when it opens the idea 
         ? `\n\nNEXT PHASE (only if you are emitting ${PHASE_MARKER} this turn — then your closing question must come from here, not from the current phase):\n${PHASE_PROMPTS[nextPhase + 1]}`
         : "";
 
-    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}${checkInHandoverContext}`;
+    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}${severalContext}${checkInHandoverContext}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to

@@ -17,6 +17,7 @@ import { useTerritories } from '@/hooks/useTerritories'
 import { alpha, arcHue, radius, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
 import { WorkingDots } from '@/components/ui/working'
+import { BringSeveral } from '@/components/idea-lab/bring-several'
 
 interface Capture {
   id: string
@@ -71,7 +72,7 @@ export default function IdeaLabPage() {
 
   // The mask over the lens + stage: bring an idea you already have (straight
   // into the conversation), or summon one (the lens and question below).
-  const [entry, setEntry] = useState<'choosing' | 'bring' | 'summon'>('choosing')
+  const [entry, setEntry] = useState<'choosing' | 'bring' | 'several' | 'summon'>('choosing')
   const [bringText, setBringText] = useState('')
   const bringTextRef = useRef('')
   bringTextRef.current = bringText
@@ -284,8 +285,8 @@ export default function IdeaLabPage() {
         .idea-lab-carousel::-webkit-scrollbar { display: none; }
         .idea-lab-carousel-card { flex: 0 0 calc(33.33% - 8px); min-width: 0; scroll-snap-align: start; }
         @media (max-width: 800px) { .idea-lab-carousel-card { flex: 0 0 calc(72% - 6px); } }
-        .idea-lab-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; max-width: 620px; }
-        @media (max-width: 640px) { .idea-lab-entry { grid-template-columns: 1fr; } }
+        .idea-lab-entry { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; max-width: 900px; }
+        @media (max-width: 900px) { .idea-lab-entry { grid-template-columns: 1fr; max-width: 520px; } }
         .idea-lab-range { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; background: linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant}); outline: none; cursor: pointer; width: 100%; display: block; }
         .idea-lab-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.28); border: 2px solid ${t.textPrimary}; }
         .idea-lab-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: ${t.cardBg}; cursor: pointer; border: 2px solid ${t.textPrimary}; box-shadow: 0 1px 4px rgba(0,0,0,0.28); }
@@ -319,6 +320,7 @@ export default function IdeaLabPage() {
                   <div className="idea-lab-entry">
                     {[
                       { key: 'bring', eyebrow: 'I have one', title: 'Bring an idea', body: 'Something you’ve been carrying. Talk it through, or go straight to writing if it’s already clear.', onClick: () => setEntry('bring') },
+                      { key: 'several', eyebrow: 'I have a few', title: 'Bring several things', body: 'A draft, a lyric, a note, a photo idea that feel separate. See whether they share something.', onClick: () => setEntry('several') },
                       { key: 'summon', eyebrow: 'I need one', title: 'Summon an idea', body: 'Set a lens (movement, territory, energy) and get a question to start from.', onClick: () => setEntry('summon') },
                     ].map((o) => (
                       <m.button
@@ -336,6 +338,8 @@ export default function IdeaLabPage() {
                     ))}
                   </div>
                 </>
+              ) : entry === 'several' ? (
+                <BringSeveral captures={captures} onBack={() => setEntry('choosing')} />
               ) : (
                 <div style={{ width: '100%', maxWidth: 620, textAlign: 'left', background: t.cardBg, borderRadius: radius.card, boxShadow: t.shadow, padding: 'clamp(20px, 4vw, 28px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
