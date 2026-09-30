@@ -23,7 +23,6 @@ import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
 import { Label } from '@/components/studio/work/bits'
 import { WorkingDots } from '@/components/ui/working'
-import { readCarried } from '@/lib/studio/carried'
 import type { RuleProposal } from '@/lib/studio/rule-proposals'
 
 interface Line {
@@ -280,26 +279,22 @@ export function Companion({
           </div>
         )}
 
-        {lines.map((line, i) => {
-          const carried = line.role === 'person' ? readCarried(line.text) : { carried: false, text: line.text }
-          return (
+        {lines.map((line, i) => (
           <div key={line.id} role={busy && i === lines.length - 1 ? 'status' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ ...canvasType.chip, color: carried.carried ? t.ochre : line.role === 'person' ? t.textMuted : t.violet }}>
-              {carried.carried ? 'You, in a check-in' : line.role === 'person' ? 'You' : 'Companheiro'}
+            <span style={{ ...canvasType.chip, color: line.role === 'person' ? t.textMuted : t.violet }}>
+              {line.role === 'person' ? 'You' : 'Companheiro'}
             </span>
             <p
               style={{
                 ...canvasType.body, margin: 0, whiteSpace: 'pre-wrap',
                 color: line.role === 'person' ? t.textSecondary : t.textPrimary,
-                ...(carried.carried ? { borderLeft: `2px solid ${alpha(t.ochre, 0.5)}`, paddingLeft: 10 } : null),
               }}
             >
-              {carried.text}
+              {line.text}
               {busy && line.role === 'companion' && i === lines.length - 1 && <>{line.text ? ' ' : null}<WorkingDots color={t.violet} /></>}
             </p>
           </div>
-          )
-        })}
+        ))}
 
         {!busy && proposals.map((p) => (
           <ProposalCard

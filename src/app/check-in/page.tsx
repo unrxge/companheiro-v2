@@ -93,6 +93,11 @@ export default function CheckInPage() {
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
   const [showJournalButton, setShowJournalButton] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
+  // Something said here that is plainly about a project being made: offered
+  // once, as a door, never moved without their tap.
+  const [belongs, setBelongs] = useState<{ project_id: string; title: string; quote: string } | null>(null)
+  const [belongsState, setBelongsState] = useState<'offered' | 'adding' | 'added' | 'dismissed' | 'failed'>('offered')
+  const belongsAsked = useRef(0)
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
@@ -391,9 +396,46 @@ export default function CheckInPage() {
     setJournalPrompt('')
     setShowJournalPrompt(false)
     setError(null)
+    setBelongs(null)
+    setBelongsState('offered')
+    belongsAsked.current = 0
   }
 
   const hasAiResponded = messages.some((x) => x.role === 'assistant')
+
+  // After each reply, and at most three times in one check-in, look for one
+  // thing they said that belongs to a project they are making. Only their own
+  // words are read, and nothing happens unless they choose it.
+  const userWordCount = messages.filter((x) => x.role === 'user').length
+  useEffect(() => {
+    if (!hasAiResponded || isProcessing || belongs || belongsAsked.current >= 3) return
+    belongsAsked.current += 1
+    const words = messages.filter((x) => x.role === 'user').map((x) => x.content).join('\n\n')
+    let alive = true
+    fetch('/api/check-in/belongs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words }) })
+      .then((r) => (r.ok ? r.json() : { match: null }))
+      .then((d: { match: { project_id: string; title: string; quote: string } | null }) => {
+        if (alive && d.match) { setBelongs(d.match); setBelongsState('offered') }
+      })
+      .catch(() => {})
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAiResponded, isProcessing, userWordCount])
+
+  const carryToProject = async () => {
+    if (!belongs || belongsState === 'adding') return
+    setBelongsState('adding')
+    try {
+      const res = await fetch('/api/check-in/carry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: belongs.project_id, text: belongs.quote }),
+      })
+      setBelongsState(res.ok ? 'added' : 'failed')
+    } catch {
+      setBelongsState('failed')
+    }
+  }
   const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }] : pastCheckIns)
   const hour = new Date().getHours()
   const daypart = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
@@ -598,6 +640,33 @@ export default function CheckInPage() {
                     Take it to the Lab →
                   </QuietButton>
                 )}
+              </m.div>
+            )}
+
+            {belongs && belongsState !== 'dismissed' && !isProcessing && (
+              <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                <Card>
+                  {belongsState === 'added' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <p style={{ ...typeRoles.small, color: t.textSecondary }}>
+                        Added to <span style={{ color: t.textPrimary, fontWeight: 600 }}>{belongs.title}</span> as a fragment. It waits there until you place it.
+                      </p>
+                      <QuietButton onClick={() => router.push(`/p/${belongs.project_id}`)}>Open it →</QuietButton>
+                    </div>
+                  ) : (
+                    <>
+                      <Eyebrow style={{ marginBottom: 8 }}>This sounds like it belongs to {belongs.title}</Eyebrow>
+                      <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
+                      <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <GhostButton size="sm" onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Adding…">
+                          Add it there
+                        </GhostButton>
+                        <QuietButton onClick={() => setBelongsState('dismissed')}>Leave it here</QuietButton>
+                        {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
+                      </div>
+                    </>
+                  )}
+                </Card>
               </m.div>
             )}
 

@@ -46,7 +46,6 @@ import { loadTree } from '@/lib/studio/nodes-db'
 import type { Rule, TreeNode } from '@/lib/studio/node-types'
 import { appearancesOf, buildTree, extentOf, findNode, pathTo, rulesInForce } from '@/lib/studio/tree'
 import { proposeRules, type RuleProposal } from '@/lib/studio/rule-proposals'
-import { CARRIED_MARKER } from '@/lib/studio/carried'
 
 export const maxDuration = 60
 
@@ -86,8 +85,6 @@ WHAT YOU NEVER DO:
 - No lists of options unless they asked for options. One thought, followed at most by one question.
 
 THEIR OWN RULES: when what they say now settles something that runs against one of the rules they set (listed above), put that rule and today's words side by side, plainly, and ask which one stands now: the work, or the rule. Only for a real collision, never a loose echo. Never decide for them and never scold; changing the rule is as good an answer as changing the work.
-
-A message that begins ${CARRIED_MARKER} is something they said elsewhere in the app and chose to bring to this work. Receive it as theirs; do not mention where it came from unless they do.
 
 Short replies. Match the weight of what they brought.`
 
@@ -276,8 +273,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         role: m.role === 'companion' ? ('assistant' as const) : ('user' as const),
         content: m.text,
       }))
-      // Something brought in from a check-in sits as their message with no
-      // reply after it, so neighbouring turns from the same side are joined.
+      // The API wants turns to alternate; a reply that failed to save would
+      // leave two of theirs in a row, so neighbouring turns are joined.
       .reduce<MessageParam[]>((acc, m) => {
         const last = acc[acc.length - 1]
         if (last && last.role === m.role) last.content = `${last.content as string}\n\n${m.content}`
