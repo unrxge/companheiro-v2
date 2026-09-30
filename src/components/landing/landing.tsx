@@ -21,7 +21,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
-import { CanvasMockup, HeardMockup, LeftOffMockup, MovementStage, MOVEMENT_VISUALS, VisionFinder } from './mockups'
+import { CanvasMockup, HeardMockup, MovementStage, MOVEMENT_VISUALS, RuleHeardMockup, VisionFinder } from './mockups'
 
 const ember = tokensFor('dark').ember
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -215,7 +215,7 @@ const MOVEMENTS: { title: string; body: string; mood: Mood }[] = [
   },
   {
     title: 'Talk to it whenever',
-    body: 'Speak or type when something comes up, for ten seconds or an hour. It remembers what mattered, so you never file anything.',
+    body: 'Speak or type when something comes up, for ten seconds or an hour. When something you say belongs to a project, it offers to put it there, so you never file anything.',
     mood: 'tide',
   },
 ]
@@ -364,12 +364,12 @@ function Closing() {
       className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-center gap-12 px-4 py-20 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:px-8 md:py-32"
     >
       <Reveal className="order-2 w-full max-w-[480px] md:order-1">
-        <LeftOffMockup />
+        <RuleHeardMockup />
       </Reveal>
       <Reveal delay={0.1} className="order-1 md:order-2">
-        <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>It remembers where you left off.</h2>
+        <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
         <p className="mt-5 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Come back tomorrow or in three months. Your vision, your words and every decision will be where you left them.
+          Mention a line you won&rsquo;t cross while you talk the work through, and it asks whether to keep it. Kept rules come back as a question when new work runs against them, and never become rules without you.
         </p>
       </Reveal>
     </section>

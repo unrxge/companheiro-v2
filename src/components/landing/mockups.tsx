@@ -253,7 +253,7 @@ function TalkVisual() {
           transition={{ duration: 0.7, delay: 0.8, ease: EASE }}
           style={{ ...typeRoles.ui, color: t.textSecondary, padding: '16px 8px 4px' }}
         >
-          That&rsquo;s the fourth thing this month about waiting. Want to add it to {VISION_TITLE}?
+          This sounds like it belongs to {VISION_TITLE}. Add it there?
         </m.p>
       </Container>
     </div>
@@ -478,49 +478,47 @@ export function HeardMockup() {
   )
 }
 
-// ── Closing: where you left off ──────────────────────────────────────────────
+// ── Closing: a rule set in passing, heard and offered back ─────────────────
 
-export function LeftOffMockup() {
+const RULE_TALK = 'I don’t want it to end neatly. Nobody ever got to use the plates, and pretending otherwise would be a lie.'
+const RULE_QUOTE = 'I don’t want it to end neatly.'
+
+export function RuleHeardMockup() {
   const { t } = useTheme()
-  const pieces: { title: string; medium: string; step: JourneyStep }[] = [
-    { title: 'My Mother’s Plates', medium: 'Essay', step: 'write' },
-    { title: 'The Room I Never Used', medium: 'Song', step: 'test' },
-    { title: 'Before Opening', medium: 'Photo series', step: 'test' },
-  ]
+  const ref = useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { once: true, amount: 0.5 })
+  const reduce = useReducedMotion()
+  const shownAt = inView || reduce
   return (
-    <Container padding={16}>
-      <Card padding={22}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p style={{ ...typeRoles.h2, fontSize: 22, color: t.textPrimary }}>{VISION_TITLE}</p>
-            <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4 }}>{VISION_LINE}</p>
-          </div>
-          <Pill hue="verdant" dot>
-            Active
-          </Pill>
-        </div>
-        <div className="mt-5 flex flex-col gap-3">
-          {pieces.map((p) => (
-            <div key={p.title} className="grid grid-cols-[1fr_120px] items-center gap-4">
-              <div className="min-w-0">
-                <p style={{ ...typeRoles.h3, fontSize: 14, color: t.textPrimary }}>{p.title}</p>
-                <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>{p.medium}</p>
-              </div>
-              <StageRibbon step={p.step} compact />
+    <div ref={ref}>
+      <Container padding={16}>
+        <Card padding={22}>
+          <Label>Talking it through · {VISION_TITLE}</Label>
+          <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, marginTop: 16 }}>You</p>
+          <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 4 }}>{RULE_TALK}</p>
+          <p style={{ ...typeRoles.small, fontWeight: 600, color: t.violet, marginTop: 14 }}>Companheiro</p>
+          <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 4 }}>
+            Then the last piece can stop where the waiting stops, not where it resolves. What would the plates be doing in that final image?
+          </p>
+          <m.div
+            initial={false}
+            animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 10 }}
+            transition={{ duration: 0.7, delay: reduce ? 0 : 0.9, ease: EASE }}
+            style={{
+              marginTop: 18, padding: '12px 14px', borderRadius: radius.widget,
+              background: alpha(t.ochre, 0.08), border: `1px solid ${alpha(t.ochre, 0.28)}`,
+            }}
+          >
+            <p style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: t.ochre }}>Something this refuses?</p>
+            <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 6 }}>No neat ending</p>
+            <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textMuted, marginTop: 4 }}>You said: &ldquo;{RULE_QUOTE}&rdquo;</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Pill hue="neutral" size="md">Keep it as a rule</Pill>
+              <Pill hue="neutral" size="md">Not a rule</Pill>
             </div>
-          ))}
-        </div>
-        <Card inner padding={16} style={{ marginTop: 18 }}>
-          <Label>Last thing you said, 12 days ago</Label>
-          <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>&ldquo;The plates were never for the guests.&rdquo;</p>
+          </m.div>
         </Card>
-      </Card>
-      <Card padding={16} style={{ marginTop: 12 }}>
-        <div className="flex items-center justify-between gap-3">
-          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Night Shift Songs</p>
-          <Pill hue="ochre">Resting</Pill>
-        </div>
-      </Card>
-    </Container>
+      </Container>
+    </div>
   )
 }
