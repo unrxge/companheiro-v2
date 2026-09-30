@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
-import { Surface, ZoomPill, useCanvas, useFrame } from '@/components/studio/surface/surface'
+import { Surface, ZoomPill, useCanvas, useElementFrame, useFrame } from '@/components/studio/surface/surface'
 import { PieceCard } from '@/components/studio/work/piece-card'
 import { ThreadCard } from '@/components/studio/work/thread-card'
 import { CheckCard } from '@/components/studio/work/rules'
@@ -139,8 +139,10 @@ export function Board({
   const frame = useFrame(ref)
   const visionRef = useRef<HTMLDivElement | null>(null)
   const visionFrame = useFrame(visionRef)
-  const noticesRef = useRef<HTMLDivElement | null>(null)
-  const noticesFrame = useFrame(noticesRef)
+  // Held in state, not a ref: the row mounts whenever the first notice
+  // arrives (a check, a suggested thread), often after the board has.
+  const [noticesEl, noticesRef] = useState<HTMLDivElement | null>(null)
+  const noticesFrame = useElementFrame(noticesEl)
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [arming, setArming] = useState<string | null>(null)

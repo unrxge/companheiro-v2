@@ -38,6 +38,21 @@ export function useFrame(ref: RefObject<HTMLDivElement | null>): Frame {
   return frame
 }
 
+/** useFrame for an element that may mount after the component does (pass it
+ *  from a callback ref held in state), so it is measured whenever it appears. */
+export function useElementFrame(el: HTMLElement | null): Frame {
+  const [frame, setFrame] = useState<Frame>({ w: 0, h: 0 })
+  useLayoutEffect(() => {
+    if (!el) { setFrame({ w: 0, h: 0 }); return }
+    const read = () => setFrame({ w: el.clientWidth, h: el.clientHeight })
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [el])
+  return frame
+}
+
 export interface Canvas {
   pan: Point
   zoom: number
