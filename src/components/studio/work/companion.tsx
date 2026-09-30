@@ -214,8 +214,9 @@ export function Companion({
       if (!res.ok) throw new Error('it did not answer')
       const result = await readTextStream<{ lockedMode?: 'coach' | null; proposedEdit?: ProposedEdit; proposals?: RuleProposal[] }>(
         res,
-        (chunk) => {
-          setLines((prev) => prev.map((l) => (l.id === replyId ? { ...l, text: l.text + chunk } : l)))
+        // The visible reply so far, whole, on every chunk (not a delta).
+        (visible) => {
+          setLines((prev) => prev.map((l) => (l.id === replyId ? { ...l, text: visible } : l)))
         },
         // The proposal is shown inline in the document once approved, not
         // as raw markup in the transcript — cut it from the visible stream.
