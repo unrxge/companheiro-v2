@@ -44,7 +44,9 @@ import {
 } from '@/lib/studio/db'
 import { loadTree } from '@/lib/studio/nodes-db'
 import type { Rule, TreeNode } from '@/lib/studio/node-types'
-import { appearancesOf, buildTree, extentOf, findNode, pathTo } from '@/lib/studio/tree'
+import { appearancesOf, buildTree, extentOf, findNode, pathTo, rulesInForce } from '@/lib/studio/tree'
+import { proposeRules, type RuleProposal } from '@/lib/studio/rule-proposals'
+import { CARRIED_MARKER } from '@/lib/studio/carried'
 
 export const maxDuration = 60
 
@@ -82,6 +84,10 @@ WHAT YOU NEVER DO:
 - You never say whether the writing is good. You have barely seen it, and quality is not your business.
 - No preamble, no restating the question, no summarising what they just said. Start with the thing itself.
 - No lists of options unless they asked for options. One thought, followed at most by one question.
+
+THEIR OWN RULES: when what they say now settles something that runs against one of the rules they set (listed above), put that rule and today's words side by side, plainly, and ask which one stands now: the work, or the rule. Only for a real collision, never a loose echo. Never decide for them and never scold; changing the rule is as good an answer as changing the work.
+
+A message that begins ${CARRIED_MARKER} is something they said elsewhere in the app and chose to bring to this work. Receive it as theirs; do not mention where it came from unless they do.
 
 Short replies. Match the weight of what they brought.`
 
@@ -195,6 +201,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         lines.push(`THE PARTS AROUND IT, IN ORDER:\n${siblings.join('\n')}`)
       }
       lines.push(`THIS PART:\n${outline(here, 0, threadNames)}`)
+      const overAll = ((project.rules ?? []) as Rule[]).filter((r) => r && !r.retired_at)
+      if (overAll.length) lines.push(`RULES OVER THE WHOLE PROJECT:\n${overAll.map((r) => `- ${r.text}`).join('\n')}`)
 
       // A highlighted passage is the person bringing it, not you going and
       // reading the part — the same as pasting it into the message would be,
@@ -268,11 +276,38 @@ export async function POST(req: NextRequest, { params }: Params) {
         role: m.role === 'companion' ? ('assistant' as const) : ('user' as const),
         content: m.text,
       }))
+      // Something brought in from a check-in sits as their message with no
+      // reply after it, so neighbouring turns from the same side are joined.
+      .reduce<MessageParam[]>((acc, m) => {
+        const last = acc[acc.length - 1]
+        if (last && last.role === m.role) last.content = `${last.content as string}\n\n${m.content}`
+        else acc.push({ ...m })
+        return acc
+      }, [])
 
-    const { error: insErr } = await auth.supabase.from('studio_vision_messages').insert({
+    const { data: inserted, error: insErr } = await auth.supabase.from('studio_vision_messages').insert({
       user_id: auth.user.id, project_id: project.id, node_id: nodeId, role: 'person', text: message,
-    })
+    }).select('id').single()
     if (insErr) throw fromDbError(insErr)
+
+    // Listening for a rule they just set, alongside the reply. It only ever
+    // proposes; the answer is theirs (see lib/studio/rule-proposals.ts).
+    const liveRules = [
+      ...((project.rules ?? []) as Rule[]).filter((r) => r && !r.retired_at).map((r) => r.text),
+      ...(here ? rulesInForce(roots, here.id).map((r) => r.rule.text) : []),
+    ]
+    const proposalPromise: Promise<RuleProposal[]> = proposeRules(auth, {
+      projectId: project.id,
+      nodeId,
+      text: message,
+      intent: here?.intent || project.intent || '',
+      rulesInForce: liveRules,
+      messageId: (inserted as { id: string } | null)?.id ?? null,
+      source: 'talk',
+    }).catch((e) => {
+      console.error('[studio] rule proposals failed:', e)
+      return []
+    })
 
     const messages: MessageParam[] = [
       { role: 'user', content: `THE WORK AS IT STANDS\n\n${lines.join('\n\n')}` },
@@ -305,6 +340,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           })
         }
         const meta: Record<string, unknown> = { lockedMode: isLocked ? 'coach' : null }
+        meta.proposals = await Promise.race([
+          proposalPromise,
+          new Promise<RuleProposal[]>((resolve) => setTimeout(() => resolve([]), 10_000)),
+        ])
         if (canEdit) {
           const match = fullText.match(/<proposed_edit>\s*([\s\S]*?)\s*<\/proposed_edit>/)
           if (match) meta.proposedEdit = { node_id: nodeId, content: match[1], anchor_text: selectedText }

@@ -140,6 +140,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
   const [activePartId, setActivePartId] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Record<string, string>>({})
   const chat = useWritingAssistant({
+    projectId,
     nodeId: isRootPiece && node ? node.id : null,
     parts: node && isRootPiece ? (node.children.length > 0 ? node.children : [node]) : [],
     activePartId,
@@ -185,6 +186,14 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     setChecking(false)
     if (res.checks.length === 0) setCheckNote(res.reason ?? 'Nothing collided.')
     else setRail(null)
+  }, [api])
+
+  /** Finishing a piece or part is a boundary: it is read against the rules in
+   *  force, quietly. A question only appears if something collides; the
+   *  server skips the reading entirely when no rules apply. */
+  const editNodeAtBoundary = useCallback(async (id: string, patch: Partial<TreeNode>) => {
+    await api.editNode(id, patch)
+    if (patch.status === 'done') void api.runCheck(id)
   }, [api])
 
   /** Amending retires the old wording wherever it lives and puts the new one in
@@ -481,12 +490,22 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
       )}
 
       {rail === 'rules' && (
-        <RuleList
-          rules={scopeRules}
-          inherited={scopeNode ? inherited : []}
-          disabled={readOnly}
-          onChange={setScopeRules}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <RuleList
+            rules={scopeRules}
+            inherited={scopeNode ? inherited : []}
+            disabled={readOnly}
+            onChange={setScopeRules}
+          />
+          {scopeNode && !readOnly && (liveRuleCount > 0 || inherited.length > 0) && (
+            <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} loading={checking} loadingLabel="Reading it…">
+                Check it against the rules
+              </GhostButton>
+              {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
+            </div>
+          )}
+        </div>
       )}
 
       {rail === 'concept' && scopeNode && (
@@ -513,6 +532,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           onClearSelection={() => setSelection(null)}
           lockedUntil={lockedUntil}
           onRequestLock={() => setLockModalOpen(true)}
+          onRulesChanged={() => void api.refresh()}
           disabled={readOnly}
         />
       )}
@@ -528,6 +548,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           lockedUntil={lockedUntil}
           onRequestLock={() => setLockModalOpen(true)}
           onProposedEdit={setProposal}
+          onRulesChanged={() => void api.refresh()}
           disabled={readOnly}
         />
       )}
@@ -701,7 +722,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               node={node}
               threads={tree.threads}
               flow={view === 'flow'}
-              onEdit={(id, patch) => api.editNode(id, patch)}
+              onEdit={editNodeAtBoundary}
               onAdd={(afterId) =>
                 node.children.length > 0
                   ? void api.addNode(node.id, afterId)

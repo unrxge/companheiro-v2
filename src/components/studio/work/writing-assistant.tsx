@@ -10,7 +10,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { Label } from '@/components/studio/work/bits'
-import { ModeSwitch, type CompanionMode, type ProposedEdit } from '@/components/studio/work/companion'
+import { ModeSwitch, ProposalCard, type CompanionMode, type ProposedEdit } from '@/components/studio/work/companion'
+import type { RuleProposal } from '@/lib/studio/rule-proposals'
 import type { AnchorLine } from '@/components/studio/work/write-tools'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
@@ -30,14 +31,16 @@ interface ChatMeta {
   proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
   lockedMode?: 'coach' | null
   truncated?: boolean
+  proposals?: RuleProposal[]
 }
 
 export type WritingChat = ReturnType<typeof useWritingAssistant>
 
 /** The conversation lives above the panel, so it survives switching tools and parts. */
 export function useWritingAssistant({
-  nodeId, parts, activePartId, selection, lines, lockedUntil, onProposedEdit, onClearSelection,
+  projectId, nodeId, parts, activePartId, selection, lines, lockedUntil, onProposedEdit, onClearSelection,
 }: {
+  projectId: string
   nodeId: string | null
   /** The piece's parts; a piece that is one part passes itself. */
   parts: TreeNode[]
@@ -53,6 +56,8 @@ export function useWritingAssistant({
   const [busy, setBusy] = useState(false)
   // Never carried over from a past session: a conversation opens reflecting.
   const [mode, setMode] = useState<CompanionMode>('coach')
+  // Rules heard in what they said, waiting for them to keep or decline.
+  const [proposals, setProposals] = useState<RuleProposal[]>([])
   const messagesRef = useRef<Message[]>([])
   messagesRef.current = messages
   const distilledUpTo = useRef(0)
@@ -80,9 +85,17 @@ export function useWritingAssistant({
     setMessages([])
     setInput('')
     setMode('coach')
+    setProposals([])
     distilledUpTo.current = 0
-    return () => flushDistillation(messagesRef.current, true)
-  }, [nodeId, flushDistillation])
+    let alive = true
+    if (nodeId) {
+      fetch(`/api/studio/projects/${projectId}/proposals?node_id=${nodeId}`, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : { proposals: [] }))
+        .then((d: { proposals?: RuleProposal[] }) => { if (alive) setProposals(d.proposals ?? []) })
+        .catch(() => {})
+    }
+    return () => { alive = false; flushDistillation(messagesRef.current, true) }
+  }, [projectId, nodeId, flushDistillation])
 
   useEffect(() => {
     const onHidden = () => {
@@ -146,6 +159,8 @@ export function useWritingAssistant({
       }
       // The lock is enforced on the server whatever this client sent.
       if (result.meta?.lockedMode === 'coach') setMode('coach')
+      const heard = result.meta?.proposals ?? []
+      if (heard.length) setProposals((prev) => [...prev.filter((p) => !heard.some((h) => h.id === p.id)), ...heard])
       if (result.meta?.truncated) {
         setMessages((prev) => {
           const last = prev[prev.length - 1]
@@ -171,13 +186,17 @@ export function useWritingAssistant({
     }
   }, [active, busy, flushDistillation, input, lines, mode, nodeId, onClearSelection, onProposedEdit, parts, selection])
 
-  return { messages, input, setInput, busy, mode, setMode, locked, active, send }
+  const dropProposal = useCallback((id: string) => setProposals((prev) => prev.filter((p) => p.id !== id)), [])
+
+  return { messages, input, setInput, busy, mode, setMode, locked, active, send, proposals, dropProposal }
 }
 
 export function AssistantPanel({
-  chat, selection, onClearSelection, lockedUntil, onRequestLock, disabled = false,
+  chat, selection, onClearSelection, lockedUntil, onRequestLock, onRulesChanged, disabled = false,
 }: {
   chat: WritingChat
+  /** A rule heard in talk was kept, so the rules on screen are stale. */
+  onRulesChanged?: () => void
   selection: { nodeId: string; text: string } | null
   onClearSelection: () => void
   lockedUntil: string | null
@@ -185,7 +204,7 @@ export function AssistantPanel({
   disabled?: boolean
 }) {
   const { t } = useTheme()
-  const { messages, input, setInput, busy, mode, setMode, locked, active, send } = chat
+  const { messages, input, setInput, busy, mode, setMode, locked, active, send, proposals, dropProposal } = chat
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   const inputRef = useRef('')
@@ -261,6 +280,14 @@ export function AssistantPanel({
             <p style={{ ...canvasType.body, margin: 0 }}><WorkingDots color={t.violet} /></p>
           </div>
         )}
+        {!busy && proposals.map((p) => (
+          <ProposalCard
+            key={p.id}
+            proposal={p}
+            disabled={disabled}
+            onAnswered={(kept) => { dropProposal(p.id); if (kept) onRulesChanged?.() }}
+          />
+        ))}
         <div ref={bottom} />
       </div>
 

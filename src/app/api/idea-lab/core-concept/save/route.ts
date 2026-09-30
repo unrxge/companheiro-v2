@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
+import type { User } from "@supabase/supabase-js";
+import { checkNodeAgainstRules } from "@/lib/studio/rule-check";
 import { generateTasks } from "@/lib/generate-tasks";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const theme = (body.thematic_territory ?? "").trim().slice(0, 80) || null;
 
     if (body.project_id) {
-      return await completeExistingProject(supabase, userId, body, normalisedArc, theme);
+      return await completeExistingProject(supabase, userData.user, body, normalisedArc, theme);
     }
 
     // Generate the poetic title that will represent this idea/piece
@@ -291,11 +293,12 @@ function toThreadArray(raw: unknown): string[] {
 // already writing.
 async function completeExistingProject(
   supabase: Awaited<ReturnType<typeof createRouteClient>>,
-  userId: string,
+  user: User,
   body: SaveRequest,
   arc: string,
   territory: string | null,
 ): Promise<NextResponse<SaveResponse>> {
+  const userId = user.id;
   const projectId = body.project_id as string;
   const { data: root, error: rootError } = await supabase
     .from("studio_nodes")
@@ -348,6 +351,20 @@ async function completeExistingProject(
   if (nodeError) {
     console.error("Core concept (existing project) node update error:", nodeError);
     return NextResponse.json({ success: false, error: "Failed to save" }, { status: 500 });
+  }
+
+  // A concept arriving into a project that already has rules is a boundary:
+  // what the piece is now meant to be is read against them, so a piece that
+  // pulls away from the vision is asked about before a word of it is written.
+  // Any question lands on the writing page, which opens next.
+  const { data: rulesRow } = await supabase.from("studio_projects").select("rules").eq("id", projectId).maybeSingle();
+  const hasRules = Array.isArray(rulesRow?.rules) && (rulesRow.rules as Array<{ retired_at?: string | null }>).some((r) => r && !r.retired_at);
+  if (hasRules) {
+    try {
+      await checkNodeAgainstRules({ supabase, user }, root.id as string);
+    } catch (e) {
+      console.error("Core concept rule check failed (non-fatal):", e);
+    }
   }
 
   return NextResponse.json({ success: true, project_id: projectId, node_id: root.id as string, tasks: [] });

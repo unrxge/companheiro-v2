@@ -10,6 +10,7 @@ import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
 import { normaliseRules } from "@/lib/studio/nodes-db";
+import { proposeRules, type RuleProposal } from "@/lib/studio/rule-proposals";
 
 interface ActiveSection {
   id: string;
@@ -213,7 +214,7 @@ ${
       pieceData.writing_ethos ? `Their ethos for it: ${pieceData.writing_ethos}` : null,
       `Their goals for how it's written: ${pieceData.substack_goals || "(not provided)"}`,
       openThreads.length ? `Open threads they left themselves to explore:\n${openThreads.map((x) => `- ${x}`).join("\n")}` : null,
-      rules.length ? `Rules they set for this work (hold to these unless they change them):\n${rules.map((x) => `- ${x}`).join("\n")}` : null,
+      rules.length ? `Rules they set for this work (hold to these unless they change them; when something they now say they want runs against one, put the rule and their words side by side and ask which stands, the work or the rule, without deciding for them):\n${rules.map((x) => `- ${x}`).join("\n")}` : null,
     ].filter(Boolean).join("\n");
 
     const stableSystemBlock = `You are Companheiro, sitting beside a writer while they work on a piece.
@@ -274,6 +275,21 @@ ${editInstructions}`;
       { role: "user" as const, content: body.message },
     ];
 
+    // Listening, alongside the reply, for a rule they set for this piece in
+    // passing. It is only ever offered back to them to keep or decline.
+    const proposalPromise: Promise<RuleProposal[]> = proposeRules(auth, {
+      projectId: pieceRow.project_id,
+      nodeId: body.node_id,
+      text: body.message,
+      intent: pieceData.conviction_statement || projectRow?.intent || "",
+      rulesInForce: rules,
+      messageId: null,
+      source: "talk",
+    }).catch((e) => {
+      console.error("write/chat rule proposals failed:", e);
+      return [];
+    });
+
     return streamClaudeText(auth.user.id, 
       'write/chat',
       {
@@ -299,8 +315,12 @@ ${editInstructions}`;
         ],
         messages,
       },
-      (fullText) => {
+      async (fullText) => {
         const meta: Record<string, unknown> = { lockedMode: isLocked ? "coach" : null };
+        meta.proposals = await Promise.race([
+          proposalPromise,
+          new Promise<RuleProposal[]>((resolve) => setTimeout(() => resolve([]), 10_000)),
+        ]);
         if (!canEdit || !section) return meta;
         const match = fullText.match(/<proposed_edit>\s*([\s\S]*?)\s*<\/proposed_edit>/);
         if (!match) return meta;

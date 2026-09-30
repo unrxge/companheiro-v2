@@ -23,6 +23,8 @@ import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
 import { Label } from '@/components/studio/work/bits'
 import { WorkingDots } from '@/components/ui/working'
+import { readCarried } from '@/lib/studio/carried'
+import type { RuleProposal } from '@/lib/studio/rule-proposals'
 
 interface Line {
   id: string
@@ -51,6 +53,7 @@ export function Companion({
   lockedUntil,
   onRequestLock,
   onProposedEdit,
+  onRulesChanged,
   disabled = false,
 }: {
   projectId: string
@@ -64,6 +67,8 @@ export function Companion({
   lockedUntil?: string | null
   onRequestLock?: () => void
   onProposedEdit?: (edit: ProposedEdit) => void
+  /** A rule heard in talk was kept, so the rules on screen are stale. */
+  onRulesChanged?: () => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -72,6 +77,7 @@ export function Companion({
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [proposals, setProposals] = useState<RuleProposal[]>([])
   // Never persisted, and never carried from one altitude to the next — a
   // fresh conversation always opens reflecting, the same as the main app.
   const [mode, setMode] = useState<CompanionMode>('coach')
@@ -101,9 +107,14 @@ export function Companion({
     let alive = true
     setLoaded(false)
     setLines([])
+    setProposals([])
     setMode('coach')
     distilledUpToRef.current = 0
     const url = `/api/studio/projects/${projectId}/companion${nodeId ? `?node_id=${nodeId}` : ''}`
+    fetch(`/api/studio/projects/${projectId}/proposals${nodeId ? `?node_id=${nodeId}` : ''}`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { proposals: [] }))
+      .then((d: { proposals?: RuleProposal[] }) => { if (alive) setProposals(d.proposals ?? []) })
+      .catch(() => {})
     fetch(url, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : { messages: [] }))
       .then((d: { messages?: Array<{ id: string; role: string; text: string }> }) => {
@@ -202,7 +213,7 @@ export function Companion({
         body: JSON.stringify({ message: text, node_id: nodeId, mode, selected_text: activeSelection }),
       })
       if (!res.ok) throw new Error('it did not answer')
-      const result = await readTextStream<{ lockedMode?: 'coach' | null; proposedEdit?: ProposedEdit }>(
+      const result = await readTextStream<{ lockedMode?: 'coach' | null; proposedEdit?: ProposedEdit; proposals?: RuleProposal[] }>(
         res,
         (chunk) => {
           setLines((prev) => prev.map((l) => (l.id === replyId ? { ...l, text: l.text + chunk } : l)))
@@ -212,6 +223,8 @@ export function Companion({
         ['<proposed_edit>'],
       )
       if (result.meta?.lockedMode === 'coach') setMode('coach')
+      const heard = result.meta?.proposals ?? []
+      if (heard.length) setProposals((prev) => [...prev.filter((p) => !heard.some((h) => h.id === p.id)), ...heard])
       if (result.meta?.proposedEdit) {
         onProposedEdit?.(result.meta.proposedEdit)
         onClearSelection?.()
@@ -267,21 +280,37 @@ export function Companion({
           </div>
         )}
 
-        {lines.map((line, i) => (
+        {lines.map((line, i) => {
+          const carried = line.role === 'person' ? readCarried(line.text) : { carried: false, text: line.text }
+          return (
           <div key={line.id} role={busy && i === lines.length - 1 ? 'status' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ ...canvasType.chip, color: line.role === 'person' ? t.textMuted : t.violet }}>
-              {line.role === 'person' ? 'You' : 'Companheiro'}
+            <span style={{ ...canvasType.chip, color: carried.carried ? t.ochre : line.role === 'person' ? t.textMuted : t.violet }}>
+              {carried.carried ? 'You, in a check-in' : line.role === 'person' ? 'You' : 'Companheiro'}
             </span>
             <p
               style={{
                 ...canvasType.body, margin: 0, whiteSpace: 'pre-wrap',
                 color: line.role === 'person' ? t.textSecondary : t.textPrimary,
+                ...(carried.carried ? { borderLeft: `2px solid ${alpha(t.ochre, 0.5)}`, paddingLeft: 10 } : null),
               }}
             >
-              {line.text}
+              {carried.text}
               {busy && line.role === 'companion' && i === lines.length - 1 && <>{line.text ? ' ' : null}<WorkingDots color={t.violet} /></>}
             </p>
           </div>
+          )
+        })}
+
+        {!busy && proposals.map((p) => (
+          <ProposalCard
+            key={p.id}
+            proposal={p}
+            disabled={disabled}
+            onAnswered={(kept) => {
+              setProposals((prev) => prev.filter((x) => x.id !== p.id))
+              if (kept) onRulesChanged?.()
+            }}
+          />
         ))}
 
         {error && <p style={{ ...canvasType.small, color: t.ember, margin: 0 }}>{error}</p>}
@@ -431,6 +460,93 @@ export function ModeSwitch({
             </span>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A rule heard in what they said, waiting for their answer. Their words are
+ * shown as they said them; the rule can be reworded before it is kept.
+ * Declining means it is never offered again.
+ */
+export function ProposalCard({
+  proposal, disabled, onAnswered,
+}: {
+  proposal: RuleProposal
+  disabled: boolean
+  onAnswered: (kept: boolean) => void
+}) {
+  const { t } = useTheme()
+  const [text, setText] = useState(proposal.statement)
+  const [busy, setBusy] = useState<'keep' | 'decline' | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  const answer = async (action: 'keep' | 'decline') => {
+    if (busy) return
+    setBusy(action)
+    setFailed(false)
+    try {
+      const res = await fetch(`/api/studio/proposals/${proposal.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ action, text: action === 'keep' ? text : undefined }),
+      })
+      // Already answered elsewhere counts as answered here too.
+      if (!res.ok && res.status !== 409) throw new Error('failed')
+      onAnswered(action === 'keep' && res.ok)
+    } catch {
+      setFailed(true)
+      setBusy(null)
+    }
+  }
+
+  const chip = (label: string, onClick: () => void, strong: boolean, loading: boolean) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || !!busy || (strong && !text.trim())}
+      style={{
+        ...canvasType.chip, padding: '6px 11px', borderRadius: radius.field, border: 'none',
+        cursor: disabled || busy ? 'default' : 'pointer',
+        background: strong ? t.inverseBg : alpha(t.textPrimary, 0.07),
+        color: strong ? t.inverseText : t.textSecondary,
+      }}
+    >
+      {loading ? <WorkingDots /> : label}
+    </button>
+  )
+
+  return (
+    <div
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px',
+        borderRadius: radius.widget, background: alpha(t.ochre, 0.08), border: `1px solid ${alpha(t.ochre, 0.28)}`,
+      }}
+    >
+      <span style={{ ...canvasType.chip, color: t.ochre }}>
+        {proposal.kind === 'non_negotiable' ? 'Something this has to keep?' : 'Something this refuses?'}
+      </span>
+      <input
+        aria-label="The rule, in your words"
+        value={text}
+        disabled={disabled || !!busy}
+        onChange={(e) => setText(e.target.value)}
+        style={{
+          ...canvasType.body, color: t.textPrimary, background: 'transparent', border: 'none',
+          borderBottom: `1px dashed ${alpha(t.textPrimary, 0.2)}`, padding: '2px 0', outline: 'none', width: '100%',
+        }}
+      />
+      {proposal.quote && (
+        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, fontStyle: 'italic' }}>
+          You said: “{proposal.quote}”
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {chip('Keep it as a rule', () => void answer('keep'), true, busy === 'keep')}
+        {chip('Not a rule', () => void answer('decline'), false, busy === 'decline')}
+        {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}
       </div>
     </div>
   )

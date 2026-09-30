@@ -37,10 +37,12 @@ export const RAIL_TOOLS: { key: RailKey; label: string; icon: ReactNode }[] = [
 /** What a part or a thread has to itself; the rest belong to a whole piece. */
 export const PART_TOOLS: RailKey[] = ['intent', 'rules', 'companion']
 
-/** A piece's writing page: the tools the Write page always had, and only those.
- *  What this is for, the rules and Talk it through are project tools; they
- *  live on the board, not beside a single piece's words. */
-export const PIECE_TOOLS: RailKey[] = ['concept', 'anchors', 'tasks', 'assistant']
+/** A piece's writing page: the tools the Write page always had, plus the rules.
+ *  What this is for and Talk it through are project tools; they live on the
+ *  board, not beside a single piece's words. The rules are here too because a
+ *  project of one piece has no board, and rules heard in the writing
+ *  assistant's conversation are kept on the piece. */
+export const PIECE_TOOLS: RailKey[] = ['concept', 'rules', 'anchors', 'tasks', 'assistant']
 
 export function Rail({
   open,
