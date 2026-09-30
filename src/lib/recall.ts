@@ -50,17 +50,23 @@ export async function recallEchoes(
   if (!query) return ''
 
   try {
+    // Finished pieces are whole-piece nodes marked done (post-publication
+    // sets that). studio_nodes has no fts column, so the search runs on
+    // core_truth directly; PostgREST wraps a text column in to_tsvector.
+    // The reflections table is the Studio one: migration 009 copied the old
+    // rows in, and nothing written since the merge exists anywhere else.
     const [pieces, reflections] = await Promise.all([
       supabase
-        .from('pieces')
+        .from('studio_nodes')
         .select('title, core_truth, created_at')
         .eq('user_id', user.id)
-        .eq('stage', 'posted')
-        .textSearch('fts', query)
+        .is('parent_id', null)
+        .eq('status', 'done')
+        .textSearch('core_truth', query)
         .order('created_at', { ascending: false })
         .limit(limit),
       supabase
-        .from('post_publication_logs')
+        .from('studio_post_publication_logs')
         .select('thread, what_it_opened, created_at')
         .eq('user_id', user.id)
         .textSearch('fts', query)

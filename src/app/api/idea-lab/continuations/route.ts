@@ -24,9 +24,11 @@ export async function GET(_request: NextRequest): Promise<NextResponse<Continuat
 
     const userId = userData.user.id;
 
-    // Fetch three most recent post-publication logs
+    // Three most recent reflections. studio_post_publication_logs is the
+    // whole set: migration 009 copied the old post_publication_logs rows in,
+    // and everything reflected on since the Studio merge is only written here.
     const { data: logs, error: logsError } = await supabase
-      .from("post_publication_logs")
+      .from("studio_post_publication_logs")
       .select("natural_continuations, what_it_opened")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })

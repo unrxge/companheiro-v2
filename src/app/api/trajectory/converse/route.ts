@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(8),
       supabase
-        .from("post_publication_logs")
+        .from("studio_post_publication_logs")
         .select("thread, what_it_opened, unresolved, natural_continuations, created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })

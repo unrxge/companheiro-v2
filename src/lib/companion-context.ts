@@ -63,7 +63,7 @@ export async function buildCompanionContext(
         .eq('shelf_stage', 'active')
         .limit(5),
       supabase
-        .from('post_publication_logs')
+        .from('studio_post_publication_logs')
         .select('unresolved, natural_continuations, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })

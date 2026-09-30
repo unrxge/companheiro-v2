@@ -26,7 +26,7 @@ export async function GET() {
     const [{ data: settings }, { count: territoryRows }, { count: pieceCount }, { count: captureCount }] = await Promise.all([
       supabase.from('user_settings').select('onboarded_at').eq('user_id', user.id).maybeSingle(),
       supabase.from('user_territory_config').select('user_id', { count: 'exact', head: true }).eq('user_id', user.id),
-      supabase.from('pieces').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabase.from('studio_projects').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('captures').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
     ])
     const onboarded = !!settings?.onboarded_at || (territoryRows ?? 0) > 0 || (pieceCount ?? 0) > 0 || (captureCount ?? 0) > 0

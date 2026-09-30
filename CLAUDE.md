@@ -56,7 +56,7 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 | `ideas` | `/api/idea-lab/*` (specific cols) | `/api/idea-lab/*` | Explicit columns | Idea development flow; verify arc/territory assumptions |
 | `captures` | `/api/idea-lab/captures` | `/api/collector/capture` | Explicit columns | Collector flow; safe to extend |
 | `session_logs` | `/api/project-board/session-log` | Session logging | Explicit columns | Track piece work sessions |
-| `post_publication_logs` | `/api/idea-lab/continuations` | `/api/post-publication/log` | Explicit columns | Close the loop; safe to extend |
+| `studio_post_publication_logs` | `/api/idea-lab/continuations`, `lib/companion-context.ts`, `lib/recall.ts`, `/api/trajectory/converse`, `/api/letter` | `/api/post-publication/log` | Explicit columns | Close the loop. The old `post_publication_logs` is legacy (copied in by studio migration 009); read this one |
 
 ---
 

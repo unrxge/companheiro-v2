@@ -62,20 +62,26 @@ export async function GET(request: NextRequest) {
     const [{ data: checkIns }, { data: captures }, { data: sections }, { data: pieces }, { data: reflections }, portrait] = await Promise.all([
       supabase.from('check_ins').select('created_at, energy, inner_weather, arc_texture, raw_entry').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso).order('created_at'),
       supabase.from('captures').select('created_at, raw_input, arc, thematic_territory').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso).order('created_at'),
-      supabase.from('piece_sections').select('piece_id, content, updated_at').eq('user_id', user.id).gte('updated_at', startIso).lte('updated_at', endIso),
-      supabase.from('pieces').select('id, title, stage, arc, posted_at').eq('user_id', user.id).neq('stage', 'queued'),
-      supabase.from('post_publication_logs').select('thread, unresolved, created_at').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso),
+      // The writing lives on the node tree since the Studio merge; the old
+      // piece_sections / pieces / post_publication_logs stopped being written.
+      supabase.from('studio_nodes').select('id, parent_id, project_id, body, updated_at').eq('user_id', user.id).gte('updated_at', startIso).lte('updated_at', endIso),
+      supabase.from('studio_projects').select('id, title, shelf_stage, completed_at').eq('user_id', user.id).neq('shelf_stage', 'queued'),
+      supabase.from('studio_post_publication_logs').select('thread, unresolved, created_at').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso),
       getActivePortrait(auth),
     ])
 
     const pieceTitle = new Map((pieces || []).map((p) => [p.id, p.title]))
+    // A piece with parts keeps a flattened copy of them in its own body, so
+    // only nodes that are not a parent of another touched node are counted.
+    const parents = new Set((sections || []).map((n) => n.parent_id).filter(Boolean))
     const wordsByPiece = new Map<string, number>()
     for (const s of sections || []) {
-      const n = htmlToPlainText(s.content || '').split(/\s+/).filter(Boolean).length
-      wordsByPiece.set(s.piece_id, (wordsByPiece.get(s.piece_id) ?? 0) + n)
+      if (parents.has(s.id)) continue
+      const n = htmlToPlainText(s.body || '').split(/\s+/).filter(Boolean).length
+      if (n > 0) wordsByPiece.set(s.project_id, (wordsByPiece.get(s.project_id) ?? 0) + n)
     }
     const workLines = [...wordsByPiece.entries()].map(([id, n]) => `- "${pieceTitle.get(id) ?? 'untitled'}": about ${n} words touched`)
-    const posted = (pieces || []).filter((p) => p.posted_at && p.posted_at >= startIso && p.posted_at <= endIso).map((p) => `- posted "${p.title}"`)
+    const posted = (pieces || []).filter((p) => p.shelf_stage === 'completed' && p.completed_at && p.completed_at >= startIso && p.completed_at <= endIso).map((p) => `- finished "${p.title}"`)
 
     const material = [
       workLines.length || posted.length ? `WORK THIS WEEK:\n${[...workLines, ...posted].join('\n')}` : 'WORK THIS WEEK: nothing written.',
