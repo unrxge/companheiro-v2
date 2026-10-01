@@ -42,9 +42,15 @@ const HUB_H = 104
 const HUB_GAP = 30
 const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
 const ADD_THREAD_D = 30    // the "+ thread" button set into each card's bottom edge
-// Connection points fan out from both sides of that button rather than from
-// the card's centre, so a thread's touchdown never lands underneath it.
+// Every thread leaves from the button itself, so the button reads as the mouth
+// the threads come out of. Their beads then fan out from under it — far enough
+// down to clear its ring, left and right in turn so two never sit on top of
+// each other.
 const MARKER_INSET = ADD_THREAD_D / 2 + 10
+const MARKER_DROP = ADD_THREAD_D / 2 + 14
+const BEAD_D = 12
+// the bead's own centre, measured down from the card's bottom edge
+const BEAD_CY = MARKER_DROP - BEAD_D / 2
 // A piece keeps one colour of its own, by its place in the order, and every
 // thread started from it is born that colour — so which card a thread came
 // from is readable from the line itself.
@@ -62,6 +68,9 @@ const NOTICE_FALLBACK_H = 130  // only the one frame before the row measures its
 // on these canvases settles the same way.
 const TIDY_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const TIDY_MS = 450
+// A new thread grows down out of the "+" that made it rather than appearing
+// beside it fully formed, so where it came from is never in question.
+const BORN_MS = 320
 
 export interface BoardProject {
   title: string
@@ -148,6 +157,8 @@ export function Board({
   const [arming, setArming] = useState<string | null>(null)
   const [asking, setAsking] = useState<{ thread: Thread; toId: string } | null>(null)
   const [openThread, setOpenThread] = useState<string | null>(null)
+  /** The thread just made from a "+", so only that one grows out of it. */
+  const [born, setBorn] = useState<string | null>(null)
   const [visionOpen, setVisionOpen] = useState(false)
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
@@ -293,13 +304,14 @@ export function Board({
   )
   const canvas = useCanvas(ref, frame, world, { home })
 
-  /** Where each piece's connection points land along its own bottom edge —
-   *  one per thread touching it, fanned out so two threads on one card do
-   *  not draw on top of each other. */
+  /** Where each piece's connection points sit — one bead per thread touching
+   *  it, hanging under the "+" the threads leave from, fanned so two on one
+   *  card do not sit on top of each other. A single thread hangs straight
+   *  down, directly below the button, right on its own line. */
   const markersFor = useCallback((pieceId: string) => {
     const mine = hubs.filter((th) => presence.get(th.id)?.roots.has(pieceId))
-    // Left, right, left, right — each pair a step further out from the
-    // "+ thread" button holding the middle of the edge.
+    if (mine.length === 1) return [{ thread: mine[0], dx: 0 }]
+    // Left, right, left, right — each pair a step further out from the "+".
     return mine.map((th, i) => {
       const side = i % 2 === 0 ? -1 : 1
       const step = Math.floor(i / 2)
@@ -414,14 +426,29 @@ export function Board({
     const created = await actions.addThread(pieceHue(i))
     if (!created) return
     actions.tag(piece.id, created.id)
+    setBorn(created.id)
     setOpenThread(created.id)
   }, [actions])
+
+  // the entrance plays once; after that the hub is just a hub
+  useEffect(() => {
+    if (!born) return
+    const id = window.setTimeout(() => setBorn(null), BORN_MS)
+    return () => window.clearTimeout(id)
+  }, [born])
 
   const armedThread = arming ? threads.find((th) => th.id === arming) ?? null : null
   const armedOn = armedThread ? presence.get(armedThread.id)?.roots ?? new Set<string>() : null
 
   return (
     <>
+      <style>{`@keyframes threadBorn {
+        from { opacity: 0; transform: translateY(-10px) scaleY(0.82); }
+        to   { opacity: 1; transform: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        @keyframes threadBorn { from { opacity: 0 } to { opacity: 1 } }
+      }`}</style>
       <Surface
         canvas={canvas}
         innerRef={ref}
@@ -456,19 +483,35 @@ export function Board({
               if (!here.roots.has(piece.id)) return null
               const marker = markersFor(piece.id).find((m) => m.thread.id === th.id)
               const p = pieceAt(piece, i)
-              const ex = p.x + cardW / 2 + (marker?.dx ?? 0)
-              const ey = p.y + cardH
+              // Every thread leaves the "+" itself. From there a short stem
+              // runs out to its own bead, and the curve to the hub starts at
+              // the bead — so with one thread or five, each line passes
+              // through the bead that belongs to it.
+              const ox = p.x + cardW / 2
+              const oy = p.y + cardH
+              const bx = ox + (marker?.dx ?? 0)
+              const by = oy + BEAD_CY
               const deep = !here.direct.has(piece.id)
+              const stroke = alpha(colour, deep ? 0.32 : 0.55)
               return (
-                <path
-                  key={`${th.id}-${piece.id}`}
-                  d={smoothPath({ x: ex, y: ey }, { x: hx, y: hy })}
-                  fill="none"
-                  stroke={alpha(colour, deep ? 0.32 : 0.55)}
-                  strokeWidth={1.5}
-                  strokeDasharray={deep ? '1 5' : undefined}
-                  strokeLinecap="round"
-                />
+                <g key={`${th.id}-${piece.id}`}>
+                  <path
+                    d={`M ${ox} ${oy} L ${bx} ${by}`}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={1.5}
+                    strokeDasharray={deep ? '1 5' : undefined}
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={smoothPath({ x: bx, y: by }, { x: hx, y: hy })}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={1.5}
+                    strokeDasharray={deep ? '1 5' : undefined}
+                    strokeLinecap="round"
+                  />
+                </g>
               )
             })
           })}
@@ -635,6 +678,7 @@ export function Board({
             >
               <Hub
                 thread={th}
+                born={born === th.id}
                 armed={arming === th.id}
                 disabled={disabled}
                 onOpen={() => setOpenThread(th.id)}
@@ -737,9 +781,11 @@ function RearrangeButton({ onClick }: { onClick: () => void }) {
 // ── the block that stands for one thread ────────────────────────────────────
 
 function Hub({
-  thread, armed, disabled, onOpen, onConnect, onRemove,
+  thread, born, armed, disabled, onOpen, onConnect, onRemove,
 }: {
   thread: Thread
+  /** Just made from a piece's "+": grows out of it once. */
+  born: boolean
   armed: boolean
   disabled: boolean
   onOpen: () => void
@@ -773,6 +819,9 @@ function Hub({
         borderStyle: 'solid', borderWidth: '1px 1px 1px 3px', borderColor: `${ring} ${ring} ${ring} ${colour}`,
         boxShadow: armed ? `0 0 0 3px ${alpha(colour, 0.18)}, ${t.shadow}` : t.shadow,
         transition: 'border-color 140ms ease, box-shadow 140ms ease',
+        // out of the button above it: the top edge is where the stem lands
+        transformOrigin: 'top center',
+        animation: born ? `threadBorn ${BORN_MS}ms ${TIDY_EASE} both` : undefined,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
@@ -787,7 +836,7 @@ function Hub({
             textTransform: 'none', letterSpacing: 0, fontSize: 13, fontWeight: 600,
           }}
         >
-          {thread.name || 'Untitled thread'}
+          {thread.name || 'Name this thread'}
         </button>
         {!disabled && (
           <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed ? 1 : 0, transition: 'opacity 140ms ease' }}>
@@ -810,7 +859,7 @@ function Hub({
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}
       >
-        {thread.intent || 'What does it hold across the work?'}
+        {thread.intent || 'What runs through the pieces — a motif, a rule, a promise.'}
       </p>
       <span style={{ ...canvasType.chip, color: t.textMuted, marginTop: 'auto' }}>
         {liveRules || 'no'} {liveRules === 1 ? 'rule' : 'rules'}
@@ -905,10 +954,12 @@ function Marker({
       title={title}
       aria-label={title}
       style={{
-        position: 'absolute', left, bottom: -6, width: 12, height: 12, marginLeft: -6,
+        position: 'absolute', left, bottom: -MARKER_DROP, width: BEAD_D, height: BEAD_D, marginLeft: -BEAD_D / 2,
         borderRadius: '50%', padding: 0, cursor: 'pointer',
         background: deep ? t.cardBg : colour,
         border: `1.5px solid ${colour}`,
+        // the line runs underneath it, so the bead reads as threaded onto it
+        boxShadow: `0 0 0 3px ${t.containerBg}`,
       }}
     />
   )
