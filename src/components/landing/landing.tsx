@@ -556,7 +556,7 @@ function Footer() {
       <span>&copy; {new Date().getFullYear()} Companheiro</span>
       <nav aria-label="Legal">
         <ul className="flex flex-wrap gap-x-5 gap-y-2">
-          {LEGAL_PAGES.map((p) => (
+          {LEGAL_PAGES.filter((p) => p.href !== '/legal').map((p) => (
             <li key={p.href}>
               <Link href={p.href} className="transition-colors hover:text-[var(--bone)]">
                 {p.label}
