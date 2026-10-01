@@ -14,6 +14,7 @@ import { ProportionBar, WeatherStrip } from '@/components/widgets'
 import { shell, onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working, WorkingDots } from '@/components/ui/working'
+import { tourSeenLocally } from '@/lib/tour'
 
 interface ActivePiece {
   id: string
@@ -75,12 +76,12 @@ function HomeContent() {
     setGreeting(hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
   }, [])
 
-  // First run: seed the territories before anything else.
+  // First run: the tour (once), then seed the territories, before anything else.
   useEffect(() => {
     fetch('/api/onboarding')
       .then((r) => r.json())
       .then((d) => {
-        if (d && d.onboarded === false) router.replace('/welcome')
+        if (d && d.onboarded === false) router.replace(d.toured === false && !tourSeenLocally() ? '/tour' : '/welcome')
       })
       .catch(() => {})
   }, [router])

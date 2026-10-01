@@ -83,8 +83,10 @@ export async function GET(request: Request) {
     }
   }
 
-  // /home sends accounts that haven't been through first run on to /welcome.
+  // /home sends accounts that haven't been through first run on to /tour, then /welcome.
   // New sign-ups arrive with next=set-password: choose a password first.
   if (url.searchParams.get('next') === 'set-password') return NextResponse.redirect(new URL('/reset?set=1', origin))
+  // A new Google account is active from here: the tour comes first, once.
+  if (isNew && !user.user_metadata?.tour_seen_at) return NextResponse.redirect(new URL('/tour', origin))
   return NextResponse.redirect(new URL('/home', origin))
 }

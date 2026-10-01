@@ -67,7 +67,8 @@ export default function ResetPage() {
     try {
       const { error: err } = await createClient().auth.updateUser({ password })
       if (err) setError(err.message)
-      else router.push('/home')
+      // A brand-new account has just been activated: show it round first.
+      else router.push(firstTime ? '/tour' : '/home')
     } finally {
       setLoading(false)
     }

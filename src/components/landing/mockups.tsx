@@ -32,7 +32,7 @@ const VISION_TITLE = 'The Good Plates'
 const VISION_LINE = 'A body of work about what we save for later, and the choice to use it now.'
 
 /** Reveals `text` a character at a time once `start` is true. Instant under reduced motion. */
-function useTypewriter(text: string, start: boolean, msPerChar = 26) {
+export function useTypewriter(text: string, start: boolean, msPerChar = 26) {
   const reduce = useReducedMotion()
   const [n, setN] = useState(0)
   useEffect(() => {

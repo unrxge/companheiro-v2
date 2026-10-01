@@ -17,11 +17,12 @@ interface Message {
 /**
  * GET — has this person been through onboarding? True if user_settings says
  * so, or if they already have territories or work (existing accounts).
+ * `toured` says whether they have seen (or skipped) the tour at /tour.
  */
 export async function GET() {
   try {
     const auth = await requireUser()
-    if (!auth) return NextResponse.json({ onboarded: true }, { status: 401 })
+    if (!auth) return NextResponse.json({ onboarded: true, toured: true }, { status: 401 })
     const { supabase, user } = auth
     const [{ data: settings }, { count: territoryRows }, { count: pieceCount }, { count: captureCount }] = await Promise.all([
       supabase.from('user_settings').select('onboarded_at').eq('user_id', user.id).maybeSingle(),
@@ -30,10 +31,32 @@ export async function GET() {
       supabase.from('captures').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
     ])
     const onboarded = !!settings?.onboarded_at || (territoryRows ?? 0) > 0 || (pieceCount ?? 0) > 0 || (captureCount ?? 0) > 0
-    return NextResponse.json({ onboarded })
+    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at })
   } catch (error) {
     console.error('onboarding GET error:', error)
-    return NextResponse.json({ onboarded: true }, { status: 500 })
+    return NextResponse.json({ onboarded: true, toured: true }, { status: 500 })
+  }
+}
+
+/**
+ * PATCH /api/onboarding — the tour has been seen, finished or skipped. Kept in
+ * the auth user's metadata, beside the consent record, so it needs no table.
+ */
+export async function PATCH() {
+  try {
+    const auth = await requireUser()
+    if (!auth) return NextResponse.json({ success: false }, { status: 401 })
+    if (!auth.user.user_metadata?.tour_seen_at) {
+      const { error } = await auth.supabase.auth.updateUser({ data: { tour_seen_at: new Date().toISOString() } })
+      if (error) {
+        console.error('onboarding PATCH error:', error)
+        return NextResponse.json({ success: false }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('onboarding PATCH error:', error)
+    return NextResponse.json({ success: false }, { status: 500 })
   }
 }
 

@@ -154,6 +154,14 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         <Card padding={18}>
           <div style={row}>
             <div>
+              <div style={label}>How Companheiro works</div>
+              <div style={hint}>The six-slide tour from when you joined.</div>
+            </div>
+            <GhostButton href="/tour" size="sm">Take the tour</GhostButton>
+          </div>
+          <Divider />
+          <div style={row}>
+            <div>
               <div style={label}>Your data</div>
               <div style={hint}>Everything you own, as one JSON file.</div>
             </div>
