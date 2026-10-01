@@ -16,7 +16,13 @@ export interface ProjectSettings {
   /** Set by "Create a project from this piece": show the board even while
    *  there is only one piece, instead of skipping straight to the writing. */
   board?: boolean
+  /** Things said in a check-in that the person chose to send here, waiting
+   *  for their answer on the project itself (see /api/check-in/carry). */
+  carried?: CarriedThought[]
 }
+
+/** The person's own words from a check-in, sent to a project and not yet answered. */
+export interface CarriedThought { id: string; text: string; at: string }
 
 export interface Project {
   id: string

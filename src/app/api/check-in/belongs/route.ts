@@ -3,7 +3,7 @@
 // Reads only what the person said in this check-in (never the companion's
 // replies) against the work they are actively making, and finds the one
 // thing, if any, that is plainly about one of those projects. It only ever
-// becomes an offer ("add it there?"); nothing is moved without their tap.
+// becomes an offer ("send it there?"); nothing is moved without their tap.
 // Captures are never read here (see memory: collector-standalone).
 
 import { NextResponse, type NextRequest } from 'next/server'

@@ -41,6 +41,7 @@ import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/wr
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { HistoryPanel } from '@/components/studio/work/history-panel'
 import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
+import { CarriedCard } from '@/components/studio/work/carried-card'
 
 export type Focus =
   | { kind: 'project' }
@@ -356,6 +357,21 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     ? roots[0]
     : null
   const singlePieceNode = focus.kind === 'project' && straightToWriting ? lonePiece : null
+  // Things sent here from a check-in, waiting on an answer. An answered card
+  // is hidden at once and the tree re-read, since approving makes a thread.
+  const [answeredCarried, setAnsweredCarried] = useState<string[]>([])
+  const carried = (project?.settings?.carried ?? []).filter((c) => !answeredCarried.includes(c.id))
+  const carriedCards = carried.map((thought) => (
+    <CarriedCard
+      key={thought.id}
+      projectId={projectId}
+      thought={thought}
+      pieces={roots.map((r) => ({ id: r.id, title: r.title }))}
+      disabled={readOnly}
+      onAnswered={() => { setAnsweredCarried((prev) => [...prev, thought.id]); void api.refresh() }}
+    />
+  ))
+
   // Only on the board itself, and only once there are enough pieces for
   // something to run across some of them without running across all.
   const onBoard = focus.kind === 'project' && state.status === 'ready' && !singlePieceNode && roots.length >= 3 && !readOnly
@@ -602,7 +618,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             pieces={roots}
             threads={tree.threads}
             checks={openChecks}
-            notices={threadIdeas.suggestions.map((sg) => (
+            notices={[...carriedCards, ...threadIdeas.suggestions.map((sg) => (
               <ThreadSuggestionCard
                 key={sg.id}
                 suggestion={sg}
@@ -610,7 +626,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
                 onAnswer={(action) => threadIdeas.answer(sg.id, action)}
                 disabled={readOnly}
               />
-            ))}
+            ))]}
             onResolveCheck={resolve}
             onAmendCheck={(id, text) => void amendRule(id, text)}
             tagFor={tagFor}
@@ -694,6 +710,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             )}
           </div>
 
+          {isRootPiece && carriedCards.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{carriedCards}</div>
+          )}
           {checks}
           {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
 

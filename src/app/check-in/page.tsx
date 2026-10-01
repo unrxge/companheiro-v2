@@ -649,7 +649,7 @@ export default function CheckInPage() {
                   {belongsState === 'added' ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                       <p style={{ ...typeRoles.small, color: t.textSecondary }}>
-                        Added to <span style={{ color: t.textPrimary, fontWeight: 600 }}>{belongs.title}</span> as a fragment. It waits there until you place it.
+                        Sent to <span style={{ color: t.textPrimary, fontWeight: 600 }}>{belongs.title}</span>. It will be waiting there for you to look at.
                       </p>
                       <QuietButton onClick={() => router.push(`/p/${belongs.project_id}?write=1`)}>Open it →</QuietButton>
                     </div>
@@ -658,8 +658,8 @@ export default function CheckInPage() {
                       <Eyebrow style={{ marginBottom: 8 }}>This sounds like it belongs to {belongs.title}</Eyebrow>
                       <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
                       <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <QuietButton onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Adding…">
-                          Add it there
+                        <QuietButton onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Sending…">
+                          Send it there
                         </QuietButton>
                         <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
                         {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}

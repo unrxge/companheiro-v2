@@ -253,7 +253,7 @@ function TalkVisual() {
           transition={{ duration: 0.7, delay: 0.8, ease: EASE }}
           style={{ ...typeRoles.ui, color: t.textSecondary, padding: '16px 8px 4px' }}
         >
-          This sounds like it belongs to {VISION_TITLE}. Add it there?
+          This sounds like it belongs to {VISION_TITLE}. Send it there?
         </m.p>
       </Container>
     </div>

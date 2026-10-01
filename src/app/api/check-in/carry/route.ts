@@ -1,15 +1,16 @@
-// POST /api/check-in/carry — { project_id, text } → { ok, fragment_id }
+// POST /api/check-in/carry — { project_id, text } → { ok }
 //
-// The person tapped "add it there": their words from a check-in become a
-// fragment on that project, unplaced, for them to put where it belongs from
-// the writing page. The same words are listened to for a rule they may have
-// set in passing; any is offered back in the piece's conversation, never
-// kept on its own.
+// The person tapped "send it there": their words from a check-in are left on
+// that project as a card, waiting. Nothing is added to the project until they
+// open it and answer the card there (/api/studio/projects/:id/carried), where
+// approving makes it a thread. The waiting cards live in the project's
+// settings, so no schema change was needed.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import type { Rule } from '@/lib/studio/node-types'
-import { proposeRules } from '@/lib/studio/rule-proposals'
+import type { CarriedThought } from '@/lib/studio/types'
+
+const MAX_WAITING = 12
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser()
@@ -18,46 +19,35 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const projectId = typeof body.project_id === 'string' ? body.project_id : ''
     const text = typeof body.text === 'string' ? body.text.replace(/\s+/g, ' ').trim().slice(0, 2000) : ''
-    if (!projectId || !text) return NextResponse.json({ ok: false, error: 'Nothing to add' }, { status: 400 })
+    if (!projectId || !text) return NextResponse.json({ ok: false, error: 'Nothing to send' }, { status: 400 })
 
     const { supabase, user } = auth
-    const [{ data: project }, { data: roots }] = await Promise.all([
-      supabase.from('studio_projects').select('id, intent, rules, settings').eq('id', projectId).eq('user_id', user.id).maybeSingle(),
-      supabase.from('studio_nodes').select('id, intent, rules').eq('project_id', projectId).eq('user_id', user.id).is('parent_id', null).order('position'),
-    ])
+    const { data: project } = await supabase
+      .from('studio_projects')
+      .select('id, settings')
+      .eq('id', projectId)
+      .eq('user_id', user.id)
+      .maybeSingle()
     if (!project) return NextResponse.json({ ok: false, error: 'Project not found' }, { status: 404 })
 
-    const { data: fragment, error } = await supabase
-      .from('studio_anchor_lines')
-      .insert({ user_id: user.id, project_id: projectId, node_id: null, text })
-      .select('id')
-      .single()
-    if (error || !fragment) {
-      console.error('check-in/carry insert error:', error)
-      return NextResponse.json({ ok: false, error: 'Could not add it' }, { status: 500 })
+    const settings = (project.settings ?? {}) as Record<string, unknown> & { carried?: CarriedThought[] }
+    const waiting = Array.isArray(settings.carried) ? settings.carried : []
+    // The same words sent twice wait once.
+    if (!waiting.some((c) => c.text === text)) {
+      const next = [...waiting, { id: crypto.randomUUID(), text, at: new Date().toISOString() }].slice(-MAX_WAITING)
+      const { error } = await supabase
+        .from('studio_projects')
+        .update({ settings: { ...settings, carried: next } })
+        .eq('id', projectId)
+        .eq('user_id', user.id)
+      if (error) {
+        console.error('check-in/carry update error:', error)
+        return NextResponse.json({ ok: false, error: 'Could not send it' }, { status: 500 })
+      }
     }
-
-    // A project of one piece talks on the piece's page; anything larger talks on the board.
-    const settings = (project.settings ?? {}) as { board?: boolean }
-    const lone = (roots ?? []).length === 1 && !settings.board ? roots![0] : null
-    const live = (raw: unknown) => (Array.isArray(raw) ? (raw as Rule[]).filter((r) => r && !r.retired_at).map((r) => r.text) : [])
-    try {
-      await proposeRules(auth, {
-        projectId,
-        nodeId: lone?.id ?? null,
-        text,
-        intent: lone?.intent || project.intent || '',
-        rulesInForce: [...live(project.rules), ...live(lone?.rules)],
-        messageId: null,
-        source: 'check-in',
-      })
-    } catch (e) {
-      console.error('check-in/carry proposals failed (non-fatal):', e)
-    }
-
-    return NextResponse.json({ ok: true, fragment_id: fragment.id })
+    return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('check-in/carry error:', error)
-    return NextResponse.json({ ok: false, error: 'Could not add it' }, { status: 500 })
+    return NextResponse.json({ ok: false, error: 'Could not send it' }, { status: 500 })
   }
 }

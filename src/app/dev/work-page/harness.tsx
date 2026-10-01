@@ -48,7 +48,7 @@ function node(id: string, parent: string | null, position: number, title: string
   }
 }
 
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean }
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -102,6 +102,8 @@ function installMock(o: Opts) {
     )
   }
   // Rules and proposals, the same lifecycle as lib/studio/rule-proposals.ts.
+  // ?carried=1: something sent from a check-in, waiting on the project.
+  let carried = o.carried ? [{ id: 'cr-1', text: 'The chairs were stacked, waiting, and I think it’s the same thing as the plates.', at: NOW }] : []
   const projectRules: Array<{ id: string; text: string; created_at: string; retired_at: null }> = []
   const proposals: Array<{ id: string; project_id: string; node_id: string | null; kind: string; statement: string; quote: string; source: string; created_at: string }> = []
   const openChecks: unknown[] = []
@@ -165,7 +167,7 @@ function installMock(o: Opts) {
       if (row && method === 'PATCH') return write(() => { Object.assign(row, body); return json({ project: row }) })
       if (row && method === 'DELETE') return write(() => { shelf.splice(shelf.indexOf(row), 1); return json(null, 204) })
     }
-    if (path === '/api/studio/projects/demo/tree') return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), rules: projectRules }, tree: { nodes, threads, tags, open_checks: openChecks } })
+    if (path === '/api/studio/projects/demo/tree') return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks } })
     if (path === '/api/studio/projects/demo/proposals') {
       const nodeId = new URL(url, location.origin).searchParams.get('node_id')
       return json({ proposals: proposals.filter((p) => p.node_id === nodeId) })
@@ -190,6 +192,16 @@ function installMock(o: Opts) {
       const c = { id: `c-${++seq}`, project_id: 'demo', node_id: check[1], source_node_id: null, source_thread_id: null, rule_id: rules[0].id, rule_text: rules[0].text, question: 'The last paragraph settles what the piece is waiting for. Does it still hold to this rule, or has the rule changed?', outcome: null, outcome_note: null, resolved_at: null, created_at: NOW }
       openChecks.unshift(c)
       return json({ checks: [c] })
+    })
+    if (path === '/api/studio/projects/demo/carried' && method === 'POST') return write(() => {
+      const card = carried.find((c) => c.id === body.id)
+      carried = carried.filter((c) => c.id !== body.id)
+      if (body.action !== 'accept' || !card) return json({ thread_id: null })
+      const th = { id: `th-${++seq}`, user_id: 'u', project_id: 'demo', position: threads.length, name: body.name ?? '', intent: card.text, rules: [], hue: 'violet', board_x: null, board_y: null, created_at: NOW, updated_at: NOW }
+      threads.push(th)
+      const top = nodes.filter((n) => !n.parent_id)
+      for (const id of (top.length === 1 ? [top[0].id] : (body.piece_ids as string[] ?? []))) tags.push({ node_id: id, thread_id: th.id, note: '' })
+      return json({ thread_id: th.id })
     })
     if (path === '/api/studio/projects/demo/thread-suggestions' && method === 'POST') return write(() => {
       if (body.action === 'read') return json({ suggestions: nodes.filter((n) => !n.parent_id).length >= 3 ? suggestions : [] })
@@ -351,7 +363,7 @@ function Inner() {
   const on = (k: string) => !!params.get(k)
   // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind. ?long=1 has a full draft.
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces') }
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried') }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {
