@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { AccessGate } from "@/components/billing/access-gate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { SPLASH_SCREENS } from "@/lib/splash";
+import { shell } from "@/lib/design-tokens";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -65,6 +67,8 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Companheiro",
+    // Shown by iOS while the Home Screen app starts, instead of a white screen.
+    startupImage: SPLASH_SCREENS.map(({ url, media }) => ({ url, media })),
   },
   formatDetection: {
     telephone: false,
@@ -80,6 +84,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      // Ink from the very first paint, before the stylesheet has arrived, so
+      // a launch never passes through the browser's default white.
+      style={{ backgroundColor: shell.ink }}
     >
       <body className="min-h-full flex flex-col">
         <LangSync />
