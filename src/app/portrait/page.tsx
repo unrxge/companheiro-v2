@@ -33,7 +33,7 @@ const KIND_HUE: Record<PortraitEntry['kind'], 'tide' | 'ochre' | 'ember' | 'verd
 
 const DECAY_DAYS = 150
 /** Rows a section shows before it folds, and how many each "Show more" adds. */
-const PAGE_SIZE = 10
+const PAGE_SIZE = 4
 /** Days left before retirement at which a row starts saying it is fading. */
 const FADING_WITHIN_DAYS = 45
 
@@ -43,7 +43,7 @@ function daysUntilRetired(lastReinforcedAt: string): number {
 }
 
 /** Folds a long section: the last rows fade into the card rather than stopping at a hard edge. */
-const FADE = 'linear-gradient(to bottom, #000 calc(100% - 96px), transparent 100%)'
+const FADE = 'linear-gradient(to bottom, #000 calc(100% - 64px), transparent 100%)'
 const FADE_STYLE: React.CSSProperties = { maskImage: FADE, WebkitMaskImage: FADE }
 
 export default function PortraitPage() {
@@ -72,7 +72,7 @@ export default function PortraitPage() {
   }
 
   const handleRetire = async (id: string) => {
-    const ok = await confirm({ title: 'Forget this?', body: 'The companion stops carrying it. It can only come back if it is noticed and confirmed again.', confirmLabel: 'Forget', danger: true })
+    const ok = await confirm({ title: 'Forget this?', body: 'The companion stops carrying it. It can only come back if it is noticed again.', confirmLabel: 'Forget', danger: true })
     if (!ok) return
     setRetiringId(id)
     try {
@@ -93,7 +93,7 @@ export default function PortraitPage() {
 
   return (
     <PageShell mood="violet" intensity={0.85} maxWidth={860}>
-      <PageHeader eyebrow="Companheiro" title="My portrait" subtitle="Only what you have confirmed. It shapes how the companion approaches you, never its voice." />
+      <PageHeader eyebrow="Companheiro" title="My portrait" subtitle="What the companion has noticed about you over time. It shapes how it approaches you, never its voice." />
 
       <Container>
         <p style={{ ...typeRoles.small, color: t.textSecondary, maxWidth: '58ch', marginBottom: 18 }}>
@@ -105,7 +105,7 @@ export default function PortraitPage() {
         ) : entries.length === 0 ? (
           <Card>
             <p style={{ ...typeRoles.ui, color: t.textSecondary }}>
-              Nothing confirmed yet. As you check in, develop ideas, write and zoom out, the system may occasionally ask if a pattern it has noticed feels true. What you confirm shows up here.
+              Nothing here yet. As you check in, develop ideas, write and zoom out, the companion may notice a pattern worth keeping. When it does, it shows up here, and you can forget it at any time.
             </p>
           </Card>
         ) : (
