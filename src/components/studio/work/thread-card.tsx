@@ -104,8 +104,9 @@ export function ThreadCard({
             <InlineField
               ariaLabel="The name of this thread"
               value={thread.name}
-              placeholder="Name it — short, like “no nostalgia”"
+              placeholder="Name it — the thing you keep having to remember"
               disabled={disabled}
+              fitPlaceholder
               onCommit={(name) => onEdit({ name })}
               style={{ ...canvasType.headingMd, fontSize: 20, color: t.textPrimary }}
             />

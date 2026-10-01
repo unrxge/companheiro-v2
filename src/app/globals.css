@@ -233,3 +233,13 @@ body {
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+/* A placeholder long enough to matter — a sentence that teaches what a field
+   is for — must be readable in full, and an <input>'s placeholder cannot wrap.
+   InlineField's `fitPlaceholder` measures the sentence against the box it has
+   and sets this variable, so the hint shrinks only as far as it has to and the
+   typed value keeps the field's own size. */
+.fit-placeholder::placeholder {
+  font-size: var(--placeholder-size, inherit);
+  font-weight: 400;
+  letter-spacing: 0;
+}

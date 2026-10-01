@@ -66,12 +66,17 @@ export function Trail({
 }
 
 /** Saves when it loses focus, never on every keystroke — nothing interrupts. */
+/** However narrow the box, the hint never goes below this. */
+const PLACEHOLDER_MIN = 11
+
 export function InlineField({
   value,
   onCommit,
   placeholder,
   multiline = false,
   style,
+  className,
+  fitPlaceholder = false,
   ariaLabel,
   disabled = false,
 }: {
@@ -80,6 +85,10 @@ export function InlineField({
   placeholder?: string
   multiline?: boolean
   style?: React.CSSProperties
+  className?: string
+  /** Shrink the placeholder until the whole sentence fits the box (D: an
+   *  <input>'s placeholder cannot wrap, so a long one is cut mid-word). */
+  fitPlaceholder?: boolean
   ariaLabel: string
   disabled?: boolean
 }) {
@@ -87,6 +96,8 @@ export function InlineField({
   const [draft, setDraft] = useState(value)
   const [focused, setFocused] = useState(false)
   const box = useRef<HTMLTextAreaElement | null>(null)
+  const field = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null)
+  const [placeholderSize, setPlaceholderSize] = useState<number | null>(null)
 
   useEffect(() => { if (!focused) setDraft(value) }, [value, focused])
 
@@ -109,6 +120,32 @@ export function InlineField({
     return () => ro.disconnect()
   }, [draft, multiline])
 
+  // Measured, not guessed at a breakpoint: the same sentence fits at 20px in a
+  // wide dialog and needs 11px on a phone, and the copy changes more often than
+  // the layout does.
+  useEffect(() => {
+    const el = field.current
+    if (!fitPlaceholder || !placeholder || !el) return
+    const fit = () => {
+      const avail = el.clientWidth
+      if (avail <= 0) return
+      const cs = getComputedStyle(el)
+      const base = parseFloat(cs.fontSize) || 16
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${base}px ${cs.fontFamily}`
+      const width = ctx.measureText(placeholder).width
+      if (width <= avail) { setPlaceholderSize(null); return }
+      // a hair under the exact ratio, so rounding never clips the last letter
+      setPlaceholderSize(Math.max(PLACEHOLDER_MIN, Math.floor((base * avail) / width * 0.97)))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fitPlaceholder, placeholder])
+
   const commit = () => {
     setFocused(false)
     const next = draft.trim()
@@ -119,12 +156,17 @@ export function InlineField({
     width: '100%', background: 'transparent', color: t.textPrimary,
     border: 'none', outline: 'none', resize: 'none', padding: 0,
     ...canvasType.body, ...style,
+    ...(placeholderSize
+      ? ({ '--placeholder-size': `${placeholderSize}px` } as React.CSSProperties)
+      : null),
   }
+  const classes = [className, fitPlaceholder ? 'fit-placeholder' : null].filter(Boolean).join(' ') || undefined
 
   if (multiline) {
     return (
       <textarea
-        ref={box}
+        ref={(el) => { box.current = el; field.current = el }}
+        className={classes}
         aria-label={ariaLabel}
         value={draft}
         placeholder={placeholder}
@@ -139,6 +181,8 @@ export function InlineField({
   }
   return (
     <input
+      ref={field as React.RefObject<HTMLInputElement>}
+      className={classes}
       aria-label={ariaLabel}
       value={draft}
       placeholder={placeholder}
