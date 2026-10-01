@@ -466,22 +466,22 @@ export function BoardWidget({ active }: TourWidgetProps) {
 // A voiceover for a short film, joined part-way through. As on the real
 // writing page, the piece is divided into parts, one per step of its
 // emotional journey, and a part is what you select to talk about.
-const PART_BEFORE = '…so I downloaded an app to track her cycle, as if that alone made me a good boyfriend.'
+const PART_BEFORE = 'This is a film for men who love someone and keep getting one week of every month wrong. I was one of them. I thought the answer was information, so I downloaded an app to track her cycle, as if that alone made me a good boyfriend.'
 const PARTS = [
   {
     title: 'The night',
     text: 'I used to think her bad week was something to get through. Then one night she cried over nothing, and I asked what I’d done wrong. She looked at me as if I’d left the room.',
-    ask: 'You call it nothing, yet it’s the night this whole film is built on. And in your telling, the first thing you did was ask about yourself. What was she crying over?',
+    ask: 'You call it nothing, yet it’s the night this whole film is built on. What was she crying over? The men you’re making this for will have a night like it, and “nothing” is exactly what they’ll call it too. If you can name what it really was, they have a chance of recognising their own.',
   },
   {
     title: 'What I learned',
     text: 'That’s when I learned there are four phases, and how to show up in each one. In the week before, she needs patience, so I give her space. I keep a note of it all on my phone.',
-    ask: 'Here the film moves from one night to a system. Patience and space aren’t always the same gift, though. Has she ever told you which of the two she wanted?',
+    ask: 'Your concept says this film never explains a woman to men; it only shows one man learning to listen. This part explains: four phases, and a rule for each. It also says she needs patience, so you give her space, and those aren’t the same thing. Did she tell you which one she wanted, or is that still your guess?',
   },
   {
     title: 'What I want you to know',
     text: 'I’m telling you this so you don’t make the mistakes I made. Being there for her is the most important thing a man can do. It took me years to get here, and you can skip them.',
-    ask: 'Everything before this is about one woman. Here it becomes about all men, told by someone who has finished learning. Which mistake are you still making?',
+    ask: 'Everything before this is about one woman. Here it becomes about all men, told by someone who has finished learning. Two parts ago you were the one asking what you’d done wrong. Which mistake are you still making?',
   },
 ]
 const SHOWN_FIRST = 2
@@ -490,8 +490,8 @@ export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
   const [sel, setSel] = useState<number | null>(null)
   const [more, setMore] = useState(false)
-  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 16)
-  const fadeUp = 'linear-gradient(to top, #000 10%, transparent 95%)'
+  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 12)
+  const fadeUp = 'linear-gradient(to top, #000 35%, transparent 100%)'
   const shown = more ? PARTS : PARTS.slice(0, SHOWN_FIRST)
 
   return (
@@ -508,7 +508,7 @@ export function WritingWidget({ active }: TourWidgetProps) {
         </div>
         <div style={{ marginTop: 8 }}><StageRibbon step="write" compact /></div>
 
-        <p aria-hidden style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted, marginTop: 10, padding: '0 10px', maskImage: fadeUp, WebkitMaskImage: fadeUp }}>{PART_BEFORE}</p>
+        <p aria-hidden style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted, marginTop: 10, padding: '0 10px', display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', maskImage: fadeUp, WebkitMaskImage: fadeUp }}>{PART_BEFORE}</p>
         <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
           {shown.map((part, i) => {
             const on = sel === i
@@ -554,8 +554,8 @@ export function WritingWidget({ active }: TourWidgetProps) {
 // ── Portrait: what it has noticed, and your say over it ─────────────────────
 
 const NOTICED: { id: string; kind: string; hue: Hue; statement: string; times: number }[] = [
-  { id: 'process', kind: 'How you process things', hue: 'tide', statement: 'Your clearest ideas arrive mid-sentence, usually right after you say “I don’t know, but…”.', times: 6 },
-  { id: 'theme', kind: 'What keeps recurring', hue: 'ochre', statement: 'When a piece gets close to something painful, you start a new one instead of finishing it.', times: 9 },
+  { id: 'recurring', kind: 'What keeps recurring', hue: 'ochre', statement: 'Home, and leaving it. When life gets heavy, your work reaches for another city, another country, a way out.', times: 9 },
+  { id: 'develop', kind: 'How you develop ideas', hue: 'ember', statement: 'When a piece gets close to something painful, you start a new one instead of finishing it.', times: 6 },
   { id: 'guidance', kind: 'What kind of guidance works', hue: 'verdant', statement: 'Questions help more than advice.', times: 4 },
 ]
 
