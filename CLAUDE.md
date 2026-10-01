@@ -126,7 +126,9 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 ## Known Constraints & Trade-offs
 
 - **No real-time sync:** Supabase subscriptions not used; rely on refetch after mutations
-- **No caching:** Every fetch is fresh; consider adding if scaling becomes an issue
+- **No data caching:** Every fetch is fresh. The one exception is the project list, which Home and the Project Board paint from the copy the tab last saw (`lib/studio/last-seen.ts`) while the fresh one loads
+- **Functions run next to the database:** `vercel.json` pins server functions to Dublin (`dub1`) because Supabase is in `eu-west-1`. Keep them together; a route in another region pays an Atlantic round trip per query
+- **Static shells:** `/`, `/login` and `/p/[id]/**` are served from the CDN. Don't read cookies, headers or `searchParams` in those page files (session routing lives in the middleware, query strings are read in the browser), and don't use plain `<a href>` for in-app links (it reloads the whole app; use `next/link`)
 - **Single user focus:** No collaboration features; RLS assumes single-user isolation
 - **Voice first, text second:** Speech Recognition API is primary input; typed input is fallback
 - **Claude for intelligence:** Heavy reliance on Claude API for signals, ideas, continuations; keep prompts tight to control costs
