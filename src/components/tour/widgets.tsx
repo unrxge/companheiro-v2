@@ -306,7 +306,7 @@ export function SummonWidget({ active }: TourWidgetProps) {
 
 const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 const FIRST_REPLY =
-  'A book for my child. They aren’t born yet. We aren’t even expecting. But for three years I’ve kept a notebook of things I wish someone had told me: how to sit with a bad day without calling it a bad life, how to apologise properly, what to do when the people you love are wrong about you. I mostly write in it after the hard days. I’ve never shown anyone, because it feels arrogant to write advice for someone who doesn’t exist, from someone still getting most of it wrong. But my father never said any of this to me, and I learned it late, and the hard way. If I’m not around on the day they need it, I want them to be able to open it at any page and hear my voice telling them they’re going to be alright.'
+  'A book of life lessons for my child. They aren’t even born yet. But for three years I’ve kept a notebook of things I wish someone had told me: how to sit with a bad day without calling it a bad life, how to apologise properly, what to do when the people you love are wrong about you. I mostly write in it after the hard days. I’ve never shown anyone, because it feels arrogant to write advice for someone who doesn’t exist, from someone still getting most of it wrong. But my father never said any of this to me, and I learned it late, and the hard way. If I’m not around on the day they need it, I want them to be able to open it at any page and hear my voice telling them they’re going to be alright.'
 const EXCHANGES = [
   { ask: 'You write in it after the hard days. What does a page sound like when you’ve only just learned the lesson yourself?', say: 'Less like advice. More like a letter from someone still in the middle of it.' },
   { ask: 'Picture them opening it. How old are they, and what kind of day has it been?', say: 'Nineteen, maybe. A day when they’re sure they’ve ruined everything.' },
@@ -463,59 +463,74 @@ export function BoardWidget({ active }: TourWidgetProps) {
 
 // ── Writing: select a line and be asked about it ────────────────────────────
 
-const OPENING_LINE = 'I stopped performing my life for you the day I noticed I’d stopped living it.'
-const REST =
-  'For two years I filmed every morning. The coffee, the light on the counter, the journal I was too tired to actually write in. You told me it calmed you, and I believed that was reason enough. Then one Sunday I caught myself pouring the coffee a second time because the first pour hadn’t looked right, and I sat down on the kitchen floor and laughed until it wasn’t laughing anymore. So this is me, starting again. I’ll post when I’ve made something I’d want to show a friend. Some weeks that will be nothing. I hope you’ll stay. But I’d rather you had the real thing now and then than the pretty thing every day.'
-const LINE_ASK = 'This line holds the whole piece, and the rest is the story of how you noticed. What was the moment just before you knew?'
+// A voiceover for a short film, joined part-way through.
+const LINE_BEFORE = '…so I downloaded an app to track her cycle, as if that alone made me a good boyfriend.'
+const SCRIPT = [
+  { text: 'I used to think her bad week was something to get through.', ask: '“Get through” is how we talk about weather: something that happens to us. Who were you protecting while you waited it out?' },
+  { text: 'Then one night she cried over nothing, and I asked what I’d done wrong.', ask: 'You call it nothing, yet you remember it well enough to build a film around it. What was it over?' },
+  { text: 'That’s when I learned there are four phases, and how to show up in each one.', ask: 'Here the film turns from one night into a lesson. Did you learn the phases that night, or did you learn that you’d made her tears about you?' },
+  { text: 'In the week before, she needs patience, so I give her space.', ask: 'Patience and space aren’t always the same gift. Has she ever told you which of the two she wanted?' },
+  { text: 'I’m telling you this so you don’t make the mistakes I made.', ask: 'You sound like someone who has finished learning. Which mistake are you still making?' },
+  { text: 'Because being there for her is the most important thing a man can do.', ask: 'Every line before this is about one woman. This one is about all men. What would the last line be if you said it only to her?' },
+]
+const SHOWN_FIRST = 3
 
 export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
-  const [selected, setSelected] = useState(false)
+  const [sel, setSel] = useState<number | null>(null)
   const [more, setMore] = useState(false)
-  const ask = useTypewriter(LINE_ASK, selected, 16)
-  const fade = 'linear-gradient(to bottom, #000 30%, transparent 100%)'
+  const ask = useTypewriter(sel !== null ? SCRIPT[sel].ask : '', sel !== null, 16)
+  const fadeUp = 'linear-gradient(to top, #000 10%, transparent 95%)'
+  const shown = more ? SCRIPT : SCRIPT.slice(0, SHOWN_FIRST)
 
   return (
     <Container padding={12}>
       <TryIt>
-        {!selected ? 'Tap the first line to talk about it.'
-          : !ask.done ? 'It reads the line in the light of the whole piece.'
-          : 'It only asks. What you do with the question is up to you.'}
+        {sel === null ? 'Tap any line of the script.'
+          : !ask.done ? 'It reads the line against everything around it.'
+          : more ? 'It only asks. Tap another line.' : 'It only asks. Tap another line, or “Read more”.'}
       </TryIt>
       <Card padding={14} style={{ minHeight: 300 }}>
         <div className="flex items-baseline justify-between gap-3">
-          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Starting Again <span style={{ fontWeight: 400, color: t.textMuted }}>· Caption</span></p>
+          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Four Weeks <span style={{ fontWeight: 400, color: t.textMuted }}>· Short film</span></p>
           <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Write · 2 of 6</span>
         </div>
         <div style={{ marginTop: 8 }}><StageRibbon step="write" compact /></div>
 
-        <button
-          type="button"
-          onClick={() => setSelected(true)}
-          aria-pressed={selected}
-          className="cursor-pointer"
-          style={{
-            ...typeRoles.quote, fontSize: 16, display: 'block', width: 'calc(100% + 16px)', textAlign: 'left', border: 'none', borderRadius: 6, padding: '6px 8px', margin: '12px -8px 0',
-            color: t.textPrimary,
-            backgroundColor: selected ? t.soft.tide : active ? t.cardBgInner : 'transparent',
-            boxShadow: selected ? `inset 2px 0 0 ${t.tide}` : 'none',
-            transition: 'background-color 0.25s ease',
-          }}
-        >
-          {OPENING_LINE}
-        </button>
-        <div style={more ? { marginTop: 8 } : { marginTop: 8, maxHeight: 70, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
-          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>{REST}</p>
+        <p aria-hidden style={{ ...typeRoles.ui, fontSize: 15, color: t.textMuted, marginTop: 10, maskImage: fadeUp, WebkitMaskImage: fadeUp }}>{LINE_BEFORE}</p>
+        <div className="flex flex-col gap-0.5" style={{ marginTop: 2 }}>
+          {shown.map((line, i) => {
+            const on = sel === i
+            const hint = sel === null && active && i === 1
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSel(i)}
+                aria-pressed={on}
+                className="cursor-pointer"
+                style={{
+                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px',
+                  color: t.textPrimary,
+                  backgroundColor: on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
+                  boxShadow: on ? `inset 2px 0 0 ${t.tide}` : 'none',
+                  transition: 'background-color 0.25s ease',
+                }}
+              >
+                {line.text}
+              </button>
+            )
+          })}
         </div>
-        <TextButton onClick={() => setMore(!more)}>{more ? 'Show less' : 'Read more'}</TextButton>
+        <TextButton onClick={() => { if (more && sel !== null && sel >= SHOWN_FIRST) setSel(null); setMore(!more) }}>{more ? 'Show less' : 'Read more'}</TextButton>
 
         <Card inner padding={12} style={{ marginTop: 4 }}>
-          {!selected ? (
+          {sel === null ? (
             <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a line to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
           ) : (
             <>
               <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro</p>
-              <p aria-label={LINE_ASK} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
+              <p aria-label={SCRIPT[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
                 <span aria-hidden>{ask.shown}</span>
               </p>
             </>
@@ -529,7 +544,7 @@ export function WritingWidget({ active }: TourWidgetProps) {
 // ── Portrait: what it has noticed, and your say over it ─────────────────────
 
 const NOTICED: { id: string; kind: string; hue: Hue; statement: string; times: number }[] = [
-  { id: 'process', kind: 'How you process things', hue: 'tide', statement: 'You think out loud first.', times: 6 },
+  { id: 'process', kind: 'How you process things', hue: 'tide', statement: 'Your clearest ideas arrive mid-sentence, usually right after you say “I don’t know, but…”.', times: 6 },
   { id: 'theme', kind: 'What keeps recurring', hue: 'ochre', statement: 'Home, and leaving it.', times: 9 },
   { id: 'guidance', kind: 'What kind of guidance works', hue: 'verdant', statement: 'Questions help more than advice.', times: 4 },
 ]
@@ -585,12 +600,12 @@ export function PortraitWidget({ active }: TourWidgetProps) {
 
 const FINDS = [
   {
-    source: 'Instagram',
-    url: 'instagram.com/reel/…',
-    note: 'A potter filming only her hands at the wheel. No music, no talking.',
-    analysis: 'A process reel with nothing added. What caught you: the work shown plainly, without explaining itself.',
-    movement: 'Beginning' as const,
-    hue: 'verdant' as Hue,
+    source: 'Vimeo',
+    url: 'vimeo.com/…',
+    note: 'A short film shot in one room, with one window, over one year.',
+    analysis: 'A film built on a single limit. What caught you: how much a small, fixed frame can hold.',
+    movement: 'Integration' as const,
+    hue: 'ochre' as Hue,
   },
   {
     source: 'YouTube',
@@ -601,12 +616,12 @@ const FINDS = [
     hue: 'ember' as Hue,
   },
   {
-    source: 'Vimeo',
-    url: 'vimeo.com/…',
-    note: 'A short film shot in one room, with one window, over one year.',
-    analysis: 'A film built on a single limit. What caught you: how much a small, fixed frame can hold.',
-    movement: 'Integration' as const,
-    hue: 'ochre' as Hue,
+    source: 'Instagram',
+    url: 'instagram.com/reel/…',
+    note: 'A potter filming only her hands at the wheel. No music, no talking.',
+    analysis: 'A process reel with nothing added. What caught you: the work shown plainly, without explaining itself.',
+    movement: 'Beginning' as const,
+    hue: 'verdant' as Hue,
   },
 ]
 

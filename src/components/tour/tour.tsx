@@ -34,7 +34,7 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   },
   {
     where: 'Idea Lab',
-    title: 'Systemize your creativity.',
+    title: 'Systemise your creativity.',
     body: 'No need to wait for the creative muse to “drop down from the heavens”. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
     mood: 'violet',
     Widget: SummonWidget,
@@ -42,7 +42,7 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   {
     where: 'Idea Lab · Conceptualise',
     title: 'Turn a rough idea into a clear one.',
-    body: 'When an idea is still a cloud, too big or too many to put into words, ‘Conceptualise’ helps you pull its voice down from the abstract, one question at a time, until you can declare your concept in one clear sentence.',
+    body: 'Find the voice of your idea outside of the fog of the abstract. Conceptualise helps you define the outline of what you want to express one question at a time until you can declare your concept in one clear sentence.',
     mood: 'verdant',
     Widget: ConceptualiseWidget,
   },
