@@ -191,8 +191,9 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
         ))}
       </div>
 
-      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 flex-col gap-3 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 lg:gap-1 lg:pt-1 lg:max-w-[1080px] lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:pb-7">
-        <div className="flex items-center justify-center gap-1.5 lg:justify-start">
+      {/* One row on a phone, so the slide keeps the height: progress on the left, Back and Next on the right. */}
+      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between gap-3 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:px-10 lg:pb-7 lg:pt-1">
+        <div className="flex items-center gap-1 lg:gap-1.5">
           {SLIDES.map((s, i) => (
             <button
               key={s.where}
@@ -200,28 +201,33 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
               onClick={() => go(i)}
               aria-label={`${i + 1} of ${SLIDES.length}: ${s.where}`}
               aria-current={i === index ? 'step' : undefined}
-              className="flex h-7 cursor-pointer items-center lg:h-11"
-              style={{ background: 'none', border: 'none', padding: 0, width: i === index ? 36 : 20, transition: 'width 0.3s ease' }}
+              className={`flex h-11 cursor-pointer items-center transition-[width] duration-300 ${i === index ? 'w-5 lg:w-9' : 'w-2.5 lg:w-5'}`}
+              style={{ background: 'none', border: 'none', padding: 0 }}
             >
               <span style={{ display: 'block', width: '100%', height: 4, borderRadius: 2, backgroundColor: i === index ? shell.text : i < index ? shell.muted : shell.line, transition: 'background-color 0.3s ease' }} />
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 lg:gap-2.5">
           {index > 0 && (
             <button
               type="button"
               onClick={() => go(index - 1)}
               aria-label="Back"
-              className="flex shrink-0 cursor-pointer items-center justify-center transition-colors hover:bg-[rgba(236,233,226,0.12)]"
-              style={{ width: 48, height: 46, borderRadius: radius.field, border: `1px solid ${shell.line}`, backgroundColor: shell.fill, color: shell.text }}
+              className="flex h-[40px] w-[42px] shrink-0 cursor-pointer items-center justify-center transition-colors hover:bg-[rgba(236,233,226,0.12)] lg:h-[46px] lg:w-[48px]"
+              style={{ borderRadius: radius.field, border: `1px solid ${shell.line}`, backgroundColor: shell.fill, color: shell.text }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
           )}
-          <div className="flex-1 lg:w-[240px] lg:flex-none">
+          <div className="lg:hidden">
+            <PrimaryButton size="md" onClick={last ? onLeave : () => go(index + 1)} style={{ minWidth: 104 }}>
+              {!last ? 'Next' : firstRun ? 'Begin' : 'Done'}
+            </PrimaryButton>
+          </div>
+          <div className="hidden lg:block lg:w-[240px]">
             <PrimaryButton size="lg" full onClick={last ? onLeave : () => go(index + 1)}>
               {!last ? 'Next' : firstRun ? 'Begin with your world' : 'Done'}
             </PrimaryButton>
