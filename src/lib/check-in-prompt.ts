@@ -25,11 +25,30 @@ Arc texture guide:
 - Breakaway: restless, wanting to escape, resistant to structure
 - Beginning: fresh energy, openness, new curiosity
 - Expansion: building momentum, going deeper, multiplying ideas
-- Integration: consolidating, reflecting, letting things settle`
+- Integration: consolidating, reflecting, letting things settle
+
+\`creative_readiness\` decides whether they are offered a door into developing an idea, so it is false by default and true only rarely. Set it true only when ALL of these hold:
+- There is a specific subject on the table that could become a piece of work: an image, a question, a story, an argument, a thing they noticed about the world. A mood, a state, a problem in their life or a plan for the day is not a subject.
+- It came from them, in their own words, with enough said about it that someone could start developing it right now without asking "what is it about?".
+- They are leaning toward it: curious, energised, wanting to say more or make something of it. Mentioning in passing that they might write about something is not leaning.
+- They have the room for it. Someone depleted, raw, ashamed, or still in the middle of putting something heavy down is false, however good the material is.
+It is not a measure of whether they are creative, whether the conversation went well, or whether you gave a good reflection. When in doubt it is false.`
 
 export const SIGNALS_REVISION_SPEC = `${SIGNALS_SPEC}
 
-Read the signals from the conversation as a whole, not from the latest message alone, and not from where it started. If what this is actually about has changed since the opening line, the signals change with it. \`creative_readiness\` means there is genuinely something here they could make something from — it is not a measure of whether the conversation went well, and a conversation that arrived somewhere heavy or tender is usually false.`
+Read the signals from the conversation as a whole, not from the latest message alone, and not from where it started. If what this is actually about has changed since the opening line, the signals change with it. That includes \`creative_readiness\`: it can turn true once a real subject has taken shape, and it turns false again if the conversation moves somewhere heavy or tender.`
+
+// The door into the Idea Lab needs two things: the model's reading above, and
+// enough actually said to carry over. The second is counted here rather than
+// left to the model, which is generous with thin material — a one-line
+// check-in handed to the Lab arrives with nothing to develop.
+export const LAB_OFFER_MIN_WORDS = 80
+
+export function canOfferLab(creativeReadiness: boolean | undefined, userTexts: string[]): boolean {
+  if (!creativeReadiness) return false
+  const words = userTexts.join(' ').trim().split(/\s+/).filter(Boolean).length
+  return words >= LAB_OFFER_MIN_WORDS
+}
 
 // Reached when the model omits or malforms the <signals> block. This gets
 // written into the permanent emotional record, so the weather word says it

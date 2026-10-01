@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDictation } from '@/lib/use-dictation'
+import { useReadAloud } from '@/lib/use-read-aloud'
+import { canOfferLab } from '@/lib/check-in-prompt'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
@@ -92,7 +94,7 @@ export default function CheckInPage() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [expandedCheckInIds, setExpandedCheckInIds] = useState<Set<string>>(new Set())
   const [showJournalButton, setShowJournalButton] = useState(false)
-  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
+  const { activeKey: speakingIndex, phase: speakingPhase, toggle: handleSpeak, stop: stopSpeaking } = useReadAloud()
   // Something said here that is plainly about a project being made: offered
   // once, as a door, never moved without their tap.
   const [belongs, setBelongs] = useState<{ project_id: string; title: string; quote: string } | null>(null)
@@ -108,27 +110,6 @@ export default function CheckInPage() {
   const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
-    }
-  }, [])
-
-  const handleSpeak = (text: string, index: number) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return
-    if (speakingIndex === index) {
-      window.speechSynthesis.cancel()
-      setSpeakingIndex(null)
-      return
-    }
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.onend = () => setSpeakingIndex(null)
-    utterance.onerror = () => setSpeakingIndex(null)
-    setSpeakingIndex(index)
-    window.speechSynthesis.speak(utterance)
-  }
 
   // Resize transcript textarea when dictation injects text
   useEffect(() => {
@@ -180,10 +161,7 @@ export default function CheckInPage() {
   const startMicMode = () => {
     setError(null)
     setTranscript('')
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel()
-      setSpeakingIndex(null)
-    }
+    stopSpeaking()
     handleRecordToggle()
   }
 
@@ -402,6 +380,7 @@ export default function CheckInPage() {
   }
 
   const hasAiResponded = messages.some((x) => x.role === 'assistant')
+  const offerLab = canOfferLab(signals?.creative_readiness, messages.filter((x) => x.role === 'user').map((x) => x.content))
 
   // After each reply, and at most three times in one check-in, look for one
   // thing they said that belongs to a project they are making. Only their own
@@ -608,15 +587,21 @@ export default function CheckInPage() {
                   {(() => {
                     const lastAi = [...messages].map((x, i) => ({ x, i })).reverse().find(({ x }) => x.role === 'assistant')
                     if (!lastAi) return null
+                    const mine = speakingIndex === lastAi.i
+                    const voiceDown = mine && speakingPhase === 'unavailable'
+                    const speaking = mine && !voiceDown
                     return (
-                      <button onClick={() => handleSpeak(lastAi.x.content, lastAi.i)} aria-label={speakingIndex === lastAi.i ? 'Stop reading aloud' : 'Read aloud'} style={{ color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, ...typeRoles.small, fontSize: 12 }}>
-                        {speakingIndex === lastAi.i ? (
+                      <>
+                      <button onClick={() => void handleSpeak(lastAi.x.content, lastAi.i)} aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'} style={{ color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, ...typeRoles.small, fontSize: 12 }}>
+                        {speaking ? (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
                         ) : (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
                         )}
-                        {speakingIndex === lastAi.i ? 'Stop' : 'Read aloud'}
+                        {!speaking ? 'Read aloud' : speakingPhase === 'loading' ? 'Finding the voice…' : 'Stop'}
                       </button>
+                      {voiceDown && <p role="status" style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 6 }}>The voice is unavailable right now.</p>}
+                      </>
                     )
                   })()}
                 </div>
@@ -624,14 +609,14 @@ export default function CheckInPage() {
             </Thread>
 
             {/* Contextual doors — only surface when there is something real to offer */}
-            {hasAiResponded && !isProcessing && (showJournalButton || signals?.creative_readiness) && (
+            {hasAiResponded && !isProcessing && (showJournalButton || offerLab) && (
               <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 {showJournalButton && (
                   <GhostButton size="sm" onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
                     Journal prompt
                   </GhostButton>
                 )}
-                {signals?.creative_readiness && (
+                {offerLab && (
                   <QuietButton onClick={() => {
                     sessionStorage.setItem('check_in_handover', JSON.stringify({
                       entry: initialEntry,

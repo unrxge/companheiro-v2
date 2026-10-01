@@ -46,6 +46,10 @@ const PRICES: Array<{ match: string; input: number; output: number }> = [
   { match: 'haiku', input: 1, output: 5 },
   { match: 'sonnet', input: 3, output: 15 },
   { match: 'opus', input: 5, output: 25 },
+  // Kept last: the unknown-model fallback below is by position.
+  // Speech (api/read-aloud): the meter is fed characters as `input`, and
+  // gpt-4o-mini-tts costs about $0.015 a spoken minute, roughly 900 characters.
+  { match: 'tts', input: 17, output: 0 },
 ]
 
 export function costMicros(model: string, usage: UsageLike): number {

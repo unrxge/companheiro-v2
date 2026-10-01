@@ -26,6 +26,8 @@ test('costMicros prices by model family, cache writes at the 1h rate', () => {
   assert.equal(costMicros('claude-haiku-4-5', { cache_creation_input_tokens: 1_000_000, cache_read_input_tokens: 1_000_000 }), 2_100_000)
   // unknown models are charged as Sonnet
   assert.equal(costMicros('some-future-model', { input_tokens: 1_000_000 }), 3_000_000)
+  // speech is metered by the character: a 400-character reply is under a cent
+  assert.equal(costMicros('gpt-4o-mini-tts', { input_tokens: 400 }), 6_800)
 })
 
 const sub = (over: Partial<Subscription>): Subscription => ({

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseSignals, hasSignals } from './check-in-prompt'
+import { parseSignals, hasSignals, canOfferLab, LAB_OFFER_MIN_WORDS } from './check-in-prompt'
 
 // What this guards: a parse failure here writes a plausible-looking emotional
 // reading into a permanent record that the person will later read back as
@@ -42,4 +42,22 @@ test('hasSignals distinguishes a usable block from a broken one', () => {
   assert.equal(hasSignals(block('{"energy":"low"}')), true)
   assert.equal(hasSignals(block('{"energy": broken')), false)
   assert.equal(hasSignals('no block here'), false)
+})
+
+// What this guards: the Idea Lab door appearing on thin check-ins. The model's
+// flag alone is not enough — there has to be material to carry over.
+const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
+
+test('the Lab is not offered on a short check-in, even when the model says ready', () => {
+  assert.equal(canOfferLab(true, ['Bit tired today but I had an idea about rivers.']), false)
+})
+
+test('the Lab is offered once enough has been said, counted across turns', () => {
+  const half = Math.ceil(LAB_OFFER_MIN_WORDS / 2)
+  assert.equal(canOfferLab(true, [words(half), words(half)]), true)
+})
+
+test('plenty said is never enough without the model reading it as ready', () => {
+  assert.equal(canOfferLab(false, [words(LAB_OFFER_MIN_WORDS * 3)]), false)
+  assert.equal(canOfferLab(undefined, [words(LAB_OFFER_MIN_WORDS * 3)]), false)
 })
