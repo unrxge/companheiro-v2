@@ -42,7 +42,6 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
   const [password, setPassword] = useState('')
   // True once the server has said this address has an account.
   const [askPassword, setAskPassword] = useState(false)
-  const [sentKind, setSentKind] = useState<'signup' | 'signin'>('signup')
   const [error, setError] = useState<string | null>(oauthFailed ? 'That sign-in link didn’t work or has expired. Please try again.' : null)
   const [loading, setLoading] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<OAuthProvider | null>(null)
@@ -68,14 +67,14 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
     }
   }
 
-  /** Email a link: sign-up (then choose a password) or plain sign-in. */
-  const sendLink = async (kind: 'signup' | 'signin') => {
+  /** New address: email a sign-up link, which leads to choosing a password. */
+  const sendSignupLink = async () => {
     const address = email.trim()
     const { error: err } = await createClient().auth.signInWithOtp({
       email: address,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: callbackUrl(kind === 'signup' ? 'set-password' : undefined),
+        emailRedirectTo: callbackUrl('set-password'),
         // Only used if this creates the account: filed by a trigger (migration 026).
         data: { attribution: readAttribution() },
       },
@@ -84,7 +83,6 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
       setError(err.message)
       return
     }
-    setSentKind(kind)
     setSentTo(address)
   }
 
@@ -106,7 +104,7 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
     if (askPassword) {
       return run(async () => {
         const { error: err } = await createClient().auth.signInWithPassword({ email: address, password })
-        if (err) setError('That password didn’t match. Try again, or get a sign-in link by email.')
+        if (err) setError('That password didn’t match. Try again, or use “Forgot password?” to set a new one.')
         else router.push('/home')
       })
     }
@@ -121,9 +119,10 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
         setError(d.error || 'Please check the address and try again.')
         return
       }
+      // Registered accounts sign in with a password (or Google), never a link.
       if (d.exists === true) setAskPassword(true)
-      // Unknown (null) gets a plain link, which works for either case.
-      else await sendLink(d.exists === false ? 'signup' : 'signin')
+      else if (d.exists === false) await sendSignupLink()
+      else setError('We couldn’t check that address just now. Please try again in a moment.')
     })
   }
 
@@ -135,9 +134,7 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
         <div role="status">
           <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary }}>Check your email.</p>
           <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>
-            {sentKind === 'signup'
-              ? `We sent a link to ${sentTo}. Open it on this device to choose a password and finish creating your account.`
-              : `We sent a sign-in link to ${sentTo}. Open it on this device to continue.`}{' '}
+            We sent a link to {sentTo}. Open it on this device to choose a password and finish creating your account.{' '}
             <button type="button" onClick={() => setSentTo(null)} style={{ ...link, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}>
               Use a different email
             </button>
@@ -162,10 +159,7 @@ export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[
                   {/* Padding keeps the field's focus border inside the clipped box. */}
                   <div style={{ padding: '1px 1px 2px' }}>
                     <TextField type="password" value={password} onChange={setPassword} ariaLabel="Password" placeholder="Your password" autoComplete="current-password" autoFocus />
-                    <div style={{ ...typeRoles.small, fontSize: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <button type="button" onClick={() => run(() => sendLink('signin'))} style={{ ...link, color: t.textSecondary, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}>
-                        Email me a sign-in link instead
-                      </button>
+                    <div style={{ ...typeRoles.small, fontSize: 12, marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
                       <Link href="/reset" style={{ ...link, color: t.textSecondary }}>Forgot password?</Link>
                     </div>
                   </div>

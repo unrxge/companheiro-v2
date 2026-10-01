@@ -5,8 +5,8 @@ import { recordOpsEvent } from '@/lib/ops/ai-calls'
 /**
  * Does an account already use this address? Asks Supabase's admin API, which
  * filters by a partial match, so the result is compared exactly. Null when it
- * can't tell (no service key, request failed); the page then emails a link,
- * which works either way.
+ * can't tell (no service key, request failed); the page then asks them to
+ * try again rather than guess.
  */
 async function accountExists(email: string): Promise<boolean | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -18,8 +18,10 @@ async function accountExists(email: string): Promise<boolean | null> {
       cache: 'no-store',
     })
     if (!res.ok) return null
-    const body = (await res.json()) as { users?: { email?: string }[] }
-    return (body.users ?? []).some((u) => u.email?.toLowerCase() === email)
+    const body = (await res.json()) as { users?: { email?: string; email_confirmed_at?: string | null }[] }
+    // An address that asked for a sign-up link but never opened it has no
+    // password yet, so it counts as new and gets the link again.
+    return (body.users ?? []).some((u) => u.email?.toLowerCase() === email && !!u.email_confirmed_at)
   } catch {
     return null
   }
