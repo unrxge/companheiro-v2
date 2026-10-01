@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -11,9 +11,9 @@ import { UnderlineLink } from '@/components/ui/underline-link'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { ProportionBar, WeatherStrip } from '@/components/widgets'
-import { shell, onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
+import { onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
-import { Working, WorkingDots } from '@/components/ui/working'
+import { Working } from '@/components/ui/working'
 import { tourSeenLocally } from '@/lib/tour'
 
 interface ActivePiece {
@@ -48,7 +48,11 @@ interface Letter {
   read_at: string | null
 }
 
-function HomeContent() {
+/**
+ * The Home screen. `backdrop` is for when it only sits, blurred, behind the
+ * tour on a desktop: it loads as usual but sends nobody anywhere.
+ */
+export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
   const { t } = useTheme()
   const router = useRouter()
 
@@ -78,13 +82,14 @@ function HomeContent() {
 
   // First run: the tour (once), then seed the territories, before anything else.
   useEffect(() => {
+    if (backdrop) return
     fetch('/api/onboarding')
       .then((r) => r.json())
       .then((d) => {
         if (d && d.onboarded === false) router.replace(d.toured === false && !tourSeenLocally() ? '/tour' : '/welcome')
       })
       .catch(() => {})
-  }, [router])
+  }, [router, backdrop])
 
   useEffect(() => {
     const load = async () => {
@@ -371,19 +376,5 @@ function HomeContent() {
         </ModalDialog>
       )}
     </PageShell>
-  )
-}
-
-export default function HomePage() {
-  return (
-    <Suspense
-      fallback={
-        <div style={{ minHeight: '100dvh', background: shell.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: shell.muted }}><WorkingDots /> Loading…</p>
-        </div>
-      }
-    >
-      <HomeContent />
-    </Suspense>
   )
 }

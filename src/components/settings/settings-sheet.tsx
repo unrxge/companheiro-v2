@@ -155,7 +155,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           <div style={row}>
             <div>
               <div style={label}>How Companheiro works</div>
-              <div style={hint}>The six-slide tour from when you joined.</div>
+              <div style={hint}>A short tour of each part of the app.</div>
             </div>
             <GhostButton href="/tour" size="sm">Take the tour</GhostButton>
           </div>

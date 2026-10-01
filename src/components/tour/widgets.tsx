@@ -2,30 +2,30 @@
 
 // Tour visuals, one per slide. Each is a small working copy of the real
 // screen, built from the same components and wording (the Check-in circles,
-// the Idea Lab's three ways in, the board's columns, the writing assistant's
-// Approve / Reject, the Portrait's "Forget this", the Collector's form), so
-// that what a new person tries here is what they will find in the app. A
-// "Try it" line on top says what to press next. The examples are different
-// people making different things. Nothing here reads or writes the database.
+// the Idea Lab's theme pills and energy slider, Conceptualise's five phases,
+// the board's columns, the Portrait's "Forget this", the Collector's form),
+// so that what a new person tries here is what they will find in the app. A
+// "Try it" line on top says what to press next. Everything sits on paper:
+// no ink panels and no ink buttons inside a widget. Nothing here reads or
+// writes the database.
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion as m, useReducedMotion } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { Container, Card, Eyebrow } from '@/components/shell/page-shell'
-import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons'
+import { Container, Card, Divider, Eyebrow } from '@/components/shell/page-shell'
+import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
+import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
 import { useTypewriter } from '@/components/landing/mockups'
-import { alpha, columnHue, fonts, radius, shell, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
+import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 export interface TourWidgetProps {
   /** True while this widget's slide is the one on screen. */
   active: boolean
-  /** Moves the tour on a slide, for a button that leads to the next part of the app. */
-  next: () => void
 }
 
 /** The line on top of every widget: what to press next, or what just happened. */
@@ -33,13 +33,13 @@ function TryIt({ children }: { children: React.ReactNode }) {
   const { t } = useTheme()
   return (
     <div className="flex items-start gap-2.5" style={{ padding: '2px 4px 12px', minHeight: 54 }}>
-      <Pill hue="neutral" solid style={{ flexShrink: 0, marginTop: 1 }}>Try it</Pill>
+      <Pill hue="ember" style={{ flexShrink: 0, marginTop: 1 }}>Try it</Pill>
       <p aria-live="polite" style={{ ...typeRoles.small, fontWeight: 500, color: t.textPrimary }}>{children}</p>
     </div>
   )
 }
 
-/** Small text button: "start again", "back". */
+/** Small text button: "start again", "watch again". */
 function TextButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   const { t } = useTheme()
   return (
@@ -49,57 +49,56 @@ function TextButton({ children, onClick }: { children: React.ReactNode; onClick:
   )
 }
 
-/** A page of the app in miniature: the dark shell, its eyebrow and title. */
-function Screen({ eyebrow, title, minHeight, children }: { eyebrow: string; title: string; minHeight: number; children: React.ReactNode }) {
+/** The page's own eyebrow and title, at the top of its card. */
+function PageTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
+  const { t } = useTheme()
   return (
-    <div style={{ backgroundColor: shell.ink2, border: `1px solid ${shell.line}`, borderRadius: radius.card, padding: 16, minHeight }}>
-      <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: shell.muted }}>{eyebrow}</p>
-      <p style={{ ...typeRoles.h2, fontSize: 19, color: shell.text, marginTop: 4 }}>{title}</p>
-      <div style={{ marginTop: 14 }}>{children}</div>
-    </div>
+    <>
+      <Eyebrow style={{ fontSize: 10 }}>{eyebrow}</Eyebrow>
+      <p style={{ ...typeRoles.h2, fontSize: 19, color: t.textPrimary, marginTop: 4 }}>{title}</p>
+    </>
   )
 }
 
 /** A text field that fills itself in. Not an input: nothing here opens a keyboard. */
-function FakeField({ text, placeholder, typing, minHeight = 44, onShell = false }: { text: string; placeholder: string; typing: boolean; minHeight?: number; onShell?: boolean }) {
+function FakeField({ text, placeholder, typing, minHeight = 44 }: { text: string; placeholder: string; typing: boolean; minHeight?: number }) {
   const { t } = useTheme()
   return (
-    <div
-      style={{
-        ...typeRoles.ui, fontSize: 14, minHeight, padding: '10px 12px', borderRadius: radius.field,
-        backgroundColor: onShell ? '#1c1916' : t.inputBg,
-        border: `1px solid ${onShell ? '#352f29' : t.inputBorder}`,
-        color: text ? (onShell ? shell.text : t.textPrimary) : onShell ? shell.muted : t.textMuted,
-      }}
-    >
+    <div style={{ ...typeRoles.ui, fontSize: 14, minHeight, padding: '10px 12px', borderRadius: radius.field, backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`, color: text ? t.textPrimary : t.textMuted }}>
       {text || placeholder}
-      {typing && <span style={{ display: 'inline-block', width: 1.5, height: '1em', marginLeft: 2, verticalAlign: '-0.15em', backgroundColor: onShell ? shell.text : t.textPrimary }} />}
+      {typing && <Caret />}
     </div>
   )
 }
 
-// ── Check in: Voice or Type, Send, and it answers ───────────────────────────
+function Caret() {
+  const { t } = useTheme()
+  return <span aria-hidden style={{ display: 'inline-block', width: 1.5, height: '1em', marginLeft: 2, verticalAlign: '-0.15em', backgroundColor: t.ember }} />
+}
+
+// ── Check-in: Voice or Type, Send, and it answers ───────────────────────────
 
 const CHECKIN_SAID = 'I finished the demo last night and I can’t tell if it’s any good. I keep opening it and closing it again.'
 const CHECKIN_REPLY = 'You finished it. That part is done. When you open it, what are you listening for?'
 
-function ModeCircle({ label, pulse, onClick, children }: { label: string; pulse: boolean; onClick: () => void; children: React.ReactNode }) {
+function ModeCircle({ label, pulse, onClick, children }: { label: 'Voice' | 'Type'; pulse: boolean; onClick: () => void; children: React.ReactNode }) {
+  const { t } = useTheme()
   const reduce = useReducedMotion()
   return (
-    <m.button type="button" onClick={onClick} aria-label={label === 'Voice' ? 'Check in by voice' : 'Check in by typing'} whileTap={{ scale: 0.94 }} className="cursor-pointer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, background: 'none', border: 'none' }}>
+    <m.button type="button" onClick={onClick} aria-label={label === 'Voice' ? 'Check in by voice' : 'Check in by typing'} whileTap={{ scale: 0.94 }} className="cursor-pointer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: t.textSecondary }}>
       <m.div
-        animate={pulse && !reduce ? { boxShadow: [`0 0 0 0px ${alpha(shell.text, 0.22)}`, `0 0 0 10px ${alpha(shell.text, 0)}`] } : { boxShadow: `0 0 0 0px ${alpha(shell.text, 0)}` }}
+        animate={pulse && !reduce ? { boxShadow: [`0 0 0 0px ${alpha(t.ember, 0.35)}`, `0 0 0 12px ${alpha(t.ember, 0)}`] } : { boxShadow: `0 0 0 0px ${alpha(t.ember, 0)}` }}
         transition={pulse && !reduce ? { duration: 1.8, repeat: Infinity, ease: 'easeOut' } : { duration: 0.2 }}
-        style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#1c1916', border: '1.5px solid #352f29', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: t.inputBg, border: `1.5px solid ${t.inputBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {children}
       </m.div>
-      <span style={{ ...typeRoles.small, fontSize: 12, color: shell.muted, letterSpacing: '0.04em' }}>{label}</span>
+      <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, letterSpacing: '0.04em' }}>{label}</span>
     </m.button>
   )
 }
 
-export function CheckInWidget({ active, next }: TourWidgetProps) {
+export function CheckInWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
   const [mode, setMode] = useState<'voice' | 'type' | null>(null)
   const [sent, setSent] = useState(false)
@@ -114,173 +113,273 @@ export function CheckInWidget({ active, next }: TourWidgetProps) {
           : !said.done ? (mode === 'voice' ? 'You talk, it writes down what you say.' : 'Write it the way you’d say it. There’s no right way.')
           : !sent ? 'When you’ve said enough, press Send.'
           : !reply.done ? 'It reads what you said and answers.'
-          : 'If there’s an idea in what you said, one tap takes it to the Idea Lab.'}
+          : 'It answers what you actually said. Carry on, or leave it there.'}
       </TryIt>
-      <Screen eyebrow="Companheiro · Morning" title="Check-in" minHeight={292}>
-        {mode === null ? (
-          <div className="flex items-center justify-center gap-9" style={{ padding: '34px 0 30px' }}>
-            <ModeCircle label="Voice" pulse={active} onClick={() => setMode('voice')}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#aaa59c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
-            </ModeCircle>
-            <ModeCircle label="Type" pulse={false} onClick={() => setMode('type')}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aaa59c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
-              </svg>
-            </ModeCircle>
-          </div>
-        ) : !sent ? (
-          <div className="flex flex-col items-center gap-3">
-            {mode === 'voice' && (
-              <>
-                <MicButton recording={!said.done} onToggle={() => {}} size={52} onShell />
-                <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: shell.muted, minHeight: 12 }}>{said.done ? '' : 'Recording'}</p>
-              </>
-            )}
-            <div className="w-full" aria-label={CHECKIN_SAID}>
-              <FakeField onShell text={said.shown} placeholder={mode === 'voice' ? 'Your words will appear here…' : 'Begin typing…'} typing={!said.done} minHeight={mode === 'voice' ? 88 : 110} />
+      <Card padding={16} style={{ minHeight: 292 }}>
+        <PageTitle eyebrow="Companheiro · Morning" title="Check-in" />
+        <div style={{ marginTop: 14 }}>
+          {mode === null ? (
+            <div className="flex items-center justify-center gap-9" style={{ padding: '30px 0 26px' }}>
+              <ModeCircle label="Voice" pulse={active} onClick={() => setMode('voice')}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </ModeCircle>
+              <ModeCircle label="Type" pulse={false} onClick={() => setMode('type')}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+                </svg>
+              </ModeCircle>
             </div>
-            <m.div className="w-full" initial={false} animate={{ opacity: said.done ? 1 : 0 }} style={{ pointerEvents: said.done ? 'auto' : 'none' }}>
-              <PrimaryButton full onClick={() => setSent(true)} disabled={!said.done}>Send</PrimaryButton>
-            </m.div>
-          </div>
-        ) : (
-          <Card padding={14}>
-            <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{CHECKIN_SAID}</p>
-            <p aria-label={CHECKIN_REPLY} style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 12, minHeight: '3.1em' }}>
-              <span aria-hidden>{reply.shown}</span>
-            </p>
-            <m.div initial={false} animate={{ opacity: reply.done ? 1 : 0, y: reply.done ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} className="flex flex-wrap items-center gap-x-4" style={{ marginTop: 10, pointerEvents: reply.done ? 'auto' : 'none' }}>
-              <QuietButton size="sm" onClick={next}>Take it to the Lab →</QuietButton>
-              <TextButton onClick={restart}>Start again</TextButton>
-            </m.div>
-          </Card>
-        )}
-      </Screen>
+          ) : !sent ? (
+            <div className="flex flex-col items-center gap-3">
+              {mode === 'voice' && (
+                <div className="flex items-center gap-3">
+                  <MicButton recording={!said.done} onToggle={() => {}} size={44} />
+                  <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.textMuted, minWidth: 70 }}>{said.done ? '' : 'Recording'}</p>
+                </div>
+              )}
+              <div className="w-full" aria-label={CHECKIN_SAID}>
+                <FakeField text={said.shown} placeholder={mode === 'voice' ? 'Your words will appear here…' : 'Begin typing…'} typing={!said.done} minHeight={mode === 'voice' ? 88 : 110} />
+              </div>
+              <m.div className="w-full" initial={false} animate={{ opacity: said.done ? 1 : 0 }} style={{ pointerEvents: said.done ? 'auto' : 'none' }}>
+                <PrimaryButton full onClick={() => setSent(true)} disabled={!said.done}>Send</PrimaryButton>
+              </m.div>
+            </div>
+          ) : (
+            <>
+              <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{CHECKIN_SAID}</p>
+              <p aria-label={CHECKIN_REPLY} style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 12, minHeight: '3.1em' }}>
+                <span aria-hidden>{reply.shown}</span>
+              </p>
+              <m.div initial={false} animate={{ opacity: reply.done ? 1 : 0 }} style={{ marginTop: 6, pointerEvents: reply.done ? 'auto' : 'none' }}>
+                <TextButton onClick={restart}>Start again</TextButton>
+              </m.div>
+            </>
+          )}
+        </div>
+      </Card>
     </Container>
   )
 }
 
-// ── Idea Lab: three ways in, a few questions, one clear sentence out ────────
+// ── Idea Lab: a theme, an energy, and a question to make from ───────────────
 
-const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
-const WAYS_IN = [
-  { key: 'bring', eyebrow: 'I have one', title: 'Bring an idea', body: 'Something you’ve been carrying.' },
-  { key: 'several', eyebrow: 'I have a few', title: 'Bring several things', body: 'See whether they share something.' },
-  { key: 'summon', eyebrow: 'I need one', title: 'Summon an idea', body: 'Get a question to start from.' },
-] as const
-type IdeaStage = 'choose' | (typeof WAYS_IN)[number]['key'] | 'talk'
+const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
+  {
+    label: 'Creativity & devotion',
+    hue: 'ember',
+    questions: [
+      'If you knew the work would outlive you, what would you start making tomorrow morning?',
+      'What have you been practising in private, waiting for someone to say you’re allowed to call it your life’s work?',
+      'Which piece have you been saving for the day you’re good enough, and what if that day was today?',
+    ],
+  },
+  {
+    label: 'Healthy masculinity',
+    hue: 'tide',
+    questions: [
+      'What does the man you needed at fifteen look like, and where is he already showing up in you?',
+      'Where in your life are you gentle and proud of it, and what would it sound like to say so out loud?',
+      'Which strength of yours has never needed anyone to be afraid of it?',
+    ],
+  },
+  {
+    label: 'Slow living',
+    hue: 'verdant',
+    questions: [
+      'What did you stop rushing on the day your life started to feel like your own?',
+      'If nobody were keeping score, which ordinary hour of your week would you turn into a ritual?',
+      'What are you finally unhurried enough to notice, and who do you want to show it to?',
+    ],
+  },
+]
+/** The question the Conceptualise slide answers. */
+const SEED = THEMES[0]
 
-const IDEA_TEXT = 'I keep painting my grandmother’s kitchen from memory. I don’t know why it matters. I just can’t stop.'
-const IDEA_ASK = 'When you paint it, what’s the one thing you never leave out?'
-const IDEA_ANSWER = 'The light over the table. It’s always late afternoon.'
-const OTHER_WAYS: Record<'several' | 'summon', string> = {
-  several: 'Add a few things that feel unrelated: a draft, a lyric, a note, a photo idea. It reads them together and tells you what they seem to share.',
-  summon: 'Pick a movement, a territory and how much energy you have. It gives you one question to start from, drawn from your own themes.',
+/** The question, arriving a word at a time. */
+function Arriving({ text }: { text: string }) {
+  const reduce = useReducedMotion()
+  return (
+    <span aria-label={text}>
+      {text.split(' ').map((w, i) => (
+        <m.span key={i} aria-hidden initial={reduce ? false : { opacity: 0, y: 6, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.5, delay: i * 0.055, ease: EASE }} style={{ display: 'inline-block', whiteSpace: 'pre' }}>
+          {w}{' '}
+        </m.span>
+      ))}
+    </span>
+  )
 }
 
-export function IdeaLabWidget({ active, next }: TourWidgetProps) {
+export function SummonWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
-  const [stage, setStage] = useState<IdeaStage>('choose')
-  const [answered, setAnswered] = useState(false)
-  const [named, setNamed] = useState(false)
-  const idea = useTypewriter(IDEA_TEXT, stage === 'bring', 20)
-  const ask = useTypewriter(IDEA_ASK, stage === 'talk', 18)
-  const back = () => { setStage('choose'); setAnswered(false); setNamed(false) }
+  const reduce = useReducedMotion()
+  // 0 nothing chosen · 1 theme chosen · 2 energy set · 3 summoning · 4 the question
+  const [step, setStep] = useState(0)
+  const [theme, setTheme] = useState(0)
+  const [asked, setAsked] = useState([0, 0, 0])
+  const [note, setNote] = useState<'energy' | 'add' | null>(null)
 
-  // After the answer is sent, the concept takes a moment to arrive.
+  // Sets itself up the first time: picks the theme, slides the energy up, asks.
   useEffect(() => {
-    if (!answered) return
-    const id = window.setTimeout(() => setNamed(true), 1100)
+    if (!active || step > 0) return
+    if (reduce) { setStep(4); return }
+    // Never backwards: a tap on a theme mid-sequence has already moved it on.
+    const ids = [800, 1700, 2900].map((ms, i) => window.setTimeout(() => setStep((s) => Math.max(s, i + 1)), ms))
+    return () => ids.forEach((id) => window.clearTimeout(id))
+    // step is only read to skip a replay; the sequence itself must not restart as it advances
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, reduce])
+
+  // A question takes a moment to arrive.
+  useEffect(() => {
+    if (step !== 3) return
+    const id = window.setTimeout(() => setStep(4), 800)
     return () => window.clearTimeout(id)
-  }, [answered])
+  }, [step, theme, asked])
+
+  const pick = (i: number) => { setNote(null); setTheme(i); setStep(3) }
+  const again = () => { setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % THEMES[i].questions.length : n))); setStep(3) }
+  const chosen = step >= 1
+  const bright = step >= 2
+  const current = THEMES[theme]
 
   return (
     <Container padding={12}>
       <TryIt>
-        {stage === 'choose' ? 'Choose how you’re starting. Try “Bring an idea”.'
-          : stage === 'bring' ? (idea.done ? 'Now press “Talk it through”.' : 'Describe it roughly. It doesn’t need to be clear yet.')
-          : stage === 'talk' ? (!ask.done ? 'It asks one question at a time.' : !answered ? 'Answer in your own words, then Send.' : !named ? 'A few questions later…' : 'You finish with a core concept. It becomes a project on your board.')
-          : 'Another way in. Go back to try “Bring an idea”.'}
+        {note === 'energy' ? 'Energy is set to Bright for this tour. In the app, slide it to match your day.'
+          : note === 'add' ? 'In the app, this is where you add a theme of your own.'
+          : step < 4 ? 'Watch: a theme, an energy level, then a question.'
+          : 'Tap another theme, or “Ask again” for a new question.'}
       </TryIt>
-      <Screen eyebrow="Companheiro" title="Idea Lab" minHeight={292}>
-        {stage === 'choose' ? (
-          <div className="flex flex-col gap-2">
-            <p style={{ ...typeRoles.small, color: shell.muted, marginBottom: 2 }}>Where are you starting from?</p>
-            {WAYS_IN.map((o, i) => (
-              <m.button
-                key={o.key}
-                type="button"
-                onClick={() => setStage(o.key)}
-                whileTap={{ scale: 0.99 }}
-                className="cursor-pointer"
-                style={{ textAlign: 'left', backgroundColor: t.cardBg, border: 'none', borderRadius: radius.widget, padding: '10px 14px', boxShadow: active && i === 0 ? `0 0 0 2px ${t.ember}` : 'none' }}
-              >
-                <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.ember, display: 'block' }}>{o.eyebrow}</span>
-                <span style={{ ...typeRoles.h3, color: t.textPrimary, display: 'block', marginTop: 3 }}>{o.title} →</span>
-                <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, display: 'block' }}>{o.body}</span>
-              </m.button>
-            ))}
-          </div>
-        ) : stage === 'bring' ? (
-          <Card padding={14}>
-            <div className="flex items-start justify-between gap-3">
-              <Eyebrow style={{ color: t.ember }}>Bring an idea</Eyebrow>
-              <GhostButton size="sm" onClick={back}>Back</GhostButton>
-            </div>
-            <div style={{ marginTop: 10 }} aria-label={IDEA_TEXT}>
-              <FakeField text={idea.shown} placeholder="Write freely…" typing={!idea.done} minHeight={92} />
-            </div>
-            <div className="flex items-center gap-2.5" style={{ marginTop: 10 }}>
-              <MicButton recording={false} onToggle={() => {}} size={40} />
-              <div className="flex-1">
-                <PrimaryButton full onClick={() => setStage('talk')} disabled={!idea.done}>Talk it through →</PrimaryButton>
+      <Card padding={16}>
+        <Eyebrow style={{ marginBottom: 10 }}>Theme</Eyebrow>
+        <div className="flex flex-wrap gap-1.5">
+          {THEMES.map((th, i) => (
+            <Pill key={th.label} hue={th.hue} selected={chosen && theme === i} onClick={() => pick(i)} size="md">{th.label}</Pill>
+          ))}
+          <button type="button" onClick={() => setNote('add')} aria-label="Add a theme" className="cursor-pointer" style={{ fontFamily: fonts.ui, fontSize: 12, fontWeight: 600, lineHeight: 1.2, padding: '6px 13px', borderRadius: 999, background: 'none', border: `1px dashed ${t.inputBorder}`, color: t.textMuted }}>
+            + Add theme
+          </button>
+        </div>
+
+        <Divider style={{ margin: '14px 0' }} />
+
+        <div className="flex items-center justify-between">
+          <Eyebrow>Energy</Eyebrow>
+          <span className="flex items-center gap-1.5" style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            {bright ? 'Bright' : ' '}
+          </span>
+        </div>
+        <button type="button" onClick={() => setNote('energy')} role="slider" aria-label="Energy" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bright ? 100 : 50} aria-valuetext={bright ? 'Bright' : 'Middle'} aria-disabled className="block w-full" style={{ background: 'none', border: 'none', padding: '14px 9px 8px', cursor: 'not-allowed' }}>
+          <span style={{ position: 'relative', display: 'block', height: 4, borderRadius: 999, background: `linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant})` }}>
+            <span style={{ position: 'absolute', top: -7, left: bright ? '100%' : '50%', width: 18, height: 18, marginLeft: -9, borderRadius: '50%', backgroundColor: t.cardBg, border: `2px solid ${t.textPrimary}`, boxShadow: bright ? `0 0 0 5px ${alpha(t.verdant, 0.22)}` : '0 1px 4px rgba(0,0,0,0.28)', transition: reduce ? 'none' : 'left 0.9s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease 0.5s' }} />
+          </span>
+        </button>
+        <div className="flex justify-between">
+          <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Heavy</span>
+          <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Bright</span>
+        </div>
+
+        <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, borderLeft: `3px solid ${step >= 3 ? t[current.hue] : 'transparent'}`, transition: 'border-color 0.4s ease' }}>
+          {step < 3 ? (
+            <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted }}>The question is waiting.</p>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <Eyebrow style={{ paddingTop: 6 }}>Your question</Eyebrow>
+                <GhostButton size="sm" onClick={again} disabled={step === 3}>Ask again</GhostButton>
               </div>
-            </div>
-          </Card>
-        ) : stage === 'talk' ? (
-          <Card padding={14}>
-            <PhaseDots phase={named ? 5 : answered ? 3 : 2} labels={PHASES} />
-            {!named ? (
+              <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>
+                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={current.questions[asked[theme]]} />}
+              </p>
+            </>
+          )}
+        </Card>
+      </Card>
+    </Container>
+  )
+}
+
+// ── Conceptualise: from your answer to a declared concept ───────────────────
+
+const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
+const FIRST_REPLY =
+  'Honestly? Paintings of my grandmother’s kitchen. I’ve been painting it from memory for years, in sketchbooks nobody sees. Always the same table, the same window. I tell myself they’re studies for something else, but they’re the only thing I’ve made that I’d want my kids to find. The oilcloth, her radio on the sill, the way the light came in late in the day. I think I’ve been afraid that if I paint them properly, at full size, I’ll find out whether'
+const EXCHANGES = [
+  { ask: 'You call them studies, yet they’re what you’d want found. What’s in that kitchen that you can never leave out?', say: 'The light over the table. It’s always late afternoon.' },
+  { ask: 'Who do you picture standing in front of them?', say: 'My kids. And anyone who still carries a room like that around.' },
+  { ask: 'What will these paintings refuse to do, even if it would make them easier to like?', say: 'No people in them. Only what they left on the table.' },
+]
+
+export function ConceptualiseWidget({ active }: TourWidgetProps) {
+  const { t } = useTheme()
+  const reduce = useReducedMotion()
+  const [phase, setPhase] = useState(1)
+  const [replied, setReplied] = useState(false)
+  const exchange = phase >= 2 && phase <= 4 ? EXCHANGES[phase - 2] : null
+  const ask = useTypewriter(exchange?.ask ?? '', active && !!exchange, 18)
+
+  // The opening answer stays up long enough to read, then the phases run on their own.
+  useEffect(() => {
+    if (!active || phase !== 1) return
+    const id = window.setTimeout(() => setPhase(2), 5200)
+    return () => window.clearTimeout(id)
+  }, [active, phase])
+
+  useEffect(() => {
+    if (!active || !exchange || !ask.done) return
+    const a = window.setTimeout(() => setReplied(true), 700)
+    const b = window.setTimeout(() => { setReplied(false); setPhase((p) => p + 1) }, 3600)
+    return () => { window.clearTimeout(a); window.clearTimeout(b) }
+  }, [active, exchange, ask.done])
+
+  const fade = 'linear-gradient(to bottom, #000 35%, transparent 100%)'
+  return (
+    <Container padding={12}>
+      <TryIt>
+        {phase === 1 ? 'You answer first, at whatever length you need. Speak or type.'
+          : phase < 5 ? 'Then it asks one question at a time. This plays on its own.'
+          : 'Declared. This concept becomes a project on your board.'}
+      </TryIt>
+      <Card padding={16} style={{ minHeight: 330 }}>
+        <PhaseDots phase={phase} labels={PHASES} />
+        <AnimatePresence mode="wait" initial={false}>
+          <m.div key={phase} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.3, ease: EASE }} style={{ marginTop: 14 }}>
+            {phase === 1 ? (
               <>
-                <p aria-label={IDEA_ASK} style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 14, minHeight: '3.1em' }}>
+                <div className="flex flex-wrap gap-1.5">
+                  <Pill hue={SEED.hue}>{SEED.label}</Pill>
+                  <Pill hue="verdant">Bright</Pill>
+                </div>
+                <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 10 }}>{SEED.questions[0]}</p>
+                <div style={{ marginTop: 10, maxHeight: 132, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{FIRST_REPLY}</p>
+                </div>
+              </>
+            ) : exchange ? (
+              <>
+                <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
                   <span aria-hidden>{ask.shown}</span>
                 </p>
-                {answered ? (
-                  <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 10 }}>{IDEA_ANSWER}</p>
-                ) : (
-                  <m.div initial={false} animate={{ opacity: ask.done ? 1 : 0 }} className="flex items-end gap-2" style={{ marginTop: 10, pointerEvents: ask.done ? 'auto' : 'none' }}>
-                    <div className="flex-1"><FakeField text={IDEA_ANSWER} placeholder="" typing={false} /></div>
-                    <QuietButton onClick={() => setAnswered(true)} disabled={!ask.done}>Send</QuietButton>
-                  </m.div>
-                )}
+                <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%' }}>
+                  {exchange.say}
+                </m.p>
               </>
             ) : (
-              <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }} style={{ marginTop: 14 }}>
-                <Card inner padding={12} style={{ borderLeft: `3px solid ${t.ember}` }}>
-                  <Pill hue="ember">Core concept</Pill>
-                  <p style={{ ...typeRoles.h3, fontSize: 16, color: t.textPrimary, marginTop: 8 }}>Late Afternoon</p>
-                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 2 }}>Paintings of the rooms we keep going back to, and their light.</p>
+              <>
+                <Card inner padding={14} style={{ borderLeft: `3px solid ${t.ember}` }}>
+                  <Pill hue="ember">Concept</Pill>
+                  <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Late Afternoon</p>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>Large paintings of the rooms we keep going back to, empty, in the light we remember them by.</p>
                 </Card>
-                <div className="flex flex-wrap items-center gap-x-4" style={{ marginTop: 10 }}>
-                  <QuietButton size="sm" onClick={next}>See it on the board →</QuietButton>
-                  <TextButton onClick={back}>Start again</TextButton>
-                </div>
-              </m.div>
+                <TextButton onClick={() => setPhase(1)}>Watch again</TextButton>
+              </>
             )}
-          </Card>
-        ) : (
-          <Card padding={14}>
-            <div className="flex items-start justify-between gap-3">
-              <Eyebrow style={{ color: t.ember }}>{WAYS_IN.find((w) => w.key === stage)?.title}</Eyebrow>
-              <GhostButton size="sm" onClick={back}>Back</GhostButton>
-            </div>
-            <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, marginTop: 10 }}>{OTHER_WAYS[stage]}</p>
-            <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 10 }}>Whichever you choose, you end with a core concept.</p>
-          </Card>
-        )}
-      </Screen>
+          </m.div>
+        </AnimatePresence>
+      </Card>
     </Container>
   )
 }
@@ -360,37 +459,46 @@ export function BoardWidget({ active }: TourWidgetProps) {
   )
 }
 
-// ── Writing: select a line, ask, approve or reject ──────────────────────────
+// ── Writing: select a line, be asked about it, write it again yourself ──────
 
 const VERSE = [
-  { text: 'We left the porch light on all summer.', ask: 'This line already shows something. Who was the light left on for?', rewrite: 'We left the porch light on for no one.' },
-  { text: 'I felt so sad when you were gone.', ask: 'This line names the feeling. The other two show it. What did the house look like that week?', rewrite: 'Your cup stayed on the rail till August.' },
-  { text: 'The tide kept coming anyway.', ask: '“Anyway” is carrying the whole verse. What if the line ended one word sooner?', rewrite: 'The tide kept coming.' },
+  { text: 'We left the porch light on all summer.', ask: 'This line already shows something. Who was the light left on for?', mine: 'We left the porch light on for no one.' },
+  { text: 'I felt so sad when you were gone.', ask: 'This line names the feeling. The other two show it. What did the house look like that week?', mine: 'Your cup stayed on the rail till August.' },
+  { text: 'The tide kept coming anyway.', ask: '“Anyway” is carrying the whole verse. What happens if the line stops one word sooner?', mine: 'The tide kept coming.' },
 ]
-type LineState = 'asked' | 'suggested' | 'approved' | 'rejected'
+
+/** The person typing their own new line. Mounted fresh each time, so it always starts empty. */
+function Retyping({ text, onDone }: { text: string; onDone: () => void }) {
+  const typed = useTypewriter(text, true, 42)
+  useEffect(() => {
+    if (typed.done) onDone()
+    // onDone is a fresh closure every render; only the finish matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed.done])
+  return <>{typed.shown}<Caret /></>
+}
 
 export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
   const [lines, setLines] = useState(() => VERSE.map((v) => v.text))
   const [sel, setSel] = useState<number | null>(null)
-  const [state, setState] = useState<LineState>('asked')
+  const [state, setState] = useState<'asked' | 'rewriting' | 'rewritten'>('asked')
   const ask = useTypewriter(sel !== null ? VERSE[sel].ask : '', sel !== null, 16)
 
-  const select = (i: number) => { setSel(i); setState('asked') }
-  const approve = () => {
+  const select = (i: number) => { if (state === 'rewriting') return; setSel(i); setState('asked') }
+  const finish = () => {
     if (sel === null) return
-    setLines((l) => l.map((x, i) => (i === sel ? VERSE[sel].rewrite : x)))
-    setState('approved')
+    setLines((l) => l.map((x, i) => (i === sel ? VERSE[sel].mine : x)))
+    setState('rewritten')
   }
 
   return (
     <Container padding={12}>
       <TryIt>
         {sel === null ? 'Tap the line you’re least sure about.'
-          : state === 'asked' ? (ask.done ? 'Answer it yourself, or ask for a suggested rewrite.' : 'The assistant looks at that line only.')
-          : state === 'suggested' ? 'The suggestion is highlighted. It’s only kept if you approve it.'
-          : state === 'approved' ? 'Approved. The line is now in your draft. Tap another.'
-          : 'Rejected. Your line is untouched. Tap another.'}
+          : state === 'asked' ? (ask.done ? 'It only asks. Now have another go at the line yourself.' : 'It looks at that line and asks you about it.')
+          : state === 'rewriting' ? 'That’s you typing. It never writes the line for you.'
+          : 'Your line, in your words. Tap another one.'}
       </TryIt>
       <Card padding={14} style={{ minHeight: 300 }}>
         <div className="flex items-baseline justify-between gap-3">
@@ -403,7 +511,6 @@ export function WritingWidget({ active }: TourWidgetProps) {
         <div className="flex flex-col" style={{ marginTop: 4 }}>
           {lines.map((line, i) => {
             const on = sel === i
-            const suggested = on && state === 'suggested'
             const hint = sel === null && active && i === 1
             return (
               <button
@@ -413,33 +520,25 @@ export function WritingWidget({ active }: TourWidgetProps) {
                 aria-pressed={on}
                 className="cursor-pointer"
                 style={{
-                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px',
+                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px', minHeight: 33,
                   color: t.textPrimary,
-                  backgroundColor: suggested ? alpha(t.tide, 0.18) : on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
+                  backgroundColor: on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
                   boxShadow: on ? `inset 2px 0 0 ${t.tide}` : 'none',
                   transition: 'background-color 0.25s ease',
                 }}
               >
-                {suggested ? VERSE[i].rewrite : line}
+                {on && state === 'rewriting' ? <Retyping text={VERSE[i].mine} onDone={finish} /> : line}
               </button>
             )
           })}
         </div>
-        {state === 'suggested' && (
-          <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
-            <span style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: t.tide, flex: 1 }}>Suggested rewrite</span>
-            <QuietButton size="sm" onClick={approve}>Approve</QuietButton>
-            <GhostButton size="sm" onClick={() => setState('rejected')}>Reject</GhostButton>
-          </div>
-        )}
 
         <Card inner padding={12} style={{ marginTop: 10 }}>
-          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>Writing assistant</p>
           {sel === null ? (
-            <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4 }}>Select a line to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
+            <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a line to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
           ) : (
             <>
-              <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textSecondary, marginTop: 4 }}>
+              <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textSecondary }}>
                 <span aria-hidden style={{ color: t.tide, fontStyle: 'normal' }}>↳ </span>“{VERSE[sel].text}”
               </p>
               <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, marginTop: 8 }}>Companheiro</p>
@@ -448,7 +547,7 @@ export function WritingWidget({ active }: TourWidgetProps) {
               </p>
               {state === 'asked' && (
                 <m.div initial={false} animate={{ opacity: ask.done ? 1 : 0 }} style={{ marginTop: 8, pointerEvents: ask.done ? 'auto' : 'none' }}>
-                  <GhostButton size="sm" onClick={() => setState('suggested')} disabled={!ask.done}>Suggest a rewrite</GhostButton>
+                  <GhostButton size="sm" onClick={() => setState('rewriting')} disabled={!ask.done}>Rewrite it myself</GhostButton>
                 </m.div>
               )}
             </>

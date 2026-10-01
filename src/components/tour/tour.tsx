@@ -1,9 +1,12 @@
 'use client'
 
-// The tour: six slides, one part of the app each, in the order a new person
-// will meet them (talk, find the idea, track it, write it, be known), with
-// Capture last. It opens once, right after an account is activated, and again
-// from Settings.
+// The tour: seven slides, one part of the app each, in the order a new person
+// will meet them (talk, find a question, shape the concept, track it, write
+// it, be known), with Capture last. It opens once, right after an account is
+// activated, and again from Settings.
+//
+// On a phone it is a page of its own. From 1024px it is a card over whatever
+// is behind it (the tour page puts the Home screen there), which it blurs.
 //
 // The carousel is a native scroll-snap track, so a swipe on a phone is the
 // browser's own; the buttons, dots and arrow keys scroll the same track.
@@ -16,52 +19,59 @@ import { useReducedMotion } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { PrimaryButton } from '@/components/ui/buttons'
 import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
-import { BoardWidget, CaptureWidget, CheckInWidget, IdeaLabWidget, PortraitWidget, WritingWidget, type TourWidgetProps } from './widgets'
+import { BoardWidget, CaptureWidget, CheckInWidget, ConceptualiseWidget, PortraitWidget, SummonWidget, WritingWidget, type TourWidgetProps } from './widgets'
 
 const hues = tokensFor('dark')
 const FADE = 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%)'
 
 const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (p: TourWidgetProps) => React.ReactNode }[] = [
   {
-    where: 'Check in',
+    where: 'Check-in',
     title: 'Talk through what’s on your mind.',
-    body: 'Open Check in whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
+    body: 'Open ‘Check-in’ whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
     mood: 'tide',
     Widget: CheckInWidget,
   },
   {
     where: 'Idea Lab',
-    title: 'Turn a rough idea into a clear one.',
-    body: 'Have an idea, or need one? Describe it, answer a few questions, and leave with a core concept: one clear sentence about what you’re making.',
+    title: 'Don’t wait for the muse.',
+    body: 'No need to wait for the muse to drop down from the heavens. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
     mood: 'violet',
-    Widget: IdeaLabWidget,
+    Widget: SummonWidget,
+  },
+  {
+    where: 'Idea Lab · Conceptualise',
+    title: 'Turn a rough idea into a clear one.',
+    body: 'Answer the question at whatever length you need. ‘Conceptualise’ then asks about what it is, who it’s for and what it stands on, one question at a time, until you can declare your concept in one clear sentence.',
+    mood: 'verdant',
+    Widget: ConceptualiseWidget,
   },
   {
     where: 'Project Board',
     title: 'Keep track of everything you’re making.',
-    body: 'Every idea becomes a project. Move it from Queue to Active when you start, and to Completed when it’s done. Open an active project to work on it.',
-    mood: 'verdant',
+    body: 'Every idea becomes a project. Keeping only a few Active is how things get finished, and the rest wait safely in the Queue, so starting one never means giving up another.',
+    mood: 'tide',
     Widget: BoardWidget,
   },
   {
     where: 'Writing',
-    title: 'Write, with help when you ask for it.',
-    body: 'Stuck on a line? Select it and ask the assistant. It can ask you questions or suggest a rewrite. Nothing changes unless you approve it.',
-    mood: 'tide',
+    title: 'Stuck on a line? Talk it over.',
+    body: 'Select any line to talk about it. Companheiro asks questions and reflects things back until you can see what you meant. The writing is always yours.',
+    mood: 'violet',
     Widget: WritingWidget,
   },
   {
     where: 'Portrait',
     title: 'See what it has learned about you.',
-    body: 'As you use the app, Companheiro keeps notes on how you work, so its help fits you better. Read them all in Portrait, and delete any that aren’t true.',
-    mood: 'violet',
+    body: 'As you use the app, Companheiro keeps notes on how you work, so its help fits you better. Read them all in ‘Portrait’, and delete any that aren’t true.',
+    mood: 'verdant',
     Widget: PortraitWidget,
   },
   {
     where: 'Capture',
     title: 'Save work that inspires you.',
     body: 'Moved by someone else’s video, post or article? Paste its link from Instagram, YouTube or anywhere, and note what caught your eye.',
-    mood: 'verdant',
+    mood: 'tide',
     Widget: CaptureWidget,
   },
 ]
@@ -104,11 +114,26 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
     return () => window.removeEventListener('keydown', onKey)
   }, [go, index])
 
+  // The page behind (Home, on a desktop) must not scroll under the card.
+  useEffect(() => {
+    const was = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = was }
+  }, [])
+
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden" style={{ background: shell.ink, fontFamily: fonts.ui }}>
+    <div className="fixed inset-0 z-[80] flex flex-col bg-[#0d0c0b] lg:items-center lg:justify-center lg:bg-[rgba(13,12,11,0.55)] lg:p-8 lg:backdrop-blur-[16px]" style={{ fontFamily: fonts.ui }}>
+    {/* The transform makes this the box the (fixed) Atmosphere fills, so on a desktop the sky stays inside the card. */}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="How Companheiro works"
+      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden lg:h-[calc(100dvh-64px)] lg:max-h-[720px] lg:max-w-[1040px] lg:flex-none lg:rounded-[28px] lg:border lg:border-[rgba(236,233,226,0.14)] lg:shadow-[0_40px_120px_rgba(0,0,0,0.6)]"
+      style={{ background: shell.ink, transform: 'translateZ(0)' }}
+    >
       <Atmosphere mood={SLIDES[index].mood} cycle={false} />
 
-      <header className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between px-5 pb-2 pt-[max(16px,env(safe-area-inset-top))] lg:max-w-[1080px] lg:px-8 lg:pt-6">
+      <header className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between px-5 pb-2 pt-[max(16px,env(safe-area-inset-top))] lg:max-w-[1080px] lg:px-10 lg:pt-5">
         <span className="flex items-center gap-2.5" style={{ ...typeRoles.ui, fontWeight: 600, letterSpacing: '-0.01em', color: shell.text }}>
           <img src="/favicon.svg" alt="" width={20} height={20} />
           Companheiro
@@ -143,12 +168,12 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
             className="flex w-full shrink-0 snap-center snap-always flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {/* Auto margins centre it when there is room (tablet, desktop) and, unlike align-content, never push the top out of reach when there is not. */}
-            <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-5 px-5 pb-7 pt-1 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-20 lg:px-8">
+            <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-5 px-5 pb-7 pt-1 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-16 lg:px-10">
               <div>
                 <p style={{ ...typeRoles.eyebrow, color: hues[s.mood] }}>
                   {s.where}
                 </p>
-                <h2 style={{ ...typeRoles.display, fontSize: 'clamp(27px, 4.2vw, 46px)', color: shell.text, marginTop: 10, textWrap: 'balance' as never }}>{s.title}</h2>
+                <h2 style={{ ...typeRoles.display, fontSize: 'clamp(27px, 3.4vw, 40px)', color: shell.text, marginTop: 10, textWrap: 'balance' as never }}>{s.title}</h2>
                 <p className="max-w-[46ch] text-[15px] lg:text-[17px]" style={{ ...typeRoles.ui, fontSize: undefined, color: shell.muted, marginTop: 12 }}>
                   {s.body}
                 </p>
@@ -159,14 +184,14 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
                 )}
               </div>
               <div className="w-full">
-                <s.Widget key={runs[i]} active={i === index} next={() => go(i + 1)} />
+                <s.Widget key={runs[i]} active={i === index} />
               </div>
             </div>
           </section>
         ))}
       </div>
 
-      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 flex-col gap-1 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-1 lg:max-w-[1080px] lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:pb-8">
+      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 flex-col gap-1 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-1 lg:max-w-[1080px] lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:pb-7">
         <div className="flex items-center justify-center gap-1.5 lg:justify-start">
           {SLIDES.map((s, i) => (
             <button
@@ -203,6 +228,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
           </div>
         </div>
       </footer>
+    </div>
     </div>
   )
 }
