@@ -1,66 +1,68 @@
 'use client'
 
-// The tour: six slides, one part of the app each, in the order a piece of
-// work actually travels (kept, said, named, placed, made, known). It opens
-// once, right after an account is activated, and again from Settings.
+// The tour: six slides, one part of the app each, in the order a new person
+// will meet them (talk, find the idea, track it, write it, be known), with
+// Capture last. It opens once, right after an account is activated, and again
+// from Settings.
 //
 // The carousel is a native scroll-snap track, so a swipe on a phone is the
 // browser's own; the buttons, dots and arrow keys scroll the same track.
 // Each slide's visual (widgets.tsx) starts when its slide arrives. The shell
-// mood follows the slide, the way the landing page's follows the section.
+// mood follows the slide and stays in the cool hues (tide, violet, verdant):
+// ember is what the landing page and sign-in look like, and this is inside.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { PrimaryButton } from '@/components/ui/buttons'
-import { fonts, radius, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
-import { BoardWidget, CaptureWidget, ConceptWidget, PortraitWidget, TalkWidget, WritingWidget, type TourWidgetProps } from './widgets'
+import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
+import { BoardWidget, CaptureWidget, CheckInWidget, IdeaLabWidget, PortraitWidget, WritingWidget, type TourWidgetProps } from './widgets'
 
-const ember = tokensFor('dark').ember
+const hues = tokensFor('dark')
 const FADE = 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%)'
 
-const SLIDES: { where: string; title: string; body: string; mood: Mood; Widget: (p: TourWidgetProps) => React.ReactNode }[] = [
-  {
-    where: 'Capture',
-    title: 'It starts with what you already have.',
-    body: 'A line you overheard. A link. A picture you can’t put down. Keep it in a second, and decide later what it is.',
-    mood: 'ember',
-    Widget: CaptureWidget,
-  },
+const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (p: TourWidgetProps) => React.ReactNode }[] = [
   {
     where: 'Check in',
-    title: 'Say where you are.',
-    body: 'Speak or type, for ten seconds or ten minutes. It shows you what it heard, so you can correct it. Nobody is counting days.',
+    title: 'Talk through what’s on your mind.',
+    body: 'Open Check in whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
     mood: 'tide',
-    Widget: TalkWidget,
+    Widget: CheckInWidget,
   },
   {
     where: 'Idea Lab',
-    title: 'One question at a time, until it has a name.',
-    body: 'Bring an idea you already carry. It asks, you answer in your own words, and you leave with a sentence you’d stand behind.',
-    mood: 'ochre',
-    Widget: ConceptWidget,
+    title: 'Turn a rough idea into a clear one.',
+    body: 'Have an idea, or need one? Describe it, answer a few questions, and leave with a core concept: one clear sentence about what you’re making.',
+    mood: 'violet',
+    Widget: IdeaLabWidget,
   },
   {
     where: 'Project Board',
-    title: 'See all of it at once.',
-    body: 'Every idea gets a place: waiting, in motion, or finished. Working on one thing now doesn’t mean losing the rest.',
+    title: 'Keep track of everything you’re making.',
+    body: 'Every idea becomes a project. Move it from Queue to Active when you start, and to Completed when it’s done. Open an active project to work on it.',
     mood: 'verdant',
     Widget: BoardWidget,
   },
   {
     where: 'Writing',
-    title: 'Then make it, a step at a time.',
-    body: 'One page walks with each piece, from the first sentence to after it’s out. The assistant asks. Every line that stays is one you chose.',
-    mood: 'violet',
+    title: 'Write, with help when you ask for it.',
+    body: 'Stuck on a line? Select it and ask the assistant. It can ask you questions or suggest a rewrite. Nothing changes unless you approve it.',
+    mood: 'tide',
     Widget: WritingWidget,
   },
   {
     where: 'Portrait',
-    title: 'It learns how to walk beside you.',
-    body: 'It notices how you work and which kind of help actually helps. All of it is yours to read, and it forgets any line you ask it to.',
-    mood: 'ember',
+    title: 'See what it has learned about you.',
+    body: 'As you use the app, Companheiro keeps notes on how you work, so its help fits you better. Read them all in Portrait, and delete any that aren’t true.',
+    mood: 'violet',
     Widget: PortraitWidget,
+  },
+  {
+    where: 'Capture',
+    title: 'Save work that inspires you.',
+    body: 'Moved by someone else’s video, post or article? Paste its link from Instagram, YouTube or anywhere, and note what caught your eye.',
+    mood: 'verdant',
+    Widget: CaptureWidget,
   },
 ]
 
@@ -143,7 +145,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
             {/* Auto margins centre it when there is room (tablet, desktop) and, unlike align-content, never push the top out of reach when there is not. */}
             <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-5 px-5 pb-7 pt-1 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-20 lg:px-8">
               <div>
-                <p style={{ ...typeRoles.eyebrow, color: ember }}>
+                <p style={{ ...typeRoles.eyebrow, color: hues[s.mood] }}>
                   {s.where}
                 </p>
                 <h2 style={{ ...typeRoles.display, fontSize: 'clamp(27px, 4.2vw, 46px)', color: shell.text, marginTop: 10, textWrap: 'balance' as never }}>{s.title}</h2>
@@ -157,7 +159,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
                 )}
               </div>
               <div className="w-full">
-                <s.Widget key={runs[i]} active={i === index} />
+                <s.Widget key={runs[i]} active={i === index} next={() => go(i + 1)} />
               </div>
             </div>
           </section>
@@ -176,7 +178,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
               className="flex h-7 cursor-pointer items-center lg:h-11"
               style={{ background: 'none', border: 'none', padding: 0, width: i === index ? 36 : 20, transition: 'width 0.3s ease' }}
             >
-              <span style={{ display: 'block', width: '100%', height: 4, borderRadius: 2, backgroundColor: i === index ? ember : i < index ? shell.muted : shell.line, transition: 'background-color 0.3s ease' }} />
+              <span style={{ display: 'block', width: '100%', height: 4, borderRadius: 2, backgroundColor: i === index ? shell.text : i < index ? shell.muted : shell.line, transition: 'background-color 0.3s ease' }} />
             </button>
           ))}
         </div>
