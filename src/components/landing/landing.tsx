@@ -21,9 +21,11 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
-import { CanvasMockup, HeardMockup, MovementStage, MOVEMENT_VISUALS, RuleHeardMockup, VisionFinder } from './mockups'
+import { CanvasMockup, HeardMockup, RuleHeardMockup, VisionFinder } from './mockups'
+import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
-const ember = tokensFor('dark').ember
+const hues = tokensFor('dark')
+const ember = hues.ember
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 // Tokens exposed as CSS variables so Tailwind classes can use them without
@@ -200,74 +202,47 @@ function Manifesto() {
   )
 }
 
-// ── Find, hold, talk: sticky stage on the left, movements on the right ──────
+// ── Inside: four parts of the app, each with a working copy of its screen ───
+// The same slides the tour shows after sign-up (components/tour/slides.tsx),
+// laid down the page so nothing sits behind a Next button. The other three
+// (summoning an idea, Portrait, Capture) are left for the tour itself.
 
-const MOVEMENTS: { title: string; body: string; mood: Mood }[] = [
-  {
-    title: 'Find the vision',
-    body: 'Bring notes, drafts and voice memos. It asks one question at a time until your vision fits in a sentence you would stand behind.',
-    mood: 'ochre',
-  },
-  {
-    title: 'Hold it steady',
-    body: 'Your vision is written down, dated and kept. When new work pulls away from it, you get a question, never a verdict.',
-    mood: 'violet',
-  },
-  {
-    title: 'Talk to it whenever',
-    body: 'Speak or type when something comes up, for ten seconds or an hour. When something you say belongs to a project, it offers to put it there, so you never file anything.',
-    mood: 'tide',
-  },
-]
+const INSIDE = ['Conceptualise', 'Project Board', 'Writing', 'Check-in']
+  .map((where) => SLIDES.find((s) => s.where === where))
+  .filter((s): s is TourSlide => !!s)
 
-function Movement({ index, active, onActive }: { index: number; active: boolean; onActive: (i: number) => void }) {
-  const ref = useRef<HTMLLIElement>(null)
-  const inView = useSectionMood(ref, MOVEMENTS[index].mood)
-  useEffect(() => {
-    if (inView) onActive(index)
-  }, [inView, index, onActive])
-  const mv = MOVEMENTS[index]
-  const Visual = MOVEMENT_VISUALS[index]
+function InsideRow({ slide, flip }: { slide: TourSlide; flip: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useSectionMood(ref, slide.mood as Mood)
+  // The widget starts once, when its row is properly on screen.
+  const seen = useInView(ref, { once: true, amount: 0.4 })
   return (
-    <li ref={ref} className="md:flex md:min-h-[62vh] md:items-center">
-      <Reveal>
-        <div
-          className="border-l-2 pl-6 transition-colors duration-500 md:pl-8"
-          style={{ borderColor: active ? ember : alpha(ember, 0.16) }}
-        >
-          <h3
-            className="text-[22px] font-semibold tracking-[-0.02em] transition-colors duration-500 md:text-[28px]"
-            style={{ color: active ? shell.text : shell.muted }}
-          >
-            {mv.title}
-          </h3>
-          <p className="mt-3 max-w-[42ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{mv.body}</p>
-        </div>
-        {/* Below md there is no sticky stage: each movement carries its own visual. */}
-        <div className="mt-8 md:hidden">
-          <Visual />
-        </div>
+    <div ref={ref} className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-16">
+      <Reveal className={flip ? 'md:order-2' : ''}>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues[slide.mood] }}>{slide.where}</p>
+        <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">{slide.title}</h3>
+        <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{slide.body}</p>
       </Reveal>
-    </li>
+      <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
+        <slide.Widget active={seen} />
+      </Reveal>
+    </div>
   )
 }
 
-function HowItListens() {
-  const [active, setActive] = useState(0)
+function Inside() {
   return (
     <section className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-28">
       <Reveal>
-        <h2 className={`max-w-[16ch] ${H2}`}>Find it. Hold it. Build from it.</h2>
+        <h2 className={`max-w-[16ch] ${H2}`}>What you&rsquo;ll find inside.</h2>
+        <p className="mt-5 max-w-[52ch] text-[17px] leading-relaxed text-[var(--muted)]">
+          Four places you&rsquo;ll spend your time. Each one below is a small working copy of the real screen, so try them.
+        </p>
       </Reveal>
-      <div className="mt-12 grid grid-cols-1 gap-16 md:mt-4 md:grid-cols-[1fr_0.9fr] md:gap-16">
-        <div className="hidden md:sticky md:top-[18vh] md:block md:self-start md:pt-[10vh]">
-          <MovementStage active={active} />
-        </div>
-        <ol className="flex flex-col gap-16 md:gap-0">
-          {MOVEMENTS.map((mv, i) => (
-            <Movement key={mv.title} index={i} active={active === i} onActive={setActive} />
-          ))}
-        </ol>
+      <div className="mt-14 flex flex-col gap-20 md:mt-20 md:gap-32">
+        {INSIDE.map((slide, i) => (
+          <InsideRow key={slide.where} slide={slide} flip={i % 2 === 1} />
+        ))}
       </div>
     </section>
   )
@@ -580,7 +555,7 @@ export function Landing() {
           <main>
             <Hero />
             <Manifesto />
-            <HowItListens />
+            <Inside />
             <WholeVision />
             <Heard />
             <Never />

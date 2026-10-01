@@ -1,15 +1,13 @@
 'use client'
 
 // Landing-page visuals. Every one is built from the app's real components
-// (Container, Card, Pill, MicButton, SignalCards, PhaseDots, Thread,
-// StageRibbon) or drawn in their exact design language, fed with sample
+// (Container, Card, Pill, Thread, StageRibbon) or drawn in their exact design language, fed with sample
 // data. One example runs through the whole page: a person whose scattered
 // fragments turn out to be one vision, "The Good Plates". Nothing here reads
 // the database.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  AnimatePresence,
   animate,
   motion as m,
   useInView,
@@ -19,12 +17,11 @@ import {
   type MotionValue,
 } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { Container, Card, Divider } from '@/components/shell/page-shell'
-import { MicButton } from '@/components/ui/mic-button'
+import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
 import { Thread, type ThreadMessage } from '@/components/conversation/thread'
-import { PhaseDots, SignalCards, StageRibbon } from '@/components/widgets'
-import { alpha, radius, type as typeRoles, type Hue, type JourneyStep, type MeaningKey } from '@/lib/design-tokens'
+import { StageRibbon } from '@/components/widgets'
+import { alpha, radius, type as typeRoles, type Hue, type JourneyStep } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -59,18 +56,6 @@ export function useTypewriter(text: string, start: boolean, msPerChar = 26) {
 function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   const { t } = useTheme()
   return <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, ...style }}>{children}</p>
-}
-
-/** The vision block as it sits on a project: ember edge, title, one line. */
-function VisionCard({ compact = false }: { compact?: boolean }) {
-  const { t } = useTheme()
-  return (
-    <Card inner padding={compact ? 14 : 16} style={{ borderLeft: `3px solid ${t.ember}`, borderRadius: radius.widget }}>
-      <Pill hue="ember">Vision</Pill>
-      <p style={{ ...typeRoles.h3, fontSize: compact ? 15 : 17, color: t.textPrimary, marginTop: 10 }}>{VISION_TITLE}</p>
-      <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 4 }}>{VISION_LINE}</p>
-    </Card>
-  )
 }
 
 // ── Hero: everything in one place, the vision in your own words ─────────────
@@ -164,125 +149,6 @@ export function VisionFinder() {
         )}
       </div>
     </Container>
-  )
-}
-
-// ── Movements: find it, hold it, talk to it ──────────────────────────────────
-
-const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
-
-function FindVisual() {
-  const { t } = useTheme()
-  return (
-    <Container padding={16}>
-      <Card padding={22}>
-        <PhaseDots phase={4} labels={PHASES} />
-        <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 20 }}>
-          If someone saw all four of these together, what would you want them to notice?
-        </p>
-        <p style={{ ...typeRoles.ui, fontWeight: 500, color: t.textPrimary, marginTop: 12, textAlign: 'right' }}>
-          That we keep waiting for permission to use the good things.
-        </p>
-        <div style={{ marginTop: 20 }}>
-          <VisionCard />
-        </div>
-      </Card>
-    </Container>
-  )
-}
-
-function HoldVisual() {
-  const { t } = useTheme()
-  const row = (label: string, items: string[], hue: MeaningKey) => (
-    <div className="flex flex-wrap items-center gap-2">
-      <span style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, minWidth: 64 }}>{label}</span>
-      {items.map((i) => (
-        <Pill key={i} hue={hue}>
-          {i}
-        </Pill>
-      ))}
-    </div>
-  )
-  return (
-    <Container padding={16}>
-      <Card padding={22}>
-        <VisionCard compact />
-        <div className="mt-4 flex flex-col gap-2.5">
-          {row('Keeps', ['ordinary objects', 'the waiting, not the loss'], 'verdant')}
-          {row('Refuses', ['nostalgia', 'a neat ending'], 'danger')}
-        </div>
-        <Divider style={{ margin: '18px 0' }} />
-        <Label>New piece: Sunday at the Coast</Label>
-        <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 6 }}>
-          This one looks back fondly. Your vision says no nostalgia. Change the piece, or change the vision?
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Pill hue="neutral" size="md">
-            Change the piece
-          </Pill>
-          <Pill hue="neutral" size="md">
-            Change the vision
-          </Pill>
-        </div>
-      </Card>
-    </Container>
-  )
-}
-
-const TALK_WORDS =
-  'Walked past the café again. The chairs were stacked, waiting. I think it’s the same thing as the plates.'
-
-function TalkVisual() {
-  const { t } = useTheme()
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.5 })
-  const { shown, done } = useTypewriter(TALK_WORDS, inView)
-  return (
-    <div ref={ref}>
-      <Container padding={16}>
-        <Card padding={22}>
-          <div className="flex items-center justify-between gap-4">
-            <Label>Thursday, 08:12</Label>
-            <MicButton recording={inView && !done} onToggle={() => {}} size={40} />
-          </div>
-          <p aria-label={TALK_WORDS} style={{ ...typeRoles.quote, color: t.textPrimary, marginTop: 16, minHeight: '4.4em' }}>
-            <span aria-hidden>{shown}</span>
-          </p>
-          <m.div initial={false} animate={{ opacity: done ? 1 : 0, y: done ? 0 : 8 }} transition={{ duration: 0.6, ease: EASE }} style={{ marginTop: 16 }}>
-            <SignalCards signals={{ energy: 'medium', inner_weather: 'clear, a bit tender', arc_texture: 'Expansion' }} />
-          </m.div>
-        </Card>
-        <m.p
-          initial={false}
-          animate={{ opacity: done ? 1 : 0 }}
-          transition={{ duration: 0.7, delay: 0.8, ease: EASE }}
-          style={{ ...typeRoles.ui, color: t.textSecondary, padding: '16px 8px 4px' }}
-        >
-          This sounds like it belongs to {VISION_TITLE}. Send it there?
-        </m.p>
-      </Container>
-    </div>
-  )
-}
-
-export const MOVEMENT_VISUALS = [FindVisual, HoldVisual, TalkVisual]
-
-/** Swaps between the movement visuals with a soft cross-fade. */
-export function MovementStage({ active }: { active: number }) {
-  const reduce = useReducedMotion()
-  const Visual = MOVEMENT_VISUALS[active]
-  return (
-    <AnimatePresence mode="wait" initial={false}>
-      <m.div
-        key={active}
-        initial={reduce ? false : { opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={reduce ? undefined : { opacity: 0, y: -10 }}
-        transition={{ duration: 0.45, ease: EASE }}
-      >
-        <Visual />
-      </m.div>
-    </AnimatePresence>
   )
 }
 
