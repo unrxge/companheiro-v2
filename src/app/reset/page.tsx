@@ -23,6 +23,8 @@ export default function ResetPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  // Arriving from a sign-up email (/api/auth/callback?next=set-password).
+  const [firstTime, setFirstTime] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -31,8 +33,12 @@ export default function ResetPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') setMode('update')
     })
+    const settingUp = new URLSearchParams(window.location.search).get('set') === '1'
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session && hashSaysRecovery) setMode('update')
+      if (data.session && (hashSaysRecovery || settingUp)) {
+        setMode('update')
+        setFirstTime(settingUp)
+      }
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -69,10 +75,10 @@ export default function ResetPage() {
 
   if (mode === 'update') {
     return (
-      <AuthShell title="Choose a new password.">
+      <AuthShell title={firstTime ? 'Choose a password.' : 'Choose a new password.'} subtitle={firstTime ? 'One last step, then you’re in.' : undefined}>
         <form onSubmit={update} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <Eyebrow style={{ marginBottom: 6 }}>New password</Eyebrow>
+            <Eyebrow style={{ marginBottom: 6 }}>{firstTime ? 'Password' : 'New password'}</Eyebrow>
             <TextField type="password" value={password} onChange={setPassword} ariaLabel="New password" autoComplete="new-password" placeholder="At least 8 characters" autoFocus />
           </div>
           {error && <p role="alert" style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}

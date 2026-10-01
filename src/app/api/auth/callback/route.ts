@@ -84,5 +84,7 @@ export async function GET(request: Request) {
   }
 
   // /home sends accounts that haven't been through first run on to /welcome.
+  // New sign-ups arrive with next=set-password: choose a password first.
+  if (url.searchParams.get('next') === 'set-password') return NextResponse.redirect(new URL('/reset?set=1', origin))
   return NextResponse.redirect(new URL('/home', origin))
 }

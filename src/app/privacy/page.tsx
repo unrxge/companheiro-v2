@@ -29,7 +29,7 @@ export default function PrivacyPage() {
       <H2 id="what">What we collect</H2>
       <H3>Account details</H3>
       <UL>
-        <li>Your email address. Older accounts may also have a password, stored only as a one-way hash by our authentication provider; we never see it.</li>
+        <li>Your email address and a password (stored only as a one-way hash by our authentication provider; we never see it).</li>
         <li>
           If you sign in with Google, the email address (and, if Google shares it, your name) that Google passes to us. We never receive your Google
           password.
