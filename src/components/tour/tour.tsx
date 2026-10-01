@@ -28,13 +28,13 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   {
     where: 'Check-in',
     title: 'Talk through what’s on your mind.',
-    body: 'Open ‘Check-in’ whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
+    body: 'Check-in whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
     mood: 'tide',
     Widget: CheckInWidget,
   },
   {
     where: 'Idea Lab',
-    title: 'Don’t wait for the muse.',
+    title: 'You can now systemize your creativity.',
     body: 'No need to wait for the muse to drop down from the heavens. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
     mood: 'violet',
     Widget: SummonWidget,
@@ -42,14 +42,14 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   {
     where: 'Idea Lab · Conceptualise',
     title: 'Turn a rough idea into a clear one.',
-    body: 'Answer the question at whatever length you need. ‘Conceptualise’ then asks about what it is, who it’s for and what it stands on, one question at a time, until you can declare your concept in one clear sentence.',
+    body: 'When an idea is still a cloud, too big or too many to put into words, ‘Conceptualise’ helps you pull its voice down from the abstract, one question at a time, until you can declare your concept in one clear sentence.',
     mood: 'verdant',
     Widget: ConceptualiseWidget,
   },
   {
     where: 'Project Board',
     title: 'Keep track of everything you’re making.',
-    body: 'Every idea becomes a project. Keeping only a few Active is how things get finished, and the rest wait safely in the Queue, so starting one never means giving up another.',
+    body: 'Every idea becomes a project. The board is there to help you finish more of them: you always see what you’re working on now, what’s waiting its turn, and how much you’ve already brought to the end.',
     mood: 'tide',
     Widget: BoardWidget,
   },
@@ -62,8 +62,8 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   },
   {
     where: 'Portrait',
-    title: 'See what it has learned about you.',
-    body: 'As you use the app, Companheiro keeps notes on how you work, so its help fits you better. Read them all in ‘Portrait’, and delete any that aren’t true.',
+    title: 'Discover your own patterns.',
+    body: 'The more you use the app, the more of your own patterns you get to see: what keeps returning in your work, how you think things through, what actually helps you. ‘Portrait’ shows them to you, and you can remove any that aren’t true.',
     mood: 'verdant',
     Widget: PortraitWidget,
   },

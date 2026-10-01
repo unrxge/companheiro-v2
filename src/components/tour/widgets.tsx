@@ -32,7 +32,7 @@ export interface TourWidgetProps {
 function TryIt({ children }: { children: React.ReactNode }) {
   const { t } = useTheme()
   return (
-    <div className="flex items-start gap-2.5" style={{ padding: '2px 4px 12px', minHeight: 54 }}>
+    <div className="flex items-start gap-2.5" style={{ padding: '2px 4px 10px' }}>
       <Pill hue="ember" style={{ flexShrink: 0, marginTop: 1 }}>Try it</Pill>
       <p aria-live="polite" style={{ ...typeRoles.small, fontWeight: 500, color: t.textPrimary }}>{children}</p>
     </div>
@@ -170,8 +170,8 @@ const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
     label: 'Creativity & devotion',
     hue: 'ember',
     questions: [
-      'If you knew the work would outlive you, what would you start making tomorrow morning?',
       'What have you been practising in private, waiting for someone to say you’re allowed to call it your life’s work?',
+      'If you knew the work would outlive you, what would you start making tomorrow morning?',
       'Which piece have you been saving for the day you’re good enough, and what if that day was today?',
     ],
   },
@@ -179,9 +179,9 @@ const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
     label: 'Healthy masculinity',
     hue: 'tide',
     questions: [
-      'What does the man you needed at fifteen look like, and where is he already showing up in you?',
-      'Where in your life are you gentle and proud of it, and what would it sound like to say so out loud?',
-      'Which strength of yours has never needed anyone to be afraid of it?',
+      'Who first showed you that strength could be gentle, and where are you already passing that on?',
+      'What did you need to hear at fifteen from a man you trusted, and who needs to hear it from you now?',
+      'Where in your life does strength look like staying, listening, or saying sorry first?',
     ],
   },
   {
@@ -306,11 +306,11 @@ export function SummonWidget({ active }: TourWidgetProps) {
 
 const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 const FIRST_REPLY =
-  'Honestly? Paintings of my grandmother’s kitchen. I’ve been painting it from memory for years, in sketchbooks nobody sees. Always the same table, the same window. I tell myself they’re studies for something else, but they’re the only thing I’ve made that I’d want my kids to find. The oilcloth, her radio on the sill, the way the light came in late in the day. I think I’ve been afraid that if I paint them properly, at full size, I’ll find out whether'
+  'A book for my child. They aren’t born yet. We aren’t even expecting. But for three years I’ve kept a notebook of things I wish someone had told me: how to sit with a bad day without calling it a bad life, how to apologise properly, what to do when the people you love are wrong about you. I mostly write in it after the hard days. I’ve never shown anyone, because it feels arrogant to write advice for someone who doesn’t exist, from someone still getting most of it wrong. But my father never said any of this to me, and I learned it late, and the hard way. If I’m not around on the day they need it, I want them to be able to open it at any page and hear my voice telling them they’re going to be alright.'
 const EXCHANGES = [
-  { ask: 'You call them studies, yet they’re what you’d want found. What’s in that kitchen that you can never leave out?', say: 'The light over the table. It’s always late afternoon.' },
-  { ask: 'Who do you picture standing in front of them?', say: 'My kids. And anyone who still carries a room like that around.' },
-  { ask: 'What will these paintings refuse to do, even if it would make them easier to like?', say: 'No people in them. Only what they left on the table.' },
+  { ask: 'You write in it after the hard days. What does a page sound like when you’ve only just learned the lesson yourself?', say: 'Less like advice. More like a letter from someone still in the middle of it.' },
+  { ask: 'Picture them opening it. How old are they, and what kind of day has it been?', say: 'Nineteen, maybe. A day when they’re sure they’ve ruined everything.' },
+  { ask: 'What will this book never do, even where it would make you sound wiser?', say: 'Pretend I had it figured out. Every lesson comes with the day I learned it.' },
 ]
 
 export function ConceptualiseWidget({ active }: TourWidgetProps) {
@@ -318,29 +318,25 @@ export function ConceptualiseWidget({ active }: TourWidgetProps) {
   const reduce = useReducedMotion()
   const [phase, setPhase] = useState(1)
   const [replied, setReplied] = useState(false)
+  const [more, setMore] = useState(false)
   const exchange = phase >= 2 && phase <= 4 ? EXCHANGES[phase - 2] : null
   const ask = useTypewriter(exchange?.ask ?? '', active && !!exchange, 18)
 
-  // The opening answer stays up long enough to read, then the phases run on their own.
-  useEffect(() => {
-    if (!active || phase !== 1) return
-    const id = window.setTimeout(() => setPhase(2), 5200)
-    return () => window.clearTimeout(id)
-  }, [active, phase])
-
+  // The answer follows the question on its own; moving to the next phase is the person's call.
   useEffect(() => {
     if (!active || !exchange || !ask.done) return
-    const a = window.setTimeout(() => setReplied(true), 700)
-    const b = window.setTimeout(() => { setReplied(false); setPhase((p) => p + 1) }, 3600)
-    return () => { window.clearTimeout(a); window.clearTimeout(b) }
+    const id = window.setTimeout(() => setReplied(true), 700)
+    return () => window.clearTimeout(id)
   }, [active, exchange, ask.done])
 
+  const advance = () => { setReplied(false); setPhase((p) => p + 1) }
+  const ready = phase === 1 || replied
   const fade = 'linear-gradient(to bottom, #000 35%, transparent 100%)'
   return (
     <Container padding={12}>
       <TryIt>
-        {phase === 1 ? 'You answer first, at whatever length you need. Speak or type.'
-          : phase < 5 ? 'Then it asks one question at a time. This plays on its own.'
+        {phase === 1 ? 'You answer first, at whatever length you need. Then press Next.'
+          : phase < 5 ? (ready ? 'Press Next when you’re ready for the next question.' : 'It asks one question at a time.')
           : 'Declared. This concept becomes a project on your board.'}
       </TryIt>
       <Card padding={16} style={{ minHeight: 330 }}>
@@ -354,16 +350,17 @@ export function ConceptualiseWidget({ active }: TourWidgetProps) {
                   <Pill hue="verdant">Bright</Pill>
                 </div>
                 <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 10 }}>{SEED.questions[0]}</p>
-                <div style={{ marginTop: 10, maxHeight: 132, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
+                <div style={more ? { marginTop: 10 } : { marginTop: 10, maxHeight: 112, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
                   <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{FIRST_REPLY}</p>
                 </div>
+                <TextButton onClick={() => setMore(!more)}>{more ? 'Show less' : 'Read more'}</TextButton>
               </>
             ) : exchange ? (
               <>
                 <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
                   <span aria-hidden>{ask.shown}</span>
                 </p>
-                <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%' }}>
+                <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%', minHeight: '3.2em' }}>
                   {exchange.say}
                 </m.p>
               </>
@@ -371,11 +368,16 @@ export function ConceptualiseWidget({ active }: TourWidgetProps) {
               <>
                 <Card inner padding={14} style={{ borderLeft: `3px solid ${t.ember}` }}>
                   <Pill hue="ember">Concept</Pill>
-                  <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Late Afternoon</p>
-                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>Large paintings of the rooms we keep going back to, empty, in the light we remember them by.</p>
+                  <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Letters Ahead</p>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>A book of letters to my future child: one lesson to a page, each told with the day I learned it.</p>
                 </Card>
-                <TextButton onClick={() => setPhase(1)}>Watch again</TextButton>
+                <TextButton onClick={() => { setMore(false); setPhase(1) }}>Watch again</TextButton>
               </>
+            )}
+            {phase < 5 && (
+              <m.div initial={false} animate={{ opacity: ready ? 1 : 0.35 }} className="flex justify-end" style={{ marginTop: 8 }}>
+                <PrimaryButton size="sm" onClick={advance} disabled={!ready}>{phase === 4 ? 'Declare it →' : 'Next →'}</PrimaryButton>
+              </m.div>
             )}
           </m.div>
         </AnimatePresence>
@@ -392,7 +394,7 @@ const COLUMNS: { key: BoardColumn; label: string }[] = [
   { key: 'completed', label: 'Completed' },
 ]
 const PROJECTS = [
-  { id: 'afternoon', title: 'Late Afternoon', medium: 'Painting series' },
+  { id: 'afternoon', title: 'Letters Ahead', medium: 'Book' },
   { id: 'tide', title: 'Low Tide', medium: 'Song' },
   { id: 'bus', title: 'Night Bus', medium: 'Short film' },
 ]
@@ -419,7 +421,7 @@ export function BoardWidget({ active }: TourWidgetProps) {
   return (
     <Container padding={12}>
       <TryIt>
-        {!touched ? 'Tap a project to move it to the next column.' : inMotion === 0 ? 'Nothing active right now. That’s allowed.' : inMotion === 1 ? 'One project active. The others wait in the Queue until you’re ready.' : `${inMotion} projects active. Tap one again to mark it Completed.`}
+        {!touched ? 'Tap a project to move it to the next column.' : inMotion === 0 ? 'Nothing active right now. That’s allowed.' : 'Active is what you’re on now. Tap it again when it’s finished.'}
       </TryIt>
       <LayoutGroup>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, minHeight: 252 }}>
@@ -459,75 +461,54 @@ export function BoardWidget({ active }: TourWidgetProps) {
   )
 }
 
-// ── Writing: select a line, be asked about it, write it again yourself ──────
+// ── Writing: select a line and be asked about it ────────────────────────────
 
-const VERSE = [
-  { text: 'We left the porch light on all summer.', ask: 'This line already shows something. Who was the light left on for?', mine: 'We left the porch light on for no one.' },
-  { text: 'I felt so sad when you were gone.', ask: 'This line names the feeling. The other two show it. What did the house look like that week?', mine: 'Your cup stayed on the rail till August.' },
-  { text: 'The tide kept coming anyway.', ask: '“Anyway” is carrying the whole verse. What happens if the line stops one word sooner?', mine: 'The tide kept coming.' },
+const SCRIPT = [
+  { text: 'I used to post every single day.', ask: 'What did posting every day cost you that the people watching never saw?' },
+  { text: 'It’s so important to be authentic online.', ask: 'This line tells them what to value. The other two show them your life. When did you last feel this yourself?' },
+  { text: 'So this year I’m making less, and meaning it.', ask: '“Meaning it” is the promise of the whole piece. What will they see you do differently next week?' },
 ]
-
-/** The person typing their own new line. Mounted fresh each time, so it always starts empty. */
-function Retyping({ text, onDone }: { text: string; onDone: () => void }) {
-  const typed = useTypewriter(text, true, 42)
-  useEffect(() => {
-    if (typed.done) onDone()
-    // onDone is a fresh closure every render; only the finish matters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typed.done])
-  return <>{typed.shown}<Caret /></>
-}
 
 export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
-  const [lines, setLines] = useState(() => VERSE.map((v) => v.text))
   const [sel, setSel] = useState<number | null>(null)
-  const [state, setState] = useState<'asked' | 'rewriting' | 'rewritten'>('asked')
-  const ask = useTypewriter(sel !== null ? VERSE[sel].ask : '', sel !== null, 16)
-
-  const select = (i: number) => { if (state === 'rewriting') return; setSel(i); setState('asked') }
-  const finish = () => {
-    if (sel === null) return
-    setLines((l) => l.map((x, i) => (i === sel ? VERSE[sel].mine : x)))
-    setState('rewritten')
-  }
+  const ask = useTypewriter(sel !== null ? SCRIPT[sel].ask : '', sel !== null, 16)
 
   return (
     <Container padding={12}>
       <TryIt>
         {sel === null ? 'Tap the line you’re least sure about.'
-          : state === 'asked' ? (ask.done ? 'It only asks. Now have another go at the line yourself.' : 'It looks at that line and asks you about it.')
-          : state === 'rewriting' ? 'That’s you typing. It never writes the line for you.'
-          : 'Your line, in your words. Tap another one.'}
+          : !ask.done ? 'It looks at that line and asks you about it.'
+          : 'It only asks. The answer, and the line, are yours. Tap another.'}
       </TryIt>
       <Card padding={14} style={{ minHeight: 300 }}>
         <div className="flex items-baseline justify-between gap-3">
-          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Low Tide <span style={{ fontWeight: 400, color: t.textMuted }}>· Song</span></p>
+          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Less, and Meaning It <span style={{ fontWeight: 400, color: t.textMuted }}>· Video</span></p>
           <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Write · 2 of 6</span>
         </div>
         <div style={{ marginTop: 8 }}><StageRibbon step="write" compact /></div>
 
-        <Eyebrow style={{ marginTop: 12 }}>Verse 1</Eyebrow>
+        <Eyebrow style={{ marginTop: 12 }}>Opening</Eyebrow>
         <div className="flex flex-col" style={{ marginTop: 4 }}>
-          {lines.map((line, i) => {
+          {SCRIPT.map((line, i) => {
             const on = sel === i
             const hint = sel === null && active && i === 1
             return (
               <button
                 key={i}
                 type="button"
-                onClick={() => select(i)}
+                onClick={() => setSel(i)}
                 aria-pressed={on}
                 className="cursor-pointer"
                 style={{
-                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px', minHeight: 33,
+                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px',
                   color: t.textPrimary,
                   backgroundColor: on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
                   boxShadow: on ? `inset 2px 0 0 ${t.tide}` : 'none',
                   transition: 'background-color 0.25s ease',
                 }}
               >
-                {on && state === 'rewriting' ? <Retyping text={VERSE[i].mine} onDone={finish} /> : line}
+                {line.text}
               </button>
             )
           })}
@@ -539,17 +520,12 @@ export function WritingWidget({ active }: TourWidgetProps) {
           ) : (
             <>
               <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textSecondary }}>
-                <span aria-hidden style={{ color: t.tide, fontStyle: 'normal' }}>↳ </span>“{VERSE[sel].text}”
+                <span aria-hidden style={{ color: t.tide, fontStyle: 'normal' }}>↳ </span>“{SCRIPT[sel].text}”
               </p>
               <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, marginTop: 8 }}>Companheiro</p>
-              <p aria-label={VERSE[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '3.1em' }}>
+              <p aria-label={SCRIPT[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
                 <span aria-hidden>{ask.shown}</span>
               </p>
-              {state === 'asked' && (
-                <m.div initial={false} animate={{ opacity: ask.done ? 1 : 0 }} style={{ marginTop: 8, pointerEvents: ask.done ? 'auto' : 'none' }}>
-                  <GhostButton size="sm" onClick={() => setState('rewriting')} disabled={!ask.done}>Rewrite it myself</GhostButton>
-                </m.div>
-              )}
             </>
           )}
         </Card>
@@ -575,7 +551,7 @@ export function PortraitWidget({ active }: TourWidgetProps) {
   return (
     <Container padding={12}>
       <TryIt>
-        {forgotten.length === 0 ? 'Read each note. Press “Forget this” on one that isn’t true of you.' : left.length === 0 ? 'All gone. A note that stops coming up fades on its own, too.' : 'Forgotten. It won’t use that note again.'}
+        {forgotten.length === 0 ? 'Read each pattern. Press “Forget this” on one that isn’t true of you.' : left.length === 0 ? 'All gone. A note that stops coming up fades on its own, too.' : 'Forgotten. It’s gone from your portrait.'}
       </TryIt>
       <Card padding="4px 18px" style={{ minHeight: 284 }}>
         <AnimatePresence>
