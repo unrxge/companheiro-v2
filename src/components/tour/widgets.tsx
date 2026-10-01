@@ -461,34 +461,45 @@ export function BoardWidget({ active }: TourWidgetProps) {
   )
 }
 
-// ── Writing: select a line and be asked about it ────────────────────────────
+// ── Writing: select a part of the piece and be asked about it ───────────────
 
-// A voiceover for a short film, joined part-way through.
-const LINE_BEFORE = '…so I downloaded an app to track her cycle, as if that alone made me a good boyfriend.'
-const SCRIPT = [
-  { text: 'I used to think her bad week was something to get through.', ask: '“Get through” is how we talk about weather: something that happens to us. Who were you protecting while you waited it out?' },
-  { text: 'Then one night she cried over nothing, and I asked what I’d done wrong.', ask: 'You call it nothing, yet you remember it well enough to build a film around it. What was it over?' },
-  { text: 'That’s when I learned there are four phases, and how to show up in each one.', ask: 'Here the film turns from one night into a lesson. Did you learn the phases that night, or did you learn that you’d made her tears about you?' },
-  { text: 'In the week before, she needs patience, so I give her space.', ask: 'Patience and space aren’t always the same gift. Has she ever told you which of the two she wanted?' },
-  { text: 'I’m telling you this so you don’t make the mistakes I made.', ask: 'You sound like someone who has finished learning. Which mistake are you still making?' },
-  { text: 'Because being there for her is the most important thing a man can do.', ask: 'Every line before this is about one woman. This one is about all men. What would the last line be if you said it only to her?' },
+// A voiceover for a short film, joined part-way through. As on the real
+// writing page, the piece is divided into parts, one per step of its
+// emotional journey, and a part is what you select to talk about.
+const PART_BEFORE = '…so I downloaded an app to track her cycle, as if that alone made me a good boyfriend.'
+const PARTS = [
+  {
+    title: 'The night',
+    text: 'I used to think her bad week was something to get through. Then one night she cried over nothing, and I asked what I’d done wrong. She looked at me as if I’d left the room.',
+    ask: 'You call it nothing, yet it’s the night this whole film is built on. And in your telling, the first thing you did was ask about yourself. What was she crying over?',
+  },
+  {
+    title: 'What I learned',
+    text: 'That’s when I learned there are four phases, and how to show up in each one. In the week before, she needs patience, so I give her space. I keep a note of it all on my phone.',
+    ask: 'Here the film moves from one night to a system. Patience and space aren’t always the same gift, though. Has she ever told you which of the two she wanted?',
+  },
+  {
+    title: 'What I want you to know',
+    text: 'I’m telling you this so you don’t make the mistakes I made. Being there for her is the most important thing a man can do. It took me years to get here, and you can skip them.',
+    ask: 'Everything before this is about one woman. Here it becomes about all men, told by someone who has finished learning. Which mistake are you still making?',
+  },
 ]
-const SHOWN_FIRST = 3
+const SHOWN_FIRST = 2
 
 export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
   const [sel, setSel] = useState<number | null>(null)
   const [more, setMore] = useState(false)
-  const ask = useTypewriter(sel !== null ? SCRIPT[sel].ask : '', sel !== null, 16)
+  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 16)
   const fadeUp = 'linear-gradient(to top, #000 10%, transparent 95%)'
-  const shown = more ? SCRIPT : SCRIPT.slice(0, SHOWN_FIRST)
+  const shown = more ? PARTS : PARTS.slice(0, SHOWN_FIRST)
 
   return (
     <Container padding={12}>
       <TryIt>
-        {sel === null ? 'Tap any line of the script.'
-          : !ask.done ? 'It reads the line against everything around it.'
-          : more ? 'It only asks. Tap another line.' : 'It only asks. Tap another line, or “Read more”.'}
+        {sel === null ? 'Tap a part of the script to talk about it.'
+          : !ask.done ? 'It reads that part against the whole piece.'
+          : more ? 'It only asks. Tap another part.' : 'It only asks. Tap another part, or “Read more”.'}
       </TryIt>
       <Card padding={14} style={{ minHeight: 300 }}>
         <div className="flex items-baseline justify-between gap-3">
@@ -497,27 +508,26 @@ export function WritingWidget({ active }: TourWidgetProps) {
         </div>
         <div style={{ marginTop: 8 }}><StageRibbon step="write" compact /></div>
 
-        <p aria-hidden style={{ ...typeRoles.ui, fontSize: 15, color: t.textMuted, marginTop: 10, maskImage: fadeUp, WebkitMaskImage: fadeUp }}>{LINE_BEFORE}</p>
-        <div className="flex flex-col gap-0.5" style={{ marginTop: 2 }}>
-          {shown.map((line, i) => {
+        <p aria-hidden style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted, marginTop: 10, padding: '0 10px', maskImage: fadeUp, WebkitMaskImage: fadeUp }}>{PART_BEFORE}</p>
+        <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+          {shown.map((part, i) => {
             const on = sel === i
-            const hint = sel === null && active && i === 1
             return (
               <button
-                key={i}
+                key={part.title}
                 type="button"
                 onClick={() => setSel(i)}
                 aria-pressed={on}
                 className="cursor-pointer"
                 style={{
-                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px',
-                  color: t.textPrimary,
-                  backgroundColor: on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
-                  boxShadow: on ? `inset 2px 0 0 ${t.tide}` : 'none',
-                  transition: 'background-color 0.25s ease',
+                  textAlign: 'left', borderRadius: radius.field, padding: '9px 10px 10px',
+                  border: `1px solid ${on ? alpha(t.tide, 0.55) : sel === null && active && i === 0 ? t.inputBorder : t.divider}`,
+                  backgroundColor: on ? t.soft.tide : 'transparent',
+                  transition: 'background-color 0.25s ease, border-color 0.25s ease',
                 }}
               >
-                {line.text}
+                <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: on ? t.tide : t.textMuted, display: 'block' }}>Part {i + 2} · {part.title}</span>
+                <span style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, display: 'block', marginTop: 5 }}>{part.text}</span>
               </button>
             )
           })}
@@ -526,11 +536,11 @@ export function WritingWidget({ active }: TourWidgetProps) {
 
         <Card inner padding={12} style={{ marginTop: 4 }}>
           {sel === null ? (
-            <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a line to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
+            <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a part to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
           ) : (
             <>
-              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro</p>
-              <p aria-label={SCRIPT[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
+              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro <span style={{ fontWeight: 400, color: t.textMuted }}>· on “{PARTS[sel].title}”</span></p>
+              <p aria-label={PARTS[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em', marginTop: 2 }}>
                 <span aria-hidden>{ask.shown}</span>
               </p>
             </>
@@ -545,7 +555,7 @@ export function WritingWidget({ active }: TourWidgetProps) {
 
 const NOTICED: { id: string; kind: string; hue: Hue; statement: string; times: number }[] = [
   { id: 'process', kind: 'How you process things', hue: 'tide', statement: 'Your clearest ideas arrive mid-sentence, usually right after you say “I don’t know, but…”.', times: 6 },
-  { id: 'theme', kind: 'What keeps recurring', hue: 'ochre', statement: 'Home, and leaving it.', times: 9 },
+  { id: 'theme', kind: 'What keeps recurring', hue: 'ochre', statement: 'When a piece gets close to something painful, you start a new one instead of finishing it.', times: 9 },
   { id: 'guidance', kind: 'What kind of guidance works', hue: 'verdant', statement: 'Questions help more than advice.', times: 4 },
 ]
 
