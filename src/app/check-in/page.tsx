@@ -653,16 +653,17 @@ export default function CheckInPage() {
                 <Card>
                   {belongsState === 'added' ? (
                     <p style={{ ...typeRoles.small, color: t.textSecondary }}>
-                      Sent to <span style={{ ...typeRoles.quote, fontSize: 15, color: t.ember }}>{belongs.title}</span>. It will be waiting there.
+                      Sent to <strong style={{ fontWeight: 700 }}>{belongs.title}</strong>. It will be waiting there.
                     </p>
                   ) : (
                     <>
-                      <Eyebrow style={{ marginBottom: 8 }}>This sounds like it belongs to</Eyebrow>
-                      <p style={{ ...typeRoles.h2, fontSize: 20, color: t.ember, marginBottom: 10 }}>{belongs.title}</p>
+                      <p style={{ ...typeRoles.small, color: t.textSecondary, marginBottom: 8 }}>
+                        This sounds like it belongs to <strong style={{ fontWeight: 700 }}>{belongs.title}</strong>
+                      </p>
                       <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
                       <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                         <QuietButton onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Sending…">
-                          Send it there as a thread
+                          Send it there
                         </QuietButton>
                         <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
                         {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
