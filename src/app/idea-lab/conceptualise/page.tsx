@@ -12,7 +12,6 @@ import { Thread, Composer, type ThreadMessage } from '@/components/conversation/
 import { PhaseDots } from '@/components/widgets'
 import { shell, type as typeRoles, widths } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
-import { BROUGHT_SEVERAL_KEY, SEVERAL_HEADER, severalOpening, type BroughtItem } from '@/lib/brought-several'
 
 interface Draft {
   id: string
@@ -38,7 +37,6 @@ function ConceptualiseContent() {
   const resumeId = searchParams.get('resume')
   const bringMode = searchParams.get('mode') === 'bring'
   const checkInMode = searchParams.get('mode') === 'checkin'
-  const severalMode = searchParams.get('mode') === 'several'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -49,13 +47,13 @@ function ConceptualiseContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [readyToAdvance, setReadyToAdvance] = useState(false)
-  const [brought, setBrought] = useState(bringMode || severalMode)
+  const [brought, setBrought] = useState(bringMode)
   const broughtSeedRef = useRef<string | null>(null)
 
   const [checkInHandover, setCheckInHandover] = useState<{ entry: string; conversation: string } | null>(null)
-  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode && !checkInMode && !severalMode)
+  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode && !checkInMode)
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
-  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode || severalMode)
+  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode)
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
@@ -111,24 +109,6 @@ function ConceptualiseContent() {
       }
       return
     }
-    // Opened from "Bring several things": the items, side by side, are the first turn.
-    if (severalMode) {
-      const raw = sessionStorage.getItem(BROUGHT_SEVERAL_KEY)
-      sessionStorage.removeItem(BROUGHT_SEVERAL_KEY)
-      try {
-        const items = (raw ? JSON.parse(raw) : []) as BroughtItem[]
-        if (Array.isArray(items) && items.length >= 2) {
-          const opening = severalOpening(items)
-          const first: ThreadMessage = { role: 'user', content: opening }
-          broughtSeedRef.current = opening
-          setMessages([first])
-          fetchAIResponse([first], 1)
-        }
-      } catch {
-        // Malformed storage — nothing to open with
-      }
-      return
-    }
     if (resumeId) {
       const autoResume = async () => {
         try {
@@ -163,7 +143,7 @@ function ConceptualiseContent() {
     }
     checkDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed, resumeId, bringMode, checkInMode, severalMode])
+  }, [seed, resumeId, bringMode, checkInMode])
 
   useEffect(() => {
     const container = threadRef.current
@@ -273,9 +253,7 @@ function ConceptualiseContent() {
   const handleDeclare = () => {
     // The idea as first brought becomes the piece's starting draft.
     const firstUser = messages.find((x) => x.role === 'user')
-    // Several things brought together arrive as loose notes, which the writing
-    // page can turn into fragments; the opening line was only for the conversation.
-    if (brought && firstUser) sessionStorage.setItem('brought_idea', firstUser.content.replace(SEVERAL_HEADER, '').trim())
+    if (brought && firstUser) sessionStorage.setItem('brought_idea', firstUser.content)
     else sessionStorage.removeItem('brought_idea')
     sessionStorage.removeItem('bring_idea_flow')
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages.map((x) => ({ ...x, content: x.content.split(PHASE_MARKER).join('').trim() }))))
