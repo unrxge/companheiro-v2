@@ -34,8 +34,8 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
   },
   {
     where: 'Idea Lab',
-    title: 'You can now systemize your creativity.',
-    body: 'No need to wait for the muse to drop down from the heavens. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
+    title: 'Systemize your creativity.',
+    body: 'No need to wait for the creative muse to “drop down from the heavens”. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
     mood: 'violet',
     Widget: SummonWidget,
   },
@@ -133,7 +133,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
     >
       <Atmosphere mood={SLIDES[index].mood} cycle={false} />
 
-      <header className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between px-5 pb-2 pt-[max(16px,env(safe-area-inset-top))] lg:max-w-[1080px] lg:px-10 lg:pt-5">
+      <header className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between px-5 pb-4 pt-[max(18px,env(safe-area-inset-top))] lg:pb-2 lg:max-w-[1080px] lg:px-10 lg:pt-5">
         <span className="flex items-center gap-2.5" style={{ ...typeRoles.ui, fontWeight: 600, letterSpacing: '-0.01em', color: shell.text }}>
           <img src="/favicon.svg" alt="" width={20} height={20} />
           Companheiro
@@ -168,17 +168,17 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
             className="flex w-full shrink-0 snap-center snap-always flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {/* Auto margins centre it when there is room (tablet, desktop) and, unlike align-content, never push the top out of reach when there is not. */}
-            <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-5 px-5 pb-7 pt-1 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-16 lg:px-10">
+            <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-7 px-5 pb-8 pt-3 md:my-auto lg:gap-5 lg:pb-7 lg:pt-1 lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-16 lg:px-10">
               <div>
                 <p style={{ ...typeRoles.eyebrow, color: hues[s.mood] }}>
                   {s.where}
                 </p>
-                <h2 style={{ ...typeRoles.display, fontSize: 'clamp(27px, 3.4vw, 40px)', color: shell.text, marginTop: 10, textWrap: 'balance' as never }}>{s.title}</h2>
-                <p className="max-w-[46ch] text-[15px] lg:text-[17px]" style={{ ...typeRoles.ui, fontSize: undefined, color: shell.muted, marginTop: 12 }}>
+                <h2 className="mt-3.5 lg:mt-2.5" style={{ ...typeRoles.display, margin: undefined, fontSize: 'clamp(27px, 3.4vw, 40px)', color: shell.text, textWrap: 'balance' as never }}>{s.title}</h2>
+                <p className="mt-4 max-w-[46ch] text-[15px] leading-[1.65] lg:mt-3 lg:text-[17px] lg:leading-[1.55]" style={{ ...typeRoles.ui, margin: undefined, lineHeight: undefined, fontSize: undefined, color: shell.muted }}>
                   {s.body}
                 </p>
                 {firstRun && i === SLIDES.length - 1 && (
-                  <p className="max-w-[46ch] text-[15px] lg:text-[17px]" style={{ ...typeRoles.ui, fontSize: undefined, color: shell.text, marginTop: 12 }}>
+                  <p className="mt-4 max-w-[46ch] text-[15px] leading-[1.65] lg:mt-3 lg:text-[17px] lg:leading-[1.55]" style={{ ...typeRoles.ui, margin: undefined, lineHeight: undefined, fontSize: undefined, color: shell.text }}>
                     Next, three short questions, so it’s built around your themes.
                   </p>
                 )}
@@ -191,7 +191,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
         ))}
       </div>
 
-      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 flex-col gap-1 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-1 lg:max-w-[1080px] lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:pb-7">
+      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 flex-col gap-3 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 lg:gap-1 lg:pt-1 lg:max-w-[1080px] lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:pb-7">
         <div className="flex items-center justify-center gap-1.5 lg:justify-start">
           {SLIDES.map((s, i) => (
             <button

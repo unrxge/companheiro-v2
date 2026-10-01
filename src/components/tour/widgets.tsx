@@ -32,7 +32,7 @@ export interface TourWidgetProps {
 function TryIt({ children }: { children: React.ReactNode }) {
   const { t } = useTheme()
   return (
-    <div className="flex items-start gap-2.5" style={{ padding: '2px 4px 10px' }}>
+    <div className="flex items-start gap-2.5 px-1 pb-3.5 pt-1 lg:pb-2.5 lg:pt-0.5">
       <Pill hue="ember" style={{ flexShrink: 0, marginTop: 1 }}>Try it</Pill>
       <p aria-live="polite" style={{ ...typeRoles.small, fontWeight: 500, color: t.textPrimary }}>{children}</p>
     </div>
@@ -256,7 +256,7 @@ export function SummonWidget({ active }: TourWidgetProps) {
         <Eyebrow style={{ marginBottom: 10 }}>Theme</Eyebrow>
         <div className="flex flex-wrap gap-1.5">
           {THEMES.map((th, i) => (
-            <Pill key={th.label} hue={th.hue} selected={chosen && theme === i} onClick={() => pick(i)} size="md">{th.label}</Pill>
+            <Pill key={th.label} hue={th.hue} selected={chosen && theme === i} onClick={() => pick(i)} size="md" style={chosen && theme === i ? { color: '#ffffff' } : undefined}>{th.label}</Pill>
           ))}
           <button type="button" onClick={() => setNote('add')} aria-label="Add a theme" className="cursor-pointer" style={{ fontFamily: fonts.ui, fontSize: 12, fontWeight: 600, lineHeight: 1.2, padding: '6px 13px', borderRadius: 999, background: 'none', border: `1px dashed ${t.inputBorder}`, color: t.textMuted }}>
             + Add theme
@@ -463,67 +463,59 @@ export function BoardWidget({ active }: TourWidgetProps) {
 
 // ── Writing: select a line and be asked about it ────────────────────────────
 
-const SCRIPT = [
-  { text: 'I used to post every single day.', ask: 'What did posting every day cost you that the people watching never saw?' },
-  { text: 'It’s so important to be authentic online.', ask: 'This line tells them what to value. The other two show them your life. When did you last feel this yourself?' },
-  { text: 'So this year I’m making less, and meaning it.', ask: '“Meaning it” is the promise of the whole piece. What will they see you do differently next week?' },
-]
+const OPENING_LINE = 'I stopped performing my life for you the day I noticed I’d stopped living it.'
+const REST =
+  'For two years I filmed every morning. The coffee, the light on the counter, the journal I was too tired to actually write in. You told me it calmed you, and I believed that was reason enough. Then one Sunday I caught myself pouring the coffee a second time because the first pour hadn’t looked right, and I sat down on the kitchen floor and laughed until it wasn’t laughing anymore. So this is me, starting again. I’ll post when I’ve made something I’d want to show a friend. Some weeks that will be nothing. I hope you’ll stay. But I’d rather you had the real thing now and then than the pretty thing every day.'
+const LINE_ASK = 'This line holds the whole piece, and the rest is the story of how you noticed. What was the moment just before you knew?'
 
 export function WritingWidget({ active }: TourWidgetProps) {
   const { t } = useTheme()
-  const [sel, setSel] = useState<number | null>(null)
-  const ask = useTypewriter(sel !== null ? SCRIPT[sel].ask : '', sel !== null, 16)
+  const [selected, setSelected] = useState(false)
+  const [more, setMore] = useState(false)
+  const ask = useTypewriter(LINE_ASK, selected, 16)
+  const fade = 'linear-gradient(to bottom, #000 30%, transparent 100%)'
 
   return (
     <Container padding={12}>
       <TryIt>
-        {sel === null ? 'Tap the line you’re least sure about.'
-          : !ask.done ? 'It looks at that line and asks you about it.'
-          : 'It only asks. The answer, and the line, are yours. Tap another.'}
+        {!selected ? 'Tap the first line to talk about it.'
+          : !ask.done ? 'It reads the line in the light of the whole piece.'
+          : 'It only asks. What you do with the question is up to you.'}
       </TryIt>
       <Card padding={14} style={{ minHeight: 300 }}>
         <div className="flex items-baseline justify-between gap-3">
-          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Less, and Meaning It <span style={{ fontWeight: 400, color: t.textMuted }}>· Video</span></p>
+          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Starting Again <span style={{ fontWeight: 400, color: t.textMuted }}>· Caption</span></p>
           <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Write · 2 of 6</span>
         </div>
         <div style={{ marginTop: 8 }}><StageRibbon step="write" compact /></div>
 
-        <Eyebrow style={{ marginTop: 12 }}>Opening</Eyebrow>
-        <div className="flex flex-col" style={{ marginTop: 4 }}>
-          {SCRIPT.map((line, i) => {
-            const on = sel === i
-            const hint = sel === null && active && i === 1
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setSel(i)}
-                aria-pressed={on}
-                className="cursor-pointer"
-                style={{
-                  ...typeRoles.ui, fontSize: 15, textAlign: 'left', border: 'none', borderRadius: 6, padding: '5px 8px', margin: '0 -8px',
-                  color: t.textPrimary,
-                  backgroundColor: on ? t.soft.tide : hint ? t.cardBgInner : 'transparent',
-                  boxShadow: on ? `inset 2px 0 0 ${t.tide}` : 'none',
-                  transition: 'background-color 0.25s ease',
-                }}
-              >
-                {line.text}
-              </button>
-            )
-          })}
+        <button
+          type="button"
+          onClick={() => setSelected(true)}
+          aria-pressed={selected}
+          className="cursor-pointer"
+          style={{
+            ...typeRoles.quote, fontSize: 16, display: 'block', width: 'calc(100% + 16px)', textAlign: 'left', border: 'none', borderRadius: 6, padding: '6px 8px', margin: '12px -8px 0',
+            color: t.textPrimary,
+            backgroundColor: selected ? t.soft.tide : active ? t.cardBgInner : 'transparent',
+            boxShadow: selected ? `inset 2px 0 0 ${t.tide}` : 'none',
+            transition: 'background-color 0.25s ease',
+          }}
+        >
+          {OPENING_LINE}
+        </button>
+        <div style={more ? { marginTop: 8 } : { marginTop: 8, maxHeight: 70, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
+          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>{REST}</p>
         </div>
+        <TextButton onClick={() => setMore(!more)}>{more ? 'Show less' : 'Read more'}</TextButton>
 
-        <Card inner padding={12} style={{ marginTop: 10 }}>
-          {sel === null ? (
+        <Card inner padding={12} style={{ marginTop: 4 }}>
+          {!selected ? (
             <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a line to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
           ) : (
             <>
-              <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textSecondary }}>
-                <span aria-hidden style={{ color: t.tide, fontStyle: 'normal' }}>↳ </span>“{SCRIPT[sel].text}”
-              </p>
-              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, marginTop: 8 }}>Companheiro</p>
-              <p aria-label={SCRIPT[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
+              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro</p>
+              <p aria-label={LINE_ASK} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em' }}>
                 <span aria-hidden>{ask.shown}</span>
               </p>
             </>
