@@ -322,13 +322,50 @@ export async function shelfProjects(auth: AuthedContext): Promise<ShelfProject[]
   const projects = (data as Project[] | null) ?? []
   if (projects.length === 0) return []
 
+  // The board needs to know which projects are one piece of writing and how
+  // far along that piece is; two reads cover every project at once.
+  const [rootsRes, threadsRes] = await Promise.all([
+    auth.supabase
+      .from('studio_nodes')
+      .select('id, project_id, status, short_form_script, position')
+      .eq('user_id', auth.user.id)
+      .is('parent_id', null)
+      .order('position', { ascending: true }),
+    auth.supabase.from('studio_threads').select('project_id').eq('user_id', auth.user.id),
+  ])
+  if (rootsRes.error) throw fromDbError(rootsRes.error)
+  if (threadsRes.error) throw fromDbError(threadsRes.error)
+  type RootRow = { id: string; project_id: string; status: string; short_form_script: string | null }
+  const rootsBy = new Map<string, RootRow[]>()
+  for (const r of (rootsRes.data as RootRow[] | null) ?? []) {
+    rootsBy.set(r.project_id, [...(rootsBy.get(r.project_id) ?? []), r])
+  }
+  const threadsBy = new Map<string, number>()
+  for (const th of (threadsRes.data as Array<{ project_id: string }> | null) ?? []) {
+    threadsBy.set(th.project_id, (threadsBy.get(th.project_id) ?? 0) + 1)
+  }
+  // Same vocabulary /api/read/node derives for the reading room.
+  const stageOf = (p: Project, roots: RootRow[]): string | null => {
+    if (p.shelf_stage === 'completed') return 'posted'
+    if (roots.length !== 1) return null
+    const [root] = roots
+    return root.status === 'done' ? 'executing'
+      : root.short_form_script ? 'translating'
+      : root.status === 'drafted' ? 'writing'
+      : 'conceptualising'
+  }
+
   const rows = await Promise.all(
     projects.map(async (p) => {
       const [concept, since] = await Promise.all([latestConcept(auth, p), sinceFor(auth, p.id)])
+      const roots = rootsBy.get(p.id) ?? []
       return {
         ...p,
         concept_body: concept.body.slice(0, 200),
         since: since ?? emptySince(p),
+        root_ids: roots.map((r) => r.id),
+        thread_count: threadsBy.get(p.id) ?? 0,
+        stage: stageOf(p, roots),
       } satisfies ShelfProject
     })
   )

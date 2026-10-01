@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { WorkPage } from '@/components/studio/work/work-page'
+import { ProjectBoard } from '@/components/project-board/kanban-board'
 import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-shell'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 
@@ -79,6 +80,17 @@ function installMock(o: Opts) {
     { id: 't3', title: 'Post on Sunday', type: 'execution', status: 'pending', is_writing_related: false },
   ]
   const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
+  const card = (id: string, title: string, shelf_stage: string, extra: Record<string, unknown> = {}) => ({
+    ...project('', false), id, title, shelf_stage, arc: 'Beginning', concept_body: 'What the quiet holds when nobody is asking.',
+    root_ids: [`${id}-root`], thread_count: 0, stage: 'writing', ...extra,
+  })
+  const shelf: Array<Record<string, unknown> & { id: string }> = [
+    card('demo', 'A morning where nothing was asked', 'active', { root_ids: ['node-1'] }),
+    card('p2', 'Letters to the house on the hill', 'active', { root_ids: ['a', 'b', 'c'], thread_count: 2, stage: null, arc: 'Expansion' }),
+    card('p3', 'The year of small rooms', 'queued', { stage: 'conceptualising' }),
+    card('p4', 'What my father kept', 'queued', { stage: 'conceptualising', arc: 'Integration' }),
+    card('p5', 'On leaving early', 'completed', { stage: 'posted', completed_at: NOW }),
+  ]
   let seq = 100
   const threads: Array<Record<string, unknown>> = []
   const tags: Array<{ node_id: string; thread_id: string; note: string }> = []
@@ -142,6 +154,17 @@ function installMock(o: Opts) {
       return fn()
     }
 
+    // ?view=kanban: the Project Board. "demo" is the one card whose canvas and writing are mocked too.
+    if (path === '/api/studio/projects' && method === 'GET') return json({ projects: shelf })
+    if (path === '/api/idea-lab/conceptualise/draft') return json({ drafts: method === 'GET' ? [{ id: 'd1', phase: 2, messages: [{ role: 'assistant', content: 'What would it cost you to leave that sentence out?' }] }] : [] })
+    if (path === '/api/trajectory/current') return json({ trajectory: { statement: 'Writing toward the things I stopped noticing, one ordinary morning at a time.', born_project: null, tone: 'grounded', created_at: NOW } })
+    if (path === '/api/idea-lab/territories') return json({})
+    {
+      const m = /^\/api\/studio\/projects\/([^/]+)$/.exec(path)
+      const row = m && shelf.find((x) => x.id === m[1])
+      if (row && method === 'PATCH') return write(() => { Object.assign(row, body); return json({ project: row }) })
+      if (row && method === 'DELETE') return write(() => { shelf.splice(shelf.indexOf(row), 1); return json(null, 204) })
+    }
     if (path === '/api/studio/projects/demo/tree') return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), rules: projectRules }, tree: { nodes, threads, tags, open_checks: openChecks } })
     if (path === '/api/studio/projects/demo/proposals') {
       const nodeId = new URL(url, location.origin).searchParams.get('node_id')
@@ -339,7 +362,8 @@ function Inner() {
       </PageShell>
     )
   }
-  // ?board=1 is the project board a lone piece opens onto after "Create a project from this piece".
+  if (params.get('view') === 'kanban') return <ProjectBoard />
+  // ?board=1 is the canvas a single piece opens onto from the Project Board.
   if (on('board') || on('pieces')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
   return <WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} />
 }

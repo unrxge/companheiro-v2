@@ -295,6 +295,13 @@ export interface ProjectBundle {
 export interface ShelfProject extends Project {
   concept_body: string              // first 200 chars of the latest revision body
   since: SincePayload
+  /** Its top-level pieces, in order. One id and no threads is a single piece. */
+  root_ids: string[]
+  /** How many threads run under its pieces. */
+  thread_count: number
+  /** Where a single piece is on its journey, in the words journeyStepFromStage()
+   *  reads. null for a project of several pieces, which has no one stage. */
+  stage: string | null
 }
 
 // ── API payloads ───────────────────────────────────────────────────────────
@@ -308,6 +315,8 @@ export interface CreateProjectRequest {
 export interface PatchProjectRequest {
   title?: string
   status?: ProjectStatus
+  /** Which Project Board column it sits in. */
+  shelf_stage?: 'queued' | 'active' | 'completed'
   completion_note?: string
   /** What the whole project is for. */
   intent?: string

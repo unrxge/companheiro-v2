@@ -172,11 +172,10 @@ function CoreConceptContent() {
         sessionStorage.removeItem('bring_idea_flow')
         sessionStorage.removeItem('brought_idea')
         sessionStorage.removeItem('conceptualisation_conversation')
-        // Both branches route by project id, not a piece id — the project's
-        // own single-piece auto-open (work-page.tsx) takes it straight into
-        // writing when there's nothing else on the board yet.
-        if (existingProjectId) router.push(`/p/${existingProjectId}`)
-        else if (bringIdeaFlow) router.push(`/p/${data.project_id}`)
+        // Both branches route by project id, not a piece id — `?write=1` asks
+        // work-page.tsx to take a single piece straight into its writing.
+        if (existingProjectId) router.push(`/p/${existingProjectId}?write=1`)
+        else if (bringIdeaFlow) router.push(`/p/${data.project_id}?write=1`)
         else { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
       } else setError(data.error || 'Failed to save document')
     } catch (err) {
@@ -268,7 +267,7 @@ function CoreConceptContent() {
             </div>
           </Card>
           <div style={{ marginTop: 20 }}>
-            <PrimaryButton onClick={() => router.push(`/p/${projectId}`)} full size="lg">Begin</PrimaryButton>
+            <PrimaryButton onClick={() => router.push(`/p/${projectId}?write=1`)} full size="lg">Begin</PrimaryButton>
           </div>
         </Container>
       </PageShell>

@@ -4,13 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { normaliseRules } from '@/lib/studio/nodes-db'
 import {
   badRequest, bumpCanvasVersion, fromDbError, isFiniteNumber, isRecord, isString, loadBundle, noContent,
-  notFound, readJson, requireProject, withAuth,
+  notFound, nowIso, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
 import type { PatchProjectRequest, Project, ProjectStatus, Viewport } from '@/lib/studio/types'
 
 type Params = { params: Promise<{ id: string }> }
 
 const STATUSES: ReadonlySet<string> = new Set(['active', 'resting', 'finished', 'kept', 'abandoned'])
+const SHELF_STAGES: ReadonlySet<string> = new Set(['queued', 'active', 'completed'])
 const K_MIN = 0.1
 const K_MAX = 3
 
@@ -48,6 +49,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!isString(body.status) || !STATUSES.has(body.status)) throw badRequest('unknown status')
       patch.status = body.status as ProjectStatus
       bump = true
+    }
+    // Which Project Board column it sits in. Not a change to the work, so the
+    // canvas version stays put; completed_at follows the column.
+    if (body.shelf_stage !== undefined) {
+      if (!isString(body.shelf_stage) || !SHELF_STAGES.has(body.shelf_stage)) throw badRequest('unknown shelf_stage')
+      patch.shelf_stage = body.shelf_stage
+      if (body.shelf_stage !== project.shelf_stage) {
+        patch.completed_at = body.shelf_stage === 'completed' ? nowIso() : null
+      }
     }
     if (body.completion_note !== undefined) {
       if (body.completion_note !== null && !isString(body.completion_note)) throw badRequest('completion_note must be text')

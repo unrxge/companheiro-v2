@@ -63,7 +63,7 @@ export function NewProjectFlow() {
     setError(null)
     try {
       const { bundle } = await api.projects.create(req)
-      router.push(`/p/${bundle.project.id}`)
+      router.push(`/p/${bundle.project.id}?write=1`)
     } catch (e) {
       setError(errorLine(e, 'The project was not made · try again'))
       setBusy(false)

@@ -233,7 +233,7 @@ function HomeContent() {
                   {activePieces.map((piece, index) => (
                     <a
                       key={piece.id}
-                      href={`/p/${piece.id}`}
+                      href={`/p/${piece.id}?write=1`}
                       style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', textDecoration: 'none', borderBottom: index < activePieces.length - 1 ? `1px solid ${t.divider}` : 'none', borderLeft: '2px solid transparent', marginLeft: -12, paddingLeft: 10, transition: 'border-color 0.2s ease' }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = t.ember }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = 'transparent' }}

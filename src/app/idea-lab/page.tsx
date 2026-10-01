@@ -260,7 +260,7 @@ export default function IdeaLabPage() {
     try {
       const res = await fetch('/api/idea-lab/quick-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
       const data = await res.json()
-      if (data.success) { router.push(`/p/${data.project_id}`); return }
+      if (data.success) { router.push(`/p/${data.project_id}?write=1`); return }
       setError(data.error || `Could not start the project (${res.status})`)
     } catch {
       setError('Could not start the project')

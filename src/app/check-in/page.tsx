@@ -651,7 +651,7 @@ export default function CheckInPage() {
                       <p style={{ ...typeRoles.small, color: t.textSecondary }}>
                         Added to <span style={{ color: t.textPrimary, fontWeight: 600 }}>{belongs.title}</span> as a fragment. It waits there until you place it.
                       </p>
-                      <QuietButton onClick={() => router.push(`/p/${belongs.project_id}`)}>Open it →</QuietButton>
+                      <QuietButton onClick={() => router.push(`/p/${belongs.project_id}?write=1`)}>Open it →</QuietButton>
                     </div>
                   ) : (
                     <>

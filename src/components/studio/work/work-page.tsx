@@ -39,7 +39,6 @@ import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStacked
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
 import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
-import { WorkingDots } from '@/components/ui/working'
 import { HistoryPanel } from '@/components/studio/work/history-panel'
 import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
 
@@ -50,15 +49,21 @@ export type Focus =
 
 type View = 'write' | 'flow'
 
-export function WorkPage({ projectId, focus }: { projectId: string; focus: Focus }) {
+export function WorkPage({ projectId, focus, straightToWriting = false }: {
+  projectId: string
+  focus: Focus
+  /** Opened from outside the Project Board (Home, Idea Lab, a check-in): a
+   *  single piece of writing goes straight to its words instead of the canvas. */
+  straightToWriting?: boolean
+}) {
   return (
     <Level>
-      <Work projectId={projectId} focus={focus} />
+      <Work projectId={projectId} focus={focus} straightToWriting={straightToWriting} />
     </Level>
   )
 }
 
-function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
+function Work({ projectId, focus, straightToWriting }: { projectId: string; focus: Focus; straightToWriting: boolean }) {
   const { t } = useTheme()
   const router = useRouter()
   const go = useTravel()
@@ -342,28 +347,15 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     },
   }), [api, goNode, goThread, makeConstraint, removeNode, roots, router, setProjectField, tree.threads])
 
-  // A project with exactly one piece and nothing running across it yet has
-  // nothing for the board to show — skip straight to the writing. Derived,
-  // not persisted (idea-lab-trajectory-layer convention): the moment a second
-  // root piece is added via the board's own "add a piece" affordance, this
-  // stops matching and the next load falls back to the board on its own.
-  //
-  // "Create a project from this piece" sets settings.board, which turns the
-  // skip off for good: the one piece shows as a card, ready for more.
+  // Every project has a canvas, a single piece of writing included: threads
+  // go under it and more pieces beside it. The Project Board always opens that
+  // canvas. Home and the other ways in ask for the words instead when there is
+  // exactly one piece and nothing running across it yet. Derived, not
+  // persisted: add a second piece or a thread and it stops matching.
   const lonePiece = roots.length === 1 && roots[0].threads.length === 0 && !project?.settings?.board
     ? roots[0]
     : null
-  const singlePieceNode = focus.kind === 'project' ? lonePiece : null
-  // While the piece is alone, "the project" would only bounce back here —
-  // so up goes to the shelf instead.
-  const goUp = useCallback(() => (lonePiece ? goShelf() : goProject()), [lonePiece, goShelf, goProject])
-  const [makingProject, setMakingProject] = useState(false)
-  const makeProject = useCallback(async () => {
-    if (!project) return
-    setMakingProject(true)
-    await api.editProject({ settings: { board: true } })
-    goProject()
-  }, [api, goProject, project])
+  const singlePieceNode = focus.kind === 'project' && straightToWriting ? lonePiece : null
   // Only on the board itself, and only once there are enough pieces for
   // something to run across some of them without running across all.
   const onBoard = focus.kind === 'project' && state.status === 'ready' && !singlePieceNode && roots.length >= 3 && !readOnly
@@ -644,7 +636,6 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
     focus.kind === 'thread' ? thread?.name || 'A thread'
     : node?.title || 'Untitled'
 
-  const isLone = !!node && lonePiece?.id === node.id
   const words = node ? (node.children.length > 0 ? node.children.reduce((n, c) => n + wordCount(c.body), 0) : wordCount(node.body)) : 0
   const pendingTasks = tools.tasks.filter((x) => isWritingTask(x) && x.status === 'pending').length
 
@@ -664,7 +655,7 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
             Saving…
           </span>
         }
-        back={goUp}
+        back={() => goProject()}
       />
 
       <Container
@@ -680,14 +671,11 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
           <style>{`
             .piece-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
             .piece-bar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-            .piece-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
             /* Flex, not block: an inline-flex tray inside a block wrapper picks up a line box and ends 2px taller than its neighbour. */
             .piece-bar-switch { display: flex; align-items: center; }
-            /* On a phone the view switch stays beside the trail and the buttons drop to their own row. */
             @media (max-width: 719px) {
               .piece-bar-tools { display: contents; }
-              .piece-bar-switch { order: 1; margin-left: auto; }
-              .piece-bar-actions { order: 2; flex-basis: 100%; }
+              .piece-bar-switch { margin-left: auto; }
             }
           `}</style>
           <div className="piece-bar">
@@ -695,34 +683,10 @@ function Work({ projectId, focus }: { projectId: string; focus: Focus }) {
               steps={focus.kind === 'node' ? trail : []}
               onGo={(id) => goNode(id)}
               projectTitle={project.title}
-              onGoProject={goUp}
+              onGoProject={() => goProject()}
             />
             {focus.kind === 'node' && node && (
               <div className="piece-bar-tools">
-                {isLone && (
-                  <div className="piece-bar-actions">
-                    {/* Same pill as the Write / Flow switch beside it: one tray, one chip. */}
-                    <div
-                      style={{
-                        display: 'inline-flex', padding: 2,
-                        background: alpha(t.textPrimary, 0.06), borderRadius: radius.field,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => void makeProject()}
-                        disabled={makingProject}
-                        style={{
-                          ...canvasType.chip, padding: '4px 10px', borderRadius: radius.field - 2,
-                          border: 'none', background: 'transparent', color: t.textMuted,
-                          cursor: makingProject ? 'default' : 'pointer', opacity: makingProject ? 0.6 : 1,
-                        }}
-                      >
-                        {makingProject ? <><WorkingDots /> Creating…</> : 'Create a project from this piece'}
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <div className="piece-bar-switch">
                   <ViewSwitch view={view} onChange={setView} />
                 </div>
