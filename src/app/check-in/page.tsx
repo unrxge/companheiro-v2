@@ -645,33 +645,31 @@ export default function CheckInPage() {
               </m.div>
             )}
 
-            {/* A quiet line, not a card: sending something to a project is a
-                side door. It never takes them out of the check-in, and the
-                conversation carries on underneath whatever they choose. */}
+            {/* Sending something to a project is a side door: it never takes
+                them out of the check-in, the confirmation clears itself, and
+                the conversation carries on underneath whatever they choose. */}
             {belongs && belongsState !== 'dismissed' && (
-              <m.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                role="status"
-                style={{ display: 'flex', alignItems: 'baseline', gap: '4px 12px', flexWrap: 'wrap', ...typeRoles.small, fontSize: 13, color: t.textMuted }}
-              >
-                {belongsState === 'added' ? (
-                  <span>Sent to <span style={{ color: t.textSecondary, fontWeight: 600 }}>{belongs.title}</span>. It will be waiting there.</span>
-                ) : (
-                  <>
-                    <span style={{ flex: '1 1 260px', minWidth: 0 }}>
-                      &ldquo;{belongs.quote}&rdquo; sounds like it belongs to{' '}
-                      <span style={{ color: t.textSecondary, fontWeight: 600 }}>{belongs.title}</span>.
-                    </span>
-                    <button type="button" onClick={() => void carryToProject()} disabled={belongsState === 'adding'} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: t.textPrimary, fontWeight: 600, fontSize: 13, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-                      {belongsState === 'adding' ? 'Sending…' : belongsState === 'failed' ? 'Try again' : 'Send it there as a thread'}
-                    </button>
-                    <button type="button" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: t.textMuted, fontSize: 13 }}>
-                      Not now
-                    </button>
-                  </>
-                )}
+              <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} role="status">
+                <Card>
+                  {belongsState === 'added' ? (
+                    <p style={{ ...typeRoles.small, color: t.textSecondary }}>
+                      Sent to <span style={{ ...typeRoles.quote, fontSize: 15, color: t.ember }}>{belongs.title}</span>. It will be waiting there.
+                    </p>
+                  ) : (
+                    <>
+                      <Eyebrow style={{ marginBottom: 8 }}>This sounds like it belongs to</Eyebrow>
+                      <p style={{ ...typeRoles.h2, fontSize: 20, color: t.ember, marginBottom: 10 }}>{belongs.title}</p>
+                      <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
+                      <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <QuietButton onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Sending…">
+                          Send it there as a thread
+                        </QuietButton>
+                        <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
+                        {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
+                      </div>
+                    </>
+                  )}
+                </Card>
               </m.div>
             )}
 
