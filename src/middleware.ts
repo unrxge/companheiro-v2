@@ -18,8 +18,9 @@ export function middleware(request: NextRequest) {
   // /reset is reachable both ways: unauthenticated to request a link, and
   // authenticated (via the recovery session) to set the new password.
   const isResetPage = pathname === '/reset'
-  // `/` is the public landing page when signed out; the page itself sends
-  // signed-in visitors on to /home.
+  // `/` is the public landing page when signed out. It is a static page (so
+  // it can be served from the CDN), which means it cannot look at the session
+  // itself: signed-in visitors are sent on to /home from here.
   const isLanding = pathname === '/'
   // Legal pages must be readable before anyone signs up.
   const isLegal = LEGAL_PATHS.has(pathname)
@@ -31,7 +32,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (isAuthenticated && isAuthPage) {
+  if (isAuthenticated && (isAuthPage || isLanding)) {
     const appUrl = request.nextUrl.clone()
     appUrl.pathname = '/home'
     return NextResponse.redirect(appUrl)

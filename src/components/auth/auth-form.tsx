@@ -11,7 +11,7 @@
 // owner's request): age, AI processing and wellbeing data are covered in the
 // Terms and Privacy Policy it links to.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion as m } from 'motion/react'
 import Link from 'next/link'
@@ -35,14 +35,23 @@ function callbackUrl(next?: 'set-password'): string {
   return callback.toString()
 }
 
-export function AuthForm({ providers, oauthFailed }: { providers: OAuthProvider[]; oauthFailed: boolean }) {
+export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   const { t } = useTheme()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   // True once the server has said this address has an account.
   const [askPassword, setAskPassword] = useState(false)
-  const [error, setError] = useState<string | null>(oauthFailed ? 'That sign-in link didn’t work or has expired. Please try again.' : null)
+  const [error, setError] = useState<string | null>(null)
+
+  // ?error=oauth comes back from /api/auth/callback when a Google sign-in or
+  // email link failed. Read here rather than on the server so the page itself
+  // stays static.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
+      setError('That sign-in link didn’t work or has expired. Please try again.')
+    }
+  }, [])
   const [loading, setLoading] = useState(false)
   const [oauthBusy, setOauthBusy] = useState<OAuthProvider | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)

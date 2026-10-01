@@ -1,14 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
-import { SettingsSheet } from '@/components/settings/settings-sheet'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { LEGAL_PAGES } from '@/lib/legal'
+
+// Loaded only when "See plans" is pressed. This gate sits in the root layout,
+// so a plain import would ship the settings sheet (and the Supabase client it
+// brings) to every page, the public landing page included.
+const SettingsSheet = dynamic(() => import('@/components/settings/settings-sheet').then((mod) => mod.SettingsSheet), { ssr: false })
 
 // Must match GATE_HEADER in lib/billing/fair-use.ts (not imported: that
 // module is server-only).

@@ -121,18 +121,15 @@ function Nav() {
 
 // ── Hero: asymmetric split, the vision assembles from fragments ─────────────
 
+// The hero's entrance is CSS, not motion: it is the first thing a new visitor
+// sees, and a motion `initial` would keep it invisible in the server's HTML
+// until the page's JavaScript had downloaded and run.
+const ENTER = 'motion-safe:animate-in fade-in fill-mode-both ease-[cubic-bezier(0.16,1,0.3,1)]'
+const ENTER_TEXT = `${ENTER} slide-in-from-bottom-[18px] animation-duration-[900ms]`
+
 function Hero() {
   const ref = useRef<HTMLElement>(null)
   useSectionMood(ref, 'ember')
-  const reduce = useReducedMotion()
-  const enter = (i: number) =>
-    reduce
-      ? {}
-      : {
-          initial: { opacity: 0, y: 18 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.9, delay: 0.15 + i * 0.12, ease: EASE },
-        }
 
   return (
     <section
@@ -140,30 +137,24 @@ function Hero() {
       className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-center gap-12 px-4 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12 lg:min-h-[calc(100dvh-72px)] lg:grid-cols-[1.15fr_0.85fr] lg:gap-14"
     >
       <div className="max-w-[640px]">
-        <m.h1
-          {...enter(0)}
-          className="text-balance text-[44px] font-bold leading-[1.04] tracking-[-0.035em] text-[var(--bone)] md:text-[60px] xl:text-[72px]"
+        <h1
+          className={`${ENTER_TEXT} delay-[150ms] text-balance text-[44px] font-bold leading-[1.04] tracking-[-0.035em] text-[var(--bone)] md:text-[60px] xl:text-[72px]`}
         >
           {/* Same pairing as the brand document: Geist headline, one word in Newsreader italic. */}
           You already have a{' '}
           <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">vision</span>.
-        </m.h1>
-        <m.p {...enter(1)} className="mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]">
+        </h1>
+        <p className={`${ENTER_TEXT} delay-[270ms] mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]`}>
           It&rsquo;s scattered across your notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.
-        </m.p>
-        <m.div {...enter(2)} className="mt-9">
+        </p>
+        <div className={`${ENTER_TEXT} delay-[390ms] mt-9`}>
           <BeginButton />
-        </m.div>
+        </div>
       </div>
 
-      <m.div
-        initial={reduce ? false : { opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1.1, delay: 0.3, ease: EASE }}
-        className="w-full max-w-[480px] lg:justify-self-end"
-      >
+      <div className={`${ENTER} slide-in-from-bottom-[24px] animation-duration-[1100ms] delay-[300ms] w-full max-w-[480px] lg:justify-self-end`}>
         <VisionFinder />
-      </m.div>
+      </div>
     </section>
   )
 }

@@ -17,9 +17,12 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// Only a few figures use the mono face, so it is fetched when first needed
+// rather than preloaded on every page.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 

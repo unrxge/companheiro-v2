@@ -1,7 +1,5 @@
 import type { Metadata } from 'next'
 import { Newsreader } from 'next/font/google'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { Landing } from '@/components/landing/landing'
 
 // The one serif on the page: the coloured word in the hero headline.
@@ -13,15 +11,13 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 }
 
-// Signed in: straight to the app. Signed out: the public landing page.
-export default async function RootPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+// Built once and served from the CDN, so a first visit never waits on a
+// server function waking up. Reading cookies or the session here would make
+// the page render per request again; the build fails rather than allow it.
+// Signed-in visitors are sent on to /home by the middleware.
+export const dynamic = 'error'
 
-  if (user) redirect('/home')
-
+export default function RootPage() {
   return (
     <div className={newsreader.variable}>
       <Landing />
