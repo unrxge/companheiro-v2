@@ -40,17 +40,10 @@ const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
-const MARKER_SPACING = 16  // how far apart two connection points sit on one card's edge
 const ADD_THREAD_D = 30    // the "+ thread" button set into each card's bottom edge
-// Every thread leaves from the button itself, so the button reads as the mouth
-// the threads come out of. Their beads then fan out from under it — far enough
-// down to clear its ring, left and right in turn so two never sit on top of
-// each other.
-const MARKER_INSET = ADD_THREAD_D / 2 + 10
-const MARKER_DROP = ADD_THREAD_D / 2 + 14
-const BEAD_D = 12
-// the bead's own centre, measured down from the card's bottom edge
-const BEAD_CY = MARKER_DROP - BEAD_D / 2
+// There is no separate connection point: every thread on a piece leaves from
+// the "+" itself, all of them from that one spot, so the button is visibly
+// the mouth its threads come out of.
 // A piece keeps one colour of its own, by its place in the order, and every
 // thread started from it is born that colour — so which card a thread came
 // from is readable from the line itself.
@@ -304,21 +297,6 @@ export function Board({
   )
   const canvas = useCanvas(ref, frame, world, { home })
 
-  /** Where each piece's connection points sit — one bead per thread touching
-   *  it, hanging under the "+" the threads leave from, fanned so two on one
-   *  card do not sit on top of each other. A single thread hangs straight
-   *  down, directly below the button, right on its own line. */
-  const markersFor = useCallback((pieceId: string) => {
-    const mine = hubs.filter((th) => presence.get(th.id)?.roots.has(pieceId))
-    if (mine.length === 1) return [{ thread: mine[0], dx: 0 }]
-    // Left, right, left, right — each pair a step further out from the "+".
-    return mine.map((th, i) => {
-      const side = i % 2 === 0 ? -1 : 1
-      const step = Math.floor(i / 2)
-      return { thread: th, dx: side * (MARKER_INSET + step * MARKER_SPACING) }
-    })
-  }, [hubs, presence])
-
   // Escape drops whatever you were in the middle of.
   useEffect(() => {
     if (!arming) return
@@ -481,37 +459,22 @@ export function Board({
             const here = presence.get(th.id)!
             return pieces.map((piece, i) => {
               if (!here.roots.has(piece.id)) return null
-              const marker = markersFor(piece.id).find((m) => m.thread.id === th.id)
               const p = pieceAt(piece, i)
-              // Every thread leaves the "+" itself. From there a short stem
-              // runs out to its own bead, and the curve to the hub starts at
-              // the bead — so with one thread or five, each line passes
-              // through the bead that belongs to it.
+              // the one place every thread on this piece leaves from: the
+              // middle of its bottom edge, where the "+" sits
               const ox = p.x + cardW / 2
               const oy = p.y + cardH
-              const bx = ox + (marker?.dx ?? 0)
-              const by = oy + BEAD_CY
               const deep = !here.direct.has(piece.id)
-              const stroke = alpha(colour, deep ? 0.32 : 0.55)
               return (
-                <g key={`${th.id}-${piece.id}`}>
-                  <path
-                    d={`M ${ox} ${oy} L ${bx} ${by}`}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={1.5}
-                    strokeDasharray={deep ? '1 5' : undefined}
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d={smoothPath({ x: bx, y: by }, { x: hx, y: hy })}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={1.5}
-                    strokeDasharray={deep ? '1 5' : undefined}
-                    strokeLinecap="round"
-                  />
-                </g>
+                <path
+                  key={`${th.id}-${piece.id}`}
+                  d={smoothPath({ x: ox, y: oy }, { x: hx, y: hy })}
+                  fill="none"
+                  stroke={alpha(colour, deep ? 0.32 : 0.55)}
+                  strokeWidth={1.5}
+                  strokeDasharray={deep ? '1 5' : undefined}
+                  strokeLinecap="round"
+                />
               )
             })
           })}
@@ -647,17 +610,6 @@ export function Board({
                   onClick={() => void addThreadFrom(piece, i)}
                 />
               )}
-              {/* the connection points along this card's own bottom edge */}
-              {markersFor(piece.id).map(({ thread, dx }) => (
-                <Marker
-                  key={thread.id}
-                  thread={thread}
-                  left={cardW / 2 + dx}
-                  note={tagFor(piece.id, thread.id)?.note ?? ''}
-                  deep={!presence.get(thread.id)!.direct.has(piece.id)}
-                  onOpen={() => setOpenThread(thread.id)}
-                />
-              ))}
             </div>
           )
         })}
@@ -924,44 +876,6 @@ function AddThreadButton({ hue, pieceTitle, onClick }: { hue: ThreadHue; pieceTi
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     </button>
-  )
-}
-
-// ── where a thread's line touches down on a piece ───────────────────────────
-
-function Marker({
-  thread, left, note, deep, onOpen,
-}: {
-  thread: Thread
-  left: number
-  note: string
-  deep: boolean
-  onOpen: () => void
-}) {
-  const { t } = useTheme()
-  const colour = hueOf(t, thread.hue)
-  const title = note
-    ? `${thread.name || 'a thread'}: ${note}`
-    : deep
-      ? `${thread.name || 'a thread'} — inside this piece`
-      : thread.name || 'a thread'
-  return (
-    <button
-      data-hold
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onOpen() }}
-      onPointerDown={(e) => e.stopPropagation()}
-      title={title}
-      aria-label={title}
-      style={{
-        position: 'absolute', left, bottom: -MARKER_DROP, width: BEAD_D, height: BEAD_D, marginLeft: -BEAD_D / 2,
-        borderRadius: '50%', padding: 0, cursor: 'pointer',
-        background: deep ? t.cardBg : colour,
-        border: `1.5px solid ${colour}`,
-        // the line runs underneath it, so the bead reads as threaded onto it
-        boxShadow: `0 0 0 3px ${t.containerBg}`,
-      }}
-    />
   )
 }
 

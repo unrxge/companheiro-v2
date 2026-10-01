@@ -104,7 +104,7 @@ export function ThreadCard({
             <InlineField
               ariaLabel="The name of this thread"
               value={thread.name}
-              placeholder="Name it — the thing you keep having to remember"
+              placeholder="Name it — short, like “no nostalgia”"
               disabled={disabled}
               onCommit={(name) => onEdit({ name })}
               style={{ ...canvasType.headingMd, fontSize: 20, color: t.textPrimary }}
@@ -124,7 +124,7 @@ export function ThreadCard({
           <InlineField
             ariaLabel="What this thread is for"
             value={thread.intent}
-            placeholder="What is it holding? A fragment, a constraint, something you must not forget…"
+            placeholder="What runs through the pieces — an image that keeps coming back, a rule you set, a promise about how it should feel."
             multiline
             disabled={disabled}
             onCommit={(intent) => onEdit({ intent })}
@@ -262,7 +262,7 @@ function NoteField({
     <input
       aria-label="What it does here"
       value={draft}
-      placeholder="Say what it does here…"
+      placeholder="What does it do in this piece?"
       disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
