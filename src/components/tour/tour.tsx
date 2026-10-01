@@ -26,21 +26,14 @@ const FADE = 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100
 
 const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (p: TourWidgetProps) => React.ReactNode }[] = [
   {
-    where: 'Check-in',
-    title: 'Talk through what’s on your mind.',
-    body: 'Check-in whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
-    mood: 'tide',
-    Widget: CheckInWidget,
-  },
-  {
-    where: 'Idea Lab',
+    where: 'Idea',
     title: 'Systemise your creativity.',
     body: 'No need to wait for the creative muse to “drop down from the heavens” any more. Pick a theme you care about, and the ‘Idea Lab’ gives you a question worth making something from, every time you sit down.',
     mood: 'violet',
     Widget: SummonWidget,
   },
   {
-    where: 'Idea Lab · Conceptualise',
+    where: 'Conceptualise',
     title: 'Turn a rough idea into a clear one.',
     body: 'Find the voice of your idea outside of the fog of the abstract. ‘Conceptualise’ helps you define the outline of what you want to express, one question at a time – until you can declare your concept in one clear sentence.',
     mood: 'verdant',
@@ -59,6 +52,13 @@ const SLIDES: { where: string; title: string; body: string; mood: Hue; Widget: (
     body: 'Select any part of your piece to talk about it. Companheiro asks questions and reflects things back until you can see what you meant. The writing is always yours.',
     mood: 'violet',
     Widget: WritingWidget,
+  },
+  {
+    where: 'Check-in',
+    title: 'Talk through what’s on your mind.',
+    body: 'Check-in whenever something is on your mind, about your work or your day. Speak or type, press Send, and Companheiro answers you.',
+    mood: 'tide',
+    Widget: CheckInWidget,
   },
   {
     where: 'Portrait',
@@ -86,6 +86,8 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
 
   useEffect(() => {
     setRuns((r) => r.map((n, i) => (i === index ? n + 1 : n)))
+    // A slide scrolled down on a short phone goes back to its top once it is left, so every arrival starts at the title.
+    Array.from(track.current?.children ?? []).forEach((el, i) => { if (i !== index) el.scrollTop = 0 })
   }, [index])
 
   const go = useCallback(
@@ -193,7 +195,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
 
       {/* One row on a phone, so the slide keeps the height: progress on the left, Back and Next on the right. */}
       <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between gap-3 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:px-10 lg:pb-7 lg:pt-1">
-        <div className="flex items-center gap-1 lg:gap-1.5">
+        <div className="flex items-center gap-1.5">
           {SLIDES.map((s, i) => (
             <button
               key={s.where}
@@ -201,7 +203,7 @@ export function Tour({ firstRun, onLeave }: { firstRun: boolean; onLeave: () => 
               onClick={() => go(i)}
               aria-label={`${i + 1} of ${SLIDES.length}: ${s.where}`}
               aria-current={i === index ? 'step' : undefined}
-              className={`flex h-11 cursor-pointer items-center transition-[width] duration-300 ${i === index ? 'w-5 lg:w-9' : 'w-2.5 lg:w-5'}`}
+              className={`flex h-11 cursor-pointer items-center transition-[width] duration-300 ${i === index ? 'w-7 lg:w-9' : 'w-4 lg:w-5'}`}
               style={{ background: 'none', border: 'none', padding: 0 }}
             >
               <span style={{ display: 'block', width: '100%', height: 4, borderRadius: 2, backgroundColor: i === index ? shell.text : i < index ? shell.muted : shell.line, transition: 'background-color 0.3s ease' }} />
