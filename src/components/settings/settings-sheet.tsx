@@ -14,6 +14,7 @@ import { BillingCard } from '@/components/settings/billing-card'
 import { DICTATION_LANGS, setDictationLangCache, type UserSettings } from '@/lib/settings'
 import { radius, type as typeRoles } from '@/lib/design-tokens'
 import { LEGAL_PAGES } from '@/lib/legal'
+import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 /** Gear button for a page header. Opens the sheet. */
 export function SettingsButton() {
@@ -66,6 +67,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     setBusy('signout')
     try {
       await createClient().auth.signOut()
+      lastSeenProjects.clear()
       router.push('/login')
       router.refresh()
     } finally {
@@ -91,6 +93,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         return
       }
       await createClient().auth.signOut()
+      lastSeenProjects.clear()
       router.push('/login')
     } finally {
       setBusy(null)

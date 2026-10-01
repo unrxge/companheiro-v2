@@ -23,6 +23,7 @@ import { Level, useTravel } from '@/components/studio/surface/travel'
 import { StageRibbon } from '@/components/widgets'
 import { journeyStepFromStage, toneHue, type as typeRoles } from '@/lib/design-tokens'
 import { api, ApiError } from '@/lib/studio/api-client'
+import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { projectState } from '@/lib/studio/shelf-view'
 import type { ShelfProject } from '@/lib/studio/types'
 
@@ -76,9 +77,11 @@ function Board() {
   const confirm = useConfirm()
   const territories = useTerritories()
 
-  const [projects, setProjects] = useState<ShelfProject[]>([])
+  // Coming back to the board in the same tab starts from the list it last
+  // showed (lib/studio/last-seen.ts) while the fresh one loads.
+  const [projects, setProjects] = useState<ShelfProject[]>(() => lastSeenProjects.get() ?? [])
   const [drafts, setDrafts] = useState<ConceptualiseDraft[]>([])
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(() => (lastSeenProjects.get() ? 'ready' : 'loading'))
   const [errorCode, setErrorCode] = useState(0)
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
   const [activeTab, setActiveTab] = useState<Column>('Active')
@@ -113,6 +116,12 @@ function Board() {
       .then((d) => setTrajectory(d.trajectory || null))
       .catch(() => {})
   }, [load])
+
+  // Moves and deletions are applied here before the server answers, so the
+  // remembered list follows the board rather than the last response.
+  useEffect(() => {
+    if (status === 'ready') lastSeenProjects.set(projects)
+  }, [projects, status])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)

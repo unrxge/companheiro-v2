@@ -24,6 +24,7 @@ import { TextField } from '@/components/ui/field'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { readAttribution } from '@/lib/attribution'
 import type { OAuthProvider } from '@/lib/auth-providers'
+import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google' }
 
@@ -48,6 +49,8 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   // email link failed. Read here rather than on the server so the page itself
   // stays static.
   useEffect(() => {
+    // Nobody is signed in on this page: forget the last person's project list.
+    lastSeenProjects.clear()
     if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
       setError('That sign-in link didn’t work or has expired. Please try again.')
     }

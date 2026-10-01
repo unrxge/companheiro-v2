@@ -313,18 +313,18 @@ export function emptySince(project: Project): SincePayload {
 const statusRank = (s: Project['status']) => (s === 'active' ? 0 : s === 'resting' ? 1 : 2)
 
 export async function shelfProjects(auth: AuthedContext): Promise<ShelfProject[]> {
-  const { data, error } = await auth.supabase
-    .from('studio_projects')
-    .select('*')
-    .eq('user_id', auth.user.id)
-    .order('updated_at', { ascending: false })
-  if (error) throw fromDbError(error)
-  const projects = (data as Project[] | null) ?? []
-  if (projects.length === 0) return []
-
-  // The board needs to know which projects are one piece of writing and how
-  // far along that piece is; two reads cover every project at once.
-  const [rootsRes, threadsRes] = await Promise.all([
+  // Three reads, side by side, however many projects there are. Each project
+  // brings its latest concept with it (the embedded read is limited to one
+  // row per project), and the other two say which projects are one piece of
+  // writing and how far along that piece is.
+  const [projectsRes, rootsRes, threadsRes] = await Promise.all([
+    auth.supabase
+      .from('studio_projects')
+      .select('*, studio_concept_revisions(body)')
+      .eq('user_id', auth.user.id)
+      .order('updated_at', { ascending: false })
+      .order('created_at', { referencedTable: 'studio_concept_revisions', ascending: false })
+      .limit(1, { referencedTable: 'studio_concept_revisions' }),
     auth.supabase
       .from('studio_nodes')
       .select('id, project_id, status, short_form_script, position')
@@ -333,8 +333,13 @@ export async function shelfProjects(auth: AuthedContext): Promise<ShelfProject[]
       .order('position', { ascending: true }),
     auth.supabase.from('studio_threads').select('project_id').eq('user_id', auth.user.id),
   ])
+  if (projectsRes.error) throw fromDbError(projectsRes.error)
   if (rootsRes.error) throw fromDbError(rootsRes.error)
   if (threadsRes.error) throw fromDbError(threadsRes.error)
+  type ProjectRow = Project & { studio_concept_revisions: Array<{ body: string }> | null }
+  const projects = (projectsRes.data as ProjectRow[] | null) ?? []
+  if (projects.length === 0) return []
+
   type RootRow = { id: string; project_id: string; status: string; short_form_script: string | null }
   const rootsBy = new Map<string, RootRow[]>()
   for (const r of (rootsRes.data as RootRow[] | null) ?? []) {
@@ -355,20 +360,20 @@ export async function shelfProjects(auth: AuthedContext): Promise<ShelfProject[]
       : 'conceptualising'
   }
 
-  const rows = await Promise.all(
-    projects.map(async (p) => {
-      const [concept, since] = await Promise.all([latestConcept(auth, p), sinceFor(auth, p.id)])
-      const roots = rootsBy.get(p.id) ?? []
-      return {
-        ...p,
-        concept_body: concept.body.slice(0, 200),
-        since: since ?? emptySince(p),
-        root_ids: roots.map((r) => r.id),
-        thread_count: threadsBy.get(p.id) ?? 0,
-        stage: stageOf(p, roots),
-      } satisfies ShelfProject
-    })
-  )
+  // `since` is the unopened-project default: nothing that lists projects
+  // shows its counts, and working them out took a database call per project.
+  // A project's own page still gets the real thing (loadBundle, /since, /open).
+  const rows = projects.map(({ studio_concept_revisions: revisions, ...p }) => {
+    const roots = rootsBy.get(p.id) ?? []
+    return {
+      ...p,
+      concept_body: (revisions?.[0]?.body ?? '').slice(0, 200),
+      since: emptySince(p),
+      root_ids: roots.map((r) => r.id),
+      thread_count: threadsBy.get(p.id) ?? 0,
+      stage: stageOf(p, roots),
+    } satisfies ShelfProject
+  })
 
   return rows.sort((a, b) => {
     const r = statusRank(a.status) - statusRank(b.status)

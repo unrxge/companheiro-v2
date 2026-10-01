@@ -10,8 +10,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   return withAuth(async (auth) => {
-    const project = await requireProject(auth, id)
-    const tree = await loadTree(auth, project.id)
+    // Side by side: the tree read is limited to the person's own rows by the
+    // database, and a project that is not theirs fails requireProject either way.
+    const [project, tree] = await Promise.all([requireProject(auth, id), loadTree(auth, id)])
     return NextResponse.json({ project, tree })
   })
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -15,6 +16,7 @@ import { onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working } from '@/components/ui/working'
 import { tourSeenLocally } from '@/lib/tour'
+import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 interface ActivePiece {
   id: string
@@ -31,7 +33,20 @@ interface ShelfProjectSummary {
   id: string
   title: string
   arc: string | null
-  shelf_stage: 'queued' | 'active' | 'completed'
+  shelf_stage?: 'queued' | 'active' | 'completed'
+}
+
+/** What Home shows of the project list: the first few in progress, and how many sit in each column. */
+function shelfSummary(projects: ShelfProjectSummary[]) {
+  const active = projects.filter((p) => p.shelf_stage === 'active')
+  return {
+    activePieces: active.slice(0, 5).map((p) => ({ id: p.id, title: p.title, arc: p.arc || '' })),
+    counts: {
+      active: active.length,
+      queue: projects.filter((p) => p.shelf_stage === 'queued').length,
+      completed: projects.filter((p) => p.shelf_stage === 'completed').length,
+    },
+  }
 }
 
 interface RecentCapture {
@@ -56,10 +71,16 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
   const { t } = useTheme()
   const router = useRouter()
 
-  const [activePieces, setActivePieces] = useState<ActivePiece[]>([])
+  // The project list this tab last saw (lib/studio/last-seen.ts), so coming
+  // back to Home shows what is in progress at once while the fresh copy loads.
+  const [seen] = useState(() => {
+    const projects = lastSeenProjects.get()
+    return projects ? shelfSummary(projects) : null
+  })
+  const [activePieces, setActivePieces] = useState<ActivePiece[]>(seen?.activePieces ?? [])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
-  const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(null)
+  const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(seen?.counts ?? null)
 
   const [checkIns, setCheckIns] = useState<StoredCheckIn[]>([])
   const [writingActivity, setWritingActivity] = useState<WritingActivityRow[]>([])
@@ -102,16 +123,10 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
         const data = await projectsRes.json()
         const history = await historyRes.json()
         const activity = await activityRes.json()
-        const projects: ShelfProjectSummary[] = data.projects || []
-        const active = projects.filter((p) => p.shelf_stage === 'active')
-        const queue = projects.filter((p) => p.shelf_stage === 'queued')
-        const completed = projects.filter((p) => p.shelf_stage === 'completed')
-        setActivePieces(active.slice(0, 5).map((p) => ({ id: p.id, title: p.title, arc: p.arc || '' })))
-        setPieceCounts({
-          active: active.length,
-          queue: queue.length,
-          completed: completed.length,
-        })
+        if (projectsRes.ok && Array.isArray(data.projects)) lastSeenProjects.set(data.projects)
+        const summary = shelfSummary(data.projects || [])
+        setActivePieces(summary.activePieces)
+        setPieceCounts(summary.counts)
         setCheckIns(history.checkIns || [])
         setWritingActivity(activity.activity || [])
       } catch (err) {
@@ -230,14 +245,14 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
           <div className="md:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Card>
               <Eyebrow style={{ marginBottom: 16 }}>In progress</Eyebrow>
-              {isLoading ? (
+              {isLoading && !pieceCounts ? (
                 <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
               ) : activePieces.length === 0 ? (
                 <p style={{ ...typeRoles.small, color: t.textSecondary }}>Nothing in motion yet. Start from the project board.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {activePieces.map((piece, index) => (
-                    <a
+                    <Link
                       key={piece.id}
                       href={`/p/${piece.id}?write=1`}
                       style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', textDecoration: 'none', borderBottom: index < activePieces.length - 1 ? `1px solid ${t.divider}` : 'none', borderLeft: '2px solid transparent', marginLeft: -12, paddingLeft: 10, transition: 'border-color 0.2s ease' }}
@@ -253,7 +268,7 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
                           {piece.arc}
                         </span>
                       )}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -318,7 +333,7 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {recentCaptures.map((capture, index) => (
-                      <a
+                      <Link
                         key={capture.id}
                         href="/collector"
                         style={{ display: 'block', padding: '10px 0 10px 10px', marginLeft: -10, borderLeft: '2px solid transparent', textDecoration: 'none', borderBottom: index < recentCaptures.length - 1 ? `1px solid ${t.divider}` : 'none', transition: 'border-color 0.2s ease' }}
@@ -327,7 +342,7 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
                       >
                         <p style={{ ...typeRoles.small, fontSize: 12, color: t.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{capture.raw_input}</p>
                         <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>{capture.arc}</span>
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 )}

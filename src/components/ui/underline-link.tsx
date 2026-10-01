@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { accentColor } from '@/lib/card-theme'
 
 export function UnderlineLink({
@@ -42,6 +43,16 @@ export function UnderlineLink({
         {children}
         {underline}
       </button>
+    )
+  }
+
+  // A page of this app: move there without reloading the whole document.
+  if (href?.startsWith('/')) {
+    return (
+      <Link href={href} onClick={onClick} {...sharedProps}>
+        {children}
+        {underline}
+      </Link>
     )
   }
 

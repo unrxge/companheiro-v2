@@ -13,8 +13,8 @@
 // Depth is never presented. A project opens as its pieces; parts appear inside
 // a piece when the work asks for them; nothing here is hard-coded to a depth.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Container, PageHeader, PageShell } from '@/components/shell/page-shell'
 import { Dock } from '@/components/shell/dock'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -62,6 +62,25 @@ export function WorkPage({ projectId, focus, straightToWriting = false }: {
       <Work projectId={projectId} focus={focus} straightToWriting={straightToWriting} />
     </Level>
   )
+}
+
+const PROJECT_FOCUS: Focus = { kind: 'project' }
+
+/** A project at its own address (/p/[id]). `?write=1` is how Home and the
+ *  other ways in from outside the Project Board ask for the words instead of
+ *  the canvas; it is read here, in the browser, so the page itself never
+ *  depends on the request and can be served from cache. */
+export function ProjectWorkPage({ projectId }: { projectId: string }) {
+  return (
+    <Suspense fallback={null}>
+      <ProjectWorkFromUrl projectId={projectId} />
+    </Suspense>
+  )
+}
+
+function ProjectWorkFromUrl({ projectId }: { projectId: string }) {
+  const straightToWriting = useSearchParams().get('write') === '1'
+  return <WorkPage projectId={projectId} focus={PROJECT_FOCUS} straightToWriting={straightToWriting} />
 }
 
 function Work({ projectId, focus, straightToWriting }: { projectId: string; focus: Focus; straightToWriting: boolean }) {
