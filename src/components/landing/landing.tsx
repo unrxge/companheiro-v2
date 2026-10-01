@@ -21,7 +21,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
-import { CanvasMockup, HeardMockup, RuleHeardMockup, VisionFinder } from './mockups'
+import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
 const hues = tokensFor('dark')
@@ -171,7 +171,7 @@ function Hero() {
 // ── Manifesto: words come up as you read ─────────────────────────────────────
 
 const MANIFESTO =
-  'It usually starts as something you can\u2019t quite name. A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are one vision, seen from different sides. Companheiro helps you see it whole.'
+  'It usually starts as something you can\u2019t quite name. A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are one vision, seen from different sides. Companheiro helps you see it whole. And it begins with one good question.'
 
 function Word({ word, progress, range }: { word: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.16, 1])
@@ -187,7 +187,7 @@ function Manifesto() {
   const words = MANIFESTO.split(' ')
 
   return (
-    <section ref={sectionRef} className="mx-auto w-full max-w-[1000px] px-4 py-24 md:px-8 md:py-40">
+    <section ref={sectionRef} className="mx-auto w-full max-w-[1000px] px-4 pb-20 pt-24 md:px-8 md:pb-28 md:pt-40">
       <p
         ref={ref}
         className="text-[28px] font-semibold leading-[1.22] tracking-[-0.025em] text-[var(--bone)] md:text-[44px] md:leading-[1.16]"
@@ -202,16 +202,19 @@ function Manifesto() {
   )
 }
 
-// ── Inside: four parts of the app, each with a working copy of its screen ───
+// ── Inside: the app's parts, each with a working copy of its screen ─────────
 // The same slides the tour shows after sign-up (components/tour/slides.tsx),
-// laid down the page so nothing sits behind a Next button. The other three
-// (summoning an idea, Portrait, Capture) are left for the tour itself.
+// laid down the page so nothing sits behind a Next button. There is no
+// heading: the manifesto above ends on "one good question", and the first row
+// is where that question comes from. Portrait and Capture are left for the
+// tour itself. The Project Board is shown as the canvas, not the tour's widget.
 
-const INSIDE = ['Conceptualise', 'Project Board', 'Writing', 'Check-in']
-  .map((where) => SLIDES.find((s) => s.where === where))
-  .filter((s): s is TourSlide => !!s)
+const slideFor = (where: string) => SLIDES.find((s) => s.where === where) as TourSlide
 
-function InsideRow({ slide, flip }: { slide: TourSlide; flip: boolean }) {
+// Only on this page: how a Check-in feels, where the tour says what it does.
+const CHECK_IN_TITLE = 'Say it out loud. Feel it land.'
+
+function InsideRow({ slide, flip, title }: { slide: TourSlide; flip: boolean; title?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   // The widget starts once, when its row is properly on screen.
@@ -220,7 +223,7 @@ function InsideRow({ slide, flip }: { slide: TourSlide; flip: boolean }) {
     <div ref={ref} className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-16">
       <Reveal className={flip ? 'md:order-2' : ''}>
         <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues[slide.mood] }}>{slide.where}</p>
-        <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">{slide.title}</h3>
+        <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">{title ?? slide.title}</h3>
         <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{slide.body}</p>
       </Reveal>
       <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
@@ -230,82 +233,58 @@ function InsideRow({ slide, flip }: { slide: TourSlide; flip: boolean }) {
   )
 }
 
-function Inside() {
-  return (
-    <section className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-28">
-      <Reveal>
-        <h2 className={`max-w-[16ch] ${H2}`}>What you&rsquo;ll find inside.</h2>
-        <p className="mt-5 max-w-[52ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Four places you&rsquo;ll spend your time. Each one below is a small working copy of the real screen, so try them.
-        </p>
-      </Reveal>
-      <div className="mt-14 flex flex-col gap-20 md:mt-20 md:gap-32">
-        {INSIDE.map((slide, i) => (
-          <InsideRow key={slide.where} slide={slide} flip={i % 2 === 1} />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// ── The canvas: full-width, draggable ───────────────────────────────────────
-
 const CANVAS_FACTS = [
   'Any medium: essays, songs, photographs, film.',
   'Several visions at once, each on its own canvas.',
   'Images and recordings are for your eyes. It only reads what you write about them.',
 ]
 
-function WholeVision() {
-  const ref = useRef<HTMLElement>(null)
+/** The Project Board's place in the run: the whole canvas, full width. */
+function BoardCanvas() {
+  const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, 'verdant')
   return (
-    <section ref={ref} className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-32">
+    <div ref={ref}>
       <Reveal>
-        <h2 className={`max-w-[18ch] ${H2}`}>See the whole vision at once.</h2>
-        <p className="mt-5 max-w-[52ch] text-[17px] leading-relaxed text-[var(--muted)]">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues.tide }}>Project Board</p>
+        <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">See the whole vision at once.</h3>
+        <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">
           Every piece laid out side by side on a canvas that goes as far as you need. Threads show what connects, so the shape of the work is visible.
         </p>
       </Reveal>
-      <Reveal delay={0.1} className="mt-12 md:mt-16">
+      <Reveal delay={0.1} className="mt-8 md:mt-12">
         <CanvasMockup />
       </Reveal>
-      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
+      <div className="mt-8 grid grid-cols-1 gap-5 md:mt-10 md:grid-cols-3 md:gap-10">
         {CANVAS_FACTS.map((f, i) => (
           <Reveal key={f} delay={i * 0.06}>
             <p className="max-w-[34ch] border-t border-[var(--line)] pt-4 text-[15px] leading-relaxed text-[var(--muted)]">{f}</p>
           </Reveal>
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
-// ── Being heard: the real conversation surface, stacked ─────────────────────
-
-function Heard() {
-  const ref = useRef<HTMLElement>(null)
-  useSectionMood(ref, 'tide')
+function Inside() {
   return (
-    <section ref={ref} className="mx-auto w-full max-w-[860px] px-4 py-20 md:px-8 md:py-32">
-      <Reveal>
-        <h2 className={`max-w-[20ch] ${H2}`}>The moment it clicks is hearing it said back.</h2>
-      </Reveal>
-      <Reveal delay={0.1} className="mt-12 md:mt-16">
-        <HeardMockup />
-      </Reveal>
-      <p className="mt-6 text-[13px] text-[var(--muted)]">An example conversation, written to show how it responds.</p>
+    <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
+      <InsideRow slide={slideFor('Idea')} flip={false} />
+      <InsideRow slide={slideFor('Conceptualise')} flip />
+      <BoardCanvas />
+      <InsideRow slide={slideFor('Writing')} flip={false} />
+      <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} />
     </section>
   )
 }
 
-// ── What it will never do: 2 x 2 ─────────────────────────────────────────────
+// ── What it will never do: four cards, each crossing out what others do ─────
 
 const NEVER = [
-  { title: 'Make the work for you', body: 'It can ask and suggest. Every sentence you keep is one you chose.' },
-  { title: 'Tell you whether it’s good', body: 'It helps you see what you meant. It never grades what you made.' },
-  { title: 'Keep score', body: 'No likes, no views, no streaks. Nothing here measures how the work performed.' },
-  { title: 'Speak for you', body: 'It talks only to you. It never posts or sends anything in your name.' },
+  { not: 'Here’s a draft I wrote for you', title: 'Make the work for you', body: 'It can ask and suggest. Every sentence you keep is one you chose.' },
+  { not: 'This piece scores 8 out of 10', title: 'Tell you whether it’s good', body: 'It helps you see what you meant. It never grades what you made.' },
+  { not: '12-day streak · 340 views', title: 'Keep score', body: 'No likes, no views, no streaks. Nothing here measures how the work performed.' },
+  { not: 'Posted on your behalf', title: 'Speak for you', body: 'It talks only to you. It never posts or sends anything in your name.' },
 ]
 
 function Never() {
@@ -315,12 +294,26 @@ function Never() {
     <section ref={ref} className="mx-auto w-full max-w-[1180px] px-4 py-20 md:px-8 md:py-32">
       <Reveal>
         <h2 className={H2}>What it will never do.</h2>
+        <p className="mt-5 max-w-[48ch] text-[17px] leading-relaxed text-[var(--muted)]">
+          Four things other tools are built to do, and this one is built to refuse.
+        </p>
       </Reveal>
-      <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-12 border-t border-[var(--line)] pt-12 md:mt-16 md:grid-cols-2 md:gap-y-16 md:pt-16">
+      <div className="mt-10 grid grid-cols-1 gap-4 md:mt-14 md:grid-cols-2 md:gap-5">
         {NEVER.map((n, i) => (
           <Reveal key={n.title} delay={(i % 2) * 0.08}>
-            <h3 className="text-[20px] font-semibold tracking-[-0.02em] text-[var(--bone)] md:text-[22px]">{n.title}</h3>
-            <p className="mt-2 max-w-[40ch] text-[16px] leading-relaxed text-[var(--muted)]">{n.body}</p>
+            <div className="relative h-full overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--fill)] p-6 transition-colors duration-500 hover:border-[rgba(236,233,226,0.22)] md:p-8">
+              {/* The number sits behind, large and faint. */}
+              <span aria-hidden className="pointer-events-none absolute -right-2 -top-6 select-none text-[120px] font-bold leading-none tracking-[-0.05em] md:text-[150px]" style={{ color: alpha(ember, 0.07) }}>
+                {i + 1}
+              </span>
+              {/* What another tool would say here, crossed out. */}
+              <p aria-hidden className="relative inline-flex max-w-full items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium" style={{ backgroundColor: alpha(ember, 0.12), color: alpha(ember, 0.95) }}>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: ember }} />
+                <span className="truncate line-through decoration-[1.5px]">{n.not}</span>
+              </p>
+              <h3 className="relative mt-6 text-[22px] font-semibold tracking-[-0.02em] text-[var(--bone)] md:text-[26px]">{n.title}</h3>
+              <p className="relative mt-2.5 max-w-[38ch] text-[16px] leading-relaxed text-[var(--muted)]">{n.body}</p>
+            </div>
           </Reveal>
         ))}
       </div>
@@ -365,9 +358,10 @@ const PLANS = [
     price: { month: 9, year: 90 },
     features: [
       'One active project at a time',
-      'Writing and lyrics',
+      'Unlimited personal check-ins',
+      'Define and conceptualise new ideas',
       'Find, hold and talk to your vision',
-      'The writing studio',
+      'Access to the writing suite',
       'Switch projects by resting one for 14 days',
     ],
   },
@@ -378,7 +372,7 @@ const PLANS = [
     price: { month: 29, year: 290 },
     features: [
       'Everything in Practice',
-      'As many active projects as you carry',
+      'Have access to unlimited active projects',
       'The full canvas for every vision',
       'Images and recordings beside your words',
       'Talk through direction whenever you need to',
@@ -556,8 +550,6 @@ export function Landing() {
             <Hero />
             <Manifesto />
             <Inside />
-            <WholeVision />
-            <Heard />
             <Never />
             <Closing />
             <Pricing />

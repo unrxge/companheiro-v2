@@ -1,7 +1,7 @@
 'use client'
 
 // Landing-page visuals. Every one is built from the app's real components
-// (Container, Card, Pill, Thread, StageRibbon) or drawn in their exact design language, fed with sample
+// (Container, Card, Pill, StageRibbon) or drawn in their exact design language, fed with sample
 // data. One example runs through the whole page: a person whose scattered
 // fragments turn out to be one vision, "The Good Plates". Nothing here reads
 // the database.
@@ -19,7 +19,6 @@ import {
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
-import { Thread, type ThreadMessage } from '@/components/conversation/thread'
 import { StageRibbon } from '@/components/widgets'
 import { alpha, radius, type as typeRoles, type Hue, type JourneyStep } from '@/lib/design-tokens'
 
@@ -170,6 +169,21 @@ const NODES: BoardNode[] = [
   { id: 'ready', kind: 'piece', x: 600, y: 262, w: 214, h: 104, title: 'Ready', medium: 'Short film', step: 'concept' },
   { id: 'chairs', kind: 'piece', x: 842, y: 408, w: 214, h: 104, title: 'Before Opening', medium: 'Photo series', step: 'test' },
 ]
+// On a phone the same canvas is folded up: the threads sit above and below
+// the vision so no height is wasted, and the pieces start close enough that
+// the first column shows at the edge of the screen. One swipe reaches the end.
+const BOARD_W_PHONE = 610
+const BOARD_H_PHONE = 344
+const NODES_PHONE: BoardNode[] = [
+  { id: 'waiting', kind: 'hub', x: 14, y: 14, w: 132, h: 36 },
+  { id: 'vision', kind: 'vision', x: 14, y: 62, w: 212, h: 222 },
+  { id: 'objects', kind: 'hub', x: 14, y: 296, w: 184, h: 36 },
+  { id: 'plates', kind: 'piece', x: 246, y: 14, w: 168, h: 112 },
+  { id: 'ready', kind: 'piece', x: 246, y: 140, w: 168, h: 112 },
+  { id: 'room', kind: 'piece', x: 428, y: 62, w: 168, h: 112 },
+  { id: 'chairs', kind: 'piece', x: 428, y: 188, w: 168, h: 112 },
+].map((n) => ({ ...NODES.find((d) => d.id === n.id)!, ...n })) as BoardNode[]
+
 const EDGES: [string, string][] = [
   ['waiting', 'plates'],
   ['waiting', 'room'],
@@ -196,9 +210,9 @@ function NodeBody({ node }: { node: BoardNode }) {
   const { t } = useTheme()
   if (node.kind === 'vision') {
     return (
-      <Card padding={18} style={{ height: '100%', borderLeft: `3px solid ${t.ember}` }}>
+      <Card padding={node.w < 240 ? 14 : 18} style={{ height: '100%', borderLeft: `3px solid ${t.ember}` }}>
         <Pill hue="ember">Vision</Pill>
-        <p style={{ ...typeRoles.h2, fontSize: 20, color: t.textPrimary, marginTop: 10 }}>{VISION_TITLE}</p>
+        <p style={{ ...typeRoles.h2, fontSize: node.w < 240 ? 18 : 20, color: t.textPrimary, marginTop: 10 }}>{VISION_TITLE}</p>
         <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>{VISION_LINE}</p>
         <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 10 }}>Refuses: nostalgia, a neat ending</p>
       </Card>
@@ -274,78 +288,62 @@ export function CanvasMockup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const byId = Object.fromEntries(NODES.map((n) => [n.id, n]))
+  // Phone layout once the width is known; the wide one renders first.
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setPhone(mq.matches)
+    const on = (e: MediaQueryListEvent) => setPhone(e.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const nodes = phone ? NODES_PHONE : NODES
+  const boardW = phone ? BOARD_W_PHONE : BOARD_W
+  const boardH = phone ? BOARD_H_PHONE : BOARD_H
+  const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
 
   return (
     <Container padding={0} style={{ overflow: 'hidden' }}>
       <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
         <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary }}>{VISION_TITLE}</p>
         <div className="flex items-center gap-3">
-          <span style={{ ...typeRoles.small, color: t.textMuted }}>{fine ? 'Drag anything' : 'Swipe across'}</span>
-          <button type="button" onClick={rearrange} className="cursor-pointer" style={{ all: 'unset', cursor: 'pointer' }}>
-            <Pill hue="neutral" size="md">
-              Rearrange
-            </Pill>
-          </button>
+          <span style={{ ...typeRoles.small, color: t.textMuted }}>{fine ? 'Drag anything' : 'Swipe across →'}</span>
+          {/* Nothing can be moved by touch, so there is nothing to put back. */}
+          {fine && (
+            <button type="button" onClick={rearrange} className="cursor-pointer" style={{ all: 'unset', cursor: 'pointer' }}>
+              <Pill hue="neutral" size="md">
+                Rearrange
+              </Pill>
+            </button>
+          )}
         </div>
       </div>
       <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
         <div
           ref={boardRef}
-          className="relative m-4 mt-3"
+          className="relative m-3 mt-2 md:m-4 md:mt-3"
           style={{
-            width: BOARD_W,
-            height: BOARD_H,
+            width: boardW,
+            height: boardH,
             borderRadius: radius.card,
             backgroundColor: t.cardBgInner,
             backgroundImage: `radial-gradient(${t.divider} 1.2px, transparent 1.2px)`,
             backgroundSize: '22px 22px',
           }}
         >
-          <svg aria-hidden width={BOARD_W} height={BOARD_H} className="pointer-events-none absolute inset-0">
+          <svg aria-hidden width={boardW} height={boardH} className="pointer-events-none absolute inset-0">
             {EDGES.map(([a, b]) => {
               const hub = byId[a]
               const color = hub.kind === 'hub' ? alpha(t[hub.hue], 0.7) : t.divider
               return <Edge key={`${a}-${b}`} a={positions[a]} b={positions[b]} na={hub} nb={byId[b]} color={color} />
             })}
           </svg>
-          {NODES.map((n) => (
+          {nodes.map((n) => (
             <BoardNodeView key={n.id} node={n} pos={positions[n.id]} draggable={fine} boardRef={boardRef} />
           ))}
         </div>
       </div>
     </Container>
-  )
-}
-
-// ── Being heard: the real conversation surface, replying as you watch ────────
-
-const USER_MSG =
-  'I have too many ideas and none of them go together. A song, some photos of empty chairs, an essay about my mother’s plates. I think I just can’t commit to anything.'
-const REPLY =
-  'I don’t think they’re separate. Each one is about something kept for a day that never comes. That might not be a failure to commit. It might be your vision. Does that sound right?'
-
-export function HeardMockup() {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.5 })
-  const reduce = useReducedMotion()
-  const [started, setStarted] = useState(false)
-  useEffect(() => {
-    if (!inView) return
-    const id = window.setTimeout(() => setStarted(true), reduce ? 0 : 900)
-    return () => window.clearTimeout(id)
-  }, [inView, reduce])
-  const { shown, done } = useTypewriter(REPLY, started, 22)
-
-  const messages: ThreadMessage[] = [{ role: 'user', content: USER_MSG }]
-  if (started) messages.push({ role: 'assistant', content: shown })
-
-  return (
-    <div ref={ref}>
-      <Container padding={28}>
-        <div style={{ minHeight: 200 }}>{inView || reduce ? <Thread messages={messages} streaming={!done} /> : null}</div>
-      </Container>
-    </div>
   )
 }
 
