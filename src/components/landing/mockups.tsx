@@ -73,19 +73,22 @@ function VisionCard({ compact = false }: { compact?: boolean }) {
   )
 }
 
-// ── Hero: finding the vision in what you already made ────────────────────────
+// ── Hero: everything in one place, the vision in your own words ─────────────
+// Four things made at different times settle side by side in one project, and
+// the person writes what they add up to. Nothing here shows Companheiro
+// finding the link for them: the line under "Vision" types as theirs.
 
-const FRAGMENTS: { kind: string; before: string; mark: string; after: string; tilt: number }[] = [
-  { kind: 'Draft', before: 'My mother kept the good plates ', mark: 'for guests who never came.', after: '', tilt: -2.2 },
-  { kind: 'Lyric', before: 'Every house I’ve lived in had ', mark: 'a room I never used', after: '.', tilt: 1.6 },
-  { kind: 'Voice memo, 0:42', before: 'something about ', mark: 'waiting until I’m ready', after: '', tilt: -1.2 },
-  { kind: 'Photo idea', before: 'Empty café chairs, ', mark: 'just before opening', after: '.', tilt: 2 },
+const FRAGMENTS: { kind: string; text: string; tilt: number }[] = [
+  { kind: 'Draft', text: 'My mother kept the good plates for guests who never came.', tilt: -2.2 },
+  { kind: 'Lyric', text: 'Every house I’ve lived in had a room I never used.', tilt: 1.6 },
+  { kind: 'Voice memo, 0:42', text: 'something about waiting until I’m ready', tilt: -1.2 },
+  { kind: 'Photo idea', text: 'Empty café chairs, just before opening.', tilt: 2 },
 ]
 
 export function VisionFinder() {
   const { t } = useTheme()
   const reduce = useReducedMotion()
-  const [stage, setStage] = useState(0) // 0 scattered, 1 threads marked, 2 vision found
+  const [stage, setStage] = useState(0) // 0 scattered, 1 side by side, 2 the vision being written
   const [run, setRun] = useState(0)
 
   useEffect(() => {
@@ -95,12 +98,14 @@ export function VisionFinder() {
     }
     setStage(0)
     const a = window.setTimeout(() => setStage(1), 1700)
-    const b = window.setTimeout(() => setStage(2), 3300)
+    const b = window.setTimeout(() => setStage(2), 2900)
     return () => {
       window.clearTimeout(a)
       window.clearTimeout(b)
     }
   }, [reduce, run])
+
+  const { shown, done } = useTypewriter(VISION_LINE, stage >= 2, 30)
 
   return (
     <Container padding={16} style={{ width: '100%' }}>
@@ -116,33 +121,33 @@ export function VisionFinder() {
             >
               <Card inner padding={12} style={{ height: '100%' }}>
                 <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>{f.kind}</p>
-                <p style={{ ...typeRoles.small, fontSize: 14, color: t.textPrimary, marginTop: 4 }}>
-                  {f.before}
-                  <span
-                    style={{
-                      backgroundColor: stage >= 1 ? t.soft.ember : 'transparent',
-                      boxShadow: stage >= 1 ? `inset 0 -2px 0 ${t.ember}` : 'none',
-                      borderRadius: 3,
-                      transition: `background-color 0.6s ease ${i * 0.12}s, box-shadow 0.6s ease ${i * 0.12}s`,
-                    }}
-                  >
-                    {f.mark}
-                  </span>
-                  {f.after}
-                </p>
+                <p style={{ ...typeRoles.small, fontSize: 14, color: t.textPrimary, marginTop: 4 }}>{f.text}</p>
               </Card>
             </m.div>
           ))}
         </div>
 
         <m.div
+          key={run}
           initial={false}
           animate={{ opacity: stage >= 2 ? 1 : 0, y: stage >= 2 ? 0 : 10 }}
           transition={{ duration: 0.7, ease: EASE }}
           style={{ marginTop: 14 }}
           aria-hidden={stage < 2}
         >
-          <VisionCard />
+          <Card inner padding={16} style={{ borderLeft: `3px solid ${t.ember}`, borderRadius: radius.widget }}>
+            <div className="flex items-center justify-between gap-3">
+              <Pill hue="ember">Vision</Pill>
+              <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>In your words</span>
+            </div>
+            <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 10 }}>{VISION_TITLE}</p>
+            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 4, minHeight: '2.9em' }}>
+              <span aria-hidden>
+                {shown}
+                {!done && stage >= 2 && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}
+              </span>
+            </p>
+          </Card>
         </m.div>
       </Card>
       <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-3.5">
