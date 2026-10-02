@@ -12,11 +12,16 @@ import type {
 import type { AssetView, SignUploadResponse } from '@/lib/studio/types'
 
 const MEDIA_BUCKET = 'studio-media'
-const MAX_BYTES = 26214400
+/** The bucket's own ceiling (migration 030). */
+const MAX_BYTES = 52428800
 const ENVELOPE_BARS = 24
 
-const IMAGE_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' }
-const AUDIO_EXT: Record<string, string> = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg' }
+const AUDIO_EXT: Record<string, string> = {
+  'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a',
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3',
+  'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav',
+  'audio/ogg': 'ogg', 'audio/aac': 'aac', 'audio/flac': 'flac',
+}
 
 /** What went wrong, in words fit to show. */
 export class ItemError extends Error {}
@@ -101,23 +106,53 @@ export function useBoardItems(projectId: string, enabled: boolean) {
 
   useEffect(() => { if (enabled) void load() }, [enabled, load])
 
-  /** Sign, send, measure, record what was measured. The file never passes through our own server. */
+  /**
+   * Sign, send, measure, record what was measured. The file never passes
+   * through our own server.
+   *
+   * A photograph is prepared first (image-intake.ts): whatever the camera
+   * produced — RAW, TIFF, HEIC, a 60 MB JPEG — is decoded and written out
+   * web-sized. So what is signed for and stored is always something a browser
+   * can show, and the size is settled on the way in rather than refused.
+   */
   const upload = useCallback(async (kind: 'image' | 'audio', file: Blob, ownVoice: boolean, knownSeconds?: number): Promise<AssetView> => {
-    const mime = mimeOf(file)
-    const ext = (kind === 'image' ? IMAGE_EXT : AUDIO_EXT)[mime]
-    if (!ext) {
-      throw new ItemError(kind === 'image' ? 'That is not an image this can show. Try a JPEG, PNG, WebP or GIF.' : 'That is not a sound file this can play. Try an MP3, M4A, WAV, OGG or WebM.')
+    let body = file
+    let mime = mimeOf(file)
+    let ext: string | undefined
+    let prepared: { width: number; height: number } | null = null
+
+    if (kind === 'image') {
+      const { intakeImage, ImageIntakeError } = await import('@/lib/studio/image-intake')
+      try {
+        const made = await intakeImage(file)
+        body = made.file
+        mime = made.mime
+        ext = made.ext
+        prepared = made.width && made.height ? { width: made.width, height: made.height } : null
+      } catch (e) {
+        throw e instanceof ImageIntakeError ? new ItemError(e.message) : e
+      }
+    } else {
+      ext = AUDIO_EXT[mime]
+      if (!ext) throw new ItemError('That is not a sound file this can play. Try an MP3, M4A, WAV, OGG, FLAC or WebM.')
     }
-    if (file.size <= 0 || file.size > MAX_BYTES) throw new ItemError('That file is larger than 25 MB.')
-    const signed = await call<SignUploadResponse>('POST', '/assets/sign', { project_id: projectId, kind, mime, bytes: file.size, ext })
+
+    if (!ext) throw new ItemError('That file could not be prepared. Try again.')
+    if (body.size <= 0) throw new ItemError('That file is empty.')
+    if (body.size > MAX_BYTES) {
+      throw new ItemError(kind === 'audio'
+        ? 'That recording is over 50 MB. A shorter one, or an MP3 of it, will go in.'
+        : 'That photograph is too large to store, even reduced.')
+    }
+    const signed = await call<SignUploadResponse>('POST', '/assets/sign', { project_id: projectId, kind, mime, bytes: body.size, ext })
     // Fetched only when a file is actually being added: the storage client is
     // too heavy to ship with every canvas for something most visits never do.
     const { createClient } = await import('@/lib/supabase/client')
-    const sent = await createClient().storage.from(MEDIA_BUCKET).uploadToSignedUrl(signed.path, signed.token, file, { contentType: mime })
+    const sent = await createClient().storage.from(MEDIA_BUCKET).uploadToSignedUrl(signed.path, signed.token, body, { contentType: mime })
     if (sent.error) throw new ItemError('The file did not upload. Try again.')
     const measured = kind === 'image'
-      ? await imageSize(file)
-      : (await audioShape(file)) ?? (knownSeconds ? { duration_s: knownSeconds } : null)
+      ? prepared ?? await imageSize(body)
+      : (await audioShape(body)) ?? (knownSeconds ? { duration_s: knownSeconds } : null)
     const res = await call<{ asset: AssetView }>('POST', '/assets/commit', { asset_id: signed.asset_id, own_voice: ownVoice, ...(measured ?? {}) })
     return res.asset
   }, [projectId])

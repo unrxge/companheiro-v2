@@ -15,7 +15,7 @@ import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import {
-  canResize, isWritingTask, RECORDING_H,
+  canResize, CAPTION_MAX, CAPTION_ROWS, captionLimit, isWritingTask, RECORDING_H,
   type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type ProjectTask,
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
@@ -240,8 +240,14 @@ function ShellAct({ label, tone, onClick, children }: { label: string; tone: str
 }
 
 /** A line of text that is typed straight on the card and kept when left. */
+/**
+ * A caption, written where it is read. It wraps rather than running off the
+ * side of the card, and stops at two rows: a caption is a line about the
+ * thing, and a block that grows without end stops looking like a picture.
+ * Enter commits instead of making a new line, since two rows is the cap.
+ */
 function CardField({
-  value, placeholder, ariaLabel, disabled, onCommit, style,
+  value, placeholder, ariaLabel, disabled, onCommit, style, max = CAPTION_MAX.caption,
 }: {
   value: string
   placeholder: string
@@ -249,28 +255,77 @@ function CardField({
   disabled: boolean
   onCommit: (next: string) => void
   style?: React.CSSProperties
+  /** How many characters it holds — an image's caption holds more than a recording's name. */
+  max?: number
 }) {
   const { t } = useTheme()
   const [draft, setDraft] = useState(value)
   const [focused, setFocused] = useState(false)
+  const box = useRef<HTMLTextAreaElement | null>(null)
+  const [limit, setLimit] = useState(max)
   useEffect(() => { if (!focused) setDraft(value) }, [value, focused])
+
+  // Grows to what it holds, up to the two-row ceiling, and re-measures when
+  // the card is resized under it — which also settles how much it may hold,
+  // so the two rows are never a window onto more text than they can show.
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const fit = () => {
+      const cs = getComputedStyle(el)
+      const line = parseFloat(cs.lineHeight) || 17
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, Math.round(line * CAPTION_ROWS))}px`
+      setLimit(captionLimit(el.clientWidth, parseFloat(cs.fontSize) || 13, max))
+    }
+    fit()
+    const parent = el.parentElement
+    if (!parent) return
+    const ro = new ResizeObserver(fit)
+    ro.observe(parent)
+    return () => ro.disconnect()
+  }, [draft, max])
+
+  const face: React.CSSProperties = {
+    ...canvasType.small, lineHeight: 1.35, width: '100%', minWidth: 0, boxSizing: 'border-box',
+    background: 'transparent', border: 'none', outline: 'none', padding: 0, fontFamily: 'inherit',
+  }
+
   if (disabled) {
-    return value ? <span style={{ ...canvasType.small, color: t.textSecondary, ...style }}>{value}</span> : null
+    return value
+      ? (
+        <span
+          style={{
+            ...face, color: t.textSecondary, display: '-webkit-box', WebkitLineClamp: CAPTION_ROWS,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', ...style,
+          }}
+        >
+          {value}
+        </span>
+      )
+      : null
   }
   return (
-    <input
+    <textarea
+      ref={box}
       aria-label={ariaLabel}
       value={draft}
       placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
+      rows={1}
+      maxLength={limit}
+      onChange={(e) => setDraft(e.target.value.replace(/[\r\n]+/g, ' '))}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); if (draft.trim() !== value) onCommit(draft.trim()) }}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur() } }}
       // Its own presses stay its own: the card around it is something you drag.
       onPointerDown={(e) => e.stopPropagation()}
       style={{
-        ...canvasType.small, width: '100%', minWidth: 0, boxSizing: 'border-box', color: t.textPrimary,
-        background: 'transparent', border: 'none', outline: 'none', padding: 0, fontFamily: 'inherit', ...style,
+        ...face, color: t.textPrimary, resize: 'none', overflowWrap: 'anywhere',
+        // Two rows is the ceiling whatever happens. While it is being written
+        // those two rows scroll, so a caption of very long words can still be
+        // read back to its end rather than hiding under the edge.
+        overflowX: 'hidden', overflowY: focused ? 'auto' : 'hidden',
+        ...style,
       }}
     />
   )
@@ -313,7 +368,15 @@ export function ImageBlock({
       </div>
       {(caption || !disabled) && (
         <figcaption style={{ padding: '8px 12px 9px' }}>
-          <CardField value={caption} placeholder="Add a caption" ariaLabel="Caption" disabled={disabled} onCommit={onCaption} style={{ fontSize: 12.5 }} />
+          <CardField
+            value={caption}
+            placeholder="Add a caption"
+            ariaLabel="Caption"
+            disabled={disabled}
+            onCommit={onCaption}
+            max={CAPTION_MAX.caption}
+            style={{ fontSize: 12.5 }}
+          />
         </figcaption>
       )}
     </figure>
@@ -350,7 +413,7 @@ export function RecordingBlock({
   }
 
   return (
-    <div style={{ height: RECORDING_H - 26, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ minHeight: RECORDING_H - 26, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ paddingRight: 48 }}>
         <CardField
           value={item.content.title ?? ''}
@@ -358,6 +421,7 @@ export function RecordingBlock({
           ariaLabel="The recording’s name"
           disabled={disabled}
           onCommit={onTitle}
+          max={CAPTION_MAX.title}
           style={{ fontSize: 13, fontWeight: 600 }}
         />
         {disabled && !item.content.title && <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>A recording</span>}
@@ -826,7 +890,7 @@ export function RecorderDialog({
       <input
         ref={picker}
         type="file"
-        accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,.mp3,.m4a,.wav,.ogg,.webm"
+        accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm,.aac,.flac"
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]

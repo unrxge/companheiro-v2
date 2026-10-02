@@ -90,6 +90,34 @@ export const ITEM_WIDTH: Record<BoardItemKind, { base: number; min: number; max:
   recording: { base: 300, min: 300, max: 300 },
 }
 export const RECORDING_H = 116
+/** Rows a caption may wrap to before it stops growing. */
+export const CAPTION_ROWS = 2
+/**
+ * The most a caption may hold at all. The working limit is worked out from
+ * the width the box actually has (`captionLimit`), so a caption can never run
+ * past the two rows it is allowed; these are the ceilings that keep a picture's
+ * caption the longer of the two however wide either block is dragged.
+ */
+export const CAPTION_MAX: Record<'caption' | 'title', number> = { caption: 200, title: 90 }
+
+/**
+ * Roughly how wide one character is, as a share of the font size. Measured
+ * against the real thing rather than assumed: at 12.5px in a 296px box this
+ * app's type fits about 40 characters to the line.
+ */
+const CHAR_EM = 0.58
+
+/**
+ * How many characters fit the two rows a caption has, at the width it has
+ * been given. Wider block, longer caption — which is why a picture's caption
+ * holds more than a recording's name without either one being able to overrun.
+ */
+export function captionLimit(innerWidth: number, fontSize: number, hardMax: number): number {
+  if (!(innerWidth > 0) || !(fontSize > 0)) return hardMax
+  const perLine = innerWidth / (fontSize * CHAR_EM)
+  // Comfortably under what fits, so ordinary prose never reaches a third row.
+  return Math.max(24, Math.min(hardMax, Math.floor(perLine * CAPTION_ROWS * 0.9)))
+}
 /** Used before a task list has been measured, and for an image with no known shape. */
 export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H }
 const CAPTION_H = 34
@@ -153,4 +181,187 @@ export function packSpans(wanted: Array<{ centre: number; w: number }>, gap: num
     edge = x + wanted[i].w
   }
   return left
+}
+
+// ── arranging what hangs under the pieces ───────────────────────────────────
+//
+// Everything with no hand placement is laid out here. The old arrangement put
+// them all in one long row, which falls apart as soon as a project has a few
+// pieces and several things hanging off them: the row runs off to the right,
+// and the line from a thing to its piece crosses half the board.
+//
+// So things gather around the piece they belong to instead, in this order:
+//
+//   1. under their own piece, in the card's own width, small things side by
+//      side — the space directly below a card is used up first;
+//   2. when that column has grown past `sideAfter`, out to the side — but
+//      only where there is open board: the leftmost piece puts them on its
+//      left, the rightmost on its right. A piece with neighbours on both
+//      sides has no side to spill into, so it keeps going down rather than
+//      wander into the space belonging to another card;
+//   3. things connected to nothing belong to no column, so they go below
+//      everything in a row of their own, wrapping across the width the
+//      pieces already occupy.
+//
+// A thing connected to several pieces hangs under the one nearest the middle
+// of them all, which keeps its lines short without putting it between cards.
+
+export interface ArrangeThing {
+  id: string
+  w: number
+  h: number
+  /** The top-level pieces it is connected to; empty means it stands alone. */
+  on: string[]
+}
+
+export interface ArrangeColumn {
+  id: string
+  /** The card's own left edge and width. */
+  x: number
+  w: number
+}
+
+export interface ArrangeInput {
+  things: ArrangeThing[]
+  /** The pieces, left to right as they actually sit. */
+  columns: ArrangeColumn[]
+  /** The line everything hangs below. */
+  top: number
+  gap: number
+  /** How tall one piece's column may grow before it spills to the side. */
+  sideAfter: number
+  /** Nothing is placed further left than this. */
+  minX: number
+}
+
+/** A band that fills and wraps inside a fixed width, left to right or right
+ *  to left — a band to the left of a card is filled from the card outwards,
+ *  so a narrow thing still sits beside it rather than off on its own. */
+interface Shelf {
+  x: number
+  w: number
+  rtl: boolean
+  rowY: number
+  /** The edge the next thing goes against: the row's left, or its right. */
+  rowEdge: number
+  rowH: number
+  started: boolean
+}
+
+const newShelf = (x: number, w: number, top: number, rtl = false): Shelf =>
+  ({ x, w, rtl, rowY: top, rowEdge: rtl ? x + w : x, rowH: 0, started: false })
+
+/** The least room worth calling a band of its own. */
+const MIN_SIDE_W = 160
+
+/** Puts one thing on a band, wrapping to a new row when it will not fit. */
+function placeOn(shelf: Shelf, thing: ArrangeThing, gap: number): { x: number; y: number } {
+  const startsRow = shelf.rowEdge === (shelf.rtl ? shelf.x + shelf.w : shelf.x)
+  const fits = startsRow || (shelf.rtl
+    ? shelf.rowEdge - thing.w >= shelf.x
+    : shelf.rowEdge + thing.w <= shelf.x + shelf.w)
+  if (!fits) {
+    shelf.rowY = shelf.rowY + shelf.rowH + gap
+    shelf.rowEdge = shelf.rtl ? shelf.x + shelf.w : shelf.x
+    shelf.rowH = 0
+  }
+  const x = shelf.rtl ? shelf.rowEdge - thing.w : shelf.rowEdge
+  const at = { x: Math.round(x), y: shelf.rowY }
+  shelf.rowEdge = shelf.rtl ? x - gap : x + thing.w + gap
+  shelf.rowH = Math.max(shelf.rowH, thing.h)
+  shelf.started = true
+  return at
+}
+
+/** How far down a band currently reaches. */
+const shelfBottom = (shelf: Shelf, top: number): number =>
+  shelf.started ? shelf.rowY + shelf.rowH : top
+
+/**
+ * Where everything with no hand placement goes. Returns one point per thing,
+ * by id. Pure: the board passes in the widths and heights it has measured.
+ */
+export function arrange(input: ArrangeInput): Map<string, { x: number; y: number }> {
+  const { things, columns, top, gap, sideAfter, minX } = input
+  const out = new Map<string, { x: number; y: number }>()
+  if (things.length === 0) return out
+
+  const byId = new Map(columns.map((c) => [c.id, c]))
+  const order = [...columns].sort((a, b) => a.x - b.x)
+  const leftmost = order[0]
+  const rightmost = order[order.length - 1]
+
+  /** The column a thing hangs under: the one nearest the middle of its pieces. */
+  const columnFor = (thing: ArrangeThing): ArrangeColumn | null => {
+    const mine = thing.on.map((id) => byId.get(id)).filter((c): c is ArrangeColumn => !!c)
+    if (mine.length === 0) return null
+    if (mine.length === 1) return mine[0]
+    const middle = mine.reduce((sum, c) => sum + c.x + c.w / 2, 0) / mine.length
+    return mine.reduce((best, c) =>
+      Math.abs(c.x + c.w / 2 - middle) < Math.abs(best.x + best.w / 2 - middle) ? c : best)
+  }
+
+  const grouped = new Map<string, ArrangeThing[]>()
+  const loose: ArrangeThing[] = []
+  for (const thing of things) {
+    const column = columnFor(thing)
+    if (!column) { loose.push(thing); continue }
+    const list = grouped.get(column.id) ?? []
+    list.push(thing)
+    grouped.set(column.id, list)
+  }
+
+  let deepest = top
+
+  for (const column of order) {
+    const mine = grouped.get(column.id)
+    if (!mine || mine.length === 0) continue
+
+    // Under the card first. Only the leftmost and rightmost pieces have open
+    // board beside them; anything between two cards keeps going down.
+    const side = column.id === leftmost.id && columns.length > 1
+      ? 'left'
+      : column.id === rightmost.id && columns.length > 1
+        ? 'right'
+        : null
+
+    const under = newShelf(column.x, column.w, top)
+    let beside: Shelf | null = null
+    // A side is only usable if there is actually board there to use. The
+    // leftmost card can sit close enough to the edge that its left is too
+    // narrow for anything, and then the column keeps going down instead.
+    let hasSide = side !== null
+    const widest = Math.max(...mine.map((t) => t.w))
+
+    // The tall ones first, so the small ones fill in around them rather than
+    // leaving a short row with a tall thing stranded beneath it.
+    for (const thing of [...mine].sort((a, b) => b.h - a.h || b.w - a.w)) {
+      if (hasSide && !beside && shelfBottom(under, top) - top >= sideAfter) {
+        if (side === 'left') {
+          const room = column.x - gap - minX
+          if (room >= Math.min(widest, MIN_SIDE_W)) {
+            const w = Math.min(widest, room)
+            beside = newShelf(column.x - gap - w, w, top, true)
+          } else {
+            hasSide = false
+          }
+        } else {
+          beside = newShelf(column.x + column.w + gap, widest, top)
+        }
+      }
+      out.set(thing.id, placeOn(beside ?? under, thing, gap))
+    }
+
+    deepest = Math.max(deepest, shelfBottom(under, top), beside ? shelfBottom(beside, top) : top)
+  }
+
+  // What belongs to no piece sits below the lot, across the pieces' own width.
+  if (loose.length > 0) {
+    const spanLeft = order.length ? order[0].x : minX
+    const spanRight = order.length ? rightmost.x + rightmost.w : spanLeft + 1200
+    const shelf = newShelf(spanLeft, Math.max(320, spanRight - spanLeft), deepest === top ? top : deepest + gap)
+    for (const thing of loose) out.set(thing.id, placeOn(shelf, thing, gap))
+  }
+
+  return out
 }

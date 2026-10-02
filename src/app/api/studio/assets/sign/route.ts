@@ -12,10 +12,18 @@ import {
 import { assertFeature, assertWorkable } from '@/lib/studio/plan-access'
 import type { SignUploadResponse } from '@/lib/studio/types'
 
-/** Mirrors the bucket's allowed_mime_types (migration 001). */
+// Mirrors the bucket's allowed_mime_types (migration 030). Photographs are
+// prepared in the browser — RAW, TIFF and HEIC are decoded there and written
+// out web-sized — so what arrives is always one of these, whatever was chosen.
 const IMAGE_MIMES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
-const AUDIO_MIMES: ReadonlySet<string> = new Set(['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg'])
-const MAX_BYTES = 26214400
+const AUDIO_MIMES: ReadonlySet<string> = new Set([
+  'audio/webm', 'audio/mp4', 'audio/x-m4a', 'audio/m4a', 'audio/mpeg', 'audio/mp3',
+  'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/aac', 'audio/flac',
+])
+/** The bucket's ceiling (migration 030). */
+const MAX_BYTES = 52428800
+/** A picture arrives already reduced; this is well past what that produces. */
+const MAX_IMAGE_BYTES = 12582912
 const EXT_RE = /^[a-z0-9]{1,8}$/
 
 export async function POST(req: NextRequest) {
@@ -29,7 +37,12 @@ export async function POST(req: NextRequest) {
     const mime = isString(body.mime) ? body.mime.toLowerCase().split(';')[0].trim() : ''
     if (!(kind === 'image' ? IMAGE_MIMES : AUDIO_MIMES).has(mime)) throw badRequest('that file type is not accepted')
     const bytes = body.bytes
-    if (!isFiniteNumber(bytes) || bytes <= 0 || bytes > MAX_BYTES) throw badRequest('the file must be between 1 byte and 25 mb')
+    const ceiling = kind === 'image' ? MAX_IMAGE_BYTES : MAX_BYTES
+    if (!isFiniteNumber(bytes) || bytes <= 0 || bytes > ceiling) {
+      throw badRequest(kind === 'image'
+        ? 'that picture is too large to store, even reduced'
+        : 'a recording must be under 50 mb')
+    }
     const ext = isString(body.ext) ? body.ext.toLowerCase() : ''
     if (!EXT_RE.test(ext)) throw badRequest('ext must be a short alphanumeric extension')
     const wantThumb = body.thumb === true && kind === 'image'

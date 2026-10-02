@@ -33,8 +33,9 @@ import { hueOf } from '@/components/studio/work/bits'
 import {
   ImageBlock, ItemShell, ITEM_LABEL, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
+import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import {
-  addSpotX, FALLBACK_H, imageHeight, itemWidth, keepBelow, packSpans, RECORDING_H,
+  addSpotX, arrange, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
@@ -46,6 +47,15 @@ import {
 } from '@/lib/studio/surface'
 
 const GAP = 44
+/**
+ * Open board kept to the LEFT of everything. The world itself starts at 0, so
+ * without this the first card sits hard against the left edge and there is
+ * nowhere to put anything beside it — the leftmost piece had no left. The
+ * whole board is laid out this far in, and `home` pulls the view back by the
+ * same amount, so it opens exactly where it always did and the room is there
+ * when you go looking for it.
+ */
+const LEFT_ROOM = 720
 // How far the board opens past its edge so the title clears the back button: beside it from the Dock breakpoint up, below it on a phone.
 const HOME_GAP_X = 20
 const HOME_GAP_Y = 18
@@ -262,7 +272,7 @@ export function Board({
   const cardTop = Math.max(BASE_CARD_TOP, MARGIN + visionH + gapBelowVision)
   /** How far the top has pushed the rest of the board down from its resting place. */
   const shift = cardTop - REST_TOP
-  const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
+  const cardX = useCallback((i: number) => LEFT_ROOM + laneSlot(i, cardW, GAP), [cardW])
   // The "add a piece" spot is the size of the piece it would make: it sits
   // at the end of the lane reading as the next card.
   const addColW = cardW
@@ -309,53 +319,70 @@ export function Board({
     [resizing],
   )
   const itemH = useCallback((item: BoardItem) => {
+    // What it actually measures, once it has: a caption that wrapped to a
+    // second row makes the block taller than its proportions alone say, and
+    // the layout has to keep room for the block that is really there. The
+    // computed figures below are what it stands on until the first reading
+    // lands, and while a resize is in flight (the measurement is a frame behind).
+    const measured = heights[item.id]
+    if (measured && !(resizing?.id === item.id)) return measured
     if (item.kind === 'recording') return RECORDING_H
     if (item.kind === 'image') {
       const asset = item.asset_id ? assets[item.asset_id] : undefined
       return imageHeight(itemW(item), asset, !!item.content.caption || !disabled)
     }
-    return heights[item.id] ?? FALLBACK_H[item.kind]
-  }, [assets, disabled, heights, itemW])
+    return FALLBACK_H[item.kind]
+  }, [assets, disabled, heights, itemW, resizing])
 
   const webTop = cardTop + cardH + WEB_GAP
 
-  /** Everything under the pieces with no hand placement shares one row, each
-   *  near the middle of the pieces it touches, so the web reads as things
-   *  reaching toward their pieces rather than a legend off to one side. A
-   *  task list or picture standing on its own starts at the left edge. */
-  const autoX = useMemo(() => {
-    const centreOf = (on: (id: string) => boolean, w: number) => {
-      const xs = pieces
-        .map((p, i) => (on(p.id) ? pieceAt(p, i).x + cardW / 2 : null))
-        .filter((x): x is number => x !== null)
-      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : MARGIN + w / 2
-    }
-    const row = [
-      ...hubs.map((th) => {
-        const on = presence.get(th.id)?.roots ?? new Set<string>()
-        return { id: th.id, w: HUB_W, centre: centreOf((id) => on.has(id), HUB_W) }
-      }),
-      ...items.map((it) => {
-        const w = itemW(it)
-        return { id: it.id, w, centre: centreOf((id) => it.node_ids.includes(id), w) }
-      }),
-    ]
-    const left = packSpans(row, HUB_GAP, MARGIN)
-    return new Map(row.map((r, i) => [r.id, left[i]]))
-  }, [hubs, items, presence, pieces, pieceAt, cardW, itemW])
+  /**
+   * Everything under the pieces with no hand placement of its own, gathered
+   * around the piece it belongs to: under the card first, out to the side
+   * when that column has grown too deep, and below the lot when it belongs to
+   * no piece at all. The arithmetic is in `arrange` (board-items.ts) and
+   * tested there; this only hands it what has been measured.
+   */
+  const autoAt = useMemo(() => arrange({
+    things: [
+      ...hubs.map((th) => ({
+        id: th.id,
+        w: HUB_W,
+        h: HUB_H,
+        on: [...(presence.get(th.id)?.roots ?? new Set<string>())],
+      })),
+      ...items.map((it) => ({
+        id: it.id,
+        w: itemW(it),
+        h: itemH(it),
+        on: it.node_ids.filter((id) => pieceIds.has(id)),
+      })),
+    ],
+    columns: pieces.map((p, i) => ({ id: p.id, x: pieceAt(p, i).x, w: cardW })),
+    top: webTop,
+    gap: HUB_GAP,
+    // About a card's worth of depth: past that, the column is taller than the
+    // piece it hangs under and the eye has lost which card it belongs to.
+    sideAfter: Math.round(cardH * 0.8),
+    minX: MARGIN,
+  }), [hubs, items, presence, pieces, pieceAt, pieceIds, cardW, cardH, itemW, itemH, webTop])
 
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {
     if (drag?.kind === 'hub' && drag.id === th.id) return drag.at
-    return { x: th.board_x ?? autoX.get(th.id) ?? MARGIN, y: th.board_y === null ? webTop : shown(th.board_y) }
-  }, [drag, autoX, webTop, shown])
+    const auto = autoAt.get(th.id)
+    if (th.board_x === null && th.board_y === null && auto) return auto
+    return { x: th.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: th.board_y === null ? auto?.y ?? webTop : shown(th.board_y) }
+  }, [drag, autoAt, webTop, shown])
 
   const itemAt = useCallback((it: BoardItem): Point => {
     if (drag?.kind === 'item' && drag.id === it.id) return drag.at
-    return { x: it.board_x ?? autoX.get(it.id) ?? MARGIN, y: it.board_y === null ? webTop : shown(it.board_y) }
-  }, [drag, autoX, webTop, shown])
+    const auto = autoAt.get(it.id)
+    if (it.board_x === null && it.board_y === null && auto) return auto
+    return { x: it.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: it.board_y === null ? auto?.y ?? webTop : shown(it.board_y) }
+  }, [drag, autoAt, webTop, shown])
 
-  const visionAt: Point = useMemo(() => ({ x: MARGIN, y: MARGIN }), [])
+  const visionAt: Point = useMemo(() => ({ x: LEFT_ROOM + MARGIN, y: MARGIN }), [])
 
   /** Everything that can be put down, as boxes: what the end of the lane has to step around. */
   const boxes = useMemo<Box[]>(() => [
@@ -365,7 +392,7 @@ export function Board({
 
   const laneEnd = pieces.length
     ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
-    : MARGIN
+    : LEFT_ROOM + MARGIN
   // Put something down where the next piece would go and the spot makes
   // room: it steps to the right of it, and the next piece is made there.
   const addX = addSpotX(laneEnd, addColW, GAP, { top: cardTop, bottom: cardTop + cardH }, boxes)
@@ -392,7 +419,9 @@ export function Board({
   ])
 
   const home = useMemo<Point>(
-    () => (frame.w >= DOCK_DESKTOP_MIN ? { x: HOME_GAP_X, y: 0 } : { x: 0, y: HOME_GAP_Y }),
+    () => (frame.w >= DOCK_DESKTOP_MIN
+      ? { x: HOME_GAP_X - LEFT_ROOM, y: 0 }
+      : { x: -LEFT_ROOM, y: HOME_GAP_Y }),
     [frame.w],
   )
   const canvas = useCanvas(ref, frame, world, { home })
@@ -615,6 +644,15 @@ export function Board({
 
   return (
     <>
+      {/* The "Talk about the vision" launcher is fixed to the bottom centre of
+         the window (rail.tsx, .companion-launcher) and was sitting on top of
+         this. Both are bottom-centre, so this one stands above it — the same
+         two bottoms the launcher uses, plus its own height and a gap. */}
+      <style>{`
+        .add-piece-box:hover { background: ${alpha(shell.text, 0.07)}; border-color: ${alpha(shell.text, 0.46)}; color: ${shell.text}; }
+        .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 12px); }
+        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .board-banner { bottom: calc(22px + 52px + 12px); } }
+      `}</style>
       <style>{`@keyframes threadBorn {
         from { opacity: 0; transform: translateY(-10px) scaleY(0.82); }
         to   { opacity: 1; transform: none; }
@@ -625,7 +663,7 @@ export function Board({
       <input
         ref={imagePicker}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        accept={IMAGE_ACCEPT}
         hidden
         onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void onImageChosen(file) }}
       />
@@ -962,12 +1000,17 @@ export function Board({
               aria-label="Add a piece to this project"
               title="Add a piece"
               onClick={() => actions.addPiece(addX === cardX(pieces.length) ? null : addX)}
+              className="add-piece-box"
               style={{
                 width: '100%', height: addPieceH,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'transparent', cursor: 'pointer',
-                border: `1px dashed ${alpha(shell.text, 0.16)}`, borderRadius: radius.card,
-                color: shell.muted,
+                cursor: 'pointer', borderRadius: radius.card,
+                // It was dim enough on the ink ground to read as something
+                // switched off rather than the way to make the next piece.
+                background: alpha(shell.text, 0.035),
+                border: `1px dashed ${alpha(shell.text, 0.3)}`,
+                color: alpha(shell.text, 0.62),
+                transition: 'background 140ms ease, border-color 140ms ease, color 140ms ease',
               }}
             >
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
@@ -1220,8 +1263,9 @@ function ConnectBanner({ colour, onCancel, children }: {
     <div
       data-hold
       role="status"
+      className="board-banner"
       style={{
-        position: 'absolute', left: '50%', bottom: 18, transform: 'translateX(-50%)', zIndex: 7,
+        position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 41,
         display: 'flex', alignItems: 'center', gap: 10, maxWidth: 'calc(100% - 32px)',
         padding: onCancel ? '8px 10px 8px 14px' : '8px 14px', borderRadius: 999,
         background: 'rgba(13,12,11,0.84)', backdropFilter: 'blur(18px) saturate(1.1)',
