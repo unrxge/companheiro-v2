@@ -6,6 +6,7 @@ import type {
   RuleCheck, Thread, ThreadTag, TreePayload, WorkNode,
 } from '@/lib/studio/node-types'
 import type { PatchProjectRequest, Project } from '@/lib/studio/types'
+import type { ProjectAccess } from '@/lib/studio/plan-access'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/studio${path}`, {
@@ -16,20 +17,22 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   })
   if (!res.ok) {
     let message = res.statusText || `http ${res.status}`
+    let code: string | undefined
     try {
-      const parsed = (await res.json()) as { error?: unknown }
+      const parsed = (await res.json()) as { error?: unknown; code?: unknown }
       if (typeof parsed?.error === 'string') message = parsed.error
+      if (typeof parsed?.code === 'string') code = parsed.code
     } catch {
       /* keep the status text */
     }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, message, code)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
 export const work = {
-  tree: (projectId: string) => call<{ project: Project; tree: TreePayload }>('GET', `/projects/${projectId}/tree`),
+  tree: (projectId: string) => call<{ project: Project; tree: TreePayload; access?: ProjectAccess }>('GET', `/projects/${projectId}/tree`),
   patchProject: (projectId: string, body: PatchProjectRequest) =>
     call<{ project: Project }>('PATCH', `/projects/${projectId}`, body),
 

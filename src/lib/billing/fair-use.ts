@@ -137,7 +137,7 @@ export async function aiGate(auth: AuthedContext): Promise<NextResponse<never> |
   }
   const a = allowanceFor(sub)
   if (a.kind === 'no_access') {
-    return gateResponse('trial_ended', 402, 'Your free month has ended.')
+    return gateResponse('trial_ended', 402, sub?.status === 'canceled' ? 'Your plan has ended.' : 'Your free month has ended.')
   }
   if (a.kind === 'uncapped') return null
   const used = await usageFor(auth, a.period)

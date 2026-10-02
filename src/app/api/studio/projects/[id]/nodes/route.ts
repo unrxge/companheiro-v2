@@ -4,9 +4,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, isUuid, readJson,
+  badRequest, fromDbError, isRecord, isUuid, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { NODE_COLS, clampText, nextPosition, normaliseNode, requireNode } from '@/lib/studio/nodes-db'
 
 type Params = { params: Promise<{ id: string }> }
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!isRecord(body)) throw badRequest('body required')
 
     const project = await requireProject(auth, id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     let parentId: string | null = null
     if (body.parent_id !== undefined && body.parent_id !== null) {

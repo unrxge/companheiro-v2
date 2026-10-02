@@ -9,8 +9,9 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
+  badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable, entitlementsOf } from '@/lib/studio/plan-access'
 import type { ThreadHue } from '@/lib/studio/node-types'
 import type { CarriedThought } from '@/lib/studio/types'
 
@@ -32,8 +33,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!card) throw badRequest('that card is gone')
 
     let threadId: string | null = null
-    if (action === 'accept') {
-      assertProjectWritable(project)
+    let fragment = false
+    // Without threads (Practice), their words are kept as a fragment instead:
+    // the same thing a line saved from the writing page is.
+    if (action === 'accept' && !(await entitlementsOf(auth)).threads) {
+      await assertWorkable(auth, project)
+      const { error } = await auth.supabase
+        .from('studio_anchor_lines')
+        .insert({ user_id: auth.user.id, project_id: project.id, node_id: null, text: card.text.slice(0, 4000) })
+      if (error) throw fromDbError(error)
+      fragment = true
+    } else if (action === 'accept') {
+      await assertWorkable(auth, project)
       const [{ count }, { data: roots }] = await Promise.all([
         auth.supabase.from('studio_threads').select('id', { count: 'exact', head: true }).eq('project_id', project.id).eq('user_id', auth.user.id),
         auth.supabase.from('studio_nodes').select('id').eq('project_id', project.id).eq('user_id', auth.user.id).is('parent_id', null),
@@ -70,6 +81,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       .eq('id', project.id)
       .eq('user_id', auth.user.id)
     if (saveErr) throw fromDbError(saveErr)
-    return NextResponse.json({ thread_id: threadId })
+    return NextResponse.json({ thread_id: threadId, fragment })
   })
 }

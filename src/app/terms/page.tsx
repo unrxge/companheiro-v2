@@ -52,12 +52,25 @@ export default function TermsPage() {
       <H2 id="plans">5. Free trial, plans and payment</H2>
       <UL>
         <li>
-          New accounts get a 30-day free trial of the companion. No payment card is needed and nothing is charged automatically when it ends. One free trial
-          per person and email address.
+          New accounts get a 30-day free trial of the companion, with everything the Direction plan includes. No payment card is needed and nothing is
+          charged automatically when it ends. One free trial per person and email address.
+        </li>
+        <li>
+          You can instead choose a paid plan straight away from our pricing section. Your plan then starts at once, in place of the free trial.
         </li>
         <li>
           After the trial you can choose a paid plan: Practice or Direction, billed monthly or yearly. The current prices and what each plan includes are
           shown on our <A href="/#pricing">pricing section</A> and at checkout; the price you see at checkout is the price you pay.
+        </li>
+        <li>
+          <strong>Practice carries one active project at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
+          Switching to another project sends the one you leave to rest for 14 days before it can be made active again. New threads, images and
+          recordings on a project&rsquo;s canvas, and the conversation about a whole project from its canvas, are part of Direction.
+        </li>
+        <li>
+          If you move from Direction or the free trial to Practice, or your trial or plan ends, <strong>nothing is deleted</strong>. You choose which
+          project stays active; the others wait in your Queue. Threads, images and recordings you already made stay where they are, though new ones
+          cannot be added.
         </li>
         <li>
           Subscriptions are sold by <strong>Stripe</strong>, which acts as the reseller (merchant of record) through Stripe Managed Payments. Stripe takes
@@ -78,7 +91,7 @@ export default function TermsPage() {
       <H2 id="fair-use">6. Fair use</H2>
       <p>
         Every plan includes generous use of the companion for one person&rsquo;s own creative work. Because each reply has a real cost, plans have monthly
-        fair-use limits. We let you know as you approach the limit; if you reach it, the companion pauses until your next billing period. <strong>Your own work is never locked</strong>: you can always read, edit and export it. Automated or scripted use, reselling
+        fair-use limits. We let you know as you approach the limit; if you reach it, the companion pauses until your next billing period. <strong>Your own work is never locked</strong>: you can always read and export all of it, and keep writing in any project your plan lets you work on. Automated or scripted use, reselling
         access, or sharing an account is not fair use.
       </p>
 

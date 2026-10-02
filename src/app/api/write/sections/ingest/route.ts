@@ -6,6 +6,7 @@ import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
 import { snapshotPiece } from '@/lib/studio/revisions'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 // Discerns whether the user's brought text is a full draft or loose fragments,
 // then either distributes the draft across the emotional-journey sections
@@ -116,6 +117,8 @@ export async function POST(req: NextRequest) {
 
     const { node_id } = await req.json()
     if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
+    const notActive = await nodeGate(auth, node_id)
+    if (notActive) return notActive
 
     const { data: piece } = await supabase
       .from('studio_nodes')

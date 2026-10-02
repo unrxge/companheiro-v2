@@ -46,6 +46,7 @@ import { loadTree } from '@/lib/studio/nodes-db'
 import type { Rule, TreeNode } from '@/lib/studio/node-types'
 import { appearancesOf, buildTree, extentOf, findNode, pathTo, rulesInForce } from '@/lib/studio/tree'
 import { proposeRules, type RuleProposal } from '@/lib/studio/rule-proposals'
+import { assertFeature, assertProjectIdWorkable } from '@/lib/studio/plan-access'
 
 export const maxDuration = 60
 
@@ -166,6 +167,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       : null
 
     const project = await requireProject(auth, id)
+    await assertProjectIdWorkable(auth, project.id)
+    // With no part named, this is the talk about the whole vision.
+    if (!nodeId) await assertFeature(auth, 'visionTalk')
     const tree = await loadTree(auth, project.id)
     const roots = buildTree(tree.nodes, tree.tags, tree.threads.map((x) => x.id))
     const threadNames = new Map(tree.threads.map((x) => [x.id, x.name || 'an unnamed thread']))

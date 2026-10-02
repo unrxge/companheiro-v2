@@ -119,10 +119,12 @@ export function Rail({
  * conversation about vision is for, not a speech bubble like any other chat.
  */
 export function CompanionLauncher({
-  active, onClick,
+  active, onClick, locked = false,
 }: {
   active: boolean
   onClick: () => void
+  /** The plan does not carry it: shown quietly, and pressing it says so. */
+  locked?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -150,7 +152,8 @@ export function CompanionLauncher({
           background: active ? t.violet : 'rgba(13,12,11,0.78)',
           backdropFilter: 'blur(18px) saturate(1.1)',
           color: active ? shell.ink : t.violet,
-          boxShadow: `0 10px 30px ${alpha(t.violet, active ? 0.4 : 0.2)}`,
+          opacity: locked ? 0.78 : 1,
+          boxShadow: `0 10px 30px ${alpha(t.violet, active ? 0.4 : locked ? 0.08 : 0.2)}`,
           transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
         }}
       >
@@ -160,6 +163,11 @@ export function CompanionLauncher({
         <span style={{ ...canvasType.label, textTransform: 'none', letterSpacing: 0, fontSize: 14, fontWeight: 600 }}>
           Talk about the vision
         </span>
+        {locked && (
+          <span style={{ ...canvasType.chip, padding: '2px 8px', borderRadius: 999, border: `1px solid ${alpha(t.violet, 0.4)}`, color: alpha(t.violet, 0.9) }}>
+            Direction
+          </span>
+        )}
       </button>
     </>
   )

@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { TextField } from '@/components/ui/field'
 import { Eyebrow } from '@/components/shell/page-shell'
 import { type as typeRoles } from '@/lib/design-tokens'
+import { chosenPlanQuery, readChosenPlan } from '@/lib/billing/chosen-plan'
 
 /**
  * Two states on one route: request a reset link (signed out), and set a new
@@ -67,8 +68,13 @@ export default function ResetPage() {
     try {
       const { error: err } = await createClient().auth.updateUser({ password })
       if (err) setError(err.message)
-      // A brand-new account has just been activated: show it round first.
-      else router.push(firstTime ? '/tour' : '/home')
+      else {
+        // Signed up from a plan's button on the landing page: checkout comes next.
+        const chosen = readChosenPlan(window.location.search)
+        if (chosen) router.push(`/subscribe?${chosenPlanQuery(chosen)}`)
+        // A brand-new account has just been activated: show it round first.
+        else router.push(firstTime ? '/tour' : '/home')
+      }
     } finally {
       setLoading(false)
     }

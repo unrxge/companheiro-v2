@@ -2,9 +2,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
+  badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { THREAD_COLS, clampText, normaliseRules, normaliseThread, requireThread } from '@/lib/studio/nodes-db'
 import type { ThreadHue } from '@/lib/studio/node-types'
 
@@ -19,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const thread = await requireThread(auth, threadId)
     const project = await requireProject(auth, thread.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     const patch: Record<string, unknown> = {}
     if (body.name !== undefined) patch.name = clampText(body.name, 'title', 'name')
@@ -55,7 +56,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   return withAuth(async (auth) => {
     const thread = await requireThread(auth, threadId)
     const project = await requireProject(auth, thread.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
     const { error } = await auth.supabase
       .from('studio_threads')
       .delete()

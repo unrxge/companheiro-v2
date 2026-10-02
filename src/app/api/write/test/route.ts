@@ -7,6 +7,7 @@ import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { logUsage } from '@/lib/usage-log'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 interface CoverageItem {
   item: string
@@ -77,6 +78,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestRespo
 
     const { node_id } = await request.json()
     if (!node_id) return NextResponse.json({ ...empty, error: 'Missing node_id' }, { status: 400 })
+    const notActive = await nodeGate(auth, node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth
 

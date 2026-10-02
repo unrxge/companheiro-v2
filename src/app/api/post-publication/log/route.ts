@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
+import { settingsOnLeaving } from "@/lib/studio/plan-access";
 
 interface LogRequest {
   piece_id?: string;
@@ -103,9 +104,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         );
       }
 
+      // Publishing gives up the project's place in Active, same as dragging
+      // it to Completed (lib/studio/plan-access.ts reads when that happened).
+      const { data: projectRow } = await supabase
+        .from("studio_projects")
+        .select("settings, shelf_stage")
+        .eq("id", nodeData.project_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      const leaving = projectRow?.shelf_stage === "active";
       const { error: projectError } = await supabase
         .from("studio_projects")
-        .update({ shelf_stage: "completed", completed_at: now })
+        .update({
+          shelf_stage: "completed",
+          completed_at: now,
+          ...(leaving ? { settings: settingsOnLeaving(projectRow?.settings) } : {}),
+        })
         .eq("id", nodeData.project_id)
         .eq("user_id", userId);
 

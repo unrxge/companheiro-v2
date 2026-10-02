@@ -18,9 +18,14 @@ export async function POST(request: Request) {
 
     const { data: existing } = await supabase
       .from('subscriptions')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, status')
       .eq('user_id', user.id)
       .maybeSingle()
+    // One plan at a time: changing it is done in the billing portal, so
+    // nobody ends up paying for two.
+    if (existing?.status === 'active' || existing?.status === 'past_due') {
+      return NextResponse.json({ error: 'You already have a plan. Change it from Manage billing in Settings.', code: 'already_subscribed' }, { status: 409 })
+    }
 
     const origin = new URL(request.url).origin
     const stripe = getStripe()

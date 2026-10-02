@@ -4,9 +4,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
+  badRequest, fromDbError, isFiniteNumber, isRecord, noContent, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { NODE_COLS, clampText, extentFor, normaliseNode, normaliseRules, requireNode } from '@/lib/studio/nodes-db'
 import type { NodeStatus } from '@/lib/studio/node-types'
 import { resyncFrom } from '@/lib/studio/write-nodes'
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const node = await requireNode(auth, nodeId)
     const project = await requireProject(auth, node.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     const patch: Record<string, unknown> = {}
     if (body.title !== undefined) patch.title = clampText(body.title, 'title', 'title')
@@ -78,7 +79,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   return withAuth(async (auth) => {
     const node = await requireNode(auth, nodeId)
     const project = await requireProject(auth, node.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
     // Removing a part of a piece is kept in its history; removing a whole piece takes its history with it.
     if (node.parent_id) await snapshotFor(auth, node.parent_id, 'remove', { force: true })
     const { error } = await auth.supabase

@@ -6,6 +6,8 @@ import { WorkPage } from '@/components/studio/work/work-page'
 import { ProjectBoard } from '@/components/project-board/kanban-board'
 import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-shell'
 import { SettingsButton } from '@/components/settings/settings-sheet'
+import { AccessGate } from '@/components/billing/access-gate'
+import { entitlementsFor, isResting, restEndsAt } from '@/lib/billing/entitlements'
 
 const NOW = '2026-09-25T10:00:00.000Z'
 const IDEA = 'A morning where nothing was asked of me, and how strange it was to notice.'
@@ -48,7 +50,8 @@ function node(id: string, parent: string | null, position: number, title: string
   }
 }
 
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean }
+type MockPlan = 'practice' | 'direction' | 'ended' | 'cancelled' | null
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -74,21 +77,37 @@ function installMock(o: Opts) {
     const [a, b, c] = LONG.split(/\n{2,}/)
     nodes.push(node('part-1', 'node-1', 0, 'Arrival', 'calm', paragraphs(a)), node('part-2', 'node-1', 1, 'The pull', 'restless', paragraphs(b)), node('part-3', 'node-1', 2, 'Settling', 'tender', paragraphs(c)))
   }
-  const tasks: Array<{ id: string; title: string; type: string; status: string; is_writing_related: boolean | null }> = [
-    { id: 't1', title: 'Find the first line', type: 'creation', status: 'pending', is_writing_related: true },
-    { id: 't2', title: 'Read it aloud once', type: 'creation', status: 'complete', is_writing_related: true },
-    { id: 't3', title: 'Post on Sunday', type: 'execution', status: 'pending', is_writing_related: false },
+  const tasks: Array<{ id: string; node_id: string; title: string; type: string; status: string; is_writing_related: boolean | null }> = [
+    { id: 't1', node_id: 'node-1', title: 'Find the first line', type: 'creation', status: 'pending', is_writing_related: true },
+    { id: 't2', node_id: 'node-1', title: 'Read it aloud once', type: 'creation', status: 'complete', is_writing_related: true },
+    { id: 't3', node_id: 'node-1', title: 'Post on Sunday', type: 'execution', status: 'pending', is_writing_related: false },
   ]
+  // The canvas's images, recordings and task lists (migration 028).
+  const items: Array<Record<string, unknown> & { id: string; content: Record<string, unknown> }> = []
+
+  // ?plan=practice|direction|ended|cancelled: the plan the mocked account is on
+  // (default: an account from before billing, with everything). ?over=1 leaves
+  // two projects in Active, the state a downgrade leaves behind. ?reading=1
+  // makes "demo" the project that is NOT being worked on.
+  const subscription = o.plan === null
+    ? { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
+    : o.plan === 'ended'
+      ? { status: 'trialing', tier: null, trial_ends_at: '2026-09-01T00:00:00.000Z', current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
+      : o.plan === 'cancelled'
+        ? { status: 'canceled', tier: 'practice', trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
+        : { status: 'active', tier: o.plan, trial_ends_at: null, current_period_end: '2026-11-01T00:00:00.000Z', cancel_at_period_end: false, repeat_trial: false }
+  const ent = entitlementsFor(subscription as Parameters<typeof entitlementsFor>[0])
+  const limited = ent.maxActiveProjects !== null
   const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
   const card = (id: string, title: string, shelf_stage: string, extra: Record<string, unknown> = {}) => ({
     ...project('', false), id, title, shelf_stage, arc: 'Beginning', concept_body: 'What the quiet holds when nobody is asking.',
     root_ids: [`${id}-root`], thread_count: 0, stage: 'writing', ...extra,
   })
   const shelf: Array<Record<string, unknown> & { id: string }> = [
-    card('demo', 'A morning where nothing was asked', 'active', { root_ids: ['node-1'] }),
-    card('p2', 'Letters to the house on the hill', 'active', { root_ids: ['a', 'b', 'c'], thread_count: 2, stage: null, arc: 'Expansion' }),
+    card('demo', 'A morning where nothing was asked', limited && o.reading ? 'queued' : 'active', { root_ids: ['node-1'] }),
+    card('p2', 'Letters to the house on the hill', limited && !o.over && !o.reading ? 'queued' : 'active', { root_ids: ['a', 'b', 'c'], thread_count: 2, stage: null, arc: 'Expansion' }),
     card('p3', 'The year of small rooms', 'queued', { stage: 'conceptualising' }),
-    card('p4', 'What my father kept', 'queued', { stage: 'conceptualising', arc: 'Integration' }),
+    card('p4', 'What my father kept', 'queued', { stage: 'conceptualising', arc: 'Integration', resting_until: limited ? restEndsAt() : null }),
     card('p5', 'On leaving early', 'completed', { stage: 'posted', completed_at: NOW }),
   ]
   let seq = 100
@@ -164,10 +183,43 @@ function installMock(o: Opts) {
     {
       const m = /^\/api\/studio\/projects\/([^/]+)$/.exec(path)
       const row = m && shelf.find((x) => x.id === m[1])
-      if (row && method === 'PATCH') return write(() => { Object.assign(row, body); return json({ project: row }) })
+      // The place in Active, as lib/studio/plan-access.ts gives it out.
+      if (row && method === 'PATCH' && limited && body.shelf_stage === 'active') {
+        const others = shelf.filter((x) => x.shelf_stage === 'active' && x.id !== row.id)
+        if (isResting(row.resting_until as string | null)) return json({ error: 'This one is resting.', code: 'plan_resting' }, 409)
+        if (others.length >= 1) {
+          const settle = body.keep_only === true && others.length + (row.shelf_stage === 'active' ? 1 : 0) > 1
+          if (!settle && body.swap !== true) return json({ error: 'Practice carries one project at a time.', code: 'plan_slot_taken' }, 409)
+          for (const other of others) Object.assign(other, { shelf_stage: 'queued', resting_until: settle ? null : restEndsAt() })
+        }
+        return write(() => { Object.assign(row, { shelf_stage: 'active', resting_until: null }); return json({ project: row }) })
+      }
+      if (row && method === 'PATCH') return write(() => { const { swap: _s, keep_only: _k, ...rest } = body; Object.assign(row, rest); return json({ project: row }) })
       if (row && method === 'DELETE') return write(() => { shelf.splice(shelf.indexOf(row), 1); return json(null, 204) })
     }
-    if (path === '/api/studio/projects/demo/tree') return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks } })
+    if (path === '/api/studio/projects/demo/tree') {
+      const active = shelf.filter((x) => x.shelf_stage === 'active').map((x) => ({ id: x.id, title: String(x.title) }))
+      const mine = shelf.find((x) => x.id === 'demo')
+      const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > 1 ? 'over_limit' : null
+      const access = { plan: ent.plan, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
+      return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
+    }
+    if (path === '/api/studio/projects/demo/items') {
+      if (method === 'GET') return json({ ready: true, items, assets: [], tasks })
+      if (method === 'POST') return write(() => {
+        if (body.kind !== 'tasks') return json({ error: 'Images and recordings are not mocked here; see /dev/board.' }, 400)
+        const it = { id: `it-${++seq}`, user_id: 'u', project_id: 'demo', kind: body.kind, asset_id: null, node_ids: body.node_id ? [body.node_id] : [], board_x: null, board_y: null, w: null, content: {}, created_at: NOW, updated_at: NOW }
+        items.push(it)
+        return json({ item: it }, 201)
+      })
+    }
+    {
+      const m = /^\/api\/studio\/items\/([^/]+)$/.exec(path)
+      const it = m && items.find((x) => x.id === m[1])
+      if (it && method === 'PATCH') return write(() => { Object.assign(it, { ...body, content: { ...it.content, ...(body.content ?? {}) } }); return json({ item: it }) })
+      if (it && method === 'DELETE') return write(() => { items.splice(items.indexOf(it), 1); return json(null, 204) })
+    }
+    if (path === '/api/studio/projects/demo/tasks' && method === 'PATCH') return write(() => { const t = tasks.find((x) => x.id === body.task_id); if (t) t.status = body.status; return json({ success: true }) })
     if (path === '/api/studio/projects/demo/proposals') {
       const nodeId = new URL(url, location.origin).searchParams.get('node_id')
       return json({ proposals: proposals.filter((p) => p.node_id === nodeId) })
@@ -218,11 +270,17 @@ function installMock(o: Opts) {
     if (path.startsWith('/api/studio/projects/demo/open')) return json({ success: true })
     if (path.startsWith('/api/studio/assistant-lock')) return json({ lockedUntil: null })
     if (path.startsWith('/api/settings')) return json({ settings: { dictation_lang: null, sunday_letter: false, onboarded_at: NOW }, email: 'you@example.com' })
-    if (path.startsWith('/api/billing/status')) return json({ subscription: { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false }, access: 'uncapped', usage: null })
+    if (path.startsWith('/api/billing/status')) {
+      const active = shelf.filter((x) => x.shelf_stage === 'active').map((x) => ({ id: x.id, title: String(x.title) }))
+      return json({
+        subscription, access: !ent.companion ? 'no_access' : o.plan === null ? 'uncapped' : 'capped', usage: null,
+        entitlements: ent, over_limit: limited && active.length > 1 ? active : null,
+      })
+    }
 
     if (/^\/api\/studio\/nodes\/[^/]+\/tasks$/.test(path)) {
       if (method === 'GET') return json({ success: true, tasks })
-      if (method === 'POST') return write(() => { const t = { id: `t${++seq}`, title: body.title, type: body.type ?? 'creation', status: 'pending', is_writing_related: null }; tasks.push(t); return json({ success: true, task: t }, 201) })
+      if (method === 'POST') return write(() => { const t = { id: `t${++seq}`, node_id: 'node-1', title: body.title, type: body.type ?? 'creation', status: 'pending', is_writing_related: null }; tasks.push(t); return json({ success: true, task: t }, 201) })
       if (method === 'PATCH') return write(() => { const t = tasks.find((x) => x.id === body.task_id); if (t) t.status = body.status; return json({ success: true }) })
     }
     if (path === '/api/write/anchor-lines') {
@@ -363,7 +421,8 @@ function Inner() {
   const on = (k: string) => !!params.get(k)
   // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind. ?long=1 has a full draft.
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried') }
+  const plan = (['practice', 'direction', 'ended', 'cancelled'] as const).find((x) => x === params.get('plan')) ?? null
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading') }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {
@@ -374,10 +433,14 @@ function Inner() {
       </PageShell>
     )
   }
-  if (params.get('view') === 'kanban') return <ProjectBoard />
+  // The root layout's gate asked for the real plan before this mock was in
+  // place (and was refused: nobody is signed in here). A second one, mounted
+  // after it, is the one that sees the mocked plan.
+  const gate = plan ? <AccessGate /> : null
+  if (params.get('view') === 'kanban') return <>{gate}<ProjectBoard /></>
   // ?board=1 is the canvas a single piece opens onto from the Project Board.
-  if (on('board') || on('pieces')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
-  return <WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} />
+  if (on('board') || on('pieces')) return <>{gate}<WorkPage projectId="demo" focus={{ kind: 'project' }} /></>
+  return <>{gate}<WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} /></>
 }
 
 export function WorkPageHarness() {

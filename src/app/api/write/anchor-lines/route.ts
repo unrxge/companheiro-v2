@@ -3,6 +3,7 @@ import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
 import { MODELS } from '@/lib/models'
 import { logUsage } from '@/lib/usage-log'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 // GET    ?node_id= -> the anchor lines for the piece's project (same scoping as /api/write/sections).
 // POST   -> add an anchor line under a piece's root node_id. If no section_id
@@ -55,6 +56,8 @@ export async function POST(request: NextRequest) {
     if (!node_id || !text?.trim()) {
       return NextResponse.json({ error: 'Missing node_id/text' }, { status: 400 })
     }
+    const notActive = await nodeGate(auth, node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth
 

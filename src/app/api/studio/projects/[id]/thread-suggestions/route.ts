@@ -19,8 +19,9 @@ import { MODELS } from '@/lib/models'
 import { htmlToPlainText } from '@/lib/rich-text'
 import { logUsage } from '@/lib/usage-log'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
+  badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertFeature, assertWorkable, entitlementsOf } from '@/lib/studio/plan-access'
 import type { ThreadHue } from '@/lib/studio/node-types'
 import { firstText, parseJsonObject } from '@/lib/studio/talk/sort'
 import { normalise } from '@/lib/studio/talk/verbatim'
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
     const action = body.action === 'accept' || body.action === 'decline' ? body.action : 'read'
+    // Threads are a Direction tool: nothing is suggested where none can be made.
+    if (action === 'read' && !(await entitlementsOf(auth)).threads) return NextResponse.json({ suggestions: [] })
     const project = await requireProject(auth, id)
     const settings = (project.settings ?? {}) as unknown as Record<string, unknown> & SuggestionState
     const stored = Array.isArray(settings.thread_suggestions) ? settings.thread_suggestions : []
@@ -80,7 +83,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ ok: true })
       }
 
-      assertProjectWritable(project)
+      await assertWorkable(auth, project)
+      await assertFeature(auth, 'threads')
       const { count } = await auth.supabase
         .from('studio_threads')
         .select('id', { count: 'exact', head: true })

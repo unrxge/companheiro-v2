@@ -2,11 +2,17 @@
 
 // studio/src/components/work/board.tsx — level 2, the board.
 //
-// Everything on it can be picked up and put down: the pieces, the threads'
-// hubs, and the project's own vision block. A piece or a hub with no hand
-// placement of its own sits in its reading-order lane or near the pieces it
-// touches — "rearrange" (next to the zoom control) puts everything back
-// there in one motion by clearing every hand placement at once.
+// What hangs under the pieces can be picked up and put down: the threads'
+// hubs, and the images, recordings and task lists a piece's "+" makes. One
+// with no hand placement of its own sits near the pieces it touches —
+// "rearrange" (next to the zoom control) puts everything back there in one
+// motion by clearing every hand placement at once.
+//
+// The top of the board is kept clear. The project's title and core concept,
+// and whatever is waiting on an answer, live there and nowhere else; nothing
+// dragged can be put down above the line the pieces start on. When that top
+// part grows (the concept opened, a notice arriving), everything below moves
+// down with it as one plane, hand placements included.
 //
 // What runs across the pieces is drawn underneath as a web: one block per
 // thread, with a line running to every piece it touches — never repeated
@@ -24,11 +30,19 @@ import { ThreadCard } from '@/components/studio/work/thread-card'
 import { CheckCard } from '@/components/studio/work/rules'
 import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from '@/components/studio/work/vision-block'
 import { hueOf } from '@/components/studio/work/bits'
+import {
+  ImageBlock, ItemShell, ITEM_LABEL, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
+} from '@/components/studio/work/board-items'
+import {
+  addSpotX, FALLBACK_H, imageHeight, itemWidth, keepBelow, packSpans, RECORDING_H,
+  type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
+} from '@/lib/studio/board-items'
+import type { AssetView } from '@/lib/studio/types'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Appearance, CheckOutcome, Rule, RuleCheck, Thread, ThreadHue, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 import {
-  MARGIN, growWorld, laneCardWidth, laneSlot, packRow, smoothPath, toWorld, type Point,
+  MARGIN, growWorld, laneCardWidth, laneSlot, smoothPath, toWorld, type Point,
 } from '@/lib/studio/surface'
 
 const GAP = 44
@@ -36,11 +50,15 @@ const GAP = 44
 const HOME_GAP_X = 20
 const HOME_GAP_Y = 18
 const BASE_CARD_TOP = 108
+// Where the pieces start while the top of the board is at rest: the title
+// closed and nothing waiting. Hand placements are kept relative to this, so
+// they travel with the pieces when the top grows.
+const REST_TOP = Math.max(BASE_CARD_TOP, MARGIN + VISION_COLLAPSED_H + GAP)
 const WEB_GAP = 46      // space between the cards and the web below them
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
-const ADD_THREAD_D = 30    // the "+ thread" button set into each card's bottom edge
+const ADD_THREAD_D = 30    // the "+" set into each card's bottom edge
 // There is no separate connection point: every thread on a piece leaves from
 // the "+" itself, all of them from that one spot, so the button is visibly
 // the mouth its threads come out of.
@@ -69,16 +87,25 @@ export interface BoardProject {
   title: string
   intent: string
   rules: Rule[]
-  vision_x: number | null
-  vision_y: number | null
   conceptualisation_log?: Array<{ role: 'user' | 'assistant'; content: string }> | null
   /** Set when the project skipped the core concept at the start. */
   coreConceptHref?: string | null
 }
 
+/** Which of the "+"'s tools this canvas has. */
+export interface BoardTools {
+  /** New threads (a Direction tool). */
+  threads: boolean
+  /** New images and recordings (a Direction tool). */
+  media: boolean
+  /** Task lists, images and recordings exist at all here (migration 028 applied). */
+  items: boolean
+}
+
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
-  addPiece: () => void
+  /** `x` is where the new piece stands when the usual end of the lane is taken up by something else. */
+  addPiece: (x: number | null) => void
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
@@ -99,18 +126,40 @@ export interface BoardActions {
   renameProject: (title: string) => void
   editProjectIntent: (intent: string) => void
   editProjectRules: (rules: Rule[]) => void
-  moveVision: (at: Point | null) => void
-  /** Clears every hand placement at once: pieces, hubs, and the vision block
-   *  all return to their auto positions. */
+  /** Clears every hand placement at once: pieces, hubs and items all return
+   *  to their auto positions. */
   tidyBoard: () => void
+  // ── what else a piece's "+" makes ─────────────────────────────────────────
+  addTaskList: (pieceId: string) => Promise<BoardItem>
+  /** These two reject with a sentence fit to show when the file cannot be added. */
+  addImage: (pieceId: string, file: Blob) => Promise<BoardItem>
+  addRecording: (pieceId: string, file: Blob, opts: { ownVoice: boolean; seconds?: number }) => Promise<BoardItem>
+  patchItem: (id: string, patch: PatchItemRequest) => void
+  removeItem: (item: BoardItem) => void
+  toggleTask: (task: ProjectTask) => void
+  /** A picture or sound stopped loading: its address has run out. */
+  refreshAsset: (assetId: string) => void
+  /** Something the plan does not carry was asked for. */
+  onLocked: (choice: PlusChoice) => void
 }
 
-type Drag = { kind: 'hub' | 'vision'; id: string; at: Point }
+type Drag = { kind: 'hub' | 'item'; id: string; at: Point }
+
+// One identity for "none", so a board given no items does not see a new
+// empty list on every render (the world's size is worked out from them).
+const NO_ITEMS: BoardItem[] = []
+const NO_ASSETS: Record<string, AssetView> = {}
+const NO_TASKS: ProjectTask[] = []
+const THREADS_ONLY: BoardTools = { threads: true, media: true, items: false }
 
 export function Board({
   project,
   pieces,
   threads,
+  items = NO_ITEMS,
+  assets = NO_ASSETS,
+  tasks = NO_TASKS,
+  tools = THREADS_ONLY,
   checks,
   notices = [],
   onResolveCheck,
@@ -123,6 +172,12 @@ export function Board({
   project: BoardProject
   pieces: TreeNode[]
   threads: Thread[]
+  /** Images, recordings and task lists, each under the pieces it is connected to. */
+  items?: BoardItem[]
+  assets?: Record<string, AssetView>
+  /** Every task of every piece; a task list shows the ones for its own pieces. */
+  tasks?: ProjectTask[]
+  tools?: BoardTools
   /** Sits right under the title, side by side when there's more than one —
    *  never floating in the middle of the canvas on its own. */
   checks: RuleCheck[]
@@ -148,11 +203,23 @@ export function Board({
 
   const [drag, setDrag] = useState<Drag | null>(null)
   const [arming, setArming] = useState<string | null>(null)
+  /** The item being connected: the next piece clicked joins or leaves it. */
+  const [armingItem, setArmingItem] = useState<string | null>(null)
   const [asking, setAsking] = useState<{ thread: Thread; toId: string } | null>(null)
   const [openThread, setOpenThread] = useState<string | null>(null)
-  /** The thread just made from a "+", so only that one grows out of it. */
+  /** The thread or item just made from a "+", so only that one grows out of it. */
   const [born, setBorn] = useState<string | null>(null)
   const [visionOpen, setVisionOpen] = useState(false)
+  /** The piece whose "+" is open. */
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+  const [recorderFor, setRecorderFor] = useState<string | null>(null)
+  /** A word at the foot of the board while a file goes up, or when one could not. */
+  const [word, setWord] = useState<{ text: string; busy: boolean } | null>(null)
+  const [resizing, setResizing] = useState<{ id: string; w: number } | null>(null)
+  /** Each item's own measured height (a task list is as tall as its tasks). */
+  const [heights, setHeights] = useState<Record<string, number>>({})
+  const imagePicker = useRef<HTMLInputElement | null>(null)
+  const imageFor = useRef<string | null>(null)
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
   const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
@@ -165,7 +232,6 @@ export function Board({
   // for a short one. The fallback only covers the one frame before the
   // ResizeObserver's first reading lands.
   const visionH = visionFrame.h || (visionOpen ? VISION_EXPANDED_H : VISION_COLLAPSED_H)
-  const visionMoved = project.vision_x !== null || project.vision_y !== null
   // Measured the same way as the vision panel above it — a guessed constant
   // either clipped a long question or left too much air under a short one.
   // However many rows that takes once notices are wrapping, not just one.
@@ -186,28 +252,30 @@ export function Board({
   // by side (flexWrap below); past that, the next one drops to its own row.
   const noticeW = hasNotices ? Math.min(NOTICE_MAX_W, noticesRowMaxW) : 0
   // Vision → notices → pieces uses NOTICE_GAP both times, the same rhythm
-  // twice over. With no notices in the way, vision → pieces keeps the wider
-  // GAP — that relationship was never the one asked to tighten.
+  // twice over. With no notices in the way, vision → pieces keeps the wider GAP.
   const gapBelowVision = hasNotices ? NOTICE_GAP + noticeH + NOTICE_GAP : GAP
-  // Pieces clear the title's own space — and the notices sitting under it,
-  // when there are any — only while the title is still where it started.
-  // Drag it away and the lane is free to rise back to its usual place.
-  const cardTop = visionMoved ? BASE_CARD_TOP : Math.max(BASE_CARD_TOP, MARGIN + visionH + gapBelowVision)
+  // The line the pieces start on. Everything above it is the top of the
+  // board — the title, the core concept when open, the notices — and nothing
+  // that can be dragged is ever allowed to rest up there.
+  const cardTop = Math.max(BASE_CARD_TOP, MARGIN + visionH + gapBelowVision)
+  /** How far the top has pushed the rest of the board down from its resting place. */
+  const shift = cardTop - REST_TOP
   const cardX = useCallback((i: number) => laneSlot(i, cardW, GAP), [cardW])
   // The "add a piece" spot is the size of the piece it would make: it sits
-  // at the end of the lane reading as the next card, now that nothing else
-  // shares its column. (Threads are started from each card's own edge.)
+  // at the end of the lane reading as the next card.
   const addColW = cardW
   const addPieceH = cardH
   const addHelpH = pieces.length === 0 ? 54 : 0
 
-  /** Where a piece sits: hand-placed from before this became fixed, or in
-   *  its reading-order lane. Pieces are no longer dragged — the "add a
-   *  piece" spot kept drifting into odd places as the layout around it
-   *  moved, so only the threads and the title still pick up and put down. */
+  /** Where a piece sits: in its reading-order lane, unless it was made
+   *  further along because something else stood at the end of the lane. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point =>
-    ({ x: piece.board_x ?? cardX(i), y: piece.board_y ?? cardTop }),
+    ({ x: piece.board_x ?? cardX(i), y: cardTop }),
   [cardX, cardTop])
+
+  /** A hand placement as it is kept, to where it shows now, and back. */
+  const shown = useCallback((y: number) => Math.max(cardTop, y + shift), [cardTop, shift])
+  const kept = useCallback((at: Point): Point => ({ x: Math.round(at.x), y: Math.max(0, Math.round(at.y - shift)) }), [shift])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -233,44 +301,76 @@ export function Board({
     [threads, presence],
   )
 
+  const pieceIds = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
+  const itemW = useCallback(
+    (item: BoardItem) => (resizing?.id === item.id ? resizing.w : itemWidth(item.kind, item.w)),
+    [resizing],
+  )
+  const itemH = useCallback((item: BoardItem) => {
+    if (item.kind === 'recording') return RECORDING_H
+    if (item.kind === 'image') {
+      const asset = item.asset_id ? assets[item.asset_id] : undefined
+      return imageHeight(itemW(item), asset, !!item.content.caption || !disabled)
+    }
+    return heights[item.id] ?? FALLBACK_H[item.kind]
+  }, [assets, disabled, heights, itemW])
+
   const webTop = cardTop + cardH + WEB_GAP
 
-  /** Each un-placed hub sits near the average position of the pieces it
-   *  touches, so the web reads as threads reaching toward their pieces
-   *  rather than a legend with no relationship to what is on screen.
-   *  packRow keeps them from landing on top of one another. */
-  const autoHubX = useMemo(() => {
-    const preferred = hubs.map((th) => {
-      const on = presence.get(th.id)?.roots ?? new Set<string>()
+  /** Everything under the pieces with no hand placement shares one row, each
+   *  near the middle of the pieces it touches, so the web reads as things
+   *  reaching toward their pieces rather than a legend off to one side. A
+   *  task list or picture standing on its own starts at the left edge. */
+  const autoX = useMemo(() => {
+    const centreOf = (on: (id: string) => boolean, w: number) => {
       const xs = pieces
-        .map((p, i) => (on.has(p.id) ? pieceAt(p, i).x + cardW / 2 : null))
+        .map((p, i) => (on(p.id) ? pieceAt(p, i).x + cardW / 2 : null))
         .filter((x): x is number => x !== null)
-      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : MARGIN + HUB_W / 2
-    })
-    const packed = packRow(preferred, HUB_W + HUB_GAP)
-    const map = new Map<string, number>()
-    hubs.forEach((th, i) => map.set(th.id, Math.max(MARGIN, packed[i] - HUB_W / 2)))
-    return map
-  }, [hubs, presence, pieces, pieceAt, cardW])
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : MARGIN + w / 2
+    }
+    const row = [
+      ...hubs.map((th) => {
+        const on = presence.get(th.id)?.roots ?? new Set<string>()
+        return { id: th.id, w: HUB_W, centre: centreOf((id) => on.has(id), HUB_W) }
+      }),
+      ...items.map((it) => {
+        const w = itemW(it)
+        return { id: it.id, w, centre: centreOf((id) => it.node_ids.includes(id), w) }
+      }),
+    ]
+    const left = packSpans(row, HUB_GAP, MARGIN)
+    return new Map(row.map((r, i) => [r.id, left[i]]))
+  }, [hubs, items, presence, pieces, pieceAt, cardW, itemW])
 
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {
     if (drag?.kind === 'hub' && drag.id === th.id) return drag.at
-    return { x: th.board_x ?? autoHubX.get(th.id) ?? MARGIN, y: th.board_y ?? webTop }
-  }, [drag, autoHubX, webTop])
+    return { x: th.board_x ?? autoX.get(th.id) ?? MARGIN, y: th.board_y === null ? webTop : shown(th.board_y) }
+  }, [drag, autoX, webTop, shown])
 
-  const visionAt: Point = useMemo(
-    () => (drag?.kind === 'vision' ? drag.at : { x: project.vision_x ?? MARGIN, y: project.vision_y ?? MARGIN }),
-    [drag, project.vision_x, project.vision_y],
-  )
+  const itemAt = useCallback((it: BoardItem): Point => {
+    if (drag?.kind === 'item' && drag.id === it.id) return drag.at
+    return { x: it.board_x ?? autoX.get(it.id) ?? MARGIN, y: it.board_y === null ? webTop : shown(it.board_y) }
+  }, [drag, autoX, webTop, shown])
 
-  const hubRight = hubs.length ? Math.max(...hubs.map((th) => hubAt(th).x + HUB_W)) : MARGIN
+  const visionAt: Point = useMemo(() => ({ x: MARGIN, y: MARGIN }), [])
+
+  /** Everything that can be put down, as boxes: what the end of the lane has to step around. */
+  const boxes = useMemo<Box[]>(() => [
+    ...hubs.map((th) => ({ ...hubAt(th), w: HUB_W, h: HUB_H })),
+    ...items.map((it) => ({ ...itemAt(it), w: itemW(it), h: itemH(it) })),
+  ], [hubs, hubAt, items, itemAt, itemW, itemH])
+
+  const laneEnd = pieces.length
+    ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
+    : MARGIN
+  // Put something down where the next piece would go and the spot makes
+  // room: it steps to the right of it, and the next piece is made there.
+  const addX = addSpotX(laneEnd, addColW, GAP, { top: cardTop, bottom: cardTop + cardH }, boxes)
 
   const world = useMemo(() => {
     let w = { w: frame.w || 0, h: frame.h || 0 }
-    w = growWorld(w, MARGIN, MARGIN, (pieces.length + 1) * (cardW + GAP), 0)
-    w = growWorld(w, 0, 0, hubRight + HUB_W + GAP, 0)
-    w = growWorld(w, cardX(pieces.length), cardTop, addColW, addPieceH + addHelpH)
+    w = growWorld(w, addX, cardTop, addColW, addPieceH + addHelpH)
     w = growWorld(w, visionAt.x, visionAt.y, visionW, visionH)
     if (hasNotices) {
       // The row's own full width, not one notice's — however many of them
@@ -281,14 +381,12 @@ export function Board({
       const at = pieceAt(piece, i)
       w = growWorld(w, at.x, at.y, cardW, cardH)
     }
-    for (const th of hubs) {
-      const at = hubAt(th)
-      w = growWorld(w, at.x, at.y, HUB_W, HUB_H)
-    }
+    // A little past each one, so there is always somewhere further to drag it.
+    for (const b of boxes) w = growWorld(w, b.x, b.y, b.w + GAP, b.h)
     return w
   }, [
-    frame, pieces, cardW, cardH, hubs, hubAt, hubRight, pieceAt, visionAt, visionH, visionW, hasNotices,
-    cardX, cardTop, addColW, addPieceH, addHelpH, noticesRowMaxW, noticeH,
+    frame, pieces, cardW, cardH, boxes, pieceAt, visionAt, visionH, visionW, hasNotices,
+    addX, cardTop, addColW, addPieceH, addHelpH, noticesRowMaxW, noticeH,
   ])
 
   const home = useMemo<Point>(
@@ -299,11 +397,11 @@ export function Board({
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {
-    if (!arming) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setArming(null) }
+    if (!arming && !armingItem) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setArming(null); setArmingItem(null) } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [arming])
+  }, [arming, armingItem])
 
   const move = useCallback((id: string, delta: -1 | 1) => {
     const ids = pieces.map((p) => p.id)
@@ -344,7 +442,8 @@ export function Board({
     // inside the card would stop receiving its own clicks entirely.
     const onMove = (ev: PointerEvent) => {
       const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
-      landed = { x: Math.round(Math.max(0, now.x - offset.x)), y: Math.round(Math.max(0, now.y - offset.y)) }
+      // Held below the line the pieces start on: the top of the board is not a place to put things.
+      landed = keepBelow({ x: now.x - offset.x, y: now.y - offset.y }, cardTop)
       if (!moved && (Math.abs(landed.x - committed.x) > 3 || Math.abs(landed.y - committed.y) > 3)) {
         moved = true
         target.setPointerCapture(ev.pointerId)
@@ -362,16 +461,44 @@ export function Board({
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [canvas.pan, canvas.zoom, disabled])
+  }, [canvas.pan, canvas.zoom, cardTop, disabled])
 
-  /** Every hand placement, gone at once: pieces to their lane, hubs to their
-   *  pieces, the vision block back to the corner. */
+  /** The corner of an image or a task list, dragged to make it wider or
+   *  narrower. Each kind has its own limits (lib/studio/board-items.ts). */
+  const beginResize = useCallback((item: BoardItem) => (e: React.PointerEvent) => {
+    if (disabled || e.button !== 0) return
+    e.stopPropagation()
+    e.preventDefault()
+    const target = e.currentTarget as HTMLElement
+    const startX = e.clientX
+    const startW = itemWidth(item.kind, item.w)
+    let w = startW
+    target.setPointerCapture(e.pointerId)
+    const onMove = (ev: PointerEvent) => {
+      w = itemWidth(item.kind, startW + (ev.clientX - startX) / canvas.zoom)
+      setResizing({ id: item.id, w })
+    }
+    const onUp = (ev: PointerEvent) => {
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', onUp)
+      target.removeEventListener('pointercancel', onUp)
+      if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
+      if (w !== startW) actions.patchItem(item.id, { w })
+      setResizing(null)
+    }
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', onUp)
+    target.addEventListener('pointercancel', onUp)
+  }, [actions, canvas.zoom, disabled])
+
+  /** Every hand placement, gone at once: hubs and items back under their pieces. */
   const rearrange = useCallback(() => actions.tidyBoard(), [actions])
 
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
    *  glass. */
   const arm = useCallback((th: Thread) => {
+    setArmingItem(null)
     if (arming === th.id) { setArming(null); return }
     setArming(th.id)
     const on = presence.get(th.id)?.roots ?? new Set<string>()
@@ -398,6 +525,16 @@ export function Board({
     actions.tag(piece.id, thread.id)
   }, [actions, arming, pieces.length, presence, threads])
 
+  /** An item joins the piece clicked, or leaves it if it was already there.
+   *  With no piece left it simply stands on its own. */
+  const toggleItemOn = useCallback((piece: TreeNode) => {
+    const item = items.find((it) => it.id === armingItem)
+    setArmingItem(null)
+    if (!item) return
+    const on = item.node_ids.filter((id) => pieceIds.has(id))
+    actions.patchItem(item.id, { node_ids: on.includes(piece.id) ? on.filter((id) => id !== piece.id) : [...on, piece.id] })
+  }, [actions, armingItem, items, pieceIds])
+
   /** A thread begins on a piece: born in that card's colour, already running
    *  through it, and opened so it can be named and carried to the others. */
   const addThreadFrom = useCallback(async (piece: TreeNode, i: number) => {
@@ -408,7 +545,57 @@ export function Board({
     setOpenThread(created.id)
   }, [actions])
 
-  // the entrance plays once; after that the hub is just a hub
+  // What this canvas's "+" offers, and which of those the plan does not carry.
+  const choices = useMemo<PlusChoice[]>(
+    () => ['thread', ...(tools.items ? (['tasks', 'image', 'recording'] as PlusChoice[]) : [])],
+    [tools.items],
+  )
+  const lockedChoices = useMemo<PlusChoice[]>(
+    () => [...(tools.threads ? [] : (['thread'] as PlusChoice[])), ...(tools.media ? [] : (['image', 'recording'] as PlusChoice[]))],
+    [tools.threads, tools.media],
+  )
+
+  /** Saying it at the foot of the board, then letting it go. */
+  const say = useCallback((text: string) => {
+    setWord({ text, busy: false })
+    window.setTimeout(() => setWord((cur) => (cur && cur.text === text ? null : cur)), 6000)
+  }, [])
+
+  const pick = useCallback((choice: PlusChoice, piece: TreeNode, i: number) => {
+    setMenuFor(null)
+    if (choice === 'thread') { void addThreadFrom(piece, i); return }
+    if (choice === 'image') { imageFor.current = piece.id; imagePicker.current?.click(); return }
+    if (choice === 'recording') { setRecorderFor(piece.id); return }
+    actions.addTaskList(piece.id)
+      .then((it) => setBorn(it.id))
+      .catch((e: unknown) => say(e instanceof Error && e.message ? e.message : 'That did not save. Try again.'))
+  }, [actions, addThreadFrom, say])
+
+  const onPlus = useCallback((piece: TreeNode, i: number) => {
+    // With nothing but threads to offer, the "+" is what it always was.
+    if (choices.length === 1) {
+      if (lockedChoices.includes('thread')) actions.onLocked('thread')
+      else void addThreadFrom(piece, i)
+      return
+    }
+    setMenuFor((cur) => (cur === piece.id ? null : piece.id))
+  }, [actions, addThreadFrom, choices.length, lockedChoices])
+
+  const onImageChosen = useCallback(async (file: File | undefined) => {
+    const pieceId = imageFor.current
+    imageFor.current = null
+    if (!file || !pieceId) return
+    setWord({ text: 'Adding the image…', busy: true })
+    try {
+      const it = await actions.addImage(pieceId, file)
+      setBorn(it.id)
+      setWord(null)
+    } catch (e) {
+      say(e instanceof Error && e.message ? e.message : 'The image could not be added. Try again.')
+    }
+  }, [actions, say])
+
+  // the entrance plays once; after that it is just a block on the board
   useEffect(() => {
     if (!born) return
     const id = window.setTimeout(() => setBorn(null), BORN_MS)
@@ -417,6 +604,12 @@ export function Board({
 
   const armedThread = arming ? threads.find((th) => th.id === arming) ?? null : null
   const armedOn = armedThread ? presence.get(armedThread.id)?.roots ?? new Set<string>() : null
+  const armedItem = armingItem ? items.find((it) => it.id === armingItem) ?? null : null
+
+  const piecesFor = (it: BoardItem) => {
+    const on = pieces.filter((p) => it.node_ids.includes(p.id))
+    return (on.length ? on : pieces).map((p) => ({ id: p.id, title: p.title }))
+  }
 
   return (
     <>
@@ -427,10 +620,17 @@ export function Board({
       @media (prefers-reduced-motion: reduce) {
         @keyframes threadBorn { from { opacity: 0 } to { opacity: 1 } }
       }`}</style>
+      <input
+        ref={imagePicker}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        hidden
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void onImageChosen(file) }}
+      />
       <Surface
         canvas={canvas}
         innerRef={ref}
-        ariaLabel="The board — the pieces of this project and the threads under them"
+        ariaLabel="The board — the pieces of this project and what hangs under them"
         chrome={
           <>
             <ZoomPill
@@ -439,7 +639,19 @@ export function Board({
               after={!disabled && <RearrangeButton onClick={rearrange} />}
             />
             {arming && armedThread && (
-              <ConnectBanner thread={armedThread} onCancel={() => setArming(null)} />
+              <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
+                Pick the piece <strong style={{ color: hueOf(t, armedThread.hue), fontWeight: 600 }}>{armedThread.name || 'this thread'}</strong> runs through next
+              </ConnectBanner>
+            )}
+            {armedItem && (
+              <ConnectBanner colour={t.tide} onCancel={() => setArmingItem(null)}>
+                Pick a piece to connect {ITEM_LABEL[armedItem.kind]} to, or one it is on to take it off
+              </ConnectBanner>
+            )}
+            {word && !arming && !armedItem && (
+              <ConnectBanner colour={word.busy ? t.tide : t.ember} onCancel={word.busy ? undefined : () => setWord(null)}>
+                {word.text}
+              </ConnectBanner>
             )}
           </>
         }
@@ -478,23 +690,32 @@ export function Board({
               )
             })
           })}
+          {/* and from the same "+", a line to each thing it made: in the piece's own colour */}
+          {items.map((it) => {
+            const at = itemAt(it)
+            const top = { x: at.x + itemW(it) / 2, y: at.y }
+            return pieces.map((piece, i) => {
+              if (!it.node_ids.includes(piece.id)) return null
+              const p = pieceAt(piece, i)
+              return (
+                <path
+                  key={`${it.id}-${piece.id}`}
+                  d={smoothPath({ x: p.x + cardW / 2, y: p.y + cardH }, top)}
+                  fill="none"
+                  stroke={alpha(hueOf(t, pieceHue(i)), 0.45)}
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                />
+              )
+            })
+          })}
         </svg>
 
-        {/* the project's own title, vision and rules */}
+        {/* the project's own title, vision and rules: always here, at the top */}
         <div
           ref={visionRef}
           data-hold
-          onPointerDown={beginDrag('vision', 'vision', visionAt, (at) => actions.moveVision(at))}
-          style={{
-            position: 'absolute', left: visionAt.x, top: visionAt.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
-            // Dragging from directly on top of the title text would otherwise
-            // select it like any other text on a page before the drag ever
-            // registers — this only blocks selection outside actual inputs.
-            userSelect: 'none', WebkitUserSelect: 'none',
-            // Off while the hand is actually moving it — a live drag has to
-            // track the pointer exactly, not ease toward it a beat behind.
-            transition: drag?.kind === 'vision' ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
-          }}
+          style={{ position: 'absolute', left: visionAt.x, top: visionAt.y }}
         >
           <VisionBlock
             title={project.title}
@@ -561,11 +782,10 @@ export function Board({
         )}
 
         {/* the pieces — laid out, not dragged: a piece's place is its order
-           among the others, moved with the arrows on the card itself. Only
-           the threads that run across them, and the project's own title,
-           are picked up and put down. */}
+           among the others, moved with the arrows on the card itself. */}
         {pieces.map((piece, i) => {
-          const targeted = Boolean(armedOn && !armedOn.has(piece.id))
+          const targeted = armedItem ? true : Boolean(armedOn && !armedOn.has(piece.id))
+          const onItem = Boolean(armedItem?.node_ids.includes(piece.id))
           const at = pieceAt(piece, i)
           return (
             <div
@@ -593,21 +813,35 @@ export function Board({
                 <button
                   data-hold
                   type="button"
-                  aria-label={`Run ${armedThread?.name || 'this thread'} through ${piece.title || 'this piece'}`}
-                  onClick={() => connectTo(piece)}
+                  aria-label={armedItem
+                    ? `${onItem ? 'Take' : 'Connect'} ${ITEM_LABEL[armedItem.kind]} ${onItem ? 'off' : 'to'} ${piece.title || 'this piece'}`
+                    : `Run ${armedThread?.name || 'this thread'} through ${piece.title || 'this piece'}`}
+                  onClick={() => (armedItem ? toggleItemOn(piece) : connectTo(piece))}
                   style={{
                     position: 'absolute', inset: 0, borderRadius: radius.card,
-                    background: alpha(t.tide, 0.06), border: 'none', cursor: 'pointer',
+                    background: alpha(onItem ? t.ember : t.tide, 0.06), border: 'none', cursor: 'pointer',
                   }}
                 />
               )}
-              {/* start a thread here — set into the card's own bottom edge,
-                 in this card's colour, which the thread then carries */}
+              {/* everything a piece can have hanging under it starts here —
+                 set into the card's own bottom edge, in this card's colour,
+                 which a thread then carries */}
               {!disabled && (
                 <AddThreadButton
                   hue={pieceHue(i)}
                   pieceTitle={piece.title}
-                  onClick={() => void addThreadFrom(piece, i)}
+                  menu={choices.length > 1}
+                  open={menuFor === piece.id}
+                  onClick={() => onPlus(piece, i)}
+                />
+              )}
+              {menuFor === piece.id && (
+                <PlusMenu
+                  available={choices}
+                  locked={lockedChoices}
+                  onPick={(choice) => pick(choice, piece, i)}
+                  onLocked={(choice) => { setMenuFor(null); actions.onLocked(choice) }}
+                  onClose={() => setMenuFor(null)}
                 />
               )}
             </div>
@@ -620,7 +854,7 @@ export function Board({
           return (
             <div
               key={th.id}
-              onPointerDown={beginDrag('hub', th.id, at, (landed) => actions.moveThread(th.id, landed))}
+              onPointerDown={beginDrag('hub', th.id, at, (landed) => actions.moveThread(th.id, kept(landed)))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
@@ -641,17 +875,89 @@ export function Board({
           )
         })}
 
+        {/* images, recordings and task lists: picked up and put down the same way */}
+        {items.map((it) => {
+          const at = itemAt(it)
+          const w = itemW(it)
+          const asset = it.asset_id ? assets[it.asset_id] : undefined
+          const stale = () => { if (it.asset_id) actions.refreshAsset(it.asset_id) }
+          return (
+            <div
+              key={it.id}
+              onPointerDown={beginDrag('item', it.id, at, (landed) => {
+                const k = kept(landed)
+                actions.patchItem(it.id, { board_x: k.x, board_y: k.y })
+              })}
+              style={{
+                position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                userSelect: 'none', WebkitUserSelect: 'none',
+                transition: drag?.kind === 'item' && drag.id === it.id
+                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+              }}
+            >
+              <ItemShell
+                item={it}
+                width={w}
+                label={ITEM_LABEL[it.kind]}
+                born={born === it.id}
+                armed={armingItem === it.id}
+                disabled={disabled}
+                padded={it.kind !== 'image'}
+                onConnect={() => { setArming(null); setArmingItem((cur) => (cur === it.id ? null : it.id)) }}
+                onRemove={() => actions.removeItem(it)}
+                onResizeStart={beginResize(it)}
+                onHeight={(h) => setHeights((prev) => (prev[it.id] === h ? prev : { ...prev, [it.id]: h }))}
+              >
+                {it.kind === 'image' && (
+                  <ImageBlock
+                    item={it}
+                    asset={asset}
+                    width={w - 2}
+                    disabled={disabled}
+                    onCaption={(caption) => actions.patchItem(it.id, { content: { caption } })}
+                    onStale={stale}
+                  />
+                )}
+                {it.kind === 'recording' && (
+                  <RecordingBlock
+                    item={it}
+                    asset={asset}
+                    disabled={disabled}
+                    onTitle={(title) => actions.patchItem(it.id, { content: { title } })}
+                    onStale={stale}
+                  />
+                )}
+                {it.kind === 'tasks' && (
+                  <TaskListBlock
+                    item={it}
+                    pieces={piecesFor(it)}
+                    tasks={tasks}
+                    disabled={disabled}
+                    onToggleTask={actions.toggleTask}
+                    onContent={(content) => actions.patchItem(it.id, { content })}
+                  />
+                )}
+              </ItemShell>
+            </div>
+          )
+        })}
+
         {/* one more piece, at the end of the lane and the size of a real
-           card. Threads no longer have a box of their own here: each one
-           starts from the "+" on the piece it runs through. */}
+           card — or further along, when something has been put down where
+           it would stand. */}
         {!disabled && (
-          <div style={{ position: 'absolute', left: cardX(pieces.length), top: cardTop, width: addColW }}>
+          <div
+            style={{
+              position: 'absolute', left: addX, top: cardTop, width: addColW,
+              transition: `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+            }}
+          >
             <button
               data-hold
               type="button"
               aria-label="Add a piece to this project"
               title="Add a piece"
-              onClick={actions.addPiece}
+              onClick={() => actions.addPiece(addX === cardX(pieces.length) ? null : addX)}
               style={{
                 width: '100%', height: addPieceH,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -699,6 +1005,16 @@ export function Board({
           onConstraint={() => { actions.makeConstraint(asking.thread); setAsking(null) }}
           onAnyway={() => { actions.tag(asking.toId, asking.thread.id); setAsking(null) }}
           onCancel={() => setAsking(null)}
+        />
+      )}
+
+      {recorderFor && (
+        <RecorderDialog
+          onClose={() => setRecorderFor(null)}
+          onDone={async (file, opts) => {
+            const it = await actions.addRecording(recorderFor, file, opts)
+            setBorn(it.id)
+          }}
         />
       )}
     </>
@@ -845,17 +1161,26 @@ function HubAct({ label, tone, onClick, children }: { label: string; tone: strin
 /** Set into the middle of a card's bottom edge, in that card's own colour.
  *  The ring is the canvas behind it, so the button reads as a break in the
  *  card's outline rather than something floating over it. */
-function AddThreadButton({ hue, pieceTitle, onClick }: { hue: ThreadHue; pieceTitle: string; onClick: () => void }) {
+function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
+  hue: ThreadHue
+  pieceTitle: string
+  /** It opens a choice (a thread, a task list, an image, a recording) rather than starting a thread outright. */
+  menu: boolean
+  open: boolean
+  onClick: () => void
+}) {
   const { t } = useTheme()
   const colour = hueOf(t, hue)
   const [hover, setHover] = useState(false)
-  const label = `Start a thread from ${pieceTitle || 'this piece'}`
+  const label = menu ? `Add something under ${pieceTitle || 'this piece'}` : `Start a thread from ${pieceTitle || 'this piece'}`
   return (
     <button
       data-hold
       type="button"
-      title="Start a thread here"
+      title={menu ? 'Add a thread, a task list, an image or a recording' : 'Start a thread here'}
       aria-label={label}
+      aria-haspopup={menu ? 'menu' : undefined}
+      aria-expanded={menu ? open : undefined}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseEnter={() => setHover(true)}
@@ -867,8 +1192,8 @@ function AddThreadButton({ hue, pieceTitle, onClick }: { hue: ThreadHue; pieceTi
         padding: 0, borderRadius: '50%', border: 'none', cursor: 'pointer',
         background: colour, color: t.cardBg,
         boxShadow: `0 0 0 4px ${shell.ink}, 0 0 0 ${hover ? 8 : 4}px ${alpha(colour, hover ? 0.3 : 0)}`,
-        transform: hover ? 'scale(1.06)' : 'scale(1)',
-        transition: 'transform 140ms ease, box-shadow 140ms ease',
+        transform: `${hover ? 'scale(1.06)' : 'scale(1)'} rotate(${open ? 45 : 0}deg)`,
+        transition: 'transform 160ms ease, box-shadow 140ms ease',
       }}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
@@ -881,31 +1206,35 @@ function AddThreadButton({ hue, pieceTitle, onClick }: { hue: ThreadHue; pieceTi
 
 // ── what the board says while you are connecting ────────────────────────────
 
-function ConnectBanner({ thread, onCancel }: { thread: Thread; onCancel: () => void }) {
-  const { t } = useTheme()
-  const colour = hueOf(t, thread.hue)
+function ConnectBanner({ colour, onCancel, children }: {
+  colour: string
+  /** Absent while something is under way that cannot be called off. */
+  onCancel?: () => void
+  children: React.ReactNode
+}) {
   return (
     <div
       data-hold
+      role="status"
       style={{
         position: 'absolute', left: '50%', bottom: 18, transform: 'translateX(-50%)', zIndex: 7,
-        display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap',
-        padding: '8px 10px 8px 14px', borderRadius: 999,
+        display: 'flex', alignItems: 'center', gap: 10, maxWidth: 'calc(100% - 32px)',
+        padding: onCancel ? '8px 10px 8px 14px' : '8px 14px', borderRadius: 999,
         background: 'rgba(13,12,11,0.84)', backdropFilter: 'blur(18px) saturate(1.1)',
         border: `1px solid ${alpha(colour, 0.5)}`,
       }}
     >
-      <i aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: colour }} />
-      <span style={{ ...canvasType.small, fontSize: 12.5, color: shell.text }}>
-        Pick the piece <strong style={{ color: colour, fontWeight: 600 }}>{thread.name || 'this thread'}</strong> runs through next
-      </span>
-      <button
-        type="button"
-        onClick={onCancel}
-        style={{ ...canvasType.chip, color: shell.muted, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
-      >
-        esc
-      </button>
+      <i aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: colour, flexShrink: 0 }} />
+      <span style={{ ...canvasType.small, fontSize: 12.5, color: shell.text }}>{children}</span>
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{ ...canvasType.chip, color: shell.muted, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}
+        >
+          esc
+        </button>
+      )}
     </div>
   )
 }

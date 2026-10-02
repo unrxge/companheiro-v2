@@ -336,8 +336,8 @@ function Closing() {
 }
 
 // ── Pricing: two plans, Direction leads ─────────────────────────────────────
-// Figures from the v5 working document (Practice and Direction). Not final:
-// update here when the plan is.
+// Every line under a plan must be something lib/billing/entitlements.ts
+// actually gives that plan; change the two together.
 
 type Billing = 'month' | 'year'
 
@@ -351,8 +351,9 @@ const PLANS = [
       'One active project at a time',
       'Unlimited personal check-ins',
       'Define and conceptualise new ideas',
-      'Find, hold and talk to your vision',
-      'Access to the writing suite',
+      'Find and hold your vision',
+      'Access to the writing suite, with its assistant',
+      'A task list on your canvas',
       'Switch projects by resting one for 14 days',
     ],
   },
@@ -364,25 +365,39 @@ const PLANS = [
     features: [
       'Everything in Practice',
       'Have access to unlimited active projects',
-      'The full canvas for every vision',
+      'The full canvas: threads that run across your pieces',
       'Images and recordings beside your words',
-      'Talk through direction whenever you need to',
+      'Talk the whole vision through, from its canvas',
     ],
   },
 ] as const
 
-function PlanButton({ lead }: { lead: boolean }) {
+/**
+ * A plan's own button is for someone who has decided: it carries the plan
+ * through sign-up straight to checkout, with no free month in between
+ * (lib/billing/chosen-plan.ts). The free month stays one line below it.
+ */
+function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' | 'direction'; billing: Billing }) {
   const { t } = useTheme()
-  const href = useAttributedHref(SIGNUP)
+  const href = useAttributedHref(`${SIGNUP}?plan=${plan}&interval=${billing === 'year' ? 'yearly' : 'monthly'}`)
+  const freeHref = useAttributedHref(SIGNUP)
   return (
-    <Link
-      href={href}
-      className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
-      style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
-    >
-      Begin
-      <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
-    </Link>
+    <>
+      <Link
+        href={href}
+        className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+        style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
+      >
+        Subscribe
+        <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
+      </Link>
+      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 10, textAlign: 'center' }}>
+        or{' '}
+        <Link href={freeHref} style={{ color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          try everything free for 30 days
+        </Link>
+      </p>
+    </>
   )
 }
 
@@ -413,14 +428,14 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
         ))}
       </ul>
       <div className="mt-8">
-        <PlanButton lead={lead} />
+        <PlanButton lead={lead} plan={plan.id} billing={billing} />
       </div>
     </Card>
   )
 }
 
 const PRICING_FACTS = [
-  { title: '30 days free', body: 'No card needed to start.' },
+  { title: '30 days free', body: 'No card needed to start, and everything in Direction to try.' },
   // Every line here must be something the product actually does today.
   { title: 'Cancel whenever', body: 'From Settings, in a moment. A full refund if you cancel within 14 days of your first payment.' },
   { title: 'Your work stays yours', body: 'If you stop paying, everything you made stays readable and exportable.' },

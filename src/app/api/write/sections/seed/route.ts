@@ -6,6 +6,7 @@ import { MODELS } from '@/lib/models'
 import { withLanguage } from '@/lib/language'
 import { logUsage } from '@/lib/usage-log'
 import { snapshotPiece } from '@/lib/studio/revisions'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 // Derives an editable section skeleton (child studio_nodes under node_id)
 // from the root node's emotional_journey (each beat -> one section, with a
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest) {
 
     const { node_id, force } = await request.json()
     if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
+    const notActive = await nodeGate(auth, node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth
 

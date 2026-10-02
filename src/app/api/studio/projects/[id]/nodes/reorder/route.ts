@@ -4,9 +4,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, isStringArray, readJson,
+  badRequest, fromDbError, isRecord, isStringArray, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { NODE_COLS, normaliseNode } from '@/lib/studio/nodes-db'
 
 type Params = { params: Promise<{ id: string }> }
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!isRecord(body) || !isStringArray(body.ids)) throw badRequest('ids must be a list')
 
     const project = await requireProject(auth, id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     const { data: tops, error } = await auth.supabase
       .from('studio_nodes')

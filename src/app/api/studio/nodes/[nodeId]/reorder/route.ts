@@ -4,9 +4,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, isStringArray, readJson,
+  badRequest, fromDbError, isRecord, isStringArray, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { NODE_COLS, normaliseNode, requireNode } from '@/lib/studio/nodes-db'
 import { resyncFrom } from '@/lib/studio/write-nodes'
 
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const parent = await requireNode(auth, nodeId)
     const project = await requireProject(auth, parent.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     const { data: children, error } = await auth.supabase
       .from('studio_nodes')

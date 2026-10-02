@@ -57,6 +57,7 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 | `captures` | `/api/idea-lab/captures` | `/api/collector/capture` | Explicit columns | Collector flow; safe to extend |
 | `session_logs` | `/api/project-board/session-log` | Session logging | Explicit columns | Track piece work sessions |
 | `studio_post_publication_logs` | `/api/idea-lab/continuations`, `lib/companion-context.ts`, `lib/recall.ts`, `/api/trajectory/converse`, `/api/letter` | `/api/post-publication/log` | Explicit columns | Close the loop. The old `post_publication_logs` is legacy (copied in by studio migration 009); read this one |
+| `studio_board_items` | `/api/studio/projects/[id]/items` (GET), `/api/account` (export) | `/api/studio/projects/[id]/items` (POST), `/api/studio/items/[itemId]` | Explicit columns (`ITEM_COLS`) | Migration 028. Images, recordings and task lists on a project's canvas. Until it is applied the items route answers `ready: false` and the canvas offers threads only. Files live in `studio_assets` + the `studio-media` bucket; the companion reads neither |
 
 ---
 
@@ -97,6 +98,18 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 - Accent colors: `#10B981` (active), `#F59E0B` (queue), `#8B5CF6` (completed)
 - No custom CSS; compose with Tailwind classes
 - Mobile-first: use `md:` breakpoint for desktop adjustments
+
+---
+
+## Plans and what they allow
+
+One place decides what a plan includes: `entitlementsFor()` in `src/lib/billing/entitlements.ts` (pure, shared by server and browser). Never branch on `subscription.tier` anywhere else.
+
+- **Trial** (30 days): everything Direction has. **Practice**: one active project at a time, no new threads, images or recordings, no "Talk about the vision". **Direction**: no limits. **Ended** (trial ran out, plan cancelled): Practice's shape with the companion off. **Grandfathered**: everything.
+- **Server checks** live in `src/lib/studio/plan-access.ts`: `assertWorkable` / `assertNodeWorkable` / `nodeGate` (is this the project being worked on?), `assertFeature` (threads, media, visionTalk), `claimActivePlace` (moving into Active: swap, 14-day rest, the downgrade choice), `stageForNewProject` (new projects land in the Queue when the place is taken). Any new route that changes a project's content should call one of them.
+- **The place in Active** is `studio_projects.shelf_stage = 'active'`. A project that gives it up to another rests (`resting_until`) for `REST_DAYS`; when it left is kept in `settings.left_active_at`.
+- **Browser side**: `usePlan()` (`src/lib/billing/use-plan.ts`) for the plan, `access` from `useWork()` for one project, `PlanNote` / `PlanBanner` for saying a limit was met. The pricing lines in `components/landing/landing.tsx` and the Terms (section 5) must match the entitlements.
+- **Preview without an account**: `/dev/work-page?plan=practice|direction|ended|cancelled` (add `&view=kanban`, `&board=1&pieces=1`, `&over=1`, `&reading=1`), and `/dev/board` for the canvas with images and recordings.
 
 ---
 

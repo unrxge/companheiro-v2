@@ -3,10 +3,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { normaliseRules } from '@/lib/studio/nodes-db'
 import {
-  badRequest, bumpCanvasVersion, fromDbError, isFiniteNumber, isRecord, isString, loadBundle, noContent,
+  badRequest, bumpCanvasVersion, fromDbError, isFiniteNumber, isRecord, isString, loadBundle, MEDIA_BUCKET, noContent,
   notFound, nowIso, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
-import type { PatchProjectRequest, Project, ProjectStatus, Viewport } from '@/lib/studio/types'
+import {
+  assertProjectIdWorkable, claimActivePlace, settingsOnLeaving, settingsOnReturning,
+} from '@/lib/studio/plan-access'
+import type { PatchProjectRequest, Project, ProjectSettings, ProjectStatus, Viewport } from '@/lib/studio/types'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -40,6 +43,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const patch: Record<string, unknown> = {}
     let bump = false
 
+    // Changing what the project says is work on it; moving it between
+    // columns or around a canvas is not.
+    if (body.title !== undefined || body.intent !== undefined || body.rules !== undefined) {
+      await assertProjectIdWorkable(auth, project.id)
+    }
+
     if (body.title !== undefined) {
       if (!isString(body.title) || !body.title.trim()) throw badRequest('title must be text')
       patch.title = body.title.trim().slice(0, 120)
@@ -55,8 +64,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.shelf_stage !== undefined) {
       if (!isString(body.shelf_stage) || !SHELF_STAGES.has(body.shelf_stage)) throw badRequest('unknown shelf_stage')
       patch.shelf_stage = body.shelf_stage
-      if (body.shelf_stage !== project.shelf_stage) {
+      const was = project.shelf_stage ?? 'active'
+      if (body.shelf_stage !== was) {
         patch.completed_at = body.shelf_stage === 'completed' ? nowIso() : null
+        // The place in Active is the plan's to give (lib/studio/plan-access.ts):
+        // taking it may send another project to rest, leaving it is remembered.
+        if (body.shelf_stage === 'active') {
+          await claimActivePlace(auth, project, { swap: body.swap === true, keepOnly: body.keep_only === true })
+          patch.resting_until = null
+          patch.settings = settingsOnReturning(project.settings)
+        } else if (was === 'active') {
+          patch.settings = settingsOnLeaving(project.settings)
+        }
+      } else if (body.shelf_stage === 'active' && body.keep_only === true) {
+        // Already in Active, chosen as the one to keep after the plan got smaller.
+        await claimActivePlace(auth, project, { keepOnly: true })
       }
     }
     if (body.completion_note !== undefined) {
@@ -92,7 +114,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     if (body.settings !== undefined) {
       if (!isRecord(body.settings)) throw badRequest('settings must be an object')
-      const next = { ...project.settings }
+      const next = { ...((patch.settings as ProjectSettings | undefined) ?? project.settings) }
       for (const key of ['snap', 'grid', 'sizes', 'board'] as const) {
         if (body.settings[key] !== undefined) {
           if (typeof body.settings[key] !== 'boolean') throw badRequest(`settings.${key} must be a boolean`)
@@ -113,7 +135,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       patch.composed_at = body.composed_at
       bump = true
     }
-    if (Object.keys(patch).length === 0) throw badRequest('nothing to change')
+    if (Object.keys(patch).length === 0) {
+      // Keeping the one already in Active changes the others, not this row.
+      if (body.keep_only === true) return NextResponse.json({ project })
+      throw badRequest('nothing to change')
+    }
 
     // status changes go through the trigger: an early wake raises and lands here as 409
     const { data, error } = await auth.supabase
@@ -137,7 +163,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
   return withAuth(async (auth) => {
-    await requireProject(auth, id)
+    const project = await requireProject(auth, id)
+    // Its images and recordings go too. The rows cascade; the files do not,
+    // so they are removed first. Best effort: a file left behind is storage
+    // to tidy, never a reason to keep a project someone asked to delete.
+    try {
+      const bucket = auth.supabase.storage.from(MEDIA_BUCKET)
+      const folder = `${auth.user.id}/${project.id}`
+      const { data: files } = await bucket.list(folder, { limit: 1000 })
+      if (files?.length) await bucket.remove(files.map((f) => `${folder}/${f.name}`))
+    } catch (e) {
+      console.error('[studio] project files not removed:', e)
+    }
     const { error } = await auth.supabase.from('studio_projects').delete().eq('id', id)
     if (error) throw fromDbError(error)
     return noContent()

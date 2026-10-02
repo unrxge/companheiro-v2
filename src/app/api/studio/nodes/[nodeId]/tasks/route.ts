@@ -10,6 +10,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { badRequest, fromDbError, isRecord, isString, readJson, withAuth } from '@/lib/studio/db'
 import { requireNode } from '@/lib/studio/nodes-db'
+import { assertProjectIdWorkable } from '@/lib/studio/plan-access'
 
 type Params = { params: Promise<{ nodeId: string }> }
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { nodeId } = await params
   return withAuth(async (auth) => {
     const node = await requireNode(auth, nodeId)
+    await assertProjectIdWorkable(auth, node.project_id)
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
     if (!isString(body.title) || !body.title.trim()) throw badRequest('title required')

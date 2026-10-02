@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabase/route";
 import { wordCount } from "@/lib/studio/tree";
+import { claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
 
 // "Bring an idea" → "Skip to writing": the idea is already clear, so no
 // conversation and no core-concept document up front. Creates the project
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest) {
     const text = body.text?.trim() ?? "";
     // No generated title: naming it is usually the first thing people do.
     const title = "Untitled";
+    // Active when the plan has room; the Queue when another project holds the place.
+    const stage = await stageForNewProject(auth);
 
     const { data: project, error: projectError } = await supabase
       .from("studio_projects")
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest) {
         rules: [],
         arc: null,
         thematic_territory: null,
-        shelf_stage: "active",
+        shelf_stage: stage,
         canvas_version: 1,
         composed_at: null,
       })
@@ -38,6 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: `Failed to create project: ${projectError?.message ?? "unknown"}` }, { status: 500 });
     }
     const projectId = project.id as string;
+    if (stage === "active") await claimActivePlace(auth, { id: projectId, resting_until: null }).catch(() => {});
 
     const { error: conceptError } = await supabase.from("studio_concept_revisions").insert({
       user_id: user.id,

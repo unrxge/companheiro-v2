@@ -15,8 +15,10 @@ import { formatDateAsRelative } from '@/lib/dates'
 import type { CarriedThought } from '@/lib/studio/types'
 
 export function CarriedCard({
-  projectId, thought, pieces, onAnswered, disabled = false,
+  projectId, thought, pieces, onAnswered, disabled = false, asFragment = false,
 }: {
+  /** Where threads are not part of the plan, their words are kept as a fragment instead. */
+  asFragment?: boolean
   projectId: string
   thought: CarriedThought
   /** The project's pieces. With more than one, they say which it runs through. */
@@ -27,7 +29,7 @@ export function CarriedCard({
 }) {
   const { t } = useTheme()
   const [name, setName] = useState('')
-  const choosing = pieces.length > 1
+  const choosing = !asFragment && pieces.length > 1
   const [chosen, setChosen] = useState<string[]>([])
   const ready = !choosing || chosen.length > 0
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null)
@@ -63,7 +65,7 @@ export function CarriedCard({
       <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0, fontStyle: 'italic' }}>“{thought.text}”</p>
       {!disabled && (
         <>
-          <input
+          {!asFragment && <input
             aria-label="A name for the thread"
             value={name}
             maxLength={120}
@@ -75,7 +77,7 @@ export function CarriedCard({
               ...canvasType.small, color: t.textPrimary, background: t.inputBg,
               border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '8px 10px', outline: 'none',
             }}
-          />
+          />}
           {choosing && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ ...canvasType.chip, color: t.textMuted }}>Runs through</span>
@@ -103,7 +105,7 @@ export function CarriedCard({
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }}>
             <QuietButton size="sm" onClick={() => void answer('accept')} disabled={!ready} loading={busy === 'accept'} loadingLabel="Adding…">
-              Add it as a thread
+              {asFragment ? 'Keep it as a fragment' : 'Add it as a thread'}
             </QuietButton>
             <GhostButton size="sm" onClick={() => void answer('decline')} disabled={!!busy}>Not for this project</GhostButton>
             {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}

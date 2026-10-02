@@ -42,6 +42,11 @@ import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { HistoryPanel } from '@/components/studio/work/history-panel'
 import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
 import { CarriedCard } from '@/components/studio/work/carried-card'
+import { PlanBanner } from '@/components/studio/work/plan-banner'
+import { PlanNote } from '@/components/billing/plan-note'
+import { loadPlan } from '@/lib/billing/use-plan'
+import { useBoardItems } from '@/lib/studio/use-board-items'
+import type { PlusChoice } from '@/components/studio/work/board-items'
 
 export type Focus =
   | { kind: 'project' }
@@ -88,7 +93,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const router = useRouter()
   const go = useTravel()
   const confirm = useConfirm()
-  const { state, project, tree, roots, api, saving, tagFor } = useWork(projectId)
+  const { state, project, tree, roots, api, saving, tagFor, access } = useWork(projectId)
+  // The images, recordings and task lists on the canvas; only the canvas asks for them.
+  const board = useBoardItems(projectId, focus.kind === 'project')
+  // What the plan does not carry, when it is asked for: said once, with the way to the plans.
+  const [planNote, setPlanNote] = useState<'thread' | 'media' | 'talk' | null>(null)
   const [view, setView] = useState<View>('write')
   const [rail, setRail] = useState<RailKey | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -153,7 +162,13 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     focus.kind === 'thread' ? tree.threads.find((th) => th.id === focus.id) ?? null : null
   const trail = useMemo(() => (node ? pathTo(roots, node.id) : []), [roots, node])
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
-  const readOnly = project?.status !== 'active'
+  // Read, never changed: a project that is over, or one the plan is not
+  // carrying right now (lib/studio/plan-access.ts). With no word from the
+  // server about the plan, nothing is locked.
+  const readOnly = project?.status !== 'active' || access?.workable === false
+  const canThread = access?.threads ?? true
+  const canMedia = access?.media ?? true
+  const canTalkVision = access?.visionTalk ?? true
 
   // A whole piece (not a part of one) carries the Write page's tools with it.
   const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
@@ -291,6 +306,24 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     await api.removeThread(th.id)
   }, [api, projectRules, setProjectField])
 
+  /** An image or a recording goes for good, file and all, so it asks first.
+   *  A task list asks only when it holds tasks of its own. */
+  const removeItem = useCallback(async (item: { id: string; kind: string; content: { tasks?: unknown[] } }) => {
+    const own = item.kind === 'tasks' ? item.content.tasks?.length ?? 0 : 0
+    if (item.kind !== 'tasks' || own > 0) {
+      const ok = await confirm({
+        title: item.kind === 'image' ? 'Remove this image?' : item.kind === 'recording' ? 'Remove this recording?' : 'Remove this task list?',
+        body: item.kind === 'tasks'
+          ? `The ${own === 1 ? 'task' : `${own} tasks`} added to it ${own === 1 ? 'goes' : 'go'} with it. The writing tasks stay where they are, on the pieces.`
+          : 'It is deleted, not only taken off the canvas. This cannot be undone.',
+        confirmLabel: 'Remove',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    await board.api.remove(item.id)
+  }, [board.api, confirm])
+
   /** Shaping, placing and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
   const reshape = useCallback(async (kind: 'shape' | 'place' | 'divide', pieceId: string, alreadyParts = false) => {
     if (shaping) return
@@ -341,7 +374,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
 
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
-    addPiece: () => void api.addNode(null),
+    addPiece: (x) => void api.addNode(null).then((made) => {
+      // Something stands at the end of the lane: the new piece goes past it.
+      if (made && x !== null) void api.editNode(made.id, { board_x: x })
+    }),
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
@@ -357,15 +393,22 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     renameProject: (title) => void setProjectField({ title }),
     editProjectIntent: (intent) => void setProjectField({ intent }),
     editProjectRules: (rules) => void setProjectField({ rules }),
-    moveVision: (at) => void setProjectField({ vision_x: at?.x ?? null, vision_y: at?.y ?? null }),
-    /** Clears every hand placement at once: every piece, every thread's hub,
-     *  and the vision block all fall back to their auto positions. */
+    /** Clears every hand placement at once: every piece, every thread's hub
+     *  and every image, recording and task list fall back to their auto positions. */
     tidyBoard: () => {
-      for (const piece of roots) void api.editNode(piece.id, { board_x: null, board_y: null })
-      for (const th of tree.threads) void api.editThread(th.id, { board_x: null, board_y: null })
-      void setProjectField({ vision_x: null, vision_y: null })
+      for (const piece of roots) if (piece.board_x !== null || piece.board_y !== null) void api.editNode(piece.id, { board_x: null, board_y: null })
+      for (const th of tree.threads) if (th.board_x !== null || th.board_y !== null) void api.editThread(th.id, { board_x: null, board_y: null })
+      board.api.clearPlacements(board.items)
     },
-  }), [api, goNode, goThread, makeConstraint, removeNode, roots, router, setProjectField, tree.threads])
+    addTaskList: (pieceId) => board.api.addTasks(pieceId),
+    addImage: (pieceId, file) => board.api.addImage(pieceId, file),
+    addRecording: (pieceId, file, opts) => board.api.addRecording(pieceId, file, opts),
+    patchItem: (id, patch) => void board.api.patch(id, patch),
+    removeItem: (item) => void removeItem(item),
+    toggleTask: (task) => void board.api.toggleTask(task),
+    refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
+    onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
+  }), [api, board.api, board.items, goNode, goThread, makeConstraint, removeItem, removeNode, roots, setProjectField, tree.threads])
 
   // Every project has a canvas, a single piece of writing included: threads
   // go under it and more pieces beside it. The Project Board always opens that
@@ -386,14 +429,29 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       projectId={projectId}
       thought={thought}
       pieces={roots.map((r) => ({ id: r.id, title: r.title }))}
+      asFragment={!canThread}
       disabled={readOnly}
       onAnswered={() => { setAnsweredCarried((prev) => [...prev, thought.id]); void api.refresh() }}
     />
   ))
 
+  // The plan is not carrying this project right now: said where the other
+  // notices sit, with the way through.
+  const planBanner = access && !access.workable && project
+    ? [
+      <PlanBanner
+        key="plan"
+        projectId={projectId}
+        title={project.title}
+        access={access}
+        onSwitched={() => { void loadPlan(true); void api.reload() }}
+      />,
+    ]
+    : []
+
   // Only on the board itself, and only once there are enough pieces for
   // something to run across some of them without running across all.
-  const onBoard = focus.kind === 'project' && state.status === 'ready' && !singlePieceNode && roots.length >= 3 && !readOnly
+  const onBoard = focus.kind === 'project' && state.status === 'ready' && !singlePieceNode && roots.length >= 3 && !readOnly && canThread
   const refreshTree = api.refresh
   const threadIdeas = useThreadSuggestions(projectId, onBoard, useCallback(() => void refreshTree(), [refreshTree]))
 
@@ -628,16 +686,18 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               title: project.title,
               intent: project.intent ?? '',
               rules: projectRules,
-              vision_x: project.vision_x,
-              vision_y: project.vision_y,
               conceptualisation_log: project.conceptualisation_log,
               // Started via "Skip straight to writing": offer the core concept later.
               coreConceptHref: roots.length > 0 && !roots[0].core_truth ? `/idea-lab/core-concept?project=${projectId}` : null,
             }}
             pieces={roots}
             threads={tree.threads}
+            items={board.items}
+            assets={board.assets}
+            tasks={board.tasks}
+            tools={{ threads: canThread, media: canMedia, items: board.ready }}
             checks={openChecks}
-            notices={[...carriedCards, ...threadIdeas.suggestions.map((sg) => (
+            notices={[...planBanner, ...carriedCards, ...threadIdeas.suggestions.map((sg) => (
               <ThreadSuggestionCard
                 key={sg.id}
                 suggestion={sg}
@@ -657,11 +717,27 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
              the invitation to talk the vision through, not an afterthought. */}
           <CompanionLauncher
             active={rail === 'companion'}
-            onClick={() => setRail((r) => (r === 'companion' ? null : 'companion'))}
+            locked={!canTalkVision}
+            onClick={() => (canTalkVision ? setRail((r) => (r === 'companion' ? null : 'companion')) : setPlanNote('talk'))}
           />
         </CanvasStage>
         <Dock />
         {companionDrawer}
+        {planNote && (
+          <PlanNote
+            title={planNote === 'talk' ? 'Talking the vision through' : planNote === 'thread' ? 'Threads across your pieces' : 'Images and recordings'}
+            onClose={() => setPlanNote(null)}
+            plansLabel={access?.plan === 'ended' ? 'See plans' : 'See Direction'}
+          >
+            <p style={{ margin: 0 }}>
+              {planNote === 'talk'
+                ? 'A conversation about the whole project, from its canvas, is part of Direction. The writing assistant inside each piece is yours on every plan.'
+                : planNote === 'thread'
+                  ? 'New threads, the things that run through some of your pieces, are part of Direction. The ones already here stay, and a task list can be added on any plan.'
+                  : 'New images and recordings on the canvas are part of Direction. The ones already here stay.'}
+            </p>
+          </PlanNote>
+        )}
       </>
     )
   }
@@ -729,6 +805,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             )}
           </div>
 
+          {planBanner}
           {isRootPiece && carriedCards.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{carriedCards}</div>
           )}

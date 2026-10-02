@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
-import { assertProjectWritable, requireProject } from '@/lib/studio/db'
+import { requireProject } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { pieceOf, readPiece, restorePiece, type RevisionPart } from '@/lib/studio/revisions'
 
 // Document history for a piece. GET ?node_id= lists its revisions (any node in
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     const current = await readPiece(auth, rev.piece_id)
     if (!current) return NextResponse.json({ error: 'Piece not found' }, { status: 404 })
     try {
-      assertProjectWritable(await requireProject(auth, current.projectId))
+      await assertWorkable(auth, await requireProject(auth, current.projectId))
     } catch {
       return NextResponse.json({ error: 'This project is read-only right now.' }, { status: 409 })
     }

@@ -16,9 +16,12 @@ import {
 /** Thrown inside route bodies; `errorResponse` turns it into the JSON the spec lists. */
 export class HttpError extends Error {
   readonly status: number
-  constructor(status: number, message: string) {
+  /** A word the client can act on (a plan limit, say), beside the sentence. */
+  readonly code?: string
+  constructor(status: number, message: string, code?: string) {
     super(message)
     this.status = status
+    this.code = code
   }
 }
 
@@ -42,7 +45,7 @@ export function fromDbError(err: PgErrorLike | null | undefined, fallback = 'int
 export function errorResponse(e: unknown): NextResponse {
   if (e instanceof HttpError) {
     if (e.status >= 500) console.error('[studio] internal:', e)
-    return NextResponse.json({ error: e.status >= 500 ? 'internal' : e.message }, { status: e.status })
+    return NextResponse.json({ error: e.status >= 500 ? 'internal' : e.message, ...(e.code ? { code: e.code } : {}) }, { status: e.status })
   }
   console.error('[studio] internal:', e)
   return NextResponse.json({ error: 'internal' }, { status: 500 })

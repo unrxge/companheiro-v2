@@ -6,9 +6,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isFiniteNumber, isString, isUuid, MEDIA_BUCKET, readJson,
+  badRequest, fromDbError, isFiniteNumber, isString, isUuid, MEDIA_BUCKET, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertFeature, assertWorkable } from '@/lib/studio/plan-access'
 import type { SignUploadResponse } from '@/lib/studio/types'
 
 /** Mirrors the bucket's allowed_mime_types (migration 001). */
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
     const wantThumb = body.thumb === true && kind === 'image'
 
     const project = await requireProject(auth, project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
+    await assertFeature(auth, 'media')
 
     const asset_id = crypto.randomUUID()
     const folder = `${auth.user.id}/${project.id}`

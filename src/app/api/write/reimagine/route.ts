@@ -6,6 +6,7 @@ import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 // Reimagine: the whole piece, whole sections, or runs of paragraphs, rewritten
 // through a lens the writer found in conversation. Each chosen passage gets
@@ -121,6 +122,8 @@ export async function POST(request: NextRequest) {
     if (!nodeId || !lens || rawTargets.length === 0) {
       return NextResponse.json({ error: 'Missing node_id, lens or targets' }, { status: 400 })
     }
+    const notActive = await nodeGate(auth, nodeId)
+    if (notActive) return notActive
 
     const targets: TargetIn[] = rawTargets
       .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')

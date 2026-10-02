@@ -11,6 +11,7 @@ import type {
 } from '@/lib/studio/node-types'
 import type { Project, ProjectSettings } from '@/lib/studio/types'
 import { buildTree, wordCount } from '@/lib/studio/tree'
+import type { ProjectAccess } from '@/lib/studio/plan-access'
 
 export type WorkState =
   | { status: 'loading' }
@@ -23,6 +24,8 @@ export function useWork(projectId: string) {
   const [state, setState] = useState<WorkState>({ status: 'loading' })
   const [project, setProject] = useState<Project | null>(null)
   const [tree, setTree] = useState<TreePayload>(EMPTY)
+  // What the plan allows on this project. null (an older response, a failed read) locks nothing.
+  const [access, setAccess] = useState<ProjectAccess | null>(null)
   const [saving, setSaving] = useState(0)
   const alive = useRef(true)
 
@@ -41,6 +44,7 @@ export function useWork(projectId: string) {
       if (!alive.current) return
       setProject(res.project)
       setTree(res.tree)
+      setAccess(res.access ?? null)
       setState({ status: 'ready' })
       // Opening a project is what the Project Board sorts by ("last accessed").
       // Fire and forget: a failure here must never get in the way of the work.
@@ -94,6 +98,7 @@ export function useWork(projectId: string) {
         if (!alive.current) return
         setProject(res.project)
         setTree(res.tree)
+        setAccess(res.access ?? null)
       } catch {
         // what is on screen stays
       }
@@ -232,5 +237,5 @@ export function useWork(projectId: string) {
     [tree.tags],
   )
 
-  return { state, project, tree, roots, api, saving: saving > 0, tagFor }
+  return { state, project, tree, roots, api, saving: saving > 0, tagFor, access }
 }

@@ -15,10 +15,13 @@ export const API_BASE = '/api/studio'
 
 export class ApiError extends Error {
   readonly status: number
-  constructor(status: number, message: string) {
+  /** Set when the server refused for a reason the page can act on (a plan limit). */
+  readonly code?: string
+  constructor(status: number, message: string, code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -32,12 +35,14 @@ export interface RequestOptions {
 
 async function errorFrom(res: Response): Promise<ApiError> {
   let message = res.statusText || `http ${res.status}`
+  let code: string | undefined
   try {
     const text = await res.text()
     if (text) {
       try {
-        const parsed = JSON.parse(text) as { error?: unknown }
+        const parsed = JSON.parse(text) as { error?: unknown; code?: unknown }
         if (parsed && typeof parsed.error === 'string') message = parsed.error
+        if (parsed && typeof parsed.code === 'string') code = parsed.code
       } catch {
         message = text.slice(0, 200)
       }
@@ -45,7 +50,7 @@ async function errorFrom(res: Response): Promise<ApiError> {
   } catch {
     // keep the status text
   }
-  return new ApiError(res.status, message)
+  return new ApiError(res.status, message, code)
 }
 
 /** Sends JSON (as text/plain when keepalive, so the body survives page teardown) and returns the raw Response. `path` is relative to /api/studio unless it starts with /api/. */

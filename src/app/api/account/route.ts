@@ -29,6 +29,7 @@ const TABLES = [
   'studio_blocks',
   'studio_links',
   'studio_assets',
+  'studio_board_items',
   'studio_anchor_lines',
   'studio_tasks',
   'studio_drafts',

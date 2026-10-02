@@ -7,6 +7,7 @@ import { htmlToPlainText } from '@/lib/rich-text'
 import { bodyPatch, resyncNodeBody } from '@/lib/studio/write-nodes'
 import { logUsage } from '@/lib/usage-log'
 import { snapshotPiece } from '@/lib/studio/revisions'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 // Divides freely-written prose (the root node's flattened body) across the
 // piece's intended structure, replacing its children (sections) with the
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
 
     const { node_id } = await request.json()
     if (!node_id) return NextResponse.json({ error: 'Missing node_id' }, { status: 400 })
+    const notActive = await nodeGate(auth, node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth
 

@@ -4,9 +4,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, noContent, readJson,
+  badRequest, fromDbError, isRecord, noContent, readJson,
   requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertWorkable } from '@/lib/studio/plan-access'
 import { requireNode, requireThread } from '@/lib/studio/nodes-db'
 
 type Params = { params: Promise<{ nodeId: string; threadId: string }> }
@@ -20,7 +21,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const thread = await requireThread(auth, threadId)
     if (node.project_id !== thread.project_id) throw badRequest('a thread never leaves its project')
     const project = await requireProject(auth, node.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
 
     const note =
       isRecord(body) && typeof body.note === 'string' ? body.note.slice(0, NOTE_MAX) : ''
@@ -41,7 +42,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   return withAuth(async (auth) => {
     const node = await requireNode(auth, nodeId)
     const project = await requireProject(auth, node.project_id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
     const { error } = await auth.supabase
       .from('studio_node_threads')
       .delete()

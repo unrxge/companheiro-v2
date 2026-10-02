@@ -7,6 +7,7 @@ import {
 import { nextPosition } from '@/lib/studio/nodes-db'
 import type { CreateProjectRequest } from '@/lib/studio/types'
 import type { Rule } from '@/lib/studio/node-types'
+import { claimActivePlace, stageForNewProject } from '@/lib/studio/plan-access'
 
 export async function GET() {
   return withAuth(async (auth) => {
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
     const input = parseCreate(await readJson(req))
     const sb = auth.supabase
     const now = nowIso()
+    // Active when the plan has room; the Queue when another project holds the place.
+    const stage = await stageForNewProject(auth)
 
     const constraintRules: Rule[] = input.concept.constraints.map((text) => ({
       id: crypto.randomUUID(),
@@ -71,6 +74,7 @@ export async function POST(req: NextRequest) {
         title: input.title,
         intent: input.concept.body,
         rules: constraintRules,
+        shelf_stage: stage,
         canvas_version: 1,
         composed_at: null,
       })
@@ -125,6 +129,8 @@ export async function POST(req: NextRequest) {
       await sb.from('studio_projects').delete().eq('id', projectId)
       throw e
     }
+
+    if (stage === 'active') await claimActivePlace(auth, { id: projectId, resting_until: null }).catch(() => {})
 
     return NextResponse.json({ bundle: { project: { id: projectId } } }, { status: 201 })
   })

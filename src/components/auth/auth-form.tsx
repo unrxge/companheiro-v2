@@ -25,6 +25,7 @@ import { type as typeRoles } from '@/lib/design-tokens'
 import { readAttribution } from '@/lib/attribution'
 import type { OAuthProvider } from '@/lib/auth-providers'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
+import { chosenPlanLine, chosenPlanQuery, readChosenPlan, type ChosenPlan } from '@/lib/billing/chosen-plan'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google' }
 
@@ -33,6 +34,12 @@ function callbackUrl(next?: 'set-password'): string {
   const callback = new URL('/api/auth/callback', window.location.origin)
   if (next) callback.searchParams.set('next', next)
   for (const [k, v] of Object.entries(readAttribution())) if (v) callback.searchParams.set(k, v)
+  // A plan chosen on the landing page travels with them to checkout.
+  const chosen = readChosenPlan(window.location.search)
+  if (chosen) {
+    callback.searchParams.set('plan', chosen.tier)
+    callback.searchParams.set('interval', chosen.interval)
+  }
   return callback.toString()
 }
 
@@ -44,6 +51,9 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   // True once the server has said this address has an account.
   const [askPassword, setAskPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Set when they came from a plan's own button on the landing page: they are
+  // signing up to pay for that plan now, not to start the free month.
+  const [chosen, setChosen] = useState<ChosenPlan | null>(null)
 
   // ?error=oauth comes back from /api/auth/callback when a Google sign-in or
   // email link failed. Read here rather than on the server so the page itself
@@ -51,6 +61,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   useEffect(() => {
     // Nobody is signed in on this page: forget the last person's project list.
     lastSeenProjects.clear()
+    setChosen(readChosenPlan(window.location.search))
     if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
       setError('That sign-in link didn’t work or has expired. Please try again.')
     }
@@ -117,7 +128,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
       return run(async () => {
         const { error: err } = await createClient().auth.signInWithPassword({ email: address, password })
         if (err) setError('That password didn’t match. Try again, or use “Forgot password?” to set a new one.')
-        else router.push('/home')
+        else router.push(chosen ? `/subscribe?${chosenPlanQuery(chosen)}` : '/home')
       })
     }
     return run(async () => {
@@ -141,7 +152,14 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   const link: React.CSSProperties = { color: t.textPrimary, textDecoration: 'underline', textUnderlineOffset: 3 }
 
   return (
-    <AuthShell title="Your vision is waiting." subtitle="Try Companheiro risk-free for 30 days. No card needed." wide>
+    <AuthShell
+      title="Your vision is waiting."
+      subtitle={chosen
+        ? `Sign in or create your account, then on to checkout for ${chosenPlanLine(chosen)}.`
+        : 'Try Companheiro risk-free for 30 days. No card needed.'}
+      footer={chosen ? <span>Rather look around first? <Link href="/login" onClick={() => setChosen(null)} style={{ color: t.textPrimary, textDecoration: 'underline', textUnderlineOffset: 3 }}>Start with 30 days free</Link></span> : undefined}
+      wide
+    >
       {sentTo ? (
         <div role="status">
           <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary }}>Check your email.</p>

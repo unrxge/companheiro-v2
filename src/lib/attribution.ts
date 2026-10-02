@@ -46,7 +46,7 @@ export function useAttributedHref(href: string): string {
     }
     if (!next.has('landing') && next.size > 0) next.set('landing', window.location.pathname)
     const q = next.toString()
-    setOut(q ? `${href}?${q}` : href)
+    setOut(q ? `${href}${href.includes('?') ? '&' : '?'}${q}` : href)
   }, [href])
   return out
 }

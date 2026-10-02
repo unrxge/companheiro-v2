@@ -5,6 +5,7 @@ import { checkNodeAgainstRules } from "@/lib/studio/rule-check";
 import { generateTasks } from "@/lib/generate-tasks";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
+import { claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
 
 interface SaveRequest {
   one_sentence: string;
@@ -82,6 +83,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     const userId = userData.user.id;
+    const auth = { supabase, user: userData.user };
+    // Active when the plan has room; the Queue when another project holds the place.
+    const stage = await stageForNewProject(auth);
 
     // Normalise the arc to its enum values. The theme is whatever this piece
     // is about, in the person's own words — it is deliberately not matched
@@ -136,7 +140,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
           rules: [],
           arc: normalisedArc,
           thematic_territory: theme,
-          shelf_stage: "active",
+          shelf_stage: stage,
           canvas_version: 1,
           composed_at: null,
         },
@@ -153,6 +157,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     const projectId = projectData.id as string;
+    if (stage === "active") await claimActivePlace(auth, { id: projectId, resting_until: null }).catch(() => {});
 
     // The back-and-forth that shaped this, kept for re-reading from the board.
     // Separate from the insert so a missing column (migration 023 not yet

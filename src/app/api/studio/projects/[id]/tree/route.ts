@@ -4,6 +4,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireProject, withAuth } from '@/lib/studio/db'
 import { loadTree } from '@/lib/studio/nodes-db'
+import { projectAccess } from '@/lib/studio/plan-access'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -13,6 +14,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     // Side by side: the tree read is limited to the person's own rows by the
     // database, and a project that is not theirs fails requireProject either way.
     const [project, tree] = await Promise.all([requireProject(auth, id), loadTree(auth, id)])
-    return NextResponse.json({ project, tree })
+    // What the plan allows here: whether this is the project being worked on,
+    // and which canvas tools it carries.
+    const access = await projectAccess(auth, project)
+    return NextResponse.json({ project, tree, access })
   })
 }

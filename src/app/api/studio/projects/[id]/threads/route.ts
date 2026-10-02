@@ -3,8 +3,9 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  assertProjectWritable, badRequest, fromDbError, isRecord, readJson, requireProject, withAuth,
+  badRequest, fromDbError, isRecord, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
+import { assertFeature, assertWorkable } from '@/lib/studio/plan-access'
 import { THREAD_COLS, clampText, normaliseThread } from '@/lib/studio/nodes-db'
 import type { ThreadHue } from '@/lib/studio/node-types'
 
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!isRecord(body)) throw badRequest('body required')
 
     const project = await requireProject(auth, id)
-    assertProjectWritable(project)
+    await assertWorkable(auth, project)
+    await assertFeature(auth, 'threads')
 
     const { count, error: countErr } = await auth.supabase
       .from('studio_threads')

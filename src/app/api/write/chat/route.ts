@@ -11,6 +11,7 @@ import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
 import { normaliseRules } from "@/lib/studio/nodes-db";
 import { proposeRules, type RuleProposal } from "@/lib/studio/rule-proposals";
+import { nodeGate } from "@/lib/studio/plan-access";
 
 interface ActiveSection {
   id: string;
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
     if (!body.message || !body.node_id) {
       return NextResponse.json({ response: "" }, { status: 400 });
     }
+    const notActive = await nodeGate(auth, body.node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth;
 

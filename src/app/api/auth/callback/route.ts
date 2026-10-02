@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase/route'
 import { adminClient } from '@/lib/supabase/admin'
 import { LEGAL_VERSION } from '@/lib/legal'
+import { chosenPlanQuery, readChosenPlan } from '@/lib/billing/chosen-plan'
 
 // Where Google sends people back to (the `redirectTo` given to
 // signInWithOAuth on /login). Supabase has already verified them with the
@@ -85,7 +86,15 @@ export async function GET(request: Request) {
 
   // /home sends accounts that haven't been through first run on to /tour, then /welcome.
   // New sign-ups arrive with next=set-password: choose a password first.
-  if (url.searchParams.get('next') === 'set-password') return NextResponse.redirect(new URL('/reset?set=1', origin))
+  // A plan chosen on the landing page: on to checkout for it (after the
+  // password, for an email sign-up), skipping the free month. /subscribe
+  // sends anyone who already has a plan on to /home.
+  const chosen = readChosenPlan(url.searchParams)
+  const planQuery = chosen ? chosenPlanQuery(chosen) : null
+  if (url.searchParams.get('next') === 'set-password') {
+    return NextResponse.redirect(new URL(planQuery ? `/reset?set=1&${planQuery}` : '/reset?set=1', origin))
+  }
+  if (planQuery) return NextResponse.redirect(new URL(`/subscribe?${planQuery}`, origin))
   // A new Google account is active from here: the tour comes first, once.
   if (isNew && !user.user_metadata?.tour_seen_at) return NextResponse.redirect(new URL('/tour', origin))
   return NextResponse.redirect(new URL('/home', origin))

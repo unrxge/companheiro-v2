@@ -9,6 +9,8 @@ import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { LEGAL_PAGES } from '@/lib/legal'
+import { oneAtATimeLine } from '@/lib/billing/entitlements'
+import { PLAN_EVENTS, primePlan, type PlanStatus } from '@/lib/billing/use-plan'
 
 // Loaded only when "See plans" is pressed. This gate sits in the root layout,
 // so a plain import would ship the settings sheet (and the Supabase client it
@@ -20,17 +22,15 @@ const SettingsSheet = dynamic(() => import('@/components/settings/settings-sheet
 const GATE_HEADER = 'x-companheiro-gate'
 const SEEN_KEY = 'companheiro:trial-ended-seen'
 const NEAR_KEY = 'companheiro:near-limit-seen'
+const CHOICE_KEY = 'companheiro:project-choice-seen'
 const NEAR_SHARE = 0.8
 const NEAR_VISIBLE_MS = 12_000
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', ...LEGAL_PAGES.map((p) => p.href as string)]
+// /subscribe is on its way to checkout: no notice should stand in front of that.
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', '/subscribe', ...LEGAL_PAGES.map((p) => p.href as string)]
 
 type Reason = 'trial_ended' | 'fair_use'
 
-export type Status = {
-  subscription: { status: string; tier: 'practice' | 'direction' | null; repeat_trial?: boolean } | null
-  access: 'uncapped' | 'capped' | 'no_access'
-  usage: { plan: 'trial' | 'practice' | 'direction'; period: string; used_micros: number; cap_micros: number } | null
-}
+export type Status = PlanStatus
 
 function firstOfNextMonth(): string {
   const now = new Date()
@@ -50,6 +50,7 @@ export function AccessGate() {
   const [status, setStatus] = useState<Status | null>(null)
   const [plansOpen, setPlansOpen] = useState(false)
   const [near, setNear] = useState(false)
+  const [choosing, setChoosing] = useState(false)
   const dismissNear = useCallback(() => setNear(false), [])
   const isPublic = PUBLIC_PATHS.includes(pathname ?? '')
 
@@ -73,6 +74,20 @@ export function AccessGate() {
     }
   }, [isPublic])
 
+  // Any screen can ask for the plans, or for the choice of which project to
+  // keep (lib/billing/use-plan.ts), without carrying the sheet itself.
+  useEffect(() => {
+    if (isPublic) return
+    const plans = () => { setReason(null); setChoosing(false); setPlansOpen(true) }
+    const choose = () => setChoosing(true)
+    window.addEventListener(PLAN_EVENTS.plans, plans)
+    window.addEventListener(PLAN_EVENTS.choose, choose)
+    return () => {
+      window.removeEventListener(PLAN_EVENTS.plans, plans)
+      window.removeEventListener(PLAN_EVENTS.choose, choose)
+    }
+  }, [isPublic])
+
   useEffect(() => {
     if (isPublic) return
     fetch('/api/billing/status')
@@ -80,6 +95,19 @@ export function AccessGate() {
       .then((d: Status | null) => {
         if (!d) return
         setStatus(d)
+        primePlan(d)
+        // More projects in Active than the plan carries: asked once per
+        // session on arrival, and again whenever a screen asks for it.
+        if (d.over_limit?.length) {
+          let asked = false
+          try {
+            asked = sessionStorage.getItem(CHOICE_KEY) === '1'
+            sessionStorage.setItem(CHOICE_KEY, '1')
+          } catch {
+            // storage blocked: ask
+          }
+          if (!asked) setChoosing(true)
+        }
         if (d.usage && d.usage.used_micros >= d.usage.cap_micros * NEAR_SHARE && d.usage.used_micros < d.usage.cap_micros) {
           // Once per browser session and per period: a heads-up when someone
           // arrives, never a fixture that follows them from page to page.
@@ -109,6 +137,9 @@ export function AccessGate() {
   }, [isPublic])
 
   if (plansOpen) return <SettingsSheet onClose={() => setPlansOpen(false)} />
+  if (choosing && !reason && status?.over_limit?.length) {
+    return <KeepOneNotice status={status} onClose={() => setChoosing(false)} onPlans={() => { setChoosing(false); setPlansOpen(true) }} />
+  }
   if (!reason) {
     return near && status?.usage ? <NearLimitBanner plan={status.usage.plan} onClose={dismissNear} /> : null
   }
@@ -235,12 +266,14 @@ export function FairUseNotice({ status, onClose, onPlans }: { status: Status | n
 
 export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
   const s = useText()
-  const repeat = status?.subscription?.repeat_trial === true
+  // A plan that was paid for and then cancelled never reads as a free month.
+  const cancelled = status?.subscription?.status === 'canceled'
+  const repeat = !cancelled && status?.subscription?.repeat_trial === true
 
   return (
     <ModalDialog
       onClose={onClose}
-      title={repeat ? 'This address has had its free month' : 'Your free month has ended'}
+      title={cancelled ? 'Your plan has ended' : repeat ? 'This address has had its free month' : 'Your free month has ended'}
       maxWidth="520px"
       footer={<Footer onClose={onClose} onPlans={onPlans} plansLabel="Choose a plan" />}
     >
@@ -252,11 +285,11 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
       ) : (
         <p style={s.body}>
           Everything you made is still here: your pieces, your notes, and what the companion has learned about how you work. None of it
-          goes anywhere, and you can read all of it.
+          goes anywhere. You can read and export all of it, and keep writing in the project you&rsquo;re working on.
         </p>
       )}
       <p style={s.body}>
-        To keep working with the companion, choose a plan. Practice is €9 a month, for one active project in words. Direction is €29, for
+        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is €9 a month, for one active project in words. Direction is €29, for
         several projects in any medium.
       </p>
       {CONTACT_EMAIL && (
@@ -265,6 +298,87 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
           number of reduced places for people who need them.
         </p>
       )}
+    </ModalDialog>
+  )
+}
+
+/**
+ * The plan carries fewer projects than are in Active (a free month that
+ * ended, or a move from Direction to Practice). Nothing is taken away: the
+ * person says which one they are working on, and the rest wait in the Queue.
+ */
+export function KeepOneNotice({ status, onClose, onPlans }: { status: Status; onClose: () => void; onPlans: () => void }) {
+  const { t } = useTheme()
+  const s = useText()
+  const projects = status.over_limit ?? []
+  const [chosen, setChosen] = useState<string | null>(projects[0]?.id ?? null)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const line = oneAtATimeLine(status.entitlements?.plan ?? 'practice')
+
+  const keep = async () => {
+    if (!chosen || busy) return
+    setBusy(true)
+    setFailed(false)
+    try {
+      const res = await fetch(`/api/studio/projects/${chosen}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ shelf_stage: 'active', keep_only: true }),
+      })
+      if (!res.ok) throw new Error('failed')
+      // Every screen that listed or opened a project reads it afresh.
+      window.location.reload()
+    } catch {
+      setFailed(true)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <ModalDialog
+      onClose={onClose}
+      title="Which one are you working on?"
+      maxWidth="520px"
+      footer={
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+          <GhostButton size="sm" onClick={onClose}>Decide later</GhostButton>
+          <GhostButton size="sm" onClick={onPlans}>See Direction</GhostButton>
+          <PrimaryButton size="sm" onClick={() => void keep()} disabled={!chosen} loading={busy} loadingLabel="Saving…">Keep this one</PrimaryButton>
+        </div>
+      }
+    >
+      <p style={s.body}>
+        {line} You have {projects.length} in Active. Choose the one to keep working on. The others go to
+        your Queue. Nothing is deleted: you can read and export them, and switch to one of them later.
+      </p>
+      <div role="radiogroup" aria-label="The project to keep working on" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {projects.map((p) => {
+          const on = chosen === p.id
+          return (
+            <button
+              key={p.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => setChosen(p.id)}
+              style={{
+                ...typeRoles.ui, fontSize: 15, textAlign: 'left', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12,
+                border: `1px solid ${on ? t.ember : t.divider}`, background: on ? t.cardBgInner : 'transparent', color: t.textPrimary,
+              }}
+            >
+              <span aria-hidden style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, border: `1px solid ${on ? t.ember : t.textMuted}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {on && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.ember }} />}
+              </span>
+              {p.title.trim() || 'Untitled'}
+            </button>
+          )
+        })}
+      </div>
+      {failed && <p role="alert" style={{ ...s.fine, color: t.danger }}>That did not save. Try again.</p>}
+      <p style={s.fine}>Until you choose, your projects can be read but not changed.</p>
     </ModalDialog>
   )
 }

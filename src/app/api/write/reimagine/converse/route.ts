@@ -5,6 +5,7 @@ import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
 import { streamClaudeText } from '@/lib/streaming'
 import { withLanguage } from '@/lib/language'
+import { nodeGate } from "@/lib/studio/plan-access";
 
 interface Message {
   role: 'user' | 'assistant'
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest) {
     if (!body.node_id || !Array.isArray(body.messages)) {
       return NextResponse.json({ response: '' }, { status: 400 })
     }
+    const notActive = await nodeGate(auth, body.node_id)
+    if (notActive) return notActive
 
     const { supabase, user } = auth
 

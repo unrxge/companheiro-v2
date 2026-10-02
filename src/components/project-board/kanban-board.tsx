@@ -26,6 +26,9 @@ import { api, ApiError } from '@/lib/studio/api-client'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { projectState } from '@/lib/studio/shelf-view'
 import type { ShelfProject } from '@/lib/studio/types'
+import { isResting, oneAtATimeLine, REST_DAYS, restEndsAt } from '@/lib/billing/entitlements'
+import { usePlan } from '@/lib/billing/use-plan'
+import { PlanNote } from '@/components/billing/plan-note'
 
 interface ConceptualiseDraft {
   id: string
@@ -53,6 +56,7 @@ const STAGE_OF: Record<Column, Stage> = { Queue: 'queued', Active: 'active', Com
 const COLUMNS: Column[] = ['Queue', 'Active', 'Completed']
 
 const dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long' })
 const at = (iso: string | null | undefined) => {
   const n = iso ? new Date(iso).getTime() : NaN
   return Number.isNaN(n) ? 0 : n
@@ -92,6 +96,13 @@ function Board() {
   const [showNewIdea, setShowNewIdea] = useState(false)
   const [bannerExpanded, setBannerExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  // On a plan that carries one project at a time, moving another into Active
+  // is a swap (the one there rests), and a resting one cannot come back yet.
+  const { plan } = usePlan()
+  const limit = plan?.maxActiveProjects ?? null
+  const [swap, setSwap] = useState<{ project: ShelfProject; holder: ShelfProject; after?: () => void } | null>(null)
+  const [swapping, setSwapping] = useState(false)
+  const [restingNote, setRestingNote] = useState<ShelfProject | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -148,14 +159,34 @@ function Board() {
   }
   const columnColor: Record<Column, string> = { Queue: c.ochre, Active: c.verdant, Completed: c.violet }
 
-  /** Optimistic: the card is already in its new column, so it must not jump back. */
-  const moveTo = useCallback((id: string, stage: Stage) => {
+  /** Optimistic: the card is already in its new column, so it must not jump back.
+   *  With `resting`, the project that held the place goes to the Queue to rest. */
+  const moveTo = useCallback((id: string, stage: Stage, resting?: string) => {
     setMenuFor(null)
-    setProjects((prev) => prev.map((p) => (p.id === id && projectState(p) !== stage
-      ? { ...p, shelf_stage: stage, completed_at: stage === 'completed' ? new Date().toISOString() : null }
-      : p)))
-    return api.projects.patch(id, { shelf_stage: stage }).catch(() => { void load() })
+    setProjects((prev) => prev.map((p) => {
+      if (p.id === resting) return { ...p, shelf_stage: 'queued' as const, completed_at: null, resting_until: restEndsAt() }
+      return p.id === id && projectState(p) !== stage
+        ? { ...p, shelf_stage: stage, completed_at: stage === 'completed' ? new Date().toISOString() : null, ...(stage === 'active' ? { resting_until: null } : {}) }
+        : p
+    }))
+    return api.projects.patch(id, { shelf_stage: stage, ...(resting ? { swap: true } : {}) }).catch(() => { void load() })
   }, [load])
+
+  /** Into Active. Where the plan carries one project, this asks before swapping. */
+  const start = useCallback((p: ShelfProject, after?: () => void) => {
+    setMenuFor(null)
+    if (limit !== null) {
+      if (isResting(p.resting_until)) { setRestingNote(p); return }
+      const holders = columns.Active.filter((x) => x.id !== p.id)
+      if (holders.length >= limit) { setSwap({ project: p, holder: holders[0], after }); return }
+    }
+    void moveTo(p.id, 'active').then(after)
+  }, [columns.Active, limit, moveTo])
+
+  const move = useCallback((p: ShelfProject, stage: Stage) => {
+    if (stage === 'active') start(p)
+    else void moveTo(p.id, stage)
+  }, [moveTo, start])
 
   const openCanvas = useCallback((id: string, from?: HTMLElement | null) => go(`/p/${id}`, 'in', from), [go])
 
@@ -195,7 +226,8 @@ function Board() {
   }
 
   const drop = (column: Column) => {
-    if (dragged) void moveTo(dragged, STAGE_OF[column])
+    const p = dragged ? projects.find((x) => x.id === dragged) : null
+    if (p && projectState(p) !== STAGE_OF[column]) move(p, STAGE_OF[column])
     setDragged(null)
     setDragOver(null)
   }
@@ -283,6 +315,7 @@ function Board() {
       p.arc || null,
       p.thematic_territory ? territories.label(p.thematic_territory) : null,
       pieces > 1 ? `${pieces} pieces` : null,
+      limit !== null && column !== 'Active' && isResting(p.resting_until) ? `Resting until ${dayFmt.format(new Date(p.resting_until as string))}` : null,
     ].filter(Boolean)
     const menuOpen = menuFor === p.id
     return (
@@ -388,7 +421,7 @@ function Board() {
             {COLUMNS.filter((name) => name !== column).map((name) => (
               <button
                 key={name}
-                onClick={() => void moveTo(p.id, STAGE_OF[name])}
+                onClick={() => move(p, STAGE_OF[name])}
                 style={{
                   fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
                   border: `1px solid ${c.divider}`, backgroundColor: c.cardBgInner, color: c.textSecondary,
@@ -630,8 +663,8 @@ function Board() {
           subtitle={[peek.arc, peek.thematic_territory ? territories.label(peek.thematic_territory) : null].filter(Boolean).map((v, i) => <span key={i}>{v}</span>)}
           footer={
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-              <GhostButton onClick={() => { const id = peek.id; setPeek(null); openCanvas(id) }}>Open without starting</GhostButton>
-              <PrimaryButton onClick={() => { const id = peek.id; setPeek(null); void moveTo(id, 'active').then(() => openCanvas(id)) }}>
+              <GhostButton onClick={() => { const id = peek.id; setPeek(null); openCanvas(id) }}>{limit !== null ? 'Just read it' : 'Open without starting'}</GhostButton>
+              <PrimaryButton onClick={() => { const p = peek; setPeek(null); start(p, () => openCanvas(p.id)) }}>
                 Start working on it
               </PrimaryButton>
             </div>
@@ -641,6 +674,37 @@ function Board() {
             {peek.concept_body || peek.intent || 'Nothing written about this one yet.'}
           </p>
         </ModalDialog>
+      )}
+
+      {swap && (
+        <PlanNote
+          title={`Switch to “${swap.project.title.trim() || 'Untitled'}”?`}
+          onClose={() => setSwap(null)}
+          action={{
+            label: 'Switch',
+            busy: swapping,
+            onClick: () => {
+              const { project, holder, after } = swap
+              setSwapping(true)
+              void moveTo(project.id, 'active', holder.id).then(() => { setSwapping(false); setSwap(null); after?.() })
+            },
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            {oneAtATimeLine(plan?.plan ?? 'practice')} “{swap.holder.title.trim() || 'Untitled'}” goes back to your Queue and rests
+            for {REST_DAYS} days. You can read and export it, but not work on it or bring it back until{' '}
+            {dayFmt.format(new Date(restEndsAt()))}.
+          </p>
+        </PlanNote>
+      )}
+
+      {restingNote && (
+        <PlanNote title={`“${restingNote.title.trim() || 'Untitled'}” is resting`} onClose={() => setRestingNote(null)}>
+          <p style={{ margin: 0 }}>
+            It gave up its place to another project, so it rests until {dayFmt.format(new Date(restingNote.resting_until as string))}.
+            Until then you can read and export it. On Direction, every project stays open at once.
+          </p>
+        </PlanNote>
       )}
 
       {showNewIdea && (

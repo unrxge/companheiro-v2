@@ -19,6 +19,8 @@ export interface ProjectSettings {
   /** Things said in a check-in that the person chose to send here, waiting
    *  for their answer on the project itself (see /api/check-in/carry). */
   carried?: CarriedThought[]
+  /** When it last gave up its place in Active (lib/studio/plan-access.ts). */
+  left_active_at?: string
 }
 
 /** The person's own words from a check-in, sent to a project and not yet answered. */
@@ -323,6 +325,10 @@ export interface PatchProjectRequest {
   status?: ProjectStatus
   /** Which Project Board column it sits in. */
   shelf_stage?: 'queued' | 'active' | 'completed'
+  /** Moving into Active while another project holds the place: send that one to rest. */
+  swap?: boolean
+  /** After the plan got smaller: keep this one in Active and queue the rest, with no rest period. */
+  keep_only?: boolean
   completion_note?: string
   /** What the whole project is for. */
   intent?: string
