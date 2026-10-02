@@ -614,7 +614,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       )}
 
       {rail === 'tasks' && (
-        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} />
+        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} onRemove={(task) => void tools.removeTask(task)} />
       )}
 
       {rail === 'assistant' && scopeNode && isRootPiece && (

@@ -19,6 +19,7 @@ import {
   type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type ProjectTask,
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
+import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
 
 // ── the menu a piece's "+" opens ────────────────────────────────────────────
 
@@ -434,7 +435,10 @@ export function TaskListBlock({
   const ids = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
   const mine = tasks.filter((x) => ids.has(x.node_id))
   const writing = mine.filter(isWritingTask)
-  const other = mine.filter((x) => !isWritingTask(x))
+  // The person's own categories fold like Writing does; older uncategorised tasks stay loose at the top.
+  const named = groupTasks(mine.filter((x) => !isWritingTask(x))).filter((g) => g.name !== OTHER)
+  const other = mine.filter((x) => !isWritingTask(x) && categoryOf(x) === OTHER)
+  const [shut, setShut] = useState<Record<string, boolean>>({})
   const writingLeft = writing.filter((x) => x.status === 'pending').length
   const scope = item.node_ids.length === 0
     ? 'The whole project'
@@ -538,6 +542,40 @@ export function TaskListBlock({
           )}
         </div>
       )}
+
+      {named.map((group) => {
+        const isOpen = !shut[group.name]
+        const left = group.tasks.filter((x) => x.status === 'pending').length
+        return (
+          <div key={group.name} style={{ borderTop: rule, paddingTop: 8 }}>
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={(e) => { e.stopPropagation(); setShut((c) => ({ ...c, [group.name]: isOpen })) }}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: 0, background: 'none', border: 'none',
+                cursor: 'pointer', textAlign: 'left', color: t.textSecondary,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ transform: isOpen ? 'rotate(90deg)' : undefined, transition: 'transform 160ms ease' }}>
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+              <span style={{ ...canvasType.label, color: t.textSecondary }}>{group.name}</span>
+              <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto' }}>
+                {left === 0 ? 'all done' : `${left} to do`}
+              </span>
+            </button>
+            {isOpen && (
+              <ul style={{ listStyle: 'none', margin: '4px 0 0', padding: 0 }}>
+                {group.tasks.map((task) => (
+                  <TaskRow key={task.id} title={task.title} done={task.status === 'complete'} disabled={disabled} onToggle={() => onToggleTask(task)} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

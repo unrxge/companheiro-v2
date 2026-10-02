@@ -77,7 +77,7 @@ function installMock(o: Opts) {
     const [a, b, c] = LONG.split(/\n{2,}/)
     nodes.push(node('part-1', 'node-1', 0, 'Arrival', 'calm', paragraphs(a)), node('part-2', 'node-1', 1, 'The pull', 'restless', paragraphs(b)), node('part-3', 'node-1', 2, 'Settling', 'tender', paragraphs(c)))
   }
-  const tasks: Array<{ id: string; node_id: string; title: string; type: string; status: string; is_writing_related: boolean | null }> = [
+  const tasks: Array<{ id: string; node_id: string; title: string; type: string; status: string; is_writing_related: boolean | null; category?: string | null }> = [
     { id: 't1', node_id: 'node-1', title: 'Find the first line', type: 'creation', status: 'pending', is_writing_related: true },
     { id: 't2', node_id: 'node-1', title: 'Read it aloud once', type: 'creation', status: 'complete', is_writing_related: true },
     { id: 't3', node_id: 'node-1', title: 'Post on Sunday', type: 'execution', status: 'pending', is_writing_related: false },
@@ -280,8 +280,9 @@ function installMock(o: Opts) {
 
     if (/^\/api\/studio\/nodes\/[^/]+\/tasks$/.test(path)) {
       if (method === 'GET') return json({ success: true, tasks })
-      if (method === 'POST') return write(() => { const t = { id: `t${++seq}`, node_id: 'node-1', title: body.title, type: body.type ?? 'creation', status: 'pending', is_writing_related: null }; tasks.push(t); return json({ success: true, task: t }, 201) })
+      if (method === 'POST') return write(() => { const t = { id: `t${++seq}`, node_id: 'node-1', title: body.title, type: body.type ?? 'creation', status: 'pending', is_writing_related: (body.category ?? 'Writing') === 'Writing', category: body.category ?? 'Writing' }; tasks.push(t); return json({ success: true, task: t }, 201) })
       if (method === 'PATCH') return write(() => { const t = tasks.find((x) => x.id === body.task_id); if (t) t.status = body.status; return json({ success: true }) })
+      if (method === 'DELETE') return write(() => { const i = tasks.findIndex((x) => x.id === body.task_id); if (i >= 0) tasks.splice(i, 1); return json({ success: true }) })
     }
     if (path === '/api/write/anchor-lines') {
       if (method === 'GET') return json({ anchorLines: lines })

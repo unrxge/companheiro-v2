@@ -4,6 +4,7 @@
 // on its own.
 
 import type { AssetView } from '@/lib/studio/types'
+import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 
 export type BoardItemKind = 'image' | 'recording' | 'tasks'
 
@@ -47,6 +48,8 @@ export interface ProjectTask {
   type: 'creation' | 'execution'
   status: 'pending' | 'complete'
   is_writing_related: boolean | null
+  /** The group it sits under (migration 029). null: read from the older flag. */
+  category?: string | null
 }
 
 export interface ItemsPayload {
@@ -73,9 +76,9 @@ export interface PatchItemRequest {
   content?: BoardItemContent
 }
 
-/** The same test the writing page's Tasks tool applies. */
-export const isWritingTask = (task: Pick<ProjectTask, 'type' | 'is_writing_related'>) =>
-  task.type === 'creation' && task.is_writing_related !== false
+/** Under Writing: the same grouping the writing page's Tasks tool applies. */
+export const isWritingTask = (task: Pick<ProjectTask, 'type' | 'is_writing_related' | 'category'>) =>
+  categoryOf(task) === WRITING
 
 // ── sizes ───────────────────────────────────────────────────────────────────
 // Images can be made a good deal larger or smaller. A task list only a

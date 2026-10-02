@@ -15,6 +15,7 @@ import { assertFeature, assertWorkable } from '@/lib/studio/plan-access'
 import { cleanContent, ITEM_COLS, KINDS, normaliseItem, ownRoots } from '@/lib/studio/board-items-db'
 import type { BoardItemKind, ItemsPayload, ProjectTask } from '@/lib/studio/board-items'
 import type { Asset } from '@/lib/studio/types'
+import { readTasks } from '@/lib/studio/tasks-db'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -24,9 +25,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const project = await requireProject(auth, id)
     const [itemsRes, tasksRes] = await Promise.all([
       auth.supabase.from('studio_board_items').select(ITEM_COLS).eq('project_id', project.id).eq('user_id', auth.user.id).order('created_at', { ascending: true }),
-      auth.supabase.from('studio_tasks').select('id, node_id, title, type, status, is_writing_related').eq('project_id', project.id).eq('user_id', auth.user.id).order('order', { ascending: true }),
+      readTasks(auth, { project_id: project.id }),
     ])
-    const tasks = ((tasksRes.data as ProjectTask[] | null) ?? []).filter((t) => !!t.node_id)
+    const tasks: ProjectTask[] = tasksRes.tasks.filter((t) => !!t.node_id)
     if (itemsRes.error) {
       // The table is not there yet (migration 028). Not an error to show anyone.
       console.warn('[studio] board items unavailable:', itemsRes.error.message)

@@ -3,6 +3,8 @@ import { createRouteClient } from "@/lib/supabase/route";
 import type { User } from "@supabase/supabase-js";
 import { checkNodeAgainstRules } from "@/lib/studio/rule-check";
 import { generateTasks } from "@/lib/generate-tasks";
+import { insertTasks, type TaskRow } from "@/lib/studio/tasks-db";
+import { WRITING } from "@/lib/studio/task-groups";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
 import { claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
@@ -32,7 +34,7 @@ interface SaveResponse {
   success: boolean;
   project_id?: string;
   node_id?: string;
-  tasks?: Array<{ id: string; title: string; type: string }>;
+  tasks?: TaskRow[];
   error?: string;
 }
 
@@ -243,32 +245,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         emotional_journey: body.emotional_journey,
         core_truth: body.core_truth,
         writing_goals: body.writing_goals,
+        open_threads: openThreadsArray,
       }),
     ])
 
-    let insertedTasks: Array<{ id: string; title: string; type: string }> = []
+    // Generated tasks are only ever the writing, so they all sit under Writing.
+    let insertedTasks: TaskRow[] = []
     if (suggestedTasks.length > 0) {
-      const tasksToInsert = suggestedTasks.map((task, index) => ({
-        user_id: userId,
-        project_id: projectId,
-        node_id: nodeId,
-        title: task.title,
-        type: task.type,
-        is_writing_related: task.is_writing_related,
-        order: index,
-        status: "pending",
-      }))
-
-      const { data: tasksData, error: tasksError } = await supabase
-        .from("studio_tasks")
-        .insert(tasksToInsert)
-        .select("id, title, type")
-
-      if (tasksError) {
-        console.error("Error inserting tasks:", tasksError)
-      } else {
-        insertedTasks = tasksData || []
-      }
+      const { tasks: made, error: tasksError } = await insertTasks(
+        { supabase, user: { id: userId } },
+        suggestedTasks.map((task, index) => ({ project_id: projectId, node_id: nodeId, title: task.title, category: WRITING, order: index }))
+      )
+      if (tasksError) console.error("Error inserting tasks:", tasksError)
+      else insertedTasks = made.map((t) => ({ ...t, category: t.category ?? WRITING }))
     }
 
     return NextResponse.json({

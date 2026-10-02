@@ -9,6 +9,7 @@ import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
+import { TaskGroups, type GroupTask } from '@/components/studio/work/task-groups'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
 
@@ -72,11 +73,9 @@ function CoreConceptContent() {
   const [showConversation, setShowConversation] = useState(false)
   // Came via "Skip to the core concept": there's no conversation to go back to.
   const [showTaskReview, setShowTaskReview] = useState(false)
-  const [tasks, setTasks] = useState<Array<{ id?: string; title: string; type: 'creation' | 'execution' }>>([])
+  const [tasks, setTasks] = useState<GroupTask[]>([])
   const [projectId, setProjectId] = useState<string | null>(null)
   const [nodeId, setNodeId] = useState<string | null>(null)
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskType, setNewTaskType] = useState<'creation' | 'execution'>('creation')
 
   // ?project=<id>: building the core concept later, for a project started
   // via "Skip to writing". Seeded from what the project already holds.
@@ -186,22 +185,31 @@ function CoreConceptContent() {
     }
   }
 
-  const handleDeleteTask = async (taskId?: string, index?: number) => {
-    if (!taskId || !nodeId) { setTasks((prev) => prev.filter((_, i) => i !== index)); return }
+  const handleDeleteTask = async (task: GroupTask) => {
+    if (!nodeId) return
+    setTasks((prev) => prev.filter((x) => x.id !== task.id))
     try {
-      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId }) })
+      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.id }) })
       const data = await res.json()
-      if (data.success) setTasks((prev) => prev.filter((x) => x.id !== taskId))
-      else setError('Failed to delete task')
-    } catch { setError('Failed to delete task') }
+      if (!data.success) setError('Failed to remove that task')
+    } catch { setError('Failed to remove that task') }
   }
 
-  const handleAddTask = async () => {
-    if (!newTaskTitle.trim() || !nodeId) { setError('Please enter a task title'); return }
+  const handleToggleTask = async (task: GroupTask) => {
+    if (!nodeId) return
+    const status = task.status === 'complete' ? 'pending' : 'complete'
+    setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, status } : x)))
     try {
-      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTaskTitle, type: newTaskType }) })
+      await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.id, status }) })
+    } catch { /* stays as ticked on screen; the writing page reloads the truth */ }
+  }
+
+  const handleAddTask = async (title: string, category: string) => {
+    if (!nodeId) return
+    try {
+      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type: 'creation', category }) })
       const data = await res.json()
-      if (data.success) { setTasks((prev) => [...prev, { id: data.task?.id, title: newTaskTitle, type: newTaskType }]); setNewTaskTitle(''); setNewTaskType('creation') }
+      if (data.success && data.task) setTasks((prev) => [...prev, data.task])
       else setError('Failed to add task')
     } catch { setError('Failed to add task') }
   }
@@ -239,33 +247,22 @@ function CoreConceptContent() {
   if (showTaskReview && projectId) {
     return (
       <PageShell mood="ember" maxWidth={760}>
-        <PageHeader eyebrow="Idea Lab" title="Task roadmap" subtitle="Review and edit the suggested tasks before beginning." size="md" />
+        <PageHeader
+          eyebrow="Idea Lab"
+          title="Where to start"
+          subtitle={tasks.length > 0
+            ? 'A few ways into the writing, drawn from your concept. They are suggestions, not requirements: remove any that don’t help, and add your own.'
+            : 'Your concept is concrete enough to start writing from. Add tasks of your own if you want them.'}
+          size="md"
+        />
         <Container>
           {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, marginBottom: 12 }}>{error}</p>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {tasks.map((task, index) => (
-              <Card key={task.id ?? index} padding="12px 16px" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, flex: 1, minWidth: 0 }}>{task.title}</span>
-                {/* Fixed-width column so the label lines up whether the title takes one row or several. */}
-                <div style={{ width: 84, display: 'flex', justifyContent: 'flex-start', flexShrink: 0 }}>
-                  <Pill>{task.type}</Pill>
-                </div>
-                <GhostButton size="sm" onClick={() => handleDeleteTask(task.id, index)}>Remove</GhostButton>
-              </Card>
-            ))}
-          </div>
-          <Card style={{ marginTop: 16 }}>
-            <Eyebrow style={{ marginBottom: 12 }}>Add task</Eyebrow>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <TextField value={newTaskTitle} onChange={setNewTaskTitle} placeholder="Task title…" ariaLabel="Task title" onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask() }} />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Pill hue="neutral" selected={newTaskType === 'creation'} onClick={() => setNewTaskType('creation')} size="md">Creation</Pill>
-                <Pill hue="neutral" selected={newTaskType === 'execution'} onClick={() => setNewTaskType('execution')} size="md">Execution</Pill>
-                <div style={{ flex: 1 }} />
-                <QuietButton size="sm" onClick={handleAddTask}>Add</QuietButton>
-              </div>
-            </div>
+          <Card>
+            <TaskGroups tasks={tasks} onToggle={handleToggleTask} onAdd={handleAddTask} onRemove={handleDeleteTask} />
           </Card>
+          <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 12 }}>
+            Anything beyond the writing (research, artwork, release) is yours to plan. A new category keeps it separate from the writing.
+          </p>
           <div style={{ marginTop: 20 }}>
             <PrimaryButton onClick={() => router.push(`/p/${projectId}?write=1`)} full size="lg">Begin</PrimaryButton>
           </div>

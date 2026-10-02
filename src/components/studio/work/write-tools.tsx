@@ -14,6 +14,8 @@ import { Label } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, type as typeRoles, widths } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
+import { TaskGroups } from '@/components/studio/work/task-groups'
+import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 
 export interface AnchorLine { id: string; section_id: string | null; text: string }
@@ -23,11 +25,14 @@ export interface PieceTask {
   type: 'creation' | 'execution'
   status: 'pending' | 'complete'
   is_writing_related: boolean | null
+  /** The group it sits under (migration 029). null: read from the older flag. */
+  category?: string | null
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
-export const isWritingTask = (task: PieceTask) => task.type === 'creation' && task.is_writing_related !== false
+/** Under Writing: generated tasks, and anything the person added there. */
+export const isWritingTask = (task: PieceTask) => categoryOf(task) === WRITING
 
 /** A piece's tasks and anchor lines, loaded once for the piece on screen. */
 export function usePieceTools(nodeId: string | null) {
@@ -69,10 +74,20 @@ export function usePieceTools(nodeId: string | null) {
     }
   }, [nodeId])
 
-  const addTask = useCallback(async (title: string) => {
+  const removeTask = useCallback(async (task: PieceTask) => {
+    if (!nodeId) return
+    setTasks((prev) => prev.filter((x) => x.id !== task.id))
+    try {
+      await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'DELETE', headers: JSON_HEADERS, body: JSON.stringify({ task_id: task.id }) })
+    } catch (err) {
+      console.error('Failed to remove task:', err)
+    }
+  }, [nodeId])
+
+  const addTask = useCallback(async (title: string, category: string = WRITING) => {
     if (!nodeId || !title.trim()) return
     try {
-      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ title: title.trim(), type: 'creation' }) })
+      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ title: title.trim(), type: 'creation', category }) })
       const data = await res.json()
       if (data.task) setTasks((prev) => [...prev, data.task])
     } catch (err) {
@@ -100,7 +115,7 @@ export function usePieceTools(nodeId: string | null) {
     }
   }, [])
 
-  return { tasks, lines, toggleTask, addTask, addLine, removeLine, reloadLines }
+  return { tasks, lines, toggleTask, addTask, removeTask, addLine, removeLine, reloadLines }
 }
 
 function useFieldStyle(): React.CSSProperties {
@@ -234,72 +249,19 @@ function DashedList({ lines }: { lines: string[] }) {
 
 // ── tasks ────────────────────────────────────────────────────────────────────
 
-export function TasksPanel({ tasks, onToggle, onAdd }: {
+export function TasksPanel({ tasks, onToggle, onAdd, onRemove }: {
   tasks: PieceTask[]
   onToggle: (task: PieceTask) => void
-  onAdd: (title: string) => Promise<void>
+  onAdd: (title: string, category: string) => Promise<void>
+  onRemove: (task: PieceTask) => void
 }) {
   const { t } = useTheme()
-  const field = useFieldStyle()
-  const [draft, setDraft] = useState('')
-  const [adding, setAdding] = useState(false)
-  // Finished tasks sink to the bottom but stay in view.
-  const shown = tasks.filter(isWritingTask).sort((a, b) => (a.status === b.status ? 0 : a.status === 'complete' ? 1 : -1))
-
-  const add = async () => {
-    const title = draft.trim()
-    if (!title || adding) return
-    setAdding(true)
-    await onAdd(title)
-    setDraft('')
-    setAdding(false)
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          aria-label="A new task"
-          value={draft}
-          placeholder="Add a task…"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void add() } }}
-          style={{ ...field, flex: 1, minWidth: 0 }}
-        />
-        <QuietButton size="sm" onClick={() => void add()} disabled={!draft.trim() || adding}>Add</QuietButton>
-      </div>
-      {shown.length === 0 ? (
-        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>No writing tasks yet.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {shown.map((task, i) => {
-            const done = task.status === 'complete'
-            return (
-              <li key={task.id} style={{ borderBottom: i < shown.length - 1 ? `1px solid ${alpha(t.textPrimary, 0.08)}` : 'none' }}>
-                <button
-                  type="button"
-                  aria-pressed={done}
-                  onClick={() => onToggle(task)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit' }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      flexShrink: 0, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: `1px solid ${done ? alpha(t.verdant, 0.5) : t.textMuted}`, background: done ? alpha(t.verdant, 0.14) : 'transparent',
-                    }}
-                  >
-                    {done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.verdant }} />}
-                  </span>
-                  <span style={{ ...canvasType.small, fontSize: 14, color: done ? t.textMuted : t.textSecondary, textDecoration: done ? 'line-through' : 'none' }}>
-                    {task.title}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
+        Ways into the work, not a list the piece has to satisfy. Keep what helps and remove the rest.
+      </p>
+      <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} />
     </div>
   )
 }
