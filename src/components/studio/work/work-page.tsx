@@ -406,6 +406,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     patchItem: (id, patch) => void board.api.patch(id, patch),
     removeItem: (item) => void removeItem(item),
     toggleTask: (task) => void board.api.toggleTask(task),
+    addTask: (nodeId, title, category) => board.api.addTask(nodeId, title, category),
+    removeTask: (task) => void board.api.removeTask(task),
     refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
     onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
   }), [api, board.api, board.items, goNode, goThread, makeConstraint, removeItem, removeNode, roots, setProjectField, tree.threads])

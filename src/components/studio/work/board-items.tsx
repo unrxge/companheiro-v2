@@ -20,6 +20,7 @@ import {
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
 import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
+import { TaskGroups } from '@/components/studio/work/task-groups'
 
 // ── the menu a piece's "+" opens ────────────────────────────────────────────
 
@@ -418,7 +419,7 @@ export function RecordingBlock({
  * out that is not writing.
  */
 export function TaskListBlock({
-  item, pieces, tasks, disabled, onToggleTask, onContent,
+  item, pieces, tasks, disabled, onToggleTask, onAddTask, onRemoveTask, onContent,
 }: {
   item: BoardItem
   /** The pieces whose tasks it shows: the ones it is connected to, or every piece when it stands alone. */
@@ -426,10 +427,13 @@ export function TaskListBlock({
   tasks: ProjectTask[]
   disabled: boolean
   onToggleTask: (task: ProjectTask) => void
+  onAddTask: (nodeId: string, title: string, category: string) => Promise<void>
+  onRemoveTask: (task: ProjectTask) => void
   onContent: (content: BoardItemContent) => void
 }) {
   const { t } = useTheme()
   const [draft, setDraft] = useState('')
+  const [large, setLarge] = useState(false)
   const own = item.content.tasks ?? []
   const open = !item.content.writing_closed
   const ids = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
@@ -457,7 +461,21 @@ export function TaskListBlock({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ paddingRight: 48 }}>
-        <div style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>Tasks</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>Tasks</span>
+          <button
+            type="button"
+            aria-label="Open this task list larger"
+            title="Open larger"
+            onClick={(e) => { e.stopPropagation(); setLarge(true) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ display: 'flex', padding: 3, background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
         <div style={{ ...canvasType.chip, color: t.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={scope}>{scope}</div>
       </div>
 
@@ -576,6 +594,63 @@ export function TaskListBlock({
           </div>
         )
       })}
+
+      {large && (
+        // The dialog is drawn on the page, but its events still climb to the
+        // canvas through React: stopped here so nothing underneath is dragged.
+        <span onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <ModalDialog onClose={() => setLarge(false)} title="Tasks" subtitle={scope} maxWidth="680px">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+              {pieces.map((piece) => (
+                <section key={piece.id}>
+                  {pieces.length > 1 && (
+                    <div style={{ ...canvasType.small, fontSize: 14, fontWeight: 600, color: t.textPrimary, marginBottom: 10 }}>{piece.title.trim() || 'Untitled'}</div>
+                  )}
+                  <TaskGroups
+                    tasks={mine.filter((x) => x.node_id === piece.id)}
+                    disabled={disabled}
+                    onToggle={onToggleTask}
+                    onAdd={(title, category) => onAddTask(piece.id, title, category)}
+                    onRemove={onRemoveTask}
+                  />
+                </section>
+              ))}
+
+              {/* the list's own tasks: not tied to any one piece */}
+              <section>
+                <div style={{ ...canvasType.small, fontSize: 14, fontWeight: 600, color: t.textPrimary }}>On this list only</div>
+                <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: '2px 0 8px' }}>Tasks that don’t belong to one piece.</p>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {own.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      title={task.title}
+                      done={task.done}
+                      disabled={disabled}
+                      onToggle={() => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x)))}
+                      onRemove={() => setOwn(own.filter((x) => x.id !== task.id))}
+                    />
+                  ))}
+                </ul>
+                {!disabled && (
+                  <input
+                    aria-label="A new task on this list"
+                    value={draft}
+                    placeholder="Add a task…"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+                    style={{
+                      ...canvasType.small, fontSize: 13, width: '100%', boxSizing: 'border-box', marginTop: own.length ? 6 : 0,
+                      color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field,
+                      padding: '7px 10px', outline: 'none', fontFamily: 'inherit',
+                    }}
+                  />
+                )}
+              </section>
+            </div>
+          </ModalDialog>
+        </span>
+      )}
     </div>
   )
 }

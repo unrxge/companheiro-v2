@@ -137,6 +137,8 @@ export interface BoardActions {
   patchItem: (id: string, patch: PatchItemRequest) => void
   removeItem: (item: BoardItem) => void
   toggleTask: (task: ProjectTask) => void
+  addTask: (nodeId: string, title: string, category: string) => Promise<void>
+  removeTask: (task: ProjectTask) => void
   /** A picture or sound stopped loading: its address has run out. */
   refreshAsset: (assetId: string) => void
   /** Something the plan does not carry was asked for. */
@@ -934,6 +936,8 @@ export function Board({
                     tasks={tasks}
                     disabled={disabled}
                     onToggleTask={actions.toggleTask}
+                    onAddTask={actions.addTask}
+                    onRemoveTask={actions.removeTask}
                     onContent={(content) => actions.patchItem(it.id, { content })}
                   />
                 )}

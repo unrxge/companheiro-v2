@@ -182,6 +182,25 @@ export function useBoardItems(projectId: string, enabled: boolean) {
       }
     },
 
+    /** A new task on one piece, under the category it was typed into. */
+    addTask: async (nodeId: string, title: string, category: string) => {
+      try {
+        const res = await call<{ task?: ProjectTask }>('POST', `/nodes/${nodeId}/tasks`, { title, type: 'creation', category })
+        if (res.task && alive.current) setTasks((prev) => [...prev, { ...res.task!, node_id: nodeId }])
+      } catch {
+        await load()
+      }
+    },
+
+    removeTask: async (task: ProjectTask) => {
+      setTasks((prev) => prev.filter((t) => t.id !== task.id))
+      try {
+        await call<{ success: boolean }>('DELETE', `/nodes/${task.node_id}/tasks`, { task_id: task.id })
+      } catch {
+        await load()
+      }
+    },
+
     /** Signed addresses last an hour; this fetches fresh ones when a picture or sound stops loading. */
     refreshAsset: async (assetId: string) => {
       try {
