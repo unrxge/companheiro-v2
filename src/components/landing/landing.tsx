@@ -20,7 +20,8 @@ import { Pill } from '@/components/ui/pill'
 import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
-import { alpha, shell, tokensFor, type as typeRoles, type Mood } from '@/lib/design-tokens'
+import { CONTACT_EMAIL } from '@/lib/site'
+import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
@@ -147,8 +148,16 @@ function Hero() {
         <p className={`${ENTER_TEXT} delay-[270ms] mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]`}>
           It&rsquo;s scattered across your notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.
         </p>
-        <div className={`${ENTER_TEXT} delay-[390ms] mt-9`}>
+        {/* Who it is for, said once and early; the section it points to spells out each use. */}
+        <p className={`${ENTER_TEXT} delay-[330ms] mt-4 max-w-[44ch] text-[15px] leading-relaxed text-[var(--bone)]`}>
+          For people who write, write songs, or direct creative work.{' '}
+          <a href="#who" className="whitespace-nowrap text-[var(--muted)] underline decoration-[var(--line)] underline-offset-4 transition-colors hover:text-[var(--bone)]">
+            See how you&rsquo;d use it
+          </a>
+        </p>
+        <div className={`${ENTER_TEXT} delay-[390ms] mt-8 flex flex-wrap items-center gap-x-5 gap-y-3`}>
           <BeginButton />
+          <p className="text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
         </div>
       </div>
 
@@ -204,8 +213,12 @@ const slideFor = (where: string) => SLIDES.find((s) => s.where === where) as Tou
 
 // Only on this page: how a Check-in feels, where the tour says what it does.
 const CHECK_IN_TITLE = 'Say it out loud. Feel it land.'
+// Only on this page: straight after the manifesto, "Systemise your creativity"
+// read like the productivity software the refusals below promise this is not.
+const IDEA_TITLE = 'A question worth making something from.'
+const IDEA_BODY = 'No need to wait for the creative muse. Pick a theme you care about, and the ‘Idea Lab’ gives you one, every time you sit down.'
 
-function InsideRow({ slide, flip, title }: { slide: TourSlide; flip: boolean; title?: string }) {
+function InsideRow({ slide, flip, title, body }: { slide: TourSlide; flip: boolean; title?: string; body?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   // The widget starts once, when its row is properly on screen.
@@ -215,7 +228,7 @@ function InsideRow({ slide, flip, title }: { slide: TourSlide; flip: boolean; ti
       <Reveal className={flip ? 'md:order-2' : ''}>
         <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues[slide.mood] }}>{slide.where}</p>
         <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">{title ?? slide.title}</h3>
-        <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{slide.body}</p>
+        <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{body ?? slide.body}</p>
       </Reveal>
       <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
         <slide.Widget active={seen} />
@@ -260,11 +273,221 @@ function BoardCanvas() {
 function Inside() {
   return (
     <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
-      <InsideRow slide={slideFor('Idea')} flip={false} />
+      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} />
       <InsideRow slide={slideFor('Conceptualise')} flip />
       <BoardCanvas />
       <InsideRow slide={slideFor('Writing')} flip={false} />
       <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} />
+    </section>
+  )
+}
+
+// ── Who it's for: five kinds of makers, and what each one does with it ──────
+// The page above shows the parts; this says whose they are. Each audience
+// gets who it is in a sentence, the use in four steps built only from things
+// the product does today on the plan named, the refusal that matters most to
+// them, and their plan. `/?for=writers` opens on that audience, so a post or a
+// bio link can land someone on their own case; the Begin link carries
+// `landing=for-…` into sign-up, where the admin page shows which case worked.
+
+type Audience = {
+  key: string
+  tab: string
+  name: string
+  hue: Hue
+  who: string
+  steps: string[]
+  never: string
+  plan: 'Practice' | 'Direction'
+  planNote: string
+}
+
+const AUDIENCES: Audience[] = [
+  {
+    key: 'back',
+    tab: 'Coming back',
+    name: 'Coming back to making',
+    hue: 'ember',
+    who: 'You used to make things, or you have just come out of a course, a workshop or a long dry spell, and you are not sure yet that it still counts.',
+    steps: [
+      'Pick a theme you care about and get one question to start from.',
+      'Answer it, a question at a time, until the idea fits in one sentence.',
+      'Write it a part at a time. When you are stuck, it asks what you meant.',
+      'Vanish for two weeks if you need to. Nothing was counting while you were gone.',
+    ],
+    never: 'No streaks, no targets, nobody keeping track of your days.',
+    plan: 'Practice',
+    planNote: 'One project at a time is the point, not the limit.',
+  },
+  {
+    key: 'writers',
+    tab: 'Writers',
+    name: 'Writers who publish',
+    hue: 'tide',
+    who: 'You have an audience, a pile of drafts, and no interest in anything that writes for you.',
+    steps: [
+      'Bring a draft you already have, or start from a question.',
+      'Say what the piece is for in one sentence, and keep it beside the draft.',
+      'Select a paragraph and talk it over. It asks and reflects; the sentence stays yours.',
+      'After you publish, note what the piece opened. It comes back as your next ideas.',
+    ],
+    never: 'It never writes the sentence, and never tells you whether it is good.',
+    plan: 'Practice',
+    planNote: 'One project holds as many pieces as it needs, so a newsletter is one project.',
+  },
+  {
+    key: 'songs',
+    tab: 'Songwriters',
+    name: 'Songwriters',
+    hue: 'violet',
+    who: 'You hum before you write, and the song usually knows what it is about before you do.',
+    steps: [
+      'Speak the idea. Everything here takes your voice as readily as your typing.',
+      'Find what the song is about in one sentence, before the tune hardens.',
+      'Write the lyric in parts you name yourself, and talk over the line that will not sit.',
+      'On Direction, keep your recordings beside the lyric on the project’s canvas.',
+    ],
+    never: 'It never writes a line of the song, and never listens to a recording: those are for your ears.',
+    plan: 'Practice',
+    planNote: 'Practice for the words. Recordings beside them are part of Direction.',
+  },
+  {
+    key: 'studios',
+    tab: 'Studios of one',
+    name: 'One-person studios',
+    hue: 'verdant',
+    who: 'You are the whole studio: client projects, your own work, and one head to hold all of it.',
+    steps: [
+      'Paste the brief and talk it down to one sentence you would stand behind.',
+      'Give each project its own canvas: its pieces, images, recordings and a task list.',
+      'Run threads across the pieces, so what connects them stays in view.',
+      'Mention a constraint once. It comes back as a question when new work runs against it.',
+    ],
+    never: 'It never posts, sends or speaks to a client in your name.',
+    plan: 'Direction',
+    planNote: 'As many projects in progress as you carry, each on its own canvas.',
+  },
+  {
+    key: 'directors',
+    tab: 'Directors',
+    name: 'Directors',
+    hue: 'ochre',
+    who: 'You direct work other people make, or a project that runs for years: a documentary, a photo book, an album.',
+    steps: [
+      'Write down what the project is meant to be: one sentence and the rules it must keep.',
+      'Talk the whole project through from its canvas whenever something shifts.',
+      'When a new piece pulls away from a rule, you get a question, never a verdict.',
+      'Change the piece or change the rule. Either way, somebody decided.',
+    ],
+    never: 'It never scores the work and never measures how it performed.',
+    plan: 'Direction',
+    planNote: 'Yearly suits a project that runs for years, with two months free.',
+  },
+]
+
+function AudienceBegin({ audience }: { audience: Audience }) {
+  const href = useAttributedHref(`${SIGNUP}?landing=for-${audience.key}`)
+  return (
+    <Link
+      href={href}
+      className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[var(--bone)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ink)] transition-[transform,background-color] duration-300 hover:bg-white/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+    >
+      Begin
+      <ArrowRight size={15} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
+    </Link>
+  )
+}
+
+function WhoFor() {
+  const ref = useRef<HTMLElement>(null)
+  const [index, setIndex] = useState(0)
+  const audience = AUDIENCES[index]
+  useSectionMood(ref, audience.hue as Mood)
+  // A link can open on one audience. Read in the browser: the page itself is static.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('for')
+    const i = AUDIENCES.findIndex((a) => a.key === wanted)
+    if (i >= 0) setIndex(i)
+  }, [])
+  const hue = hues[audience.hue]
+
+  return (
+    <section id="who" ref={ref} className="mx-auto w-full max-w-[1180px] scroll-mt-8 px-4 py-20 md:px-8 md:py-32">
+      <Reveal>
+        <h2 className={`max-w-[16ch] ${H2}`}>Who it&rsquo;s for.</h2>
+        <p className="mt-5 max-w-[50ch] text-[17px] leading-relaxed text-[var(--muted)]">
+          Five kinds of makers, and what each one does with it. Pick the one closest to you.
+        </p>
+      </Reveal>
+
+      <Reveal delay={0.08} className="mt-9 md:mt-12">
+        {/* Bleeds to the screen edge on a phone so the row can be swiped, not wrapped. */}
+        <div
+          role="tablist"
+          aria-label="Who it is for"
+          className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+        >
+          {AUDIENCES.map((a, i) => (
+            <button
+              key={a.key}
+              type="button"
+              role="tab"
+              id={`who-tab-${a.key}`}
+              aria-selected={i === index}
+              aria-controls="who-panel"
+              onClick={() => setIndex(i)}
+              className="shrink-0 cursor-pointer rounded-full px-4 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)]"
+              style={i === index ? { backgroundColor: shell.text, color: shell.ink } : { backgroundColor: shell.fill, color: shell.muted }}
+            >
+              {a.tab}
+            </button>
+          ))}
+        </div>
+
+        <m.div
+          key={audience.key}
+          id="who-panel"
+          role="tabpanel"
+          aria-labelledby={`who-tab-${audience.key}`}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: EASE }}
+          className="mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
+          style={{ borderTop: `2px solid ${alpha(hue, 0.7)}` }}
+        >
+          <div className="grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hue }}>{audience.plan}</p>
+              <h3 className="mt-3 text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[34px]">{audience.name}</h3>
+              <p className="mt-4 max-w-[40ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{audience.who}</p>
+              <p className="mt-6 flex max-w-[40ch] items-start gap-2.5 text-[15px] leading-relaxed text-[var(--bone)]">
+                <span aria-hidden className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hue }} />
+                {audience.never}
+              </p>
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">How you&rsquo;d use it</p>
+              <ol className="mt-4 flex flex-col">
+                {audience.steps.map((step, i) => (
+                  <li key={step} className="flex items-start gap-4 border-t border-[var(--line)] py-4 first:border-t-0 first:pt-0 last:pb-0">
+                    <span className="w-5 shrink-0 text-[15px] font-semibold tabular-nums" style={{ color: hue }}>{i + 1}</span>
+                    <span className="text-[16px] leading-relaxed text-[var(--bone)]">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 border-t border-[var(--line)] px-6 py-5 md:flex-row md:items-center md:justify-between md:px-10">
+            <p className="max-w-[60ch] text-[15px] leading-relaxed text-[var(--muted)]">
+              <a href="#pricing" className="font-semibold text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4">
+                {audience.plan}, &euro;{audience.plan === 'Practice' ? 9 : 29} a month
+              </a>
+              . {audience.planNote}
+            </p>
+            <AudienceBegin audience={audience} />
+          </div>
+        </m.div>
+      </Reveal>
     </section>
   )
 }
@@ -349,10 +572,11 @@ const PLANS = [
     price: { month: 9, year: 90 },
     features: [
       'One active project at a time',
+      'One project holds as many pieces as it needs',
       'Unlimited personal check-ins',
       'Define and conceptualise new ideas',
       'Find and hold your vision',
-      'Access to the writing suite, with its assistant',
+      'Access to the writing suite, with questions when you are stuck',
       'A task list on your canvas',
       'Switch projects by resting one for 14 days',
     ],
@@ -514,12 +738,38 @@ function FinalCta() {
           <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">already</span> have.
         </h2>
         <p className="mt-6 max-w-[40ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]">
-          Bring one note, one draft, one thing you keep circling. The vision is usually already in there.
+          Bring one note, one draft, one brief, one thing you keep circling. The vision is usually already in there.
         </p>
         <div className="mt-10">
           <BeginButton />
         </div>
         <p className="mt-5 text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
+      </Reveal>
+    </section>
+  )
+}
+
+// ── Who makes it: the one piece of proof the page can honestly carry ────────
+
+function Maker() {
+  return (
+    <section className="mx-auto w-full max-w-[1180px] px-4 pb-16 md:px-8 md:pb-24">
+      <Reveal>
+        <div className="grid grid-cols-1 gap-3 border-t border-[var(--line)] pt-8 md:grid-cols-[220px_1fr] md:gap-10">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Who makes it</p>
+          <p className="max-w-[58ch] text-[17px] leading-relaxed text-[var(--bone)]">
+            Companheiro is built and run by one person, not a team.
+            {CONTACT_EMAIL ? (
+              <>
+                {' '}If something here is unclear, or it isn&rsquo;t working for the way you make things,{' '}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="underline decoration-[var(--line)] underline-offset-4 transition-colors hover:text-white">
+                  write to me
+                </a>{' '}
+                and I&rsquo;ll answer myself.
+              </>
+            ) : null}
+          </p>
+        </div>
       </Reveal>
     </section>
   )
@@ -556,10 +806,12 @@ export function Landing() {
             <Hero />
             <Manifesto />
             <Inside />
+            <WhoFor />
             <Never />
             <Closing />
             <Pricing />
             <FinalCta />
+            <Maker />
           </main>
           <Footer />
         </div>
