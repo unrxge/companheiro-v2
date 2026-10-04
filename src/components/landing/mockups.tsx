@@ -27,11 +27,27 @@ const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const VISION_TITLE = 'The Good Plates'
 const VISION_LINE = 'A body of work about what we save for later, and the choice to use it now.'
 
-/** Reveals `text` a character at a time once `start` is true. Instant under reduced motion. */
-export function useTypewriter(text: string, start: boolean, msPerChar = 26) {
+/**
+ * Reveals `text` a character at a time once `start` is true. Instant under
+ * reduced motion. While `unwind` is true it is backspaced instead, several
+ * times faster than it was written.
+ */
+export function useTypewriter(text: string, start: boolean, msPerChar = 26, unwind = false) {
   const reduce = useReducedMotion()
   const [n, setN] = useState(0)
   useEffect(() => {
+    if (unwind) {
+      const id = window.setInterval(() => {
+        setN((prev) => {
+          if (prev <= 0) {
+            window.clearInterval(id)
+            return 0
+          }
+          return Math.max(0, prev - 3)
+        })
+      }, 16)
+      return () => window.clearInterval(id)
+    }
     if (!start) return
     if (reduce) {
       setN(text.length)
@@ -48,8 +64,47 @@ export function useTypewriter(text: string, start: boolean, msPerChar = 26) {
       })
     }, msPerChar)
     return () => window.clearInterval(id)
-  }, [text, start, msPerChar, reduce])
+  }, [text, start, msPerChar, reduce, unwind])
   return { shown: text.slice(0, n), done: n >= text.length }
+}
+
+/**
+ * A widget winding itself back before it plays again. Each time `signal`
+ * changes, `back` counts up through `marks` (milliseconds from the start of
+ * the rewind): 1 at once, 2 at the first mark, and so on. The last mark ends
+ * it: `back` returns to 0, `reset` puts the widget at its beginning, and
+ * `cycle` goes up, which is the cue to play forward. `stop` abandons a rewind
+ * under way, for when someone presses something in the middle of one.
+ */
+export function useRewind(signal: number | undefined, marks: readonly number[], reset?: () => void) {
+  const [back, setBack] = useState(0)
+  const [cycle, setCycle] = useState(0)
+  const first = useRef(signal)
+  const ids = useRef<number[]>([])
+  const onEnd = useRef(reset)
+  onEnd.current = reset
+  const stop = useCallback(() => {
+    ids.current.forEach((id) => window.clearTimeout(id))
+    ids.current = []
+    setBack(0)
+  }, [])
+  useEffect(() => {
+    if (signal === undefined || signal === first.current) return
+    setBack(1)
+    ids.current = marks.map((ms, i) =>
+      window.setTimeout(() => {
+        if (i < marks.length - 1) return setBack(i + 2)
+        setBack(0)
+        onEnd.current?.()
+        setCycle((c) => c + 1)
+      }, ms),
+    )
+    return () => {
+      ids.current.forEach((id) => window.clearTimeout(id))
+      ids.current = []
+    }
+  }, [signal, marks])
+  return { back, cycle, stop }
 }
 
 function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -69,13 +124,20 @@ const FRAGMENTS: { kind: string; text: string; tilt: number }[] = [
   { kind: 'Photo idea', text: 'Empty café chairs, just before opening.', tilt: 2 },
 ]
 
-export function VisionFinder() {
+// Winding back, in the order it was built: the line is backspaced, the vision
+// drops away and the fragments tip back to how they lay, then they lift off
+// last to first.
+const VISION_BACK = [450, 900, 1450] as const
+
+export function VisionFinder({ active = true, replay = 0 }: { /** False until it has been seen. */ active?: boolean; /** Goes up each time it should wind back and play again. */ replay?: number }) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
   const [stage, setStage] = useState(0) // 0 scattered, 1 side by side, 2 the vision being written
-  const [run, setRun] = useState(0)
+  const [again, setAgain] = useState(0)
+  const { back, cycle } = useRewind(replay + again, VISION_BACK, () => setStage(0))
 
   useEffect(() => {
+    if (!active) return
     if (reduce) {
       setStage(2)
       return
@@ -87,9 +149,12 @@ export function VisionFinder() {
       window.clearTimeout(a)
       window.clearTimeout(b)
     }
-  }, [reduce, run])
+  }, [reduce, cycle, active])
 
-  const { shown, done } = useTypewriter(VISION_LINE, stage >= 2, 30)
+  const { shown, done } = useTypewriter(VISION_LINE, stage >= 2, 30, back > 0)
+  const away = !reduce && (!active || back === 3)
+  const settled = stage >= 1 && back < 2
+  const visionUp = stage >= 2 && back < 2
 
   return (
     <Container padding={16} style={{ width: '100%' }}>
@@ -98,10 +163,14 @@ export function VisionFinder() {
         <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {FRAGMENTS.map((f, i) => (
             <m.div
-              key={`${run}-${f.kind}`}
+              key={f.kind}
               initial={reduce ? false : { opacity: 0, y: 12, rotate: f.tilt * 2 }}
-              animate={{ opacity: 1, y: 0, rotate: stage >= 1 ? 0 : f.tilt }}
-              transition={{ duration: 0.7, delay: stage === 0 ? 0.25 + i * 0.15 : i * 0.06, ease: EASE }}
+              animate={away ? { opacity: 0, y: 12, rotate: f.tilt * 2 } : { opacity: 1, y: 0, rotate: settled ? 0 : f.tilt }}
+              transition={
+                back === 3 ? { duration: 0.3, delay: (FRAGMENTS.length - 1 - i) * 0.07, ease: 'backIn' }
+                : back === 2 ? { type: 'spring', stiffness: 320, damping: 11, delay: (FRAGMENTS.length - 1 - i) * 0.04 }
+                : { duration: 0.7, delay: stage === 0 ? 0.25 + i * 0.15 : i * 0.06, ease: EASE }
+              }
             >
               <Card inner padding={12} style={{ height: '100%' }}>
                 <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>{f.kind}</p>
@@ -112,12 +181,11 @@ export function VisionFinder() {
         </div>
 
         <m.div
-          key={run}
           initial={false}
-          animate={{ opacity: stage >= 2 ? 1 : 0, y: stage >= 2 ? 0 : 10 }}
-          transition={{ duration: 0.7, ease: EASE }}
+          animate={{ opacity: visionUp ? 1 : 0, y: visionUp ? 0 : 10 }}
+          transition={back > 0 ? { duration: 0.3, ease: 'easeIn' } : { duration: 0.7, ease: EASE }}
           style={{ marginTop: 14 }}
-          aria-hidden={stage < 2}
+          aria-hidden={!visionUp}
         >
           <Card inner padding={16} style={{ borderLeft: `3px solid ${t.ember}`, borderRadius: radius.widget }}>
             <div className="flex items-center justify-between gap-3">
@@ -139,7 +207,7 @@ export function VisionFinder() {
         {!reduce && (
           <button
             type="button"
-            onClick={() => setRun((r) => r + 1)}
+            onClick={() => setAgain((n) => n + 1)}
             style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}
             className="cursor-pointer rounded-full px-2 py-1"
           >
@@ -361,7 +429,7 @@ function NodeBody({ node }: { node: BoardNode }) {
   )
 }
 
-function BoardNodeView({ node, pos, order, draggable, boardRef }: { node: BoardNode; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null> }) {
+function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }: { node: BoardNode; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or any more). */ away: boolean; /** Being taken off again, last to arrive first. */ leaving: boolean }) {
   const reduce = useReducedMotion()
   return (
     <m.div
@@ -372,8 +440,8 @@ function BoardNodeView({ node, pos, order, draggable, boardRef }: { node: BoardN
       whileDrag={{ scale: 1.03, zIndex: 2 }}
       // Each thing arrives on the canvas in turn, so a replay reads as the project being laid out.
       initial={reduce ? false : { opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5, delay: 0.15 + order * 0.14, ease: EASE }}
+      animate={away ? { opacity: 0, scale: 0.94 } : { opacity: 1, scale: 1 }}
+      transition={leaving ? { duration: 0.26, delay: (ARRIVE.length - 1 - order) * 0.055, ease: 'backIn' } : { duration: 0.5, delay: 0.15 + order * 0.14, ease: EASE }}
       style={{ x: pos.x, y: pos.y, width: node.w, height: node.h, position: 'absolute', left: node.x, top: node.y, touchAction: draggable ? 'none' : 'auto' }}
       className={draggable ? 'cursor-grab active:cursor-grabbing' : undefined}
     >
@@ -382,9 +450,16 @@ function BoardNodeView({ node, pos, order, draggable, boardRef }: { node: BoardN
   )
 }
 
-export function CanvasMockup() {
+// The order things arrive in: what it is meant to be, the pieces, the threads, then what is kept beside them.
+const ARRIVE = ['vision', 'treatment', 'shots', 'stills', 'hands', 'reveal', 'frame', 'note', 'tasks']
+// Winding back: the lines go, then everything is taken off in the reverse of that order.
+const CANVAS_BACK = [900] as const
+
+export function CanvasMockup({ active = true, replay }: { /** False until it has been seen. */ active?: boolean; /** Goes up each time it should wind back and play again. */ replay?: number }) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
+  const { back } = useRewind(replay, CANVAS_BACK)
+  const away = !reduce && (!active || back > 0)
   const boardRef = useRef<HTMLDivElement>(null)
   const [fine, setFine] = useState(false)
   useEffect(() => {
@@ -428,8 +503,6 @@ export function CanvasMockup() {
   const boardW = phone ? BOARD_W_PHONE : BOARD_W
   const boardH = phone ? BOARD_H_PHONE : BOARD_H
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
-  // The order things arrive in: what it is meant to be, the pieces, the threads, then what is kept beside them.
-  const ARRIVE = ['vision', 'treatment', 'shots', 'stills', 'hands', 'reveal', 'frame', 'note', 'tasks']
 
   return (
     <Container padding={0} style={{ overflow: 'hidden' }}>
@@ -466,8 +539,8 @@ export function CanvasMockup() {
             height={boardH}
             className="pointer-events-none absolute inset-0"
             initial={reduce ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.9 }}
+            animate={{ opacity: away ? 0 : 1 }}
+            transition={back > 0 ? { duration: 0.2 } : { duration: 0.8, delay: 0.9 }}
           >
             {EDGES.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
               const from = byId[a]
@@ -477,7 +550,7 @@ export function CanvasMockup() {
             })}
           </m.svg>
           {nodes.map((n) => (
-            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} />
+            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} away={away} leaving={back > 0} />
           ))}
         </div>
       </div>
@@ -492,12 +565,17 @@ export function CanvasMockup() {
 const RULE_TALK = 'Ana wants a voiceover explaining the process. I don’t want anyone talking over the hands. The sound of the wheel is the script.'
 const RULE_QUOTE = 'I don’t want anyone talking over the hands.'
 
-export function RuleHeardMockup() {
+// Winding back only as far as what was said: the offer goes, then the reply,
+// and the reply is given again.
+const RULE_BACK = [700] as const
+
+export function RuleHeardMockup({ replay }: { /** Goes up each time it should wind back and play again. */ replay?: number }) {
   const { t } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, amount: 0.5 })
   const reduce = useReducedMotion()
-  const shownAt = inView || reduce
+  const { back } = useRewind(replay, RULE_BACK)
+  const shownAt = reduce || (inView && back === 0)
   return (
     <div ref={ref}>
       <Container padding={16}>
@@ -505,7 +583,7 @@ export function RuleHeardMockup() {
           <Label>Talking the vision through · {PROJECT_TITLE}</Label>
           <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, marginTop: 16 }}>You</p>
           <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 4 }}>{RULE_TALK}</p>
-          <m.div initial={false} animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 8 }} transition={{ duration: 0.6, delay: reduce ? 0 : 0.5, ease: EASE }}>
+          <m.div initial={false} animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 8 }} transition={back > 0 ? { duration: 0.3, delay: 0.3, ease: 'easeIn' } : { duration: 0.6, delay: reduce ? 0 : 0.5, ease: EASE }}>
             <p style={{ ...typeRoles.small, fontWeight: 600, color: t.violet, marginTop: 14 }}>Companheiro</p>
             <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 4 }}>
               Then the film has to make the process clear without a word. Which shot carries the part she is afraid people will miss?
@@ -514,7 +592,7 @@ export function RuleHeardMockup() {
           <m.div
             initial={false}
             animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 10 }}
-            transition={{ duration: 0.7, delay: reduce ? 0 : 1.6, ease: EASE }}
+            transition={back > 0 ? { duration: 0.3, ease: 'backIn' } : { duration: 0.7, delay: reduce ? 0 : 1.6, ease: EASE }}
             style={{
               marginTop: 18, padding: '12px 14px', borderRadius: radius.widget,
               background: alpha(t.ochre, 0.08), border: `1px solid ${alpha(t.ochre, 0.28)}`,

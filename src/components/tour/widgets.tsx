@@ -18,7 +18,7 @@ import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
 import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
-import { useTypewriter } from '@/components/landing/mockups'
+import { useRewind, useTypewriter } from '@/components/landing/mockups'
 import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -26,6 +26,8 @@ const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 export interface TourWidgetProps {
   /** True while this widget's slide is the one on screen. */
   active: boolean
+  /** Landing page only: goes up each time a widget that plays by itself should wind back and play again. */
+  replay?: number
 }
 
 /** The line on top of every widget: what to press next, or what just happened. */
@@ -197,13 +199,21 @@ const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
 /** The question the Conceptualise slide answers. */
 const SEED = THEMES[0]
 
-/** The question, arriving a word at a time. */
-function Arriving({ text }: { text: string }) {
+/** The question, arriving a word at a time. `leaving` takes it back, last word first. */
+function Arriving({ text, leaving = false }: { text: string; leaving?: boolean }) {
   const reduce = useReducedMotion()
+  const words = text.split(' ')
   return (
     <span aria-label={text}>
-      {text.split(' ').map((w, i) => (
-        <m.span key={i} aria-hidden initial={reduce ? false : { opacity: 0, y: 6, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.5, delay: i * 0.055, ease: EASE }} style={{ display: 'inline-block', whiteSpace: 'pre' }}>
+      {words.map((w, i) => (
+        <m.span
+          key={i}
+          aria-hidden
+          initial={reduce ? false : { opacity: 0, y: 6, filter: 'blur(4px)' }}
+          animate={leaving ? { opacity: 0, y: -6, filter: 'blur(4px)' } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={leaving ? { duration: 0.2, delay: (words.length - 1 - i) * Math.min(0.025, 0.3 / words.length), ease: 'easeIn' } : { duration: 0.5, delay: i * 0.055, ease: EASE }}
+          style={{ display: 'inline-block', whiteSpace: 'pre' }}
+        >
           {w}{' '}
         </m.span>
       ))}
@@ -211,35 +221,44 @@ function Arriving({ text }: { text: string }) {
   )
 }
 
-export function SummonWidget({ active }: TourWidgetProps) {
+// Winding back, the steps undone in reverse: the question leaves last word
+// first, its card empties, the energy slides back to the middle, the theme is
+// let go.
+const SUMMON_BACK = [520, 720, 1170, 1450] as const
+
+export function SummonWidget({ active, replay }: TourWidgetProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
   // 0 nothing chosen · 1 theme chosen · 2 energy set · 3 summoning · 4 the question
-  const [step, setStep] = useState(0)
+  const [stepNow, setStep] = useState(0)
+  const { back, cycle, stop } = useRewind(replay, SUMMON_BACK, () => setStep(0))
+  // What shows: the step it reached, or however far back the rewind has taken it.
+  const step = back <= 1 ? stepNow : Math.min(stepNow, back === 2 ? 2 : back === 3 ? 1 : 0)
   const [theme, setTheme] = useState(0)
   const [asked, setAsked] = useState([0, 0, 0])
   const [note, setNote] = useState<'energy' | 'add' | null>(null)
 
   // Sets itself up the first time: picks the theme, slides the energy up, asks.
   useEffect(() => {
-    if (!active || step > 0) return
+    if (!active || stepNow > 0) return
     if (reduce) { setStep(4); return }
     // Never backwards: a tap on a theme mid-sequence has already moved it on.
     const ids = [800, 1700, 2900].map((ms, i) => window.setTimeout(() => setStep((s) => Math.max(s, i + 1)), ms))
     return () => ids.forEach((id) => window.clearTimeout(id))
     // step is only read to skip a replay; the sequence itself must not restart as it advances
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, reduce])
+  }, [active, reduce, cycle])
 
   // A question takes a moment to arrive.
   useEffect(() => {
-    if (step !== 3) return
+    if (stepNow !== 3) return
     const id = window.setTimeout(() => setStep(4), 800)
     return () => window.clearTimeout(id)
-  }, [step, theme, asked])
+  }, [stepNow, theme, asked])
 
-  const pick = (i: number) => { setNote(null); setTheme(i); setStep(3) }
-  const again = () => { setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % THEMES[i].questions.length : n))); setStep(3) }
+  // A press in the middle of a rewind takes it over: it is theirs from here.
+  const pick = (i: number) => { stop(); setNote(null); setTheme(i); setStep(3) }
+  const again = () => { stop(); setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % THEMES[i].questions.length : n))); setStep(3) }
   const chosen = step >= 1
   const bright = step >= 2
   const current = THEMES[theme]
@@ -274,7 +293,7 @@ export function SummonWidget({ active }: TourWidgetProps) {
         </div>
         <button type="button" onClick={() => setNote('energy')} role="slider" aria-label="Energy" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bright ? 100 : 50} aria-valuetext={bright ? 'Bright' : 'Middle'} aria-disabled className="block w-full" style={{ background: 'none', border: 'none', padding: '14px 9px 8px', cursor: 'not-allowed' }}>
           <span style={{ position: 'relative', display: 'block', height: 4, borderRadius: 999, background: `linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant})` }}>
-            <span style={{ position: 'absolute', top: -7, left: bright ? '100%' : '50%', width: 18, height: 18, marginLeft: -9, borderRadius: '50%', backgroundColor: t.cardBg, border: `2px solid ${t.textPrimary}`, boxShadow: bright ? `0 0 0 5px ${alpha(t.verdant, 0.22)}` : '0 1px 4px rgba(0,0,0,0.28)', transition: reduce ? 'none' : 'left 0.9s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease 0.5s' }} />
+            <span style={{ position: 'absolute', top: -7, left: bright ? '100%' : '50%', width: 18, height: 18, marginLeft: -9, borderRadius: '50%', backgroundColor: t.cardBg, border: `2px solid ${t.textPrimary}`, boxShadow: bright ? `0 0 0 5px ${alpha(t.verdant, 0.22)}` : '0 1px 4px rgba(0,0,0,0.28)', transition: reduce ? 'none' : back > 0 ? 'left 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease' : 'left 0.9s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease 0.5s' }} />
           </span>
         </button>
         <div className="flex justify-between">
@@ -292,7 +311,7 @@ export function SummonWidget({ active }: TourWidgetProps) {
                 <GhostButton size="sm" onClick={again} disabled={step === 3}>Ask again</GhostButton>
               </div>
               <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>
-                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={current.questions[asked[theme]]} />}
+                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={current.questions[asked[theme]]} leaving={back === 1} />}
               </p>
             </>
           )}

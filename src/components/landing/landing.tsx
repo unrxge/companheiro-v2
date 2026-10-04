@@ -11,9 +11,9 @@
 // collapses to static under prefers-reduced-motion.
 
 import Link from 'next/link'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, Fragment, useContext, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
-import { AnimatePresence, motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
+import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
@@ -99,12 +99,17 @@ function Reveal({ children, delay = 0, className = '' }: { children: React.React
  * moves when pressed passes nothing and is never replayed. The wait starts
  * when the animation ends and starts again whenever the pointer moves inside
  * the widget, so it counts stillness: a cursor resting on it, or not on it at
- * all. Replaying eases the widget out and remounts it, so it rewinds to its
- * own beginning. A press, a tap or a key ends it for good.
+ * all. A press, a tap or a key ends it for good.
+ *
+ * Replaying is the widget's own doing: it is handed a `replay` count, and
+ * each time that goes up it winds itself back in reverse (see useRewind in
+ * mockups.tsx) and plays forward again; `rewinds` is how long the winding
+ * back takes. Once it has scrolled right out of sight a fresh copy takes its
+ * place, so coming back to it is a clean first play, not a rewind.
  */
 const REPLAY_AFTER_MS = 4000
 
-function Replay({ children, plays = 0, className }: { children: (active: boolean) => React.ReactNode; plays?: number; className?: string }) {
+function Replay({ children, plays = 0, rewinds = 0, className }: { children: (active: boolean, replay: number) => React.ReactNode; plays?: number; rewinds?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduce = useReducedMotion()
   // Present once a third of it shows, gone only when none of it does: a widget
@@ -116,61 +121,58 @@ function Replay({ children, plays = 0, className }: { children: (active: boolean
     if (enough) setInView(true)
     else if (!any) setInView(false)
   }, [enough, any])
-  const [run, setRun] = useState(0)
+  const [copy, setCopy] = useState(0)
+  const [replay, setReplay] = useState(0)
   const [seen, setSeen] = useState(false)
   const [engaged, setEngaged] = useState(false)
-  const mountedAt = useRef(0)
-  useEffect(() => { mountedAt.current = performance.now() }, [])
+  const wasIn = useRef(false)
   const replays = plays > 0 && !engaged && !reduce
 
-  // Arriving: start over, unless it was already on screen when the page opened.
+  // Arriving plays it. Leaving swaps in a fresh copy while nobody can see it.
   useEffect(() => {
-    if (!inView) return
-    setSeen(true)
-    if (replays && performance.now() - mountedAt.current > 1200) setRun((r) => r + 1)
-    // only arriving restarts it here; the wait below handles the rest
+    if (inView) {
+      wasIn.current = true
+      setSeen(true)
+      return
+    }
+    if (!wasIn.current || !replays) return
+    wasIn.current = false
+    setSeen(false)
+    setReplay(0)
+    setCopy((c) => c + 1)
+    // only crossing the edge of the screen matters here; the wait below handles the rest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inView])
 
-  // Finished, then four still seconds: rewind.
+  // Finished, then four still seconds: wind back and play again.
   useEffect(() => {
     const el = ref.current
     if (!el || !inView || !replays) return
     const startedAt = performance.now()
+    const runs = (replay > 0 ? rewinds : 0) + plays
     let id = 0
     const arm = (ms: number) => {
       window.clearTimeout(id)
       id = window.setTimeout(() => {
         // Nobody is watching a hidden tab; look again shortly.
         if (document.visibilityState !== 'visible') arm(1000)
-        else setRun((r) => r + 1)
+        else setReplay((r) => r + 1)
       }, ms)
     }
-    arm(plays + REPLAY_AFTER_MS)
+    arm(runs + REPLAY_AFTER_MS)
     // Movement inside it means they are with it: the stillness is counted afresh, never before the animation has ended.
-    const onMove = () => arm(Math.max(REPLAY_AFTER_MS, plays + REPLAY_AFTER_MS - (performance.now() - startedAt)))
+    const onMove = () => arm(Math.max(REPLAY_AFTER_MS, runs + REPLAY_AFTER_MS - (performance.now() - startedAt)))
     el.addEventListener('pointermove', onMove)
     return () => {
       window.clearTimeout(id)
       el.removeEventListener('pointermove', onMove)
     }
-  }, [inView, replays, run, plays])
+  }, [inView, replays, replay, copy, plays, rewinds])
 
   const engage = () => setEngaged(true)
   return (
     <div ref={ref} className={className} onPointerDownCapture={engage} onKeyDownCapture={engage}>
-      {/* The first run must not hide anything in the server's HTML; later ones ease out, then back in from the start. */}
-      <AnimatePresence mode="wait" initial={false}>
-        <m.div
-          key={run}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.4, ease: EASE }}
-        >
-          {children(seen)}
-        </m.div>
-      </AnimatePresence>
+      <Fragment key={copy}>{children(seen, replay)}</Fragment>
     </div>
   )
 }
@@ -241,7 +243,7 @@ function Hero() {
 
       <div className={`${ENTER} slide-in-from-bottom-[24px] animation-duration-[1100ms] delay-[300ms] w-full max-w-[480px] lg:justify-self-end`}>
         {/* Fragments settle, then the vision line types itself: about five seconds. */}
-        <Replay plays={5400}>{() => <VisionFinder />}</Replay>
+        <Replay plays={5400} rewinds={1450}>{(active, replay) => <VisionFinder active={active} replay={replay} />}</Replay>
       </div>
     </section>
   )
@@ -299,7 +301,7 @@ const IDEA_BODY = 'No need to wait for the creative muse. Pick a theme you care 
 // Only on this page: the tour's line ends on "one clear sentence", which the page said too often.
 const CONCEPT_BODY = 'Find the voice of your idea outside of the fog of the abstract. ‘Conceptualise’ helps you define the outline of what you want to express, one question at a time, until the concept is clear enough to declare.'
 
-function InsideRow({ slide, flip, title, body, plays }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** How long the widget animates on its own, if it does (see Replay). */ plays?: number }) {
+function InsideRow({ slide, flip, title, body, plays, rewinds }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** How long the widget animates on its own, if it does, and how long it takes to wind back (see Replay). */ plays?: number; rewinds?: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   return (
@@ -310,7 +312,7 @@ function InsideRow({ slide, flip, title, body, plays }: { slide: TourSlide; flip
         <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{body ?? slide.body}</p>
       </Reveal>
       <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
-        <Replay plays={plays}>{(active) => <slide.Widget active={active} />}</Replay>
+        <Replay plays={plays} rewinds={rewinds}>{(active, replay) => <slide.Widget active={active} replay={replay} />}</Replay>
       </Reveal>
     </div>
   )
@@ -336,7 +338,7 @@ function BoardCanvas() {
         </p>
       </Reveal>
       <Reveal delay={0.1} className="mt-8 md:mt-12">
-        <Replay plays={2200}>{() => <CanvasMockup />}</Replay>
+        <Replay plays={1800} rewinds={900}>{(active, replay) => <CanvasMockup active={active} replay={replay} />}</Replay>
       </Reveal>
       <div className="mt-8 grid grid-cols-1 gap-5 md:mt-10 md:grid-cols-3 md:gap-10">
         {CANVAS_FACTS.map((f, i) => (
@@ -352,7 +354,7 @@ function BoardCanvas() {
 function Inside() {
   return (
     <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
-      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} plays={5600} />
+      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} plays={5300} rewinds={1450} />
       <InsideRow slide={slideFor('Conceptualise')} flip body={CONCEPT_BODY} />
       <BoardCanvas />
       <InsideRow slide={slideFor('Writing')} flip={false} />
@@ -682,7 +684,7 @@ function Closing() {
       className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-center gap-12 px-4 py-20 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:px-8 md:py-32"
     >
       <Reveal className="order-2 w-full max-w-[480px] md:order-1">
-        <Replay plays={2600}>{() => <RuleHeardMockup />}</Replay>
+        <Replay plays={2300} rewinds={700}>{(_, replay) => <RuleHeardMockup replay={replay} />}</Replay>
       </Reveal>
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
