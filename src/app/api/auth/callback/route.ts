@@ -38,19 +38,27 @@ export async function GET(request: Request) {
   const fail = () => NextResponse.redirect(new URL('/login?error=oauth', origin))
 
   const code = url.searchParams.get('code')
-  if (!code) {
-    // The person cancelled at Google, or Google refused.
-    if (url.searchParams.get('error')) console.warn('oauth callback:', url.searchParams.get('error_description') ?? url.searchParams.get('error'))
-    return fail()
-  }
-
   const supabase = await createRouteClient()
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-  if (error || !data.user) {
-    console.error('oauth callback: code exchange failed:', error)
-    return fail()
+  let user
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error || !data.user) {
+      console.error('oauth callback: code exchange failed:', error)
+      return fail()
+    }
+    user = data.user
+  } else {
+    // The person cancelled at Google, or Google refused.
+    if (url.searchParams.get('error')) {
+      console.warn('oauth callback:', url.searchParams.get('error_description') ?? url.searchParams.get('error'))
+      return fail()
+    }
+    // No code: an email link, already confirmed on /confirm, which signed
+    // them in there. Carry on with that session.
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) return fail()
+    user = data.user
   }
-  const user = data.user
 
   // Same record the email form keeps: which Terms/Privacy version was agreed
   // to, and when. Only written once.

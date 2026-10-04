@@ -17,7 +17,8 @@ export function middleware(request: NextRequest) {
   const isAuthPage = pathname === '/login' || pathname === '/signup'
   // /reset is reachable both ways: unauthenticated to request a link, and
   // authenticated (via the recovery session) to set the new password.
-  const isResetPage = pathname === '/reset'
+  // /confirm is where a sign-up email's button lands, before there is a session.
+  const isResetPage = pathname === '/reset' || pathname === '/confirm'
   // `/` is the public landing page when signed out. It is a static page (so
   // it can be served from the CDN), which means it cannot look at the session
   // itself: signed-in visitors are sent on to /home from here.

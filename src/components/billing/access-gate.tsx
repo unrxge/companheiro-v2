@@ -27,7 +27,7 @@ const CHOICE_KEY = 'companheiro:project-choice-seen'
 const NEAR_SHARE = 0.8
 const NEAR_VISIBLE_MS = 12_000
 // /subscribe is on its way to checkout: no notice should stand in front of that.
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', '/subscribe', ...LEGAL_PAGES.map((p) => p.href as string)]
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', '/confirm', '/subscribe', ...LEGAL_PAGES.map((p) => p.href as string)]
 
 type Reason = 'trial_ended' | 'fair_use'
 
