@@ -8,7 +8,7 @@ import { withLanguage } from '@/lib/language'
 import { streamClaudeText } from '@/lib/streaming'
 import { customKey, type CustomSlot } from '@/lib/territories'
 import { logUsage } from '@/lib/usage-log'
-import { MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
+import { ageFrom, MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -166,11 +166,12 @@ function cleanProfile(raw: unknown): TourProfile | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   const name = typeof r.name === 'string' ? r.name.trim().slice(0, 60) : ''
-  const age = Number(r.age)
-  if (!name || !Number.isInteger(age) || age < MIN_AGE || age > 120) return null
+  const birthdate = typeof r.birthdate === 'string' ? r.birthdate : ''
+  const age = ageFrom(birthdate)
+  if (!name || !(age >= MIN_AGE && age <= 120)) return null
   const practices = (Array.isArray(r.practices) ? r.practices : []).filter((p): p is Practice => PRACTICE_KEYS.includes(p as Practice)).slice(0, MAX_PRACTICES)
   const other = typeof r.other === 'string' ? r.other.trim().slice(0, 80) : ''
-  return { name, age, practices, other }
+  return { name, birthdate, practices, other }
 }
 
 const MAP_SYSTEM = `You are writing a creative territory definition for an Idea Lab — a tool that helps writers find unexpected, expansive entry points into a theme.

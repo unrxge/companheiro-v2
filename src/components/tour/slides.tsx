@@ -1,6 +1,6 @@
 // The tour's slides: one part of the app each, with a plain headline, when to
 // use it, and a small working copy of the real screen. After sign-up the tour
-// shows the three that fit what the person said their practice is (slidesFor)
+// shows the four that fit what the person said their practice is (slidesFor)
 // and names the rest; the landing page shows four (see landing.tsx, Inside).
 
 import type { Hue } from '@/lib/design-tokens'
@@ -112,11 +112,12 @@ const MORE: TourSlide[] = [
 const ALL: TourSlide[] = [...SLIDES, ...MORE]
 /** The order the parts are met in when making something. */
 const FLOW: SlideId[] = ['idea', 'conceptualise', 'board', 'canvas', 'rules', 'writing', 'checkin', 'portrait', 'capture']
-const SHOWN = 3
+const SHOWN = 4
 
-// What matters most to each kind of practice, first to fourth. Someone who
+// What matters most to each kind of practice, first to fourth (also read by copy.ts,
+// to decide whose words a slide is said in). Someone who
 // picks several gets the parts their choices agree on.
-const RANK: Record<Practice | 'none', SlideId[]> = {
+export const RANK: Record<Practice | 'none', SlideId[]> = {
   writer: ['conceptualise', 'writing', 'idea', 'portrait'],
   songwriter: ['idea', 'writing', 'canvas', 'conceptualise'],
   cinematographer: ['canvas', 'conceptualise', 'rules', 'board'],
@@ -126,7 +127,7 @@ const RANK: Record<Practice | 'none', SlideId[]> = {
   none: ['conceptualise', 'board', 'writing', 'idea'],
 }
 
-/** The three parts to show someone with these practices, and the rest to name. Both in the order they are met. */
+/** The four parts to show someone with these practices, and the rest to name. Both in the order they are met. */
 export function slidesFor(practices: Practice[]): { shown: TourSlide[]; rest: TourSlide[] } {
   const score = new Map<SlideId, number>()
   for (const p of practices.length ? practices : (['none'] as const)) {

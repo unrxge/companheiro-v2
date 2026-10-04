@@ -19,6 +19,7 @@ import { Pill } from '@/components/ui/pill'
 import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
 import { useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
+import { THEME_HUES } from '@/lib/tour'
 import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -29,8 +30,8 @@ const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 export interface TourWidgetProps extends Pick<LoopProps, 'replay' | 'onDone'> {
   /** True while this widget's slide is the one on screen. */
   active: boolean
-  /** The themes the person gave at sign-up: the Idea slide asks from these, not from the examples. */
-  themes?: string[]
+  /** The themes the person gave at sign-up, each with questions written for it (null while they are on their way): the Idea slide asks from these, not from the examples. */
+  own?: { label: string; questions: string[] | null }[]
 }
 
 /** The line on top of every widget: what to press next, or what just happened. */
@@ -230,26 +231,9 @@ function Arriving({ text, leaving = false }: { text: string; leaving?: boolean }
 // slider there; the page shows the question arriving, nothing else.
 const SUMMON_BACK = [520] as const
 
-const OWN_HUES: Hue[] = ['violet', 'tide', 'verdant', 'ochre']
-/** Questions that hold for any theme a person names, asked about theirs. */
-function ownThemes(labels: string[]): typeof THEMES {
-  return labels.map((label, i) => {
-    const about = label.trim()
-    return {
-      label: about,
-      hue: OWN_HUES[i % OWN_HUES.length],
-      questions: [
-        `What do you already know about ${about} that you’ve never heard anyone else say out loud?`,
-        `When did ${about} last stop you in your tracks, and what did you want to make straight afterwards?`,
-        `If you could only make one more thing about ${about}, what would it have to hold?`,
-      ],
-    }
-  })
-}
-
-export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps) {
+export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
   const { t } = useTheme()
-  const list = useMemo(() => (themes?.length ? ownThemes(themes) : THEMES), [themes])
+  const list = useMemo(() => (own?.length ? own.map((o, i) => ({ label: o.label, hue: THEME_HUES[i % THEME_HUES.length], questions: o.questions ?? [] })) : THEMES), [own])
   const reduce = useReducedMotion()
   const looping = onDone !== undefined
   // 0 nothing chosen · 1 theme chosen · 2 energy set · 3 summoning · 4 the question
@@ -273,13 +257,14 @@ export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps
 
   // A question takes a moment to arrive.
   useEffect(() => {
-    if (step !== 3) return
+    // Their own themes' questions are being written as the tour opens: wait for them.
+    if (step !== 3 || !list[theme].questions.length) return
     const id = window.setTimeout(() => setStep(4), 800)
     return () => window.clearTimeout(id)
-  }, [step, theme, asked])
+  }, [step, theme, asked, list])
 
   // The question has arrived in full: say so, for whoever is keeping this moving.
-  const question = list[theme].questions[asked[theme]]
+  const question = list[theme].questions[asked[theme]] ?? ''
   useEffect(() => {
     if (step !== 4 || !onDone) return
     const id = window.setTimeout(() => onDone(), reduce ? 0 : question.split(' ').length * 55 + 500)
@@ -288,7 +273,7 @@ export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps
 
   // A press in the middle of a rewind takes it over: it is theirs from here.
   const pick = (i: number) => { stop(); setNote(null); setTheme(i); setStep(3) }
-  const again = () => { stop(); setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % list[i].questions.length : n))); setStep(3) }
+  const again = () => { stop(); setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % Math.max(1, list[i].questions.length) : n))); setStep(3) }
   const chosen = step >= 1
   const bright = step >= 2
   const current = list[theme]
@@ -298,6 +283,7 @@ export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps
       <TryIt>
         {note === 'energy' ? 'Energy is set to Bright for this tour. In the app, slide it to match your day.'
           : note === 'add' ? 'In the app, this is where you add a theme of your own.'
+          : step >= 3 && !question ? 'Writing a question from your theme…'
           : step < 4 ? (looping ? 'Watch: a theme, then a question.' : 'Watch: a theme, an energy level, then a question.')
           : 'Tap another theme, or “Ask again” for a new question.'}
       </TryIt>
@@ -343,7 +329,7 @@ export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps
                 <GhostButton size="sm" onClick={again} disabled={step === 3}>Ask again</GhostButton>
               </div>
               <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>
-                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={question} leaving={back === 1} />}
+                {step === 3 || !question ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={question} leaving={back === 1} />}
               </p>
             </>
           )}
