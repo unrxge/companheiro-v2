@@ -6,7 +6,6 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { Dock } from '@/components/shell/dock'
 import { IconButton } from '@/components/ui/icon-button'
-import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { fonts, motion, radius, shell, type as typeRoles, widths, type Mood } from '@/lib/design-tokens'
 
 /** How a PageHeader lets its PageShell know which element to watch. */
@@ -105,7 +104,7 @@ export function PageShell({
 /**
  * Sits directly on the shell: no card chrome of its own. Title is Fraunces
  * (it's the app addressing the person, or the person's own title). Actions
- * are the small circular buttons; the theme toggle is on by default.
+ * are the small circular buttons.
  */
 export function PageHeader({
   eyebrow = 'Companheiro',
@@ -113,7 +112,6 @@ export function PageHeader({
   subtitle,
   back,
   actions,
-  themeToggle = true,
   size = 'lg',
 }: {
   eyebrow?: React.ReactNode
@@ -122,10 +120,10 @@ export function PageHeader({
   /** href or handler for a back arrow. Prefer the dock; use this for sub-flows. */
   back?: string | (() => void)
   actions?: React.ReactNode
+  /** No longer does anything: the theme follows the device. Kept so callers need not change. */
   themeToggle?: boolean
   size?: 'lg' | 'md'
 }) {
-  const { theme, toggle } = useTheme()
   const watchedBy = useContext(HeaderSlot)
   const titleStyle = size === 'lg' ? typeRoles.display : { ...typeRoles.h2, fontSize: '24px' }
   return (
@@ -158,7 +156,6 @@ export function PageHeader({
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, paddingBottom: 4 }}>
         {actions}
-        {themeToggle && <ThemeToggleButton theme={theme} onToggle={toggle} />}
       </div>
     </m.header>
   )
