@@ -6,10 +6,6 @@
 export type ChosenPlan = { tier: 'practice' | 'direction'; interval: 'monthly' | 'yearly' }
 
 export const PLAN_LABEL: Record<ChosenPlan['tier'], string> = { practice: 'Practice', direction: 'Direction' }
-export const PLAN_PRICE: Record<ChosenPlan['tier'], Record<ChosenPlan['interval'], number>> = {
-  practice: { monthly: 9, yearly: 90 },
-  direction: { monthly: 29, yearly: 290 },
-}
 
 /** The plan named in a query string, or null when none (or nonsense) is there. */
 export function readChosenPlan(search: string | URLSearchParams): ChosenPlan | null {
@@ -23,7 +19,7 @@ export function chosenPlanQuery(plan: ChosenPlan): string {
   return `plan=${plan.tier}&interval=${plan.interval}`
 }
 
-/** "Practice, €9 a month" */
-export function chosenPlanLine(plan: ChosenPlan): string {
-  return `${PLAN_LABEL[plan.tier]}, €${PLAN_PRICE[plan.tier][plan.interval]} a ${plan.interval === 'yearly' ? 'year' : 'month'}`
+/** "Practice, €9 a month". `price` is already formatted, in the visitor's currency (use-prices.ts). */
+export function chosenPlanLine(plan: ChosenPlan, price: string): string {
+  return `${PLAN_LABEL[plan.tier]}, ${price} a ${plan.interval === 'yearly' ? 'year' : 'month'}`
 }

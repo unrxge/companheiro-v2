@@ -21,6 +21,8 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { CONTACT_EMAIL } from '@/lib/site'
+import { formatMoney } from '@/lib/billing/price-format'
+import { usePrices } from '@/lib/billing/use-prices'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
@@ -351,11 +353,12 @@ function Inside() {
 // the Begin link carries `landing=for-…` into sign-up, where the admin page
 // shows which case worked.
 
-/** A plan's name, linked to its card in the pricing section. */
-function PlanLink({ plan, children }: { plan: 'practice' | 'direction'; children: React.ReactNode }) {
+/** A plan's name, linked to its card in the pricing section. With no words of its own it says "Practice, €9 a month", in the visitor's currency. */
+function PlanLink({ plan, children }: { plan: 'practice' | 'direction'; children?: React.ReactNode }) {
+  const prices = usePrices()
   return (
     <a href={`#plan-${plan}`} className="font-semibold text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4 transition-colors hover:decoration-[var(--bone)]">
-      {children}
+      {children ?? `${plan === 'practice' ? 'Practice' : 'Direction'}, ${prices.money(plan, 'monthly')} a month`}
     </a>
   )
 }
@@ -391,7 +394,7 @@ const AUDIENCES: Audience[] = [
       'Come and go as life allows. Nothing was counting while you were away.',
     ],
     never: 'No streaks, no targets, nobody keeping track of your days.',
-    footer: <><PlanLink plan="practice">Practice, &euro;9 a month</PlanLink>. Two projects at a time is the point, not the limit.</>,
+    footer: <><PlanLink plan="practice" />. Two projects at a time is the point, not the limit.</>,
   },
   {
     key: 'writers',
@@ -408,7 +411,7 @@ const AUDIENCES: Audience[] = [
       'When a piece is out in the world, note what it opened. It comes back as your next ideas.',
     ],
     never: 'It never asks you to aim smaller, and never steers the work toward anyone’s vision but yours.',
-    footer: <><PlanLink plan="practice">Practice, &euro;9 a month</PlanLink>. One project holds as many pieces as it needs: a collection, a series, a book.</>,
+    footer: <><PlanLink plan="practice" />. One project holds as many pieces as it needs: a collection, a series, a book.</>,
   },
   {
     key: 'film',
@@ -427,8 +430,8 @@ const AUDIENCES: Audience[] = [
     never: 'It never looks at your images or footage, and never measures how a post performed.',
     footer: (
       <>
-        <PlanLink plan="practice">Practice, &euro;9 a month</PlanLink>. Shape the idea and write its words;{' '}
-        <PlanLink plan="direction">Direction, &euro;29 a month</PlanLink>. Add images and recordings, and carry as many projects as you shoot.
+        <PlanLink plan="practice" />. Shape the idea and write its words;{' '}
+        <PlanLink plan="direction" />. Add images and recordings, and carry as many projects as you shoot.
       </>
     ),
   },
@@ -449,8 +452,8 @@ const AUDIENCES: Audience[] = [
     never: 'You can upload recordings, but Companheiro never listens to them. Those are for your ears only.',
     footer: (
       <>
-        <PlanLink plan="practice">Practice, &euro;9 a month</PlanLink>. Craft the words and devise the vision;{' '}
-        <PlanLink plan="direction">Direction, &euro;29 a month</PlanLink>. Upload audio recordings and talk to your long-term vision.
+        <PlanLink plan="practice" />. Craft the words and devise the vision;{' '}
+        <PlanLink plan="direction" />. Upload audio recordings and talk to your long-term vision.
       </>
     ),
   },
@@ -469,7 +472,7 @@ const AUDIENCES: Audience[] = [
       'Mention a constraint once. It comes back as a question when new work runs against it.',
     ],
     never: 'It never posts, sends or speaks to a client in your name.',
-    footer: <><PlanLink plan="direction">Direction, &euro;29 a month</PlanLink>. As many projects in progress as you carry, each on its own canvas.</>,
+    footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas.</>,
   },
   {
     key: 'directors',
@@ -486,7 +489,7 @@ const AUDIENCES: Audience[] = [
       'Change the piece or change the rule. Either way, somebody decided.',
     ],
     never: 'It never scores the work and never measures how it performed.',
-    footer: <><PlanLink plan="direction">Direction, &euro;29 a month</PlanLink>. Yearly suits a project that runs for years, with two months free.</>,
+    footer: <><PlanLink plan="direction" />. Yearly suits a project that runs for years, with two months free.</>,
   },
 ]
 
@@ -689,7 +692,6 @@ const PLANS = [
     id: 'practice',
     name: 'Practice',
     line: 'For one or two visions at a time, in words.',
-    price: { month: 9, year: 90 },
     features: [
       'Two active projects at a time',
       'One project holds as many pieces as it needs',
@@ -705,7 +707,6 @@ const PLANS = [
     id: 'direction',
     name: 'Direction',
     line: 'For many visions at once, in any medium.',
-    price: { month: 29, year: 290 },
     features: [
       'Everything in Practice',
       'Have access to unlimited active projects',
@@ -747,8 +748,10 @@ function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' |
 
 function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billing: Billing; lead: boolean }) {
   const { t } = useTheme()
-  const amount = plan.price[billing]
-  const perMonth = billing === 'year' ? (plan.price.year / 12).toFixed(2).replace(/\.00$/, '') : null
+  // In the visitor's own currency once Stripe has answered (lib/billing/use-prices.ts).
+  const prices = usePrices()
+  const amount = prices.money(plan.id, billing === 'year' ? 'yearly' : 'monthly')
+  const perMonth = billing === 'year' ? formatMoney(Math.round(prices.amounts[plan.id].yearly / 12), prices.currency) : null
   return (
     <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
       <div className="flex items-center justify-between gap-3">
@@ -757,11 +760,11 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
       </div>
       <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 6 }}>{plan.line}</p>
       <div className="mt-6 flex items-baseline gap-1.5">
-        <span style={{ ...typeRoles.display, fontSize: lead ? 48 : 40, color: t.textPrimary }}>&euro;{amount}</span>
+        <span style={{ ...typeRoles.display, fontSize: lead ? 48 : 40, color: t.textPrimary }}>{amount}</span>
         <span style={{ ...typeRoles.ui, color: t.textMuted }}>a {billing}</span>
       </div>
       <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4, minHeight: '1.5em' }}>
-        {perMonth ? `\u20ac${perMonth} a month, two months free` : 'Or yearly, with two months free'}
+        {perMonth ? `${perMonth} a month, two months free` : 'Or yearly, with two months free'}
       </p>
       <ul className="mt-6 flex flex-1 flex-col gap-3">
         {plan.features.map((f) => (

@@ -26,6 +26,7 @@ import { readAttribution } from '@/lib/attribution'
 import type { OAuthProvider } from '@/lib/auth-providers'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { chosenPlanLine, chosenPlanQuery, readChosenPlan, type ChosenPlan } from '@/lib/billing/chosen-plan'
+import { usePrices } from '@/lib/billing/use-prices'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google' }
 
@@ -45,6 +46,7 @@ function callbackUrl(next?: 'set-password'): string {
 
 export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   const { t } = useTheme()
+  const prices = usePrices()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -155,7 +157,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
     <AuthShell
       title="Your vision is waiting."
       subtitle={chosen
-        ? `Sign in or create your account, then on to checkout for ${chosenPlanLine(chosen)}.`
+        ? `Sign in or create your account, then on to checkout for ${chosenPlanLine(chosen, prices.money(chosen.tier, chosen.interval))}.`
         : 'Try Companheiro risk-free for 30 days. No card needed.'}
       footer={chosen ? <span>Rather look around first? <Link href="/login" onClick={() => setChosen(null)} style={{ color: t.textPrimary, textDecoration: 'underline', textUnderlineOffset: 3 }}>Start with 30 days free</Link></span> : undefined}
       wide

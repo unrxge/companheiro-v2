@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { getStripe } from '@/lib/billing/stripe'
 import { priceIdFor, isTier, isInterval } from '@/lib/billing/plans'
+import { countryOf, localPricesFor } from '@/lib/billing/local-prices'
 
 /** POST /api/billing/checkout — start a Stripe Checkout session for a plan. */
 export async function POST(request: Request) {
@@ -29,8 +30,8 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin
     const stripe = getStripe()
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+    const params = {
+      mode: 'subscription' as const,
       customer: existing?.stripe_customer_id ?? undefined,
       customer_email: existing?.stripe_customer_id ? undefined : user.email,
       client_reference_id: user.id,
@@ -38,7 +39,21 @@ export async function POST(request: Request) {
       subscription_data: { metadata: { user_id: user.id } },
       success_url: `${origin}/home?checkout=success`,
       cancel_url: `${origin}/home?checkout=cancelled`,
-    })
+    }
+    // Charge the currency the page showed them (lib/billing/local-prices.ts).
+    // Only for a new customer: one who has paid before is tied to the currency
+    // they first paid in. If Stripe refuses the currency, checkout still opens
+    // in the prices' own.
+    const local = existing?.stripe_customer_id ? null : await localPricesFor(countryOf(request))
+    const currency = local && local.source === 'stripe' && local.currency !== local.base ? local.currency : undefined
+    let session
+    try {
+      session = await stripe.checkout.sessions.create(currency ? { ...params, currency } : params)
+    } catch (error) {
+      if (!currency) throw error
+      console.error('billing checkout: currency refused, opening in the base currency:', error)
+      session = await stripe.checkout.sessions.create(params)
+    }
 
     return NextResponse.json({ url: session.url })
   } catch (error) {

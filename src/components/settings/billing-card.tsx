@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrices } from '@/lib/billing/use-prices'
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Card, Divider } from '@/components/shell/page-shell'
@@ -17,10 +18,6 @@ type Subscription = {
 }
 
 const PLAN_LABEL: Record<Tier, string> = { practice: 'Practice', direction: 'Direction' }
-const PRICE: Record<Tier, Record<Interval, number>> = {
-  practice: { monthly: 9, yearly: 90 },
-  direction: { monthly: 29, yearly: 290 },
-}
 
 function daysLeft(iso: string): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000))
@@ -28,6 +25,7 @@ function daysLeft(iso: string): number {
 
 export function BillingCard() {
   const { t } = useTheme()
+  const prices = usePrices()
   const [sub, setSub] = useState<Subscription | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [interval, setInterval] = useState<Interval>('monthly')
@@ -139,12 +137,12 @@ export function BillingCard() {
           </div>
           <Divider />
           <div style={row}>
-            <div style={label}>Practice — €{PRICE.practice[interval]}{interval === 'yearly' ? '/yr' : '/mo'}</div>
+            <div style={label}>Practice — {prices.money('practice', interval)}{interval === 'yearly' ? '/yr' : '/mo'}</div>
             <PrimaryButton size="sm" onClick={() => subscribe('practice')} loading={busy === 'practice'} loadingLabel="Starting…">Subscribe</PrimaryButton>
           </div>
           <Divider />
           <div style={row}>
-            <div style={label}>Direction — €{PRICE.direction[interval]}{interval === 'yearly' ? '/yr' : '/mo'}</div>
+            <div style={label}>Direction — {prices.money('direction', interval)}{interval === 'yearly' ? '/yr' : '/mo'}</div>
             <PrimaryButton size="sm" onClick={() => subscribe('direction')} loading={busy === 'direction'} loadingLabel="Starting…">Subscribe</PrimaryButton>
           </div>
           <p style={{ ...hint, marginTop: 10 }}>

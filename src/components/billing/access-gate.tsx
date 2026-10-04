@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrices } from '@/lib/billing/use-prices'
 import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
@@ -266,6 +267,7 @@ export function FairUseNotice({ status, onClose, onPlans }: { status: Status | n
 
 export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status | null; onClose: () => void; onPlans: () => void }) {
   const s = useText()
+  const prices = usePrices()
   // A plan that was paid for and then cancelled never reads as a free month.
   const cancelled = status?.subscription?.status === 'canceled'
   const repeat = !cancelled && status?.subscription?.repeat_trial === true
@@ -289,7 +291,7 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
         </p>
       )}
       <p style={s.body}>
-        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is €9 a month, for two active projects in words. Direction is €29, for
+        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is {prices.money('practice', 'monthly')} a month, for two active projects in words. Direction is {prices.money('direction', 'monthly')}, for
         several projects in any medium.
       </p>
       {CONTACT_EMAIL && (

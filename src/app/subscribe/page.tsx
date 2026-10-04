@@ -13,8 +13,10 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { WorkingDots } from '@/components/ui/working'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { chosenPlanLine, readChosenPlan, type ChosenPlan } from '@/lib/billing/chosen-plan'
+import { usePrices } from '@/lib/billing/use-prices'
 
 export default function SubscribePage() {
+  const prices = usePrices()
   const router = useRouter()
   const { t } = useTheme()
   const [plan, setPlan] = useState<ChosenPlan | null>(null)
@@ -60,7 +62,7 @@ export default function SubscribePage() {
   return (
     <AuthShell
       title={error ? 'Checkout did not open.' : 'One moment.'}
-      subtitle={plan ? `Taking you to checkout for ${chosenPlanLine(plan)}.` : undefined}
+      subtitle={plan ? `Taking you to checkout for ${chosenPlanLine(plan, prices.money(plan.tier, plan.interval))}.` : undefined}
       footer={<span>Not ready to pay? <AuthLink href="/home">Start with the free month instead</AuthLink></span>}
     >
       {error ? (
