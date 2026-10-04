@@ -92,3 +92,15 @@ test('nothing latches: a long session of light turns stays fast throughout', () 
     )
   }
 })
+
+test('a long opening in pain goes to the deeper model', () => {
+  const opening = 'I started my course again today and I should be happy but I feel like an impostor. ' + 'I keep thinking about it. '.repeat(15) + 'I cried in the car before going in.'
+  assert.ok(opening.length >= 400)
+  assert.equal(tier({ currentText: opening }), 'deep')
+})
+
+test('a long happy opening, or a short painful one, stays on the fast model', () => {
+  const happy = 'Today was a good day, I went for a long walk and saw friends. '.repeat(8)
+  assert.equal(tier({ currentText: happy }), 'fast')
+  assert.equal(tier({ currentText: 'I cried a bit this morning but I am okay now.' }), 'fast')
+})

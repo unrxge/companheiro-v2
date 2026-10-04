@@ -42,6 +42,22 @@ const DELICATE_MARKERS = [
   'me tuer', 'en finir', 'jen peux plus', "j'en peux plus", 'est mort', 'décédé', 'decede',
 ]
 
+// Everyday words for being in pain. Too common to escalate on alone (a bad
+// morning says "anxious"), so they only count together with a substantial
+// opening entry: someone who wrote at length AND is hurting. That is where the
+// fast model was found to rule on people's feelings and invent small details.
+const DISTRESS_WORDS = [
+  'cried', 'crying', 'tears', 'scared', 'afraid', 'terrified', 'anxious', 'anxiety',
+  'ashamed', 'shame', 'trauma', 'triggered', 'overwhelmed', 'impostor', 'imposter',
+  'police', 'investigation', 'lonely', 'grief', 'grieving', 'devastated', 'exhausted',
+  'chorei', 'chorar', 'medo', 'vergonha', 'lloré', 'llorar', 'miedo', 'vergüenza', 'pleuré', 'peur',
+]
+
+function readsDistressed(text: string): boolean {
+  const lower = text.toLowerCase()
+  return DISTRESS_WORDS.some((w) => lower.includes(w))
+}
+
 function readsDelicate(text: string): boolean {
   const lower = text.toLowerCase()
   return DELICATE_MARKERS.some((m) => lower.includes(m))
@@ -98,6 +114,11 @@ export function modelForCheckIn({ currentText, previousText = '', energy = null 
   // Delicate material anywhere in the window. Decays one turn after the
   // subject actually changes, rather than persisting for the whole session.
   if (readsDelicate(recent)) return decide(MODELS.deep, 'delicate')
+  // An opening that is both substantial and in pain: the first reply is the
+  // one that has to listen accurately, and nothing earlier can soften a miss.
+  if (previousText.trim() === '' && current.length >= SUBSTANTIAL_CHARS && readsDistressed(current)) {
+    return decide(MODELS.deep, 'heavy_opening')
+  }
   // Someone came with a lot in one go. Misreading that is the failure mode.
   if (current.length > DENSE_ENTRY_CHARS) return decide(MODELS.deep, 'dense_entry')
   // Still in deep water right now — both of the last two turns carried real
