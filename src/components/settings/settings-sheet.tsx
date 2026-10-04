@@ -33,7 +33,7 @@ export function SettingsButton() {
 }
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
-  const { t } = useTheme()
+  const { t, theme, setTheme } = useTheme()
   const router = useRouter()
   const confirm = useConfirm()
   const [settings, setSettings] = useState<UserSettings>({ dictation_lang: null, sunday_letter: false, onboarded_at: null })
@@ -108,6 +108,17 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     <ModalDialog onClose={onClose} title="Settings" subtitle={email ? <span>{email}</span> : undefined} maxWidth="520px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Card padding={18}>
+          <div style={row}>
+            <div>
+              <div style={label}>Container theme</div>
+              <div style={hint}>The shell stays dark either way.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Pill hue="neutral" selected={theme === 'light'} onClick={() => setTheme('light')} size="md">Light</Pill>
+              <Pill hue="neutral" selected={theme === 'dark'} onClick={() => setTheme('dark')} size="md">Dark</Pill>
+            </div>
+          </div>
+          <Divider />
           <div style={row}>
             <div>
               <div style={label}>Dictation language</div>

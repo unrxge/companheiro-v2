@@ -11,6 +11,7 @@ import { useState, type ReactNode } from 'react'
 import { AnimatePresence, motion as m } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
+import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { shell, type Mood } from '@/lib/design-tokens'
@@ -54,10 +55,10 @@ export function StageHeader({
   upLabel?: string
   reveal?: ReactNode
   actions?: ReactNode
-  /** A quiet word at the end of the bar: `saving…`, and nothing else. */
+  /** A quiet word beside the theme toggle: `saving…`, and nothing else. */
   status?: ReactNode
 }) {
-  const { t } = useTheme()
+  const { t, theme, toggle } = useTheme()
   const [open, setOpen] = useState(false)
   const iconOnly = !title && !reveal && !actions
 
@@ -146,6 +147,7 @@ export function StageHeader({
             {status}
           </span>
         )}
+        <ThemeToggleButton theme={theme} onToggle={toggle} />
       </div>
     </div>
   )
