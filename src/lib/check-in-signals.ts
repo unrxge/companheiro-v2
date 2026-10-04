@@ -10,6 +10,8 @@ export interface StoredCheckIn {
   energy: 'low' | 'medium' | 'high'
   inner_weather: string
   arc_texture: Arc | null
+  /** Conversation turns — stored as a JSON array or a formatted text string; used to proxy session depth/duration. */
+  full_conversation?: unknown[] | string | null
 }
 
 export interface CheckInRecord {
@@ -19,12 +21,35 @@ export interface CheckInRecord {
   entry: string | null
   /** Localised HH:MM, shown in the hover tooltip. */
   time: string
+  /**
+   * Session depth proxy normalised to [0.15, 1.0].
+   * Derived from full_conversation message count; falls back to energy.
+   */
+  durationProxy: number
 }
 
 /** Max check-ins shown per day in the strip. */
 export const MAX_CHECKINS_PER_DAY = 3
 
 const ENERGY_INTENSITY = { low: 0.55, medium: 0.8, high: 1 } as const
+/** Energy → depth proxy fallback when full_conversation is unavailable. */
+const ENERGY_DEPTH = { low: 0.3, medium: 0.6, high: 0.92 } as const
+
+/**
+ * Normalise conversation message count to a [0.15, 1.0] depth proxy.
+ * Falls back to energy-based value when count is unknown.
+ */
+function durationProxyFrom(c: StoredCheckIn): number {
+  let len = 0
+  if (Array.isArray(c.full_conversation)) {
+    len = c.full_conversation.length
+  } else if (typeof c.full_conversation === 'string' && c.full_conversation.trim()) {
+    // Text format: count "You: " and "Companheiro: " turn prefixes
+    len = (c.full_conversation.match(/^(?:You|Companheiro): /gm) ?? []).length
+  }
+  if (len >= 2) return Math.max(0.15, Math.min(1.0, (len - 1) / 15))
+  return ENERGY_DEPTH[c.energy] ?? 0.5
+}
 
 /** Mood + intensity for the shell from the most recent check-in. */
 export function atmosphereFromCheckIns(checkIns: StoredCheckIn[]): { mood: Mood; intensity: number } {
@@ -81,6 +106,7 @@ export function weatherDays(checkIns: StoredCheckIn[], days = 30, writingActivit
         weather: c.inner_weather ?? null,
         entry: c.raw_entry ?? null,
         time: new Date(c.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+        durationProxy: durationProxyFrom(c),
       }))
 
     out.push({

@@ -21,11 +21,12 @@ export interface WeatherDay {
   checkIns?: CheckInRecord[]
 }
 
+/** Fallback energy ratios when durationProxy is absent (legacy data). */
 const ENERGY_H: Record<Energy, number> = { low: 0.32, medium: 0.62, high: 0.92 }
 const WRITING_MIN_H = 0.2
 const WRITING_MAX_H = 0.58
 const WRITING_CAP_MIN = 90
-/** Height allocated per check-in slot (3 slots fill the container). */
+/** Max stacked slots — multi-check-in days divide available height by this. */
 const MAX_SLOTS = 3
 /** Gap in px between stacked blocks. */
 const BLOCK_GAP = 2
@@ -48,8 +49,8 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
   const [hover, setHover] = useState<number | null>(null)
   const active = hover !== null ? days[hover] : null
 
-  // Height each single check-in block is measured against
-  const slotH = (height - BLOCK_GAP * (MAX_SLOTS - 1)) / MAX_SLOTS
+  // Per-slot height for multi-check-in days (single-check-in days use full height)
+  const multiSlotH = (height - BLOCK_GAP * (MAX_SLOTS - 1)) / MAX_SLOTS
 
   return (
     <div>
@@ -63,7 +64,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
           const cis: CheckInRecord[] | undefined =
             d.checkIns ??
             (d.energy && d.arc
-              ? [{ energy: d.energy, arc: d.arc, weather: d.weather ?? null, entry: d.entry ?? null, time: '' }]
+              ? [{ energy: d.energy, arc: d.arc, weather: d.weather ?? null, entry: d.entry ?? null, time: '', durationProxy: ENERGY_H[d.energy] }]
               : undefined)
           const empty = !cis || cis.length === 0
           const minutes = d.writingMinutes ?? 0
@@ -132,7 +133,10 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
               }}
             >
               {cis.map((ci, j) => {
-                const blockH = Math.round(ENERGY_H[ci.energy] * slotH)
+                // Single check-in: full strip height available; multi: divided into slots
+                const availH = cis.length === 1 ? height : multiSlotH
+                const proxy = ci.durationProxy ?? ENERGY_H[ci.energy]
+                const blockH = Math.round(proxy * availH)
                 const isTop = j === cis.length - 1
                 return (
                   <div
