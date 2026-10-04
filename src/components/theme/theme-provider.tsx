@@ -14,20 +14,30 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 /**
- * App-wide container theme (light bone / dark coal). One provider, one storage
- * key — the same key the per-page `useCardTheme` hook already used, so the
- * person's existing preference carries over untouched.
+ * App-wide container theme (light bone / dark coal). It starts from the
+ * device's setting; the toggle overrides it, and that choice is stored under
+ * the same key the per-page `useCardTheme` hook used, so existing preferences
+ * carry over untouched.
  */
 export function ThemeProvider({ children, defaultTheme = 'light' }: { children: React.ReactNode; defaultTheme?: Theme }) {
   const [theme, setThemeState] = useState<Theme>(defaultTheme)
 
+  // Until the person picks one with the toggle, it follows the device's own
+  // light or dark setting, and changes with it. A choice made here is kept.
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
-      if (stored === 'light' || stored === 'dark') setThemeState(stored)
-    } catch {
-      /* storage unavailable — keep default */
+    const chosen = (): Theme | null => {
+      try {
+        const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+        return stored === 'light' || stored === 'dark' ? stored : null
+      } catch {
+        return null
+      }
     }
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const follow = () => setThemeState(chosen() ?? (mq.matches ? 'dark' : 'light'))
+    follow()
+    mq.addEventListener('change', follow)
+    return () => mq.removeEventListener('change', follow)
   }, [])
 
   const setTheme = useCallback((next: Theme) => {
