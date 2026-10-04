@@ -5,7 +5,7 @@ import type { Subscription } from './access'
 // and nowhere else. Pure: safe to import from the browser.
 //
 //   trial          everything Direction has, for 30 days
-//   practice       one project worked on at a time, in words
+//   practice       two projects worked on at a time, in words
 //   direction      any number of projects, the canvas tools, the vision talk
 //   ended          a trial that ran out or a plan that was cancelled: the
 //                  work stays (Practice's shape), the companion rests
@@ -33,26 +33,38 @@ export interface Entitlements {
 export const REST_DAYS = 14
 
 const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, visionTalk: true } as const
-const ONE_IN_WORDS = { maxActiveProjects: 1, threads: false, media: false, visionTalk: false } as const
+/** How many projects Practice (and an ended plan, which keeps its shape) works on at once. */
+export const PRACTICE_ACTIVE_PROJECTS = 2
+
+const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: false, media: false, visionTalk: false } as const
 
 export function entitlementsFor(sub: Subscription | null): Entitlements {
   if (!sub) return { plan: 'unknown', companion: false, ...EVERYTHING }
   if (sub.status === 'grandfathered') return { plan: 'grandfathered', companion: true, ...EVERYTHING }
   if (sub.status === 'trialing') {
     const live = !!sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > Date.now()
-    return live ? { plan: 'trial', companion: true, ...EVERYTHING } : { plan: 'ended', companion: false, ...ONE_IN_WORDS }
+    return live ? { plan: 'trial', companion: true, ...EVERYTHING } : { plan: 'ended', companion: false, ...IN_WORDS }
   }
   if (sub.status === 'active' || sub.status === 'past_due') {
     return sub.tier === 'direction'
       ? { plan: 'direction', companion: true, ...EVERYTHING }
-      : { plan: 'practice', companion: true, ...ONE_IN_WORDS }
+      : { plan: 'practice', companion: true, ...IN_WORDS }
   }
-  return { plan: 'ended', companion: false, ...ONE_IN_WORDS }
+  return { plan: 'ended', companion: false, ...IN_WORDS }
 }
 
-/** Said wherever the one-project limit is met; the same words everywhere. */
-export function oneAtATimeLine(plan: Plan): string {
-  return plan === 'ended' ? 'Without a plan, one project stays open at a time.' : 'Practice carries one project at a time.'
+const COUNT_WORD = ['no', 'one', 'two', 'three', 'four', 'five']
+
+/** "two projects", "one project": the limit in words, for any sentence that needs it. */
+export function activeLimitWords(n: number = PRACTICE_ACTIVE_PROJECTS): string {
+  return `${COUNT_WORD[n] ?? String(n)} project${n === 1 ? '' : 's'}`
+}
+
+/** Said wherever the limit on active projects is met; the same words everywhere. */
+export function activeLimitLine(plan: Plan): string {
+  return plan === 'ended'
+    ? `Without a plan, ${activeLimitWords()} stay open at a time.`
+    : `Practice carries ${activeLimitWords()} at a time.`
 }
 
 export function restEndsAt(from: Date | string | number = Date.now()): string {

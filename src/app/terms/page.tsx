@@ -63,13 +63,14 @@ export default function TermsPage() {
           shown on our <A href="/#pricing">pricing section</A> and at checkout; the price you see at checkout is the price you pay.
         </li>
         <li>
-          <strong>Practice carries one active project at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
-          Switching to another project sends the one you leave to rest for 14 days before it can be made active again. New threads, images and
+          <strong>Practice carries two active projects at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
+          When both places are taken, making another project active means choosing one of the two to rest: it returns to your Queue for 14 days
+          before it can be made active again. Resting changes nothing inside a project; everything in it is kept as you left it. New threads, images and
           recordings on a project&rsquo;s canvas, and the conversation about a whole project from its canvas, are part of Direction.
         </li>
         <li>
           If you move from Direction or the free trial to Practice, or your trial or plan ends, <strong>nothing is deleted</strong>. You choose which
-          project stays active; the others wait in your Queue. Threads, images and recordings you already made stay where they are, though new ones
+          projects stay active, up to the number your plan carries; the others wait in your Queue. Threads, images and recordings you already made stay where they are, though new ones
           cannot be added.
         </li>
         <li>

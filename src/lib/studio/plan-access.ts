@@ -2,12 +2,17 @@
 // right now, and the rules about which project is the one being worked on.
 //
 // A plan with a limit (Practice, or a trial or plan that has ended) works on
-// one project at a time: the one in the Project Board's Active column. The
-// others can be read and exported, never edited. Taking the place from
-// another project sends that one to the Queue to rest for REST_DAYS, so two
-// projects cannot be alternated day by day; so does anything that left Active
-// shortly before another took its place (dragged to Completed and back is the
-// same swap by another road).
+// a few projects at a time (entitlements.maxActiveProjects): the ones in the
+// Project Board's Active column. The others can be read and exported, never
+// edited. When Active is full, taking a place sends the project the person
+// names to the Queue to rest for REST_DAYS, so projects cannot be rotated day
+// by day; so does anything that left Active shortly before another took its
+// place (dragged to Completed and back is the same swap by another road).
+//
+// Leaving Active changes where a project sits and nothing else: only
+// shelf_stage, completed_at, resting_until and settings.left_active_at are
+// written. Its pieces, drafts, concept, threads, images, recordings and task
+// lists are never touched, and it stays a project (never an Idea Lab draft).
 //
 // A failed lookup lets the work through. Our own bookkeeping being down must
 // never be the thing that stops someone mid-sentence.
@@ -16,7 +21,7 @@ import { NextResponse } from 'next/server'
 import type { AuthedContext } from '@/lib/supabase/route'
 import type { Subscription } from '@/lib/billing/access'
 import {
-  entitlementsFor, isResting, oneAtATimeLine, REST_DAYS, restEndsAt, type Entitlements, type Plan,
+  entitlementsFor, isResting, activeLimitLine, REST_DAYS, restEndsAt, type Entitlements, type Plan,
 } from '@/lib/billing/entitlements'
 import { assertProjectWritable, fromDbError, HttpError } from '@/lib/studio/db'
 import type { Project, ProjectSettings } from '@/lib/studio/types'
@@ -73,6 +78,8 @@ export interface ProjectAccess {
   reason: 'not_active' | 'over_limit' | null
   /** The project(s) in Active, when the plan has a limit. */
   active: Array<{ id: string; title: string }>
+  /** How many the plan works on at once. null is any number. */
+  limit: number | null
   resting_until: string | null
   /** New threads, new media, the vision talk. */
   threads: boolean
@@ -84,7 +91,7 @@ type Staged = Pick<Project, 'id' | 'resting_until'> & { shelf_stage?: Project['s
 
 export async function projectAccess(auth: AuthedContext, project: Staged): Promise<ProjectAccess> {
   const ent = await entitlementsOf(auth)
-  const base = { plan: ent.plan, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
+  const base = { plan: ent.plan, limit: ent.maxActiveProjects, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
   const resting_until = isResting(project.resting_until) ? project.resting_until : null
   if (ent.maxActiveProjects === null) return { ...base, workable: true, reason: null, active: [], resting_until: null }
   let rows: ActiveRow[]
@@ -101,14 +108,14 @@ export async function projectAccess(auth: AuthedContext, project: Staged): Promi
 }
 
 function refusal(access: ProjectAccess): HttpError {
-  const line = oneAtATimeLine(access.plan)
+  const line = activeLimitLine(access.plan)
   if (access.reason === 'over_limit') {
-    return new HttpError(403, `${line} Choose the one you want to keep working on.`, 'plan_over_limit')
+    return new HttpError(403, `${line} Choose which to keep working on.`, 'plan_over_limit')
   }
-  const other = access.active[0]?.title?.trim()
+  const others = access.active.map((p) => `“${p.title.trim() || 'Untitled'}”`)
   return new HttpError(
     403,
-    other ? `You’re working on “${other}” right now. ${line}` : `This one isn’t the project you’re working on right now.`,
+    others.length ? `You’re working on ${others.join(' and ')} right now. ${line}` : `This one isn’t a project you’re working on right now.`,
     'plan_not_active',
   )
 }
@@ -174,16 +181,18 @@ export async function stageForNewProject(auth: AuthedContext): Promise<'active' 
 
 /**
  * Called when `project` is about to move into Active. Refuses if it is
- * resting, or if the place is taken and `swap` was not asked for. With
- * `swap`, the project(s) holding the place go to the Queue and rest. With
- * `keepOnly` (honoured only while more are active than the plan carries, the
- * state a downgrade leaves behind) the others go to the Queue without a rest:
- * nothing was swapped, the plan just got smaller.
+ * resting, or if Active is full and `swap` was not asked for. With `swap`,
+ * enough of the projects in Active go to the Queue and rest to make room:
+ * the one named by `restId`, which must be given when there is a choice to
+ * make. With `keepOnly` (honoured only while more are active than the plan
+ * carries, the state a downgrade leaves behind) the others go to the Queue
+ * without a rest, except those named in `keepIds`: nothing was swapped, the
+ * plan just got smaller.
  */
 export async function claimActivePlace(
   auth: AuthedContext,
   project: Pick<Project, 'id' | 'resting_until'>,
-  opts: { swap?: boolean; keepOnly?: boolean } = {},
+  opts: { swap?: boolean; restId?: string | null; keepOnly?: boolean; keepIds?: string[] } = {},
 ): Promise<void> {
   const ent = await entitlementsOf(auth)
   if (ent.maxActiveProjects === null) return
@@ -200,11 +209,29 @@ export async function claimActivePlace(
 
   const settle = !!opts.keepOnly && overLimit
   if (others.length >= ent.maxActiveProjects) {
+    const names = others.map((r) => `“${r.title?.trim() || 'Untitled'}”`).join(' and ')
     if (!settle && !opts.swap) {
-      const title = others[0]?.title?.trim() || 'another project'
-      throw new HttpError(409, `${oneAtATimeLine(ent.plan)} “${title}” is the one you’re working on.`, 'plan_slot_taken')
+      throw new HttpError(409, `${activeLimitLine(ent.plan)} Right now that is ${names}.`, 'plan_slot_taken')
     }
-    for (const row of others) {
+    // Who leaves. Settling a smaller plan: everyone not chosen to stay.
+    // Swapping: as many as it takes to make one place, which is everyone
+    // when there is no choice, and the named one when there is.
+    let leaving: ActiveRow[]
+    if (settle) {
+      const keep = new Set((opts.keepIds ?? []).slice(0, ent.maxActiveProjects - 1))
+      leaving = others.filter((r) => !keep.has(r.id))
+    } else {
+      const mustLeave = others.length - ent.maxActiveProjects + 1
+      if (mustLeave >= others.length) leaving = others
+      else {
+        const named = others.filter((r) => r.id === opts.restId)
+        if (named.length !== 1 || mustLeave !== 1) {
+          throw new HttpError(409, `${activeLimitLine(ent.plan)} Choose which of ${names} rests.`, 'plan_choose_rest')
+        }
+        leaving = named
+      }
+    }
+    for (const row of leaving) {
       const { error } = await auth.supabase
         .from('studio_projects')
         .update({

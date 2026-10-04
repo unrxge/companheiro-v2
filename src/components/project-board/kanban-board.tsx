@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { SwapNote } from '@/components/billing/swap-note'
 import { useTerritories } from '@/hooks/useTerritories'
 import { PageShell, PageHeader, Container } from '@/components/shell/page-shell'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
@@ -26,7 +27,7 @@ import { api, ApiError } from '@/lib/studio/api-client'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { projectState } from '@/lib/studio/shelf-view'
 import type { ShelfProject } from '@/lib/studio/types'
-import { isResting, oneAtATimeLine, REST_DAYS, restEndsAt } from '@/lib/billing/entitlements'
+import { isResting, restEndsAt } from '@/lib/billing/entitlements'
 import { usePlan } from '@/lib/billing/use-plan'
 import { PlanNote } from '@/components/billing/plan-note'
 
@@ -66,6 +67,17 @@ const at = (iso: string | null | undefined) => {
 const singlePiece = (p: ShelfProject): string | null =>
   p.root_ids?.length === 1 && !p.thread_count ? p.root_ids[0] : null
 
+
+// A project in the Queue that has been worked on before (it was in Active, or
+// has been opened since it was made) is one being come back to, not an idea
+// waiting to be started, and the board says so.
+function workedOn(p: ShelfProject): boolean {
+  if (p.settings?.left_active_at || p.resting_until) return true
+  const opened = new Date(p.last_opened_at).getTime()
+  const made = new Date(p.created_at).getTime()
+  return Number.isFinite(opened) && Number.isFinite(made) && opened - made > 60_000
+}
+
 export function ProjectBoard() {
   return (
     <Level>
@@ -96,11 +108,12 @@ function Board() {
   const [showNewIdea, setShowNewIdea] = useState(false)
   const [bannerExpanded, setBannerExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  // On a plan that carries one project at a time, moving another into Active
-  // is a swap (the one there rests), and a resting one cannot come back yet.
+  // On a plan that carries a set number of projects, moving another into a
+  // full Active is a swap (one there rests), and a resting one cannot come
+  // back yet.
   const { plan } = usePlan()
   const limit = plan?.maxActiveProjects ?? null
-  const [swap, setSwap] = useState<{ project: ShelfProject; holder: ShelfProject; after?: () => void } | null>(null)
+  const [swap, setSwap] = useState<{ project: ShelfProject; holders: ShelfProject[]; after?: () => void } | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [restingNote, setRestingNote] = useState<ShelfProject | null>(null)
 
@@ -169,16 +182,16 @@ function Board() {
         ? { ...p, shelf_stage: stage, completed_at: stage === 'completed' ? new Date().toISOString() : null, ...(stage === 'active' ? { resting_until: null } : {}) }
         : p
     }))
-    return api.projects.patch(id, { shelf_stage: stage, ...(resting ? { swap: true } : {}) }).catch(() => { void load() })
+    return api.projects.patch(id, { shelf_stage: stage, ...(resting ? { swap: true, rest_id: resting } : {}) }).catch(() => { void load() })
   }, [load])
 
-  /** Into Active. Where the plan carries one project, this asks before swapping. */
+  /** Into Active. Where the plan has a limit and Active is full, this asks which project rests. */
   const start = useCallback((p: ShelfProject, after?: () => void) => {
     setMenuFor(null)
     if (limit !== null) {
       if (isResting(p.resting_until)) { setRestingNote(p); return }
       const holders = columns.Active.filter((x) => x.id !== p.id)
-      if (holders.length >= limit) { setSwap({ project: p, holder: holders[0], after }); return }
+      if (holders.length >= limit) { setSwap({ project: p, holders, after }); return }
     }
     void moveTo(p.id, 'active').then(after)
   }, [columns.Active, limit, moveTo])
@@ -665,37 +678,36 @@ function Board() {
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
               <GhostButton onClick={() => { const id = peek.id; setPeek(null); openCanvas(id) }}>{limit !== null ? 'Just read it' : 'Open without starting'}</GhostButton>
               <PrimaryButton onClick={() => { const p = peek; setPeek(null); start(p, () => openCanvas(p.id)) }}>
-                Start working on it
+                {workedOn(peek) ? 'Carry on with it' : 'Start working on it'}
               </PrimaryButton>
             </div>
           }
         >
           <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.6, color: (peek.concept_body || peek.intent) ? c.textPrimary : c.textMuted, margin: 0, whiteSpace: 'pre-wrap' }}>
-            {peek.concept_body || peek.intent || 'Nothing written about this one yet.'}
+            {peek.concept_body || peek.intent || (workedOn(peek) ? 'No core concept written for this one.' : 'Nothing written about this one yet.')}
           </p>
+          {workedOn(peek) && (
+            <p style={{ ...typeRoles.small, fontSize: 13, lineHeight: 1.55, color: c.textMuted, margin: '14px 0 0' }}>
+              {(peek.root_ids?.length ?? 0) > 1 ? `Its ${peek.root_ids.length} pieces are` : 'Everything in it is'} as you left {(peek.root_ids?.length ?? 0) > 1 ? 'them' : 'it'}.
+              {limit !== null && isResting(peek.resting_until) ? ` It is resting until ${dayFmt.format(new Date(peek.resting_until as string))}; until then you can read and export it.` : ''}
+            </p>
+          )}
         </ModalDialog>
       )}
 
       {swap && (
-        <PlanNote
-          title={`Switch to “${swap.project.title.trim() || 'Untitled'}”?`}
+        <SwapNote
+          plan={plan?.plan ?? 'practice'}
+          title={swap.project.title}
+          holders={swap.holders}
+          busy={swapping}
           onClose={() => setSwap(null)}
-          action={{
-            label: 'Switch',
-            busy: swapping,
-            onClick: () => {
-              const { project, holder, after } = swap
-              setSwapping(true)
-              void moveTo(project.id, 'active', holder.id).then(() => { setSwapping(false); setSwap(null); after?.() })
-            },
+          onConfirm={(restId) => {
+            const { project, after } = swap
+            setSwapping(true)
+            void moveTo(project.id, 'active', restId).then(() => { setSwapping(false); setSwap(null); after?.() })
           }}
-        >
-          <p style={{ margin: 0 }}>
-            {oneAtATimeLine(plan?.plan ?? 'practice')} “{swap.holder.title.trim() || 'Untitled'}” goes back to your Queue and rests
-            for {REST_DAYS} days. You can read and export it, but not work on it or bring it back until{' '}
-            {dayFmt.format(new Date(restEndsAt()))}.
-          </p>
-        </PlanNote>
+        />
       )}
 
       {restingNote && (

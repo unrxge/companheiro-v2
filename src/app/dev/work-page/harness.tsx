@@ -7,7 +7,7 @@ import { ProjectBoard } from '@/components/project-board/kanban-board'
 import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-shell'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { AccessGate } from '@/components/billing/access-gate'
-import { entitlementsFor, isResting, restEndsAt } from '@/lib/billing/entitlements'
+import { activeLimitLine, entitlementsFor, isResting, restEndsAt } from '@/lib/billing/entitlements'
 
 const NOW = '2026-09-25T10:00:00.000Z'
 const IDEA = 'A morning where nothing was asked of me, and how strange it was to notice.'
@@ -86,8 +86,9 @@ function installMock(o: Opts) {
   const items: Array<Record<string, unknown> & { id: string; content: Record<string, unknown> }> = []
 
   // ?plan=practice|direction|ended|cancelled: the plan the mocked account is on
-  // (default: an account from before billing, with everything). ?over=1 leaves
-  // two projects in Active, the state a downgrade leaves behind. ?reading=1
+  // (default: an account from before billing, with everything). A limited plan
+  // starts with Active full (two projects). ?over=1 leaves three in Active,
+  // the state a downgrade leaves behind. ?reading=1
   // makes "demo" the project that is NOT being worked on.
   const subscription = o.plan === null
     ? { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
@@ -98,6 +99,7 @@ function installMock(o: Opts) {
         : { status: 'active', tier: o.plan, trial_ends_at: null, current_period_end: '2026-11-01T00:00:00.000Z', cancel_at_period_end: false, repeat_trial: false }
   const ent = entitlementsFor(subscription as Parameters<typeof entitlementsFor>[0])
   const limited = ent.maxActiveProjects !== null
+  const max = ent.maxActiveProjects ?? Infinity
   const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
   const card = (id: string, title: string, shelf_stage: string, extra: Record<string, unknown> = {}) => ({
     ...project('', false), id, title, shelf_stage, arc: 'Beginning', concept_body: 'What the quiet holds when nobody is asking.',
@@ -105,7 +107,8 @@ function installMock(o: Opts) {
   })
   const shelf: Array<Record<string, unknown> & { id: string }> = [
     card('demo', 'A morning where nothing was asked', limited && o.reading ? 'queued' : 'active', { root_ids: ['node-1'] }),
-    card('p2', 'Letters to the house on the hill', limited && !o.over && !o.reading ? 'queued' : 'active', { root_ids: ['a', 'b', 'c'], thread_count: 2, stage: null, arc: 'Expansion' }),
+    card('p2', 'Letters to the house on the hill', 'active', { root_ids: ['a', 'b', 'c'], thread_count: 2, stage: null, arc: 'Expansion' }),
+    card('p6', 'Notes from the ferry', limited && !o.over && !o.reading ? 'queued' : 'active', { stage: 'writing', arc: 'Expansion', created_at: '2026-09-01T00:00:00.000Z', concept_body: '' }),
     card('p3', 'The year of small rooms', 'queued', { stage: 'conceptualising' }),
     card('p4', 'What my father kept', 'queued', { stage: 'conceptualising', arc: 'Integration', resting_until: limited ? restEndsAt() : null }),
     card('p5', 'On leaving early', 'completed', { stage: 'posted', completed_at: NOW }),
@@ -187,21 +190,24 @@ function installMock(o: Opts) {
       if (row && method === 'PATCH' && limited && body.shelf_stage === 'active') {
         const others = shelf.filter((x) => x.shelf_stage === 'active' && x.id !== row.id)
         if (isResting(row.resting_until as string | null)) return json({ error: 'This one is resting.', code: 'plan_resting' }, 409)
-        if (others.length >= 1) {
-          const settle = body.keep_only === true && others.length + (row.shelf_stage === 'active' ? 1 : 0) > 1
-          if (!settle && body.swap !== true) return json({ error: 'Practice carries one project at a time.', code: 'plan_slot_taken' }, 409)
-          for (const other of others) Object.assign(other, { shelf_stage: 'queued', resting_until: settle ? null : restEndsAt() })
+        if (others.length >= max) {
+          const settle = body.keep_only === true && others.length + (row.shelf_stage === 'active' ? 1 : 0) > max
+          if (!settle && body.swap !== true) return json({ error: activeLimitLine(ent.plan), code: 'plan_slot_taken' }, 409)
+          const keep = new Set<string>(Array.isArray(body.keep_ids) ? (body.keep_ids as string[]).slice(0, max - 1) : [])
+          const leaving = settle ? others.filter((x) => !keep.has(x.id)) : others.filter((x) => x.id === body.rest_id)
+          if (!settle && leaving.length !== 1) return json({ error: 'Choose which one rests.', code: 'plan_choose_rest' }, 409)
+          for (const other of leaving) Object.assign(other, { shelf_stage: 'queued', resting_until: settle ? null : restEndsAt() })
         }
         return write(() => { Object.assign(row, { shelf_stage: 'active', resting_until: null }); return json({ project: row }) })
       }
-      if (row && method === 'PATCH') return write(() => { const { swap: _s, keep_only: _k, ...rest } = body; Object.assign(row, rest); return json({ project: row }) })
+      if (row && method === 'PATCH') return write(() => { const { swap: _s, keep_only: _k, rest_id: _r, keep_ids: _i, ...rest } = body; Object.assign(row, rest); return json({ project: row }) })
       if (row && method === 'DELETE') return write(() => { shelf.splice(shelf.indexOf(row), 1); return json(null, 204) })
     }
     if (path === '/api/studio/projects/demo/tree') {
       const active = shelf.filter((x) => x.shelf_stage === 'active').map((x) => ({ id: x.id, title: String(x.title) }))
       const mine = shelf.find((x) => x.id === 'demo')
-      const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > 1 ? 'over_limit' : null
-      const access = { plan: ent.plan, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
+      const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > max ? 'over_limit' : null
+      const access = { plan: ent.plan, limit: ent.maxActiveProjects, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
       return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
     }
     if (path === '/api/studio/projects/demo/items') {
@@ -274,7 +280,7 @@ function installMock(o: Opts) {
       const active = shelf.filter((x) => x.shelf_stage === 'active').map((x) => ({ id: x.id, title: String(x.title) }))
       return json({
         subscription, access: !ent.companion ? 'no_access' : o.plan === null ? 'uncapped' : 'capped', usage: null,
-        entitlements: ent, over_limit: limited && active.length > 1 ? active : null,
+        entitlements: ent, over_limit: limited && active.length > max ? active : null,
       })
     }
 

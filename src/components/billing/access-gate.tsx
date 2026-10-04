@@ -9,7 +9,7 @@ import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { LEGAL_PAGES } from '@/lib/legal'
-import { oneAtATimeLine } from '@/lib/billing/entitlements'
+import { activeLimitLine, activeLimitWords } from '@/lib/billing/entitlements'
 import { PLAN_EVENTS, primePlan, type PlanStatus } from '@/lib/billing/use-plan'
 
 // Loaded only when "See plans" is pressed. This gate sits in the root layout,
@@ -289,7 +289,7 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
         </p>
       )}
       <p style={s.body}>
-        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is €9 a month, for one active project in words. Direction is €29, for
+        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is €9 a month, for two active projects in words. Direction is €29, for
         several projects in any medium.
       </p>
       {CONTACT_EMAIL && (
@@ -305,27 +305,31 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
 /**
  * The plan carries fewer projects than are in Active (a free month that
  * ended, or a move from Direction to Practice). Nothing is taken away: the
- * person says which one they are working on, and the rest wait in the Queue.
+ * person says which they are working on (as many as the plan carries), and
+ * the rest wait in the Queue.
  */
 export function KeepOneNotice({ status, onClose, onPlans }: { status: Status; onClose: () => void; onPlans: () => void }) {
   const { t } = useTheme()
   const s = useText()
   const projects = status.over_limit ?? []
-  const [chosen, setChosen] = useState<string | null>(projects[0]?.id ?? null)
+  const max = status.entitlements?.maxActiveProjects ?? 1
+  const [chosen, setChosen] = useState<string[]>(projects.slice(0, max).map((p) => p.id))
+  // Picking one more than the plan carries lets go of the earliest pick.
+  const toggle = (id: string) => setChosen((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(-max)))
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
-  const line = oneAtATimeLine(status.entitlements?.plan ?? 'practice')
+  const line = activeLimitLine(status.entitlements?.plan ?? 'practice')
 
   const keep = async () => {
-    if (!chosen || busy) return
+    if (!chosen.length || busy) return
     setBusy(true)
     setFailed(false)
     try {
-      const res = await fetch(`/api/studio/projects/${chosen}`, {
+      const res = await fetch(`/api/studio/projects/${chosen[0]}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ shelf_stage: 'active', keep_only: true }),
+        body: JSON.stringify({ shelf_stage: 'active', keep_only: true, keep_ids: chosen.slice(1) }),
       })
       if (!res.ok) throw new Error('failed')
       // Every screen that listed or opened a project reads it afresh.
@@ -339,30 +343,30 @@ export function KeepOneNotice({ status, onClose, onPlans }: { status: Status; on
   return (
     <ModalDialog
       onClose={onClose}
-      title="Which one are you working on?"
+      title={max === 1 ? 'Which one are you working on?' : 'Which are you working on?'}
       maxWidth="520px"
       footer={
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
           <GhostButton size="sm" onClick={onClose}>Decide later</GhostButton>
           <GhostButton size="sm" onClick={onPlans}>See Direction</GhostButton>
-          <PrimaryButton size="sm" onClick={() => void keep()} disabled={!chosen} loading={busy} loadingLabel="Saving…">Keep this one</PrimaryButton>
+          <PrimaryButton size="sm" onClick={() => void keep()} disabled={!chosen.length} loading={busy} loadingLabel="Saving…">{chosen.length > 1 ? 'Keep these' : 'Keep this one'}</PrimaryButton>
         </div>
       }
     >
       <p style={s.body}>
-        {line} You have {projects.length} in Active. Choose the one to keep working on. The others go to
-        your Queue. Nothing is deleted: you can read and export them, and switch to one of them later.
+        {line} You have {projects.length} in Active. Choose {max === 1 ? 'the one' : `up to ${activeLimitWords(max).split(' ')[0]}`} to keep working on. The others go to
+        your Queue. Nothing in them is deleted or changed: you can read and export them, and switch to one of them later.
       </p>
-      <div role="radiogroup" aria-label="The project to keep working on" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div role="group" aria-label="The projects to keep working on" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {projects.map((p) => {
-          const on = chosen === p.id
+          const on = chosen.includes(p.id)
           return (
             <button
               key={p.id}
               type="button"
-              role="radio"
+              role="checkbox"
               aria-checked={on}
-              onClick={() => setChosen(p.id)}
+              onClick={() => toggle(p.id)}
               style={{
                 ...typeRoles.ui, fontSize: 15, textAlign: 'left', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12,

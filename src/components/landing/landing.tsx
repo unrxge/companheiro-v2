@@ -317,7 +317,7 @@ const AUDIENCES: Audience[] = [
     ],
     never: 'No streaks, no targets, nobody keeping track of your days.',
     plan: 'Practice',
-    planNote: 'One project at a time is the point, not the limit.',
+    planNote: 'Two projects at a time is the point, not the limit.',
   },
   {
     key: 'writers',
@@ -568,17 +568,17 @@ const PLANS = [
   {
     id: 'practice',
     name: 'Practice',
-    line: 'For one vision at a time, in words.',
+    line: 'For one or two visions at a time, in words.',
     price: { month: 9, year: 90 },
     features: [
-      'One active project at a time',
+      'Two active projects at a time',
       'One project holds as many pieces as it needs',
       'Unlimited personal check-ins',
       'Define and conceptualise new ideas',
       'Find and hold your vision',
       'Access to the writing suite, with questions when you are stuck',
       'A task list on your canvas',
-      'Switch projects by resting one for 14 days',
+      'Bring in another by resting one for 14 days',
     ],
   },
   {
@@ -674,7 +674,7 @@ function Pricing() {
       <Reveal>
         <h2 className={`max-w-[18ch] ${H2}`}>Two ways to hold a vision.</h2>
         <p className="mt-5 max-w-[48ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Practice for one project in words. Direction for many, in any medium. Move between them whenever you like.
+          Practice for two projects in words. Direction for many, in any medium. Move between them whenever you like.
         </p>
       </Reveal>
 

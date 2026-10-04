@@ -325,10 +325,14 @@ export interface PatchProjectRequest {
   status?: ProjectStatus
   /** Which Project Board column it sits in. */
   shelf_stage?: 'queued' | 'active' | 'completed'
-  /** Moving into Active while another project holds the place: send that one to rest. */
+  /** Moving into Active while it is full: send a project there to rest. */
   swap?: boolean
+  /** With swap, which project in Active rests. Needed when there is more than one to choose from. */
+  rest_id?: string
   /** After the plan got smaller: keep this one in Active and queue the rest, with no rest period. */
   keep_only?: boolean
+  /** With keep_only, the other projects that also stay in Active (as many as the plan carries). */
+  keep_ids?: string[]
   completion_note?: string
   /** What the whole project is for. */
   intent?: string

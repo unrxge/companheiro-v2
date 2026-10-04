@@ -1,16 +1,16 @@
 'use client'
 
-// Shown on a project that can be read but not worked on: the plan carries one
-// project at a time and this is not the one in Active (or one has yet to be
-// chosen). Says why in a sentence and offers the way through, right here.
+// Shown on a project that can be read but not worked on: the plan carries a
+// set number of projects at a time and this is not one of those in Active (or
+// which stay has yet to be chosen). Says why in a sentence and offers the way through, right here.
 
 import { useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
-import { PlanNote } from '@/components/billing/plan-note'
+import { SwapNote } from '@/components/billing/swap-note'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
-import { oneAtATimeLine, REST_DAYS, restEndsAt } from '@/lib/billing/entitlements'
+import { activeLimitLine } from '@/lib/billing/entitlements'
 import { openPlans, openProjectChoice } from '@/lib/billing/use-plan'
 import type { ProjectAccess } from '@/lib/studio/plan-access'
 
@@ -29,12 +29,14 @@ export function PlanBanner({ projectId, title, access, onSwitched }: {
   const [failed, setFailed] = useState<string | null>(null)
   if (access.workable) return null
 
-  const line = oneAtATimeLine(access.plan)
-  const holder = access.active.find((p) => p.id !== projectId)
-  const holderTitle = holder?.title.trim() || 'Untitled'
+  const line = activeLimitLine(access.plan)
+  const holders = access.active.filter((p) => p.id !== projectId)
+  // Active has a place free: taking it rests nothing, so nothing is asked.
+  const full = access.limit !== null && holders.length >= access.limit
+  const holderTitles = holders.map((p) => `“${p.title.trim() || 'Untitled'}”`).join(' and ')
   const resting = access.resting_until ? dayFmt.format(new Date(access.resting_until)) : null
 
-  const takePlace = async () => {
+  const takePlace = async (restId?: string) => {
     setBusy(true)
     setFailed(null)
     try {
@@ -42,7 +44,7 @@ export function PlanBanner({ projectId, title, access, onSwitched }: {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ shelf_stage: 'active', swap: true }),
+        body: JSON.stringify({ shelf_stage: 'active', swap: true, ...(restId ? { rest_id: restId } : {}) }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -67,18 +69,20 @@ export function PlanBanner({ projectId, title, access, onSwitched }: {
     >
       <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>
         {access.reason === 'over_limit'
-          ? `${line} Choose the one you are working on to carry on here.`
+          ? `${line} Choose which you are working on to carry on here.`
           : resting
             ? `You can read this one, not change it. It is resting until ${resting}.`
-            : holder
-              ? `You can read this one, not change it. ${line} Right now that is “${holderTitle}”.`
+            : !full
+              ? 'You can read this one, not change it, while it waits in your Queue.'
+              : holders.length
+              ? `You can read this one, not change it. ${line} Right now that is ${holderTitles}.`
               : `You can read this one, not change it. ${line}`}
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {access.reason === 'over_limit' && <QuietButton size="sm" onClick={openProjectChoice}>Choose a project</QuietButton>}
+        {access.reason === 'over_limit' && <QuietButton size="sm" onClick={openProjectChoice}>Choose projects</QuietButton>}
         {access.reason === 'not_active' && !resting && (
-          <QuietButton size="sm" onClick={() => (holder ? setAsking(true) : void takePlace())} loading={busy && !asking} loadingLabel="Switching…">
-            Work on this one instead
+          <QuietButton size="sm" onClick={() => (full ? setAsking(true) : void takePlace())} loading={busy && !asking} loadingLabel="Switching…">
+            {full ? "Work on this one instead" : "Work on this one"}
           </QuietButton>
         )}
         <GhostButton size="sm" onClick={openPlans}>See Direction</GhostButton>
@@ -86,17 +90,15 @@ export function PlanBanner({ projectId, title, access, onSwitched }: {
       </div>
 
       {asking && (
-        <PlanNote
-          title={`Switch to “${title.trim() || 'Untitled'}”?`}
+        <SwapNote
+          plan={access.plan}
+          title={title}
+          holders={holders}
+          busy={busy}
+          error={failed}
           onClose={() => setAsking(false)}
-          action={{ label: 'Switch', busy, onClick: () => void takePlace() }}
-        >
-          <p style={{ margin: 0 }}>
-            {line} “{holderTitle}” goes back to your Queue and rests for {REST_DAYS} days. You can read and export it, but not work on it
-            or bring it back until {dayFmt.format(new Date(restEndsAt()))}.
-          </p>
-          {failed && <p role="alert" style={{ margin: '10px 0 0', color: t.ember }}>{failed}</p>}
-        </PlanNote>
+          onConfirm={(restId) => void takePlace(restId)}
+        />
       )}
     </div>
   )

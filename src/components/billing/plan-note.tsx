@@ -17,7 +17,7 @@ export function PlanNote({
   onClose: () => void
   plansLabel?: string
   /** Something they can do right here instead (switching project, say). */
-  action?: { label: string; onClick: () => void; busy?: boolean }
+  action?: { label: string; onClick: () => void; busy?: boolean; disabled?: boolean }
 }) {
   const { t } = useTheme()
   return (
@@ -30,7 +30,7 @@ export function PlanNote({
           <GhostButton size="sm" onClick={onClose}>{action ? 'Not now' : 'Close'}</GhostButton>
           <GhostButton size="sm" onClick={() => { onClose(); openPlans() }}>{plansLabel}</GhostButton>
           {action && (
-            <PrimaryButton size="sm" onClick={action.onClick} loading={action.busy} loadingLabel="Switching…">{action.label}</PrimaryButton>
+            <PrimaryButton size="sm" onClick={action.onClick} disabled={action.disabled} loading={action.busy} loadingLabel="Switching…">{action.label}</PrimaryButton>
           )}
         </div>
       }

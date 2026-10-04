@@ -65,20 +65,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!isString(body.shelf_stage) || !SHELF_STAGES.has(body.shelf_stage)) throw badRequest('unknown shelf_stage')
       patch.shelf_stage = body.shelf_stage
       const was = project.shelf_stage ?? 'active'
+      const keepIds = Array.isArray(body.keep_ids) ? body.keep_ids.filter(isString) : []
       if (body.shelf_stage !== was) {
         patch.completed_at = body.shelf_stage === 'completed' ? nowIso() : null
         // The place in Active is the plan's to give (lib/studio/plan-access.ts):
         // taking it may send another project to rest, leaving it is remembered.
         if (body.shelf_stage === 'active') {
-          await claimActivePlace(auth, project, { swap: body.swap === true, keepOnly: body.keep_only === true })
+          await claimActivePlace(auth, project, {
+            swap: body.swap === true,
+            restId: isString(body.rest_id) ? body.rest_id : null,
+            keepOnly: body.keep_only === true,
+            keepIds,
+          })
           patch.resting_until = null
           patch.settings = settingsOnReturning(project.settings)
         } else if (was === 'active') {
           patch.settings = settingsOnLeaving(project.settings)
         }
       } else if (body.shelf_stage === 'active' && body.keep_only === true) {
-        // Already in Active, chosen as the one to keep after the plan got smaller.
-        await claimActivePlace(auth, project, { keepOnly: true })
+        // Already in Active, chosen as one to keep after the plan got smaller.
+        await claimActivePlace(auth, project, { keepOnly: true, keepIds })
       }
     }
     if (body.completion_note !== undefined) {
@@ -136,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       bump = true
     }
     if (Object.keys(patch).length === 0) {
-      // Keeping the one already in Active changes the others, not this row.
+      // Keeping one already in Active changes the others, not this row.
       if (body.keep_only === true) return NextResponse.json({ project })
       throw badRequest('nothing to change')
     }

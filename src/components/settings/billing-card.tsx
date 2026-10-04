@@ -129,7 +129,7 @@ export function BillingCard() {
             <div>
               <div style={label}>{sub?.status === 'trialing' && sub.trial_ends_at ? `Trial — ${daysLeft(sub.trial_ends_at)} days left` : 'Choose a plan'}</div>
               <div style={hint}>
-                Practice for one active project in words. Direction for many, in any medium, with threads, images and recordings on the canvas.
+                Practice for two active projects in words. Direction for many, in any medium, with threads, images and recordings on the canvas.
               </div>
             </div>
             <div role="radiogroup" aria-label="Billing period" style={{ display: 'inline-flex', gap: 6 }}>

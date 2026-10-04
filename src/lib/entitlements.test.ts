@@ -20,9 +20,9 @@ test('a live trial has everything Direction has', () => {
   assert.deepEqual(e, { plan: 'trial', companion: true, maxActiveProjects: null, threads: true, media: true, visionTalk: true })
 })
 
-test('Practice is one project at a time, in words', () => {
+test('Practice is two projects at a time, in words', () => {
   const e = entitlementsFor(sub({ status: 'active', tier: 'practice' }))
-  assert.deepEqual(e, { plan: 'practice', companion: true, maxActiveProjects: 1, threads: false, media: false, visionTalk: false })
+  assert.deepEqual(e, { plan: 'practice', companion: true, maxActiveProjects: 2, threads: false, media: false, visionTalk: false })
   // A paid plan with no tier recorded is treated as the smaller one.
   assert.equal(entitlementsFor(sub({ status: 'active', tier: null })).plan, 'practice')
   // A failed payment does not take the plan away.
@@ -40,7 +40,7 @@ test('an ended trial and a cancelled plan keep the work in Practice’s shape, c
     const e = entitlementsFor(s)
     assert.equal(e.plan, 'ended')
     assert.equal(e.companion, false)
-    assert.equal(e.maxActiveProjects, 1)
+    assert.equal(e.maxActiveProjects, 2)
     assert.equal(e.media, false)
   }
 })
