@@ -13,17 +13,14 @@
 import Link from 'next/link'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
-import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
+import { AnimatePresence, motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
-import { Container, Card } from '@/components/shell/page-shell'
-import { Pill } from '@/components/ui/pill'
-import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
-import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
+import { alpha, shell, tokensFor, type Hue, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
@@ -93,16 +90,21 @@ function Reveal({ children, delay = 0, className = '' }: { children: React.React
 }
 
 /**
- * Plays what is inside as it comes into view, and again every so often while
- * it stays there, until the person touches it. Someone reading the paragraph
- * beside a widget would otherwise arrive to find its animation already over
- * and take it for a picture. Replaying is a remount, so every widget starts
- * from its own beginning; a touch, a key or keyboard focus ends it for good,
- * and it waits while the pointer rests on the widget.
+ * Plays what is inside as it comes into view, and again once it has finished
+ * and been left alone for a few seconds, until the person touches it. Someone
+ * reading the paragraph beside a widget would otherwise arrive to find its
+ * animation already over and take it for a picture.
+ *
+ * `plays` is how long the widget's own animation runs; a widget that only
+ * moves when pressed passes nothing and is never replayed. The wait starts
+ * when the animation ends and starts again whenever the pointer moves inside
+ * the widget, so it counts stillness: a cursor resting on it, or not on it at
+ * all. Replaying eases the widget out and remounts it, so it rewinds to its
+ * own beginning. A press, a tap or a key ends it for good.
  */
-const REPLAY_EVERY_MS = 16_000
+const REPLAY_AFTER_MS = 4000
 
-function Replay({ children, className }: { children: (active: boolean) => React.ReactNode; className?: string }) {
+function Replay({ children, plays = 0, className }: { children: (active: boolean) => React.ReactNode; plays?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduce = useReducedMotion()
   // Present once a third of it shows, gone only when none of it does: a widget
@@ -117,36 +119,58 @@ function Replay({ children, className }: { children: (active: boolean) => React.
   const [run, setRun] = useState(0)
   const [seen, setSeen] = useState(false)
   const [engaged, setEngaged] = useState(false)
-  const hovering = useRef(false)
   const mountedAt = useRef(0)
   useEffect(() => { mountedAt.current = performance.now() }, [])
+  const replays = plays > 0 && !engaged && !reduce
 
   // Arriving: start over, unless it was already on screen when the page opened.
   useEffect(() => {
     if (!inView) return
     setSeen(true)
-    if (engaged || reduce) return
-    if (performance.now() - mountedAt.current > 1200) setRun((r) => r + 1)
-    const id = window.setInterval(() => {
-      if (!hovering.current && document.visibilityState === 'visible') setRun((r) => r + 1)
-    }, REPLAY_EVERY_MS)
-    return () => window.clearInterval(id)
-  }, [inView, engaged, reduce])
+    if (replays && performance.now() - mountedAt.current > 1200) setRun((r) => r + 1)
+    // only arriving restarts it here; the wait below handles the rest
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inView])
+
+  // Finished, then four still seconds: rewind.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !inView || !replays) return
+    const startedAt = performance.now()
+    let id = 0
+    const arm = (ms: number) => {
+      window.clearTimeout(id)
+      id = window.setTimeout(() => {
+        // Nobody is watching a hidden tab; look again shortly.
+        if (document.visibilityState !== 'visible') arm(1000)
+        else setRun((r) => r + 1)
+      }, ms)
+    }
+    arm(plays + REPLAY_AFTER_MS)
+    // Movement inside it means they are with it: the stillness is counted afresh, never before the animation has ended.
+    const onMove = () => arm(Math.max(REPLAY_AFTER_MS, plays + REPLAY_AFTER_MS - (performance.now() - startedAt)))
+    el.addEventListener('pointermove', onMove)
+    return () => {
+      window.clearTimeout(id)
+      el.removeEventListener('pointermove', onMove)
+    }
+  }, [inView, replays, run, plays])
 
   const engage = () => setEngaged(true)
   return (
-    <div
-      ref={ref}
-      className={className}
-      onPointerDownCapture={engage}
-      onKeyDownCapture={engage}
-      onPointerEnter={(e) => { if (e.pointerType === 'mouse') hovering.current = true }}
-      onPointerLeave={() => { hovering.current = false }}
-    >
-      {/* The first run must not hide anything in the server's HTML; later ones ease back in. */}
-      <m.div key={run} initial={run === 0 ? false : { opacity: 0.4, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
-        {children(seen)}
-      </m.div>
+    <div ref={ref} className={className} onPointerDownCapture={engage} onKeyDownCapture={engage}>
+      {/* The first run must not hide anything in the server's HTML; later ones ease out, then back in from the start. */}
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={run}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.4, ease: EASE }}
+        >
+          {children(seen)}
+        </m.div>
+      </AnimatePresence>
     </div>
   )
 }
@@ -209,12 +233,6 @@ function Hero() {
         <p className={`${ENTER_TEXT} delay-[270ms] mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]`}>
           It&rsquo;s scattered across your notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.
         </p>
-        {/* Who it is for, said once and early; the whole line leads to the section that spells out each use. */}
-        <p className={`${ENTER_TEXT} delay-[330ms] mt-4 max-w-[46ch] text-[15px] leading-relaxed`}>
-          <a href="#who" className="text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4 transition-colors hover:decoration-[var(--bone)]">
-            Home for creative ideas – for those who write, film, conceive songs, or direct creative work.
-          </a>
-        </p>
         <div className={`${ENTER_TEXT} delay-[390ms] mt-8 flex flex-wrap items-center gap-x-5 gap-y-3`}>
           <BeginButton />
           <p className="text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
@@ -222,7 +240,8 @@ function Hero() {
       </div>
 
       <div className={`${ENTER} slide-in-from-bottom-[24px] animation-duration-[1100ms] delay-[300ms] w-full max-w-[480px] lg:justify-self-end`}>
-        <Replay>{() => <VisionFinder />}</Replay>
+        {/* Fragments settle, then the vision line types itself: about five seconds. */}
+        <Replay plays={5400}>{() => <VisionFinder />}</Replay>
       </div>
     </section>
   )
@@ -280,7 +299,7 @@ const IDEA_BODY = 'No need to wait for the creative muse. Pick a theme you care 
 // Only on this page: the tour's line ends on "one clear sentence", which the page said too often.
 const CONCEPT_BODY = 'Find the voice of your idea outside of the fog of the abstract. ‘Conceptualise’ helps you define the outline of what you want to express, one question at a time, until the concept is clear enough to declare.'
 
-function InsideRow({ slide, flip, title, body }: { slide: TourSlide; flip: boolean; title?: string; body?: string }) {
+function InsideRow({ slide, flip, title, body, plays }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** How long the widget animates on its own, if it does (see Replay). */ plays?: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   return (
@@ -291,7 +310,7 @@ function InsideRow({ slide, flip, title, body }: { slide: TourSlide; flip: boole
         <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{body ?? slide.body}</p>
       </Reveal>
       <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
-        <Replay>{(active) => <slide.Widget active={active} />}</Replay>
+        <Replay plays={plays}>{(active) => <slide.Widget active={active} />}</Replay>
       </Reveal>
     </div>
   )
@@ -317,7 +336,7 @@ function BoardCanvas() {
         </p>
       </Reveal>
       <Reveal delay={0.1} className="mt-8 md:mt-12">
-        <Replay>{() => <CanvasMockup />}</Replay>
+        <Replay plays={2200}>{() => <CanvasMockup />}</Replay>
       </Reveal>
       <div className="mt-8 grid grid-cols-1 gap-5 md:mt-10 md:grid-cols-3 md:gap-10">
         {CANVAS_FACTS.map((f, i) => (
@@ -333,7 +352,7 @@ function BoardCanvas() {
 function Inside() {
   return (
     <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
-      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} />
+      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} plays={5600} />
       <InsideRow slide={slideFor('Conceptualise')} flip body={CONCEPT_BODY} />
       <BoardCanvas />
       <InsideRow slide={slideFor('Writing')} flip={false} />
@@ -415,7 +434,7 @@ const AUDIENCES: Audience[] = [
   },
   {
     key: 'film',
-    tab: 'Filmers',
+    tab: 'Creator',
     name: 'Cinematographers, photographers and creators',
     hue: 'verdant',
     tier: 'practice',
@@ -506,21 +525,15 @@ function AudienceBegin({ audience }: { audience: Audience }) {
   )
 }
 
-// Direction's tabs are warm where Practice's are neutral, and its panel is
-// paper, not glass: the same variables the rest of the page reads, turned
-// over, so everything inside (text, lines, the Begin button) follows.
-const DIRECTION_TAB = { rest: { backgroundColor: alpha(hues.ochre, 0.16), color: '#e2c48c' }, on: { backgroundColor: '#f1e2c2', color: shell.ink } }
+// Direction's tabs and panel are the same glass as Practice's, a step
+// brighter, so the dearer plan reads as lit and not as a different material.
 const PRACTICE_TAB = { rest: { backgroundColor: shell.fill, color: shell.muted }, on: { backgroundColor: shell.text, color: shell.ink } }
-const PAPER = {
-  '--bone': '#16140f',
-  '--muted': '#5d5950',
-  '--line': 'rgba(22,20,15,0.13)',
-  '--ink': '#ffffff',
-  backgroundColor: '#ffffff',
-  borderColor: 'rgba(255,255,255,0.9)',
-  boxShadow: '0 30px 80px rgba(0,0,0,0.35)',
-} as React.CSSProperties
-const paperHues = tokensFor('light')
+const DIRECTION_TAB = { rest: { backgroundColor: alpha(shell.text, 0.14), color: alpha(shell.text, 0.82) }, on: { backgroundColor: shell.text, color: shell.ink } }
+const BRIGHT_GLASS: React.CSSProperties = {
+  backgroundColor: alpha(shell.text, 0.11),
+  borderColor: alpha(shell.text, 0.24),
+  boxShadow: `inset 0 1px 0 ${alpha(shell.text, 0.1)}`,
+}
 
 function WhoFor() {
   const ref = useRef<HTMLElement>(null)
@@ -533,8 +546,8 @@ function WhoFor() {
     const i = AUDIENCES.findIndex((a) => a.key === wanted)
     if (i >= 0) setIndex(i)
   }, [])
-  const paper = audience.tier === 'direction'
-  const hue = (paper ? paperHues : hues)[audience.hue]
+  const bright = audience.tier === 'direction'
+  const hue = hues[audience.hue]
 
   return (
     <section id="who" ref={ref} className="mx-auto w-full max-w-[1180px] scroll-mt-8 px-4 py-20 md:px-8 md:py-32">
@@ -585,7 +598,7 @@ function WhoFor() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: EASE }}
           className="mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
-          style={paper ? { ...PAPER, borderTop: `2px solid ${hue}` } : { borderTop: `2px solid ${alpha(hue, 0.7)}` }}
+          style={{ ...(bright ? BRIGHT_GLASS : null), borderTop: `2px solid ${alpha(hue, bright ? 0.9 : 0.7)}` }}
         >
           <div className="grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
             <div>
@@ -669,7 +682,7 @@ function Closing() {
       className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-center gap-12 px-4 py-20 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:px-8 md:py-32"
     >
       <Reveal className="order-2 w-full max-w-[480px] md:order-1">
-        <Replay>{() => <RuleHeardMockup />}</Replay>
+        <Replay plays={2600}>{() => <RuleHeardMockup />}</Replay>
       </Reveal>
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
@@ -723,22 +736,21 @@ const PLANS = [
  * (lib/billing/chosen-plan.ts). The free month stays one line below it.
  */
 function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' | 'direction'; billing: Billing }) {
-  const { t } = useTheme()
   const href = useAttributedHref(`${SIGNUP}?plan=${plan}&interval=${billing === 'year' ? 'yearly' : 'monthly'}`)
   const freeHref = useAttributedHref(SIGNUP)
   return (
     <>
       <Link
         href={href}
-        className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
-        style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
+        className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-[transform,opacity] duration-300 hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+        style={lead ? { backgroundColor: shell.text, color: shell.ink } : { backgroundColor: alpha(shell.text, 0.12), color: shell.text }}
       >
         Subscribe
         <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
       </Link>
-      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 10, textAlign: 'center' }}>
+      <p className="mt-2.5 text-center text-[14px] text-[var(--muted)]">
         or{' '}
-        <Link href={freeHref} style={{ color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+        <Link href={freeHref} className="text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4">
           try everything free for 30 days
         </Link>
       </p>
@@ -746,38 +758,43 @@ function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' |
   )
 }
 
+/** A plan, on glass like the rest of the page; Direction's is the brighter of the two. */
 function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billing: Billing; lead: boolean }) {
-  const { t } = useTheme()
   // In the visitor's own currency once Stripe has answered (lib/billing/use-prices.ts).
   const prices = usePrices()
   const amount = prices.money(plan.id, billing === 'year' ? 'yearly' : 'monthly')
   const perMonth = billing === 'year' ? formatMoney(Math.round(prices.amounts[plan.id].yearly / 12), prices.currency) : null
   return (
-    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
+    <div
+      className={`flex h-full flex-col rounded-[28px] border border-[var(--line)] bg-[var(--fill)] ${lead ? 'p-7 md:p-8' : 'p-6 md:p-7'}`}
+      style={lead ? { ...BRIGHT_GLASS, borderTop: `2px solid ${alpha(ember, 0.9)}` } : undefined}
+    >
       <div className="flex items-center justify-between gap-3">
-        <p style={{ ...typeRoles.h2, fontSize: lead ? 26 : 22, color: t.textPrimary }}>{plan.name}</p>
-        {lead && <Pill hue="ember">Many visions</Pill>}
+        <p className="font-bold tracking-[-0.025em] text-[var(--bone)]" style={{ fontSize: lead ? 26 : 22 }}>{plan.name}</p>
+        {lead && (
+          <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ backgroundColor: alpha(ember, 0.16), color: ember }}>Many visions</span>
+        )}
       </div>
-      <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 6 }}>{plan.line}</p>
+      <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{plan.line}</p>
       <div className="mt-6 flex items-baseline gap-1.5">
-        <span style={{ ...typeRoles.display, fontSize: lead ? 48 : 40, color: t.textPrimary }}>{amount}</span>
-        <span style={{ ...typeRoles.ui, color: t.textMuted }}>a {billing}</span>
+        <span className="font-bold leading-none tracking-[-0.035em] text-[var(--bone)]" style={{ fontSize: lead ? 48 : 40 }}>{amount}</span>
+        <span className="text-[15px] text-[var(--muted)]">a {billing}</span>
       </div>
-      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4, minHeight: '1.5em' }}>
+      <p className="mt-1.5 min-h-[1.5em] text-[14px] text-[var(--muted)]">
         {perMonth ? `${perMonth} a month, two months free` : 'Or yearly, with two months free'}
       </p>
       <ul className="mt-6 flex flex-1 flex-col gap-3">
         {plan.features.map((f) => (
           <li key={f} className="flex items-start gap-3">
-            <Check size={16} strokeWidth={2} aria-hidden style={{ color: lead ? t.ember : t.verdant, marginTop: 3, flexShrink: 0 }} />
-            <span style={{ ...typeRoles.ui, color: t.textPrimary }}>{f}</span>
+            <Check size={16} strokeWidth={2} aria-hidden style={{ color: lead ? ember : hues.verdant, marginTop: 4, flexShrink: 0 }} />
+            <span className="text-[15px] leading-relaxed text-[var(--bone)]">{f}</span>
           </li>
         ))}
       </ul>
       <div className="mt-8">
         <PlanButton lead={lead} plan={plan.id} billing={billing} />
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -820,12 +837,10 @@ function Pricing() {
       </Reveal>
 
       <Reveal delay={0.12} className="mt-6">
-        <Container padding={16}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[0.85fr_1.15fr]">
-            <div id="plan-practice" className="scroll-mt-24"><PlanCard plan={PLANS[0]} billing={billing} lead={false} /></div>
-            <div id="plan-direction" className="scroll-mt-24"><PlanCard plan={PLANS[1]} billing={billing} lead /></div>
-          </div>
-        </Container>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[0.85fr_1.15fr]">
+          <div id="plan-practice" className="scroll-mt-24"><PlanCard plan={PLANS[0]} billing={billing} lead={false} /></div>
+          <div id="plan-direction" className="scroll-mt-24"><PlanCard plan={PLANS[1]} billing={billing} lead /></div>
+        </div>
       </Reveal>
 
       <p className="mt-4 text-[13px] text-[var(--muted)]">
