@@ -202,17 +202,17 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
           style={{ marginTop: 14 }}
           aria-hidden={!visionUp}
         >
-          {/* The one dark thing on the paper, so the eye lands where the four fragments were heading. */}
-          <div style={{ padding: 18, borderRadius: radius.widget, backgroundColor: t.inverseBg, boxShadow: `0 14px 30px -14px ${alpha(t.ember, 0.6)}, 0 2px 0 ${t.ember} inset` }}>
+          {/* Filled with the accent itself, the one vivid thing on the paper, so the eye lands where the four fragments were heading. */}
+          <div style={{ padding: 18, borderRadius: radius.widget, backgroundColor: t.ember, boxShadow: `0 14px 30px -14px ${alpha(t.ember, 0.7)}` }}>
             <div className="flex items-center justify-between gap-3">
-              <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 999, backgroundColor: t.ember, color: '#ffffff' }}>Vision</span>
-              <span style={{ ...typeRoles.small, fontSize: 11, color: alpha(t.inverseText, 0.6) }}>In your words</span>
+              <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 999, backgroundColor: '#ffffff', color: t.ember }}>Vision</span>
+              <span style={{ ...typeRoles.small, fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>In your words</span>
             </div>
-            <p style={{ ...typeRoles.h2, fontSize: 21, color: t.inverseText, marginTop: 12 }}>{VISION_TITLE}</p>
-            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: alpha(t.inverseText, 0.82), marginTop: 5, minHeight: '2.9em' }}>
+            <p style={{ ...typeRoles.h2, fontSize: 21, color: '#ffffff', marginTop: 12 }}>{VISION_TITLE}</p>
+            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: 'rgba(255,255,255,0.92)', marginTop: 5, minHeight: '2.9em' }}>
               <span aria-hidden>
                 {shown}
-                {!done && stage >= 2 && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}
+                {!done && stage >= 2 && <span style={{ borderRight: '1.5px solid #ffffff', marginLeft: 1 }}>&#8203;</span>}
               </span>
             </p>
           </div>
