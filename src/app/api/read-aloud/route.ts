@@ -26,7 +26,8 @@ export async function POST(request: Request) {
     if (!key) return NextResponse.json({ error: 'Voice is not set up' }, { status: 503 })
 
     const { text } = await request.json()
-    const input = typeof text === 'string' ? text.trim().slice(0, MAX_CHARS) : ''
+    // Emphasis marks are for the eye; spoken, they are noise.
+    const input = typeof text === 'string' ? text.replace(/[*_`#]+/g, '').trim().slice(0, MAX_CHARS) : ''
     if (!input) return NextResponse.json({ error: 'text is required' }, { status: 400 })
 
     const res = await fetch('https://api.openai.com/v1/audio/speech', {

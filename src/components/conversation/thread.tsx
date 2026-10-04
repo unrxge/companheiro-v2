@@ -13,6 +13,8 @@ const HIDDEN_MARKERS = ['<phase_complete/>']
 export function displayContent(content: string): string {
   let out = content
   for (const mk of HIDDEN_MARKERS) out = out.split(mk).join('')
+  // Shown as plain text, so emphasis marks would appear as literal asterisks.
+  out = out.replace(/\*{1,3}([^*\n]+)\*{1,3}/g, '$1')
   return out.trimEnd()
 }
 
