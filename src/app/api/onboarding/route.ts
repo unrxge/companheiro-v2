@@ -8,6 +8,7 @@ import { withLanguage } from '@/lib/language'
 import { streamClaudeText } from '@/lib/streaming'
 import { customKey, type CustomSlot } from '@/lib/territories'
 import { logUsage } from '@/lib/usage-log'
+import { MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -31,7 +32,7 @@ export async function GET() {
       supabase.from('captures').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
     ])
     const onboarded = !!settings?.onboarded_at || (territoryRows ?? 0) > 0 || (pieceCount ?? 0) > 0 || (captureCount ?? 0) > 0
-    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at })
+    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at, profile: user.user_metadata?.profile ?? null })
   } catch (error) {
     console.error('onboarding GET error:', error)
     return NextResponse.json({ onboarded: true, toured: true }, { status: 500 })
@@ -111,7 +112,7 @@ export async function PUT(request: NextRequest) {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ success: false }, { status: 401 })
     const { supabase, user } = auth
-    const { labels } = (await request.json()) as { labels: string[] }
+    const { labels, profile } = (await request.json()) as { labels: string[]; profile?: unknown }
     const clean = (Array.isArray(labels) ? labels : []).map((l) => String(l).trim()).filter((l) => l.length >= 2).slice(0, 8)
     if (clean.length === 0) return NextResponse.json({ success: false, error: 'No territories' }, { status: 400 })
 
@@ -147,11 +148,29 @@ export async function PUT(request: NextRequest) {
       console.error('onboarding commit error:', tErr, sErr)
       return NextResponse.json({ success: false }, { status: 500 })
     }
+    // Who they said they are at sign-up (/tour): kept beside the consent record
+    // in the auth user's metadata. It only tailors what the app shows them.
+    const who = cleanProfile(profile)
+    if (who) {
+      const { error: pErr } = await supabase.auth.updateUser({ data: { profile: who } })
+      if (pErr) console.error('onboarding profile error:', pErr)
+    }
     return NextResponse.json({ success: true, slots: enriched })
   } catch (error) {
     console.error('onboarding PUT error:', error)
     return NextResponse.json({ success: false }, { status: 500 })
   }
+}
+
+function cleanProfile(raw: unknown): TourProfile | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const name = typeof r.name === 'string' ? r.name.trim().slice(0, 60) : ''
+  const age = Number(r.age)
+  if (!name || !Number.isInteger(age) || age < MIN_AGE || age > 120) return null
+  const practices = (Array.isArray(r.practices) ? r.practices : []).filter((p): p is Practice => PRACTICE_KEYS.includes(p as Practice)).slice(0, MAX_PRACTICES)
+  const other = typeof r.other === 'string' ? r.other.trim().slice(0, 80) : ''
+  return { name, age, practices, other }
 }
 
 const MAP_SYSTEM = `You are writing a creative territory definition for an Idea Lab — a tool that helps writers find unexpected, expansive entry points into a theme.

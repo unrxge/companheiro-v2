@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // /home sends accounts that haven't been through first run on to /tour, then /welcome.
+  // /home sends accounts that haven't been through first run on to /tour.
   // New sign-ups arrive with next=set-password: choose a password first.
   // A plan chosen on the landing page: on to checkout for it (after the
   // password, for an email sign-up), skipping the free month. /subscribe

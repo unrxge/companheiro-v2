@@ -9,7 +9,7 @@
 // no ink panels and no ink buttons inside a widget. Nothing here reads or
 // writes the database.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion as m, useReducedMotion } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card, Divider, Eyebrow } from '@/components/shell/page-shell'
@@ -29,6 +29,8 @@ const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 export interface TourWidgetProps extends Pick<LoopProps, 'replay' | 'onDone'> {
   /** True while this widget's slide is the one on screen. */
   active: boolean
+  /** The themes the person gave at sign-up: the Idea slide asks from these, not from the examples. */
+  themes?: string[]
 }
 
 /** The line on top of every widget: what to press next, or what just happened. */
@@ -228,15 +230,33 @@ function Arriving({ text, leaving = false }: { text: string; leaving?: boolean }
 // slider there; the page shows the question arriving, nothing else.
 const SUMMON_BACK = [520] as const
 
-export function SummonWidget({ active, replay, onDone }: TourWidgetProps) {
+const OWN_HUES: Hue[] = ['violet', 'tide', 'verdant', 'ochre']
+/** Questions that hold for any theme a person names, asked about theirs. */
+function ownThemes(labels: string[]): typeof THEMES {
+  return labels.map((label, i) => {
+    const about = label.trim()
+    return {
+      label: about,
+      hue: OWN_HUES[i % OWN_HUES.length],
+      questions: [
+        `What do you already know about ${about} that you’ve never heard anyone else say out loud?`,
+        `When did ${about} last stop you in your tracks, and what did you want to make straight afterwards?`,
+        `If you could only make one more thing about ${about}, what would it have to hold?`,
+      ],
+    }
+  })
+}
+
+export function SummonWidget({ active, replay, onDone, themes }: TourWidgetProps) {
   const { t } = useTheme()
+  const list = useMemo(() => (themes?.length ? ownThemes(themes) : THEMES), [themes])
   const reduce = useReducedMotion()
   const looping = onDone !== undefined
   // 0 nothing chosen · 1 theme chosen · 2 energy set · 3 summoning · 4 the question
   const [step, setStep] = useState(0)
-  const { back, stop } = useRewind(replay, SUMMON_BACK, () => { setTheme((i) => (i + 1) % THEMES.length); setStep(3) })
+  const { back, stop } = useRewind(replay, SUMMON_BACK, () => { setTheme((i) => (i + 1) % list.length); setStep(3) })
   const [theme, setTheme] = useState(0)
-  const [asked, setAsked] = useState([0, 0, 0])
+  const [asked, setAsked] = useState(() => list.map(() => 0))
   const [note, setNote] = useState<'energy' | 'add' | null>(null)
 
   // Sets itself up the first time: picks the theme, slides the energy up, asks.
@@ -259,7 +279,7 @@ export function SummonWidget({ active, replay, onDone }: TourWidgetProps) {
   }, [step, theme, asked])
 
   // The question has arrived in full: say so, for whoever is keeping this moving.
-  const question = THEMES[theme].questions[asked[theme]]
+  const question = list[theme].questions[asked[theme]]
   useEffect(() => {
     if (step !== 4 || !onDone) return
     const id = window.setTimeout(() => onDone(), reduce ? 0 : question.split(' ').length * 55 + 500)
@@ -268,10 +288,10 @@ export function SummonWidget({ active, replay, onDone }: TourWidgetProps) {
 
   // A press in the middle of a rewind takes it over: it is theirs from here.
   const pick = (i: number) => { stop(); setNote(null); setTheme(i); setStep(3) }
-  const again = () => { stop(); setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % THEMES[i].questions.length : n))); setStep(3) }
+  const again = () => { stop(); setNote(null); setAsked((a) => a.map((n, i) => (i === theme ? (n + 1) % list[i].questions.length : n))); setStep(3) }
   const chosen = step >= 1
   const bright = step >= 2
-  const current = THEMES[theme]
+  const current = list[theme]
 
   return (
     <Container padding={12}>
@@ -284,7 +304,7 @@ export function SummonWidget({ active, replay, onDone }: TourWidgetProps) {
       <Card padding={16}>
         <Eyebrow style={{ marginBottom: 10 }}>Theme</Eyebrow>
         <div className="flex flex-wrap gap-1.5">
-          {THEMES.map((th, i) => (
+          {list.map((th, i) => (
             <Pill key={th.label} hue={th.hue} selected={chosen && theme === i} onClick={() => pick(i)} size="md" style={chosen && theme === i ? { color: '#ffffff' } : undefined}>{th.label}</Pill>
           ))}
           <button type="button" onClick={() => setNote('add')} aria-label="Add a theme" className="cursor-pointer" style={{ fontFamily: fonts.ui, fontSize: 12, fontWeight: 600, lineHeight: 1.2, padding: '6px 13px', borderRadius: 999, background: 'none', border: `1px dashed ${t.inputBorder}`, color: t.textMuted }}>

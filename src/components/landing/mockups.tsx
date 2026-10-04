@@ -474,7 +474,7 @@ const ARRIVE = ['vision', 'treatment', 'shots', 'stills', 'hands', 'reveal', 'fr
 const CANVAS_BACK = [850] as const
 const CANVAS_PLAYS = 1900
 
-export function CanvasMockup({ active = true, replay, onDone }: LoopProps) {
+export function CanvasMockup({ active = true, replay, onDone, compact = false }: LoopProps & { /** The folded (phone) layout at any width, for a narrow column. */ compact?: boolean }) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
   const { back, cycle } = useRewind(replay, CANVAS_BACK)
@@ -518,8 +518,8 @@ export function CanvasMockup({ active = true, replay, onDone }: LoopProps) {
   const [phone, setPhone] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
-    setPhone(mq.matches)
-    const on = (e: MediaQueryListEvent) => setPhone(e.matches)
+    setPhone(compact || mq.matches)
+    const on = (e: MediaQueryListEvent) => setPhone(compact || e.matches)
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])

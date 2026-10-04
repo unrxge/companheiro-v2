@@ -63,11 +63,7 @@ interface Letter {
   read_at: string | null
 }
 
-/**
- * The Home screen. `backdrop` is for when it only sits, blurred, behind the
- * tour on a desktop: it loads as usual but sends nobody anywhere.
- */
-export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
+export function HomeView() {
   const { t } = useTheme()
   const router = useRouter()
 
@@ -101,16 +97,16 @@ export function HomeView({ backdrop = false }: { backdrop?: boolean }) {
     setGreeting(hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
   }, [])
 
-  // First run: the tour (once), then seed the territories, before anything else.
+  // First run: /tour asks who they are and what their work is about, then shows them round.
+  // /welcome is only the fallback for an account whose answers were never saved.
   useEffect(() => {
-    if (backdrop) return
     fetch('/api/onboarding')
       .then((r) => r.json())
       .then((d) => {
         if (d && d.onboarded === false) router.replace(d.toured === false && !tourSeenLocally() ? '/tour' : '/welcome')
       })
       .catch(() => {})
-  }, [router, backdrop])
+  }, [router])
 
   useEffect(() => {
     const load = async () => {
