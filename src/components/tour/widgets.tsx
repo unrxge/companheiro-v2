@@ -9,7 +9,7 @@
 // no ink panels and no ink buttons inside a widget. Nothing here reads or
 // writes the database.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion as m, useReducedMotion } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card, Divider, Eyebrow } from '@/components/shell/page-shell'
@@ -18,16 +18,17 @@ import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
 import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
-import { useRewind, useTypewriter } from '@/components/landing/mockups'
+import { useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
 import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
-export interface TourWidgetProps {
+// On the landing page some of these keep themselves moving (see Replay in
+// landing.tsx): they are handed `onDone` and `replay` as well, and that is how
+// a widget knows it is there and not in the tour, where it waits to be pressed.
+export interface TourWidgetProps extends Pick<LoopProps, 'replay' | 'onDone'> {
   /** True while this widget's slide is the one on screen. */
   active: boolean
-  /** Landing page only: goes up each time a widget that plays by itself should wind back and play again. */
-  replay?: number
 }
 
 /** The line on top of every widget: what to press next, or what just happened. */
@@ -170,7 +171,8 @@ export function CheckInWidget({ active }: TourWidgetProps) {
 const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
   {
     label: 'Creativity & devotion',
-    hue: 'ember',
+    // Not ember: the pages these sit on are already full of it.
+    hue: 'violet',
     questions: [
       'What have you been practising in private, waiting for someone to say you’re allowed to call it your life’s work?',
       'If you knew the work would outlive you, what would you start making tomorrow morning?',
@@ -181,8 +183,8 @@ const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
     label: 'Healthy masculinity',
     hue: 'tide',
     questions: [
-      'Who first showed you that strength could be gentle, and where are you already passing that on?',
       'What did you need to hear at fifteen from a man you trusted, and who needs to hear it from you now?',
+      'Who first showed you that strength could be gentle, and where are you already passing that on?',
       'Where in your life does strength look like staying, listening, or saying sorry first?',
     ],
   },
@@ -221,40 +223,48 @@ function Arriving({ text, leaving = false }: { text: string; leaving?: boolean }
   )
 }
 
-// Winding back, the steps undone in reverse: the question leaves last word
-// first, its card empties, the energy slides back to the middle, the theme is
-// let go.
-const SUMMON_BACK = [520, 720, 1170, 1450] as const
+// On the landing page it goes round the themes by itself: the question leaves
+// last word first, then the next theme is chosen and asked. There is no energy
+// slider there; the page shows the question arriving, nothing else.
+const SUMMON_BACK = [520] as const
 
-export function SummonWidget({ active, replay }: TourWidgetProps) {
+export function SummonWidget({ active, replay, onDone }: TourWidgetProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
+  const looping = onDone !== undefined
   // 0 nothing chosen · 1 theme chosen · 2 energy set · 3 summoning · 4 the question
-  const [stepNow, setStep] = useState(0)
-  const { back, cycle, stop } = useRewind(replay, SUMMON_BACK, () => setStep(0))
-  // What shows: the step it reached, or however far back the rewind has taken it.
-  const step = back <= 1 ? stepNow : Math.min(stepNow, back === 2 ? 2 : back === 3 ? 1 : 0)
+  const [step, setStep] = useState(0)
+  const { back, stop } = useRewind(replay, SUMMON_BACK, () => { setTheme((i) => (i + 1) % THEMES.length); setStep(3) })
   const [theme, setTheme] = useState(0)
   const [asked, setAsked] = useState([0, 0, 0])
   const [note, setNote] = useState<'energy' | 'add' | null>(null)
 
   // Sets itself up the first time: picks the theme, slides the energy up, asks.
   useEffect(() => {
-    if (!active || stepNow > 0) return
+    if (!active || step > 0) return
     if (reduce) { setStep(4); return }
     // Never backwards: a tap on a theme mid-sequence has already moved it on.
-    const ids = [800, 1700, 2900].map((ms, i) => window.setTimeout(() => setStep((s) => Math.max(s, i + 1)), ms))
+    const at: [number, number][] = looping ? [[800, 1], [1700, 3]] : [[800, 1], [1700, 2], [2900, 3]]
+    const ids = at.map(([ms, to]) => window.setTimeout(() => setStep((s) => Math.max(s, to)), ms))
     return () => ids.forEach((id) => window.clearTimeout(id))
     // step is only read to skip a replay; the sequence itself must not restart as it advances
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, reduce, cycle])
+  }, [active, reduce])
 
   // A question takes a moment to arrive.
   useEffect(() => {
-    if (stepNow !== 3) return
+    if (step !== 3) return
     const id = window.setTimeout(() => setStep(4), 800)
     return () => window.clearTimeout(id)
-  }, [stepNow, theme, asked])
+  }, [step, theme, asked])
+
+  // The question has arrived in full: say so, for whoever is keeping this moving.
+  const question = THEMES[theme].questions[asked[theme]]
+  useEffect(() => {
+    if (step !== 4 || !onDone) return
+    const id = window.setTimeout(() => onDone(), reduce ? 0 : question.split(' ').length * 55 + 500)
+    return () => window.clearTimeout(id)
+  }, [step, question, onDone, reduce])
 
   // A press in the middle of a rewind takes it over: it is theirs from here.
   const pick = (i: number) => { stop(); setNote(null); setTheme(i); setStep(3) }
@@ -268,7 +278,7 @@ export function SummonWidget({ active, replay }: TourWidgetProps) {
       <TryIt>
         {note === 'energy' ? 'Energy is set to Bright for this tour. In the app, slide it to match your day.'
           : note === 'add' ? 'In the app, this is where you add a theme of your own.'
-          : step < 4 ? 'Watch: a theme, an energy level, then a question.'
+          : step < 4 ? (looping ? 'Watch: a theme, then a question.' : 'Watch: a theme, an energy level, then a question.')
           : 'Tap another theme, or “Ask again” for a new question.'}
       </TryIt>
       <Card padding={16}>
@@ -282,6 +292,7 @@ export function SummonWidget({ active, replay }: TourWidgetProps) {
           </button>
         </div>
 
+        {!looping && (<>
         <Divider style={{ margin: '14px 0' }} />
 
         <div className="flex items-center justify-between">
@@ -293,13 +304,14 @@ export function SummonWidget({ active, replay }: TourWidgetProps) {
         </div>
         <button type="button" onClick={() => setNote('energy')} role="slider" aria-label="Energy" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bright ? 100 : 50} aria-valuetext={bright ? 'Bright' : 'Middle'} aria-disabled className="block w-full" style={{ background: 'none', border: 'none', padding: '14px 9px 8px', cursor: 'not-allowed' }}>
           <span style={{ position: 'relative', display: 'block', height: 4, borderRadius: 999, background: `linear-gradient(to right, ${t.violet}, ${t.ochre} 50%, ${t.verdant})` }}>
-            <span style={{ position: 'absolute', top: -7, left: bright ? '100%' : '50%', width: 18, height: 18, marginLeft: -9, borderRadius: '50%', backgroundColor: t.cardBg, border: `2px solid ${t.textPrimary}`, boxShadow: bright ? `0 0 0 5px ${alpha(t.verdant, 0.22)}` : '0 1px 4px rgba(0,0,0,0.28)', transition: reduce ? 'none' : back > 0 ? 'left 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease' : 'left 0.9s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease 0.5s' }} />
+            <span style={{ position: 'absolute', top: -7, left: bright ? '100%' : '50%', width: 18, height: 18, marginLeft: -9, borderRadius: '50%', backgroundColor: t.cardBg, border: `2px solid ${t.textPrimary}`, boxShadow: bright ? `0 0 0 5px ${alpha(t.verdant, 0.22)}` : '0 1px 4px rgba(0,0,0,0.28)', transition: reduce ? 'none' : 'left 0.9s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease 0.5s' }} />
           </span>
         </button>
         <div className="flex justify-between">
           <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Heavy</span>
           <span style={{ ...typeRoles.small, fontSize: 10, color: t.textMuted }}>Bright</span>
         </div>
+        </>)}
 
         <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, borderLeft: `3px solid ${step >= 3 ? t[current.hue] : 'transparent'}`, transition: 'border-color 0.4s ease' }}>
           {step < 3 ? (
@@ -311,7 +323,7 @@ export function SummonWidget({ active, replay }: TourWidgetProps) {
                 <GhostButton size="sm" onClick={again} disabled={step === 3}>Ask again</GhostButton>
               </div>
               <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>
-                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={current.questions[asked[theme]]} leaving={back === 1} />}
+                {step === 3 ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={question} leaving={back === 1} />}
               </p>
             </>
           )}
@@ -332,14 +344,38 @@ const EXCHANGES = [
   { ask: 'What will this book never do, even where it would make you sound wiser?', say: 'Pretend I had it figured out. Every lesson comes with the day I learned it.' },
 ]
 
-export function ConceptualiseWidget({ active }: TourWidgetProps) {
+// How long the landing page stays on a slide before moving itself on: the
+// first has a long answer to read, the rest are a line each.
+const FIRST_HOLD_MS = 6000
+const NEXT_HOLD_MS = 3000
+
+export function ConceptualiseWidget({ active, replay, onDone }: TourWidgetProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
+  const looping = onDone !== undefined
   const [phase, setPhase] = useState(1)
   const [replied, setReplied] = useState(false)
   const [more, setMore] = useState(false)
   const exchange = phase >= 2 && phase <= 4 ? EXCHANGES[phase - 2] : null
   const ask = useTypewriter(exchange?.ask ?? '', active && !!exchange, 18)
+
+  // On the landing page it walks itself through every phase, and round again
+  // from the declaration: each slide says when it has finished, and is moved
+  // on once it has been held.
+  const settled = phase === 1 || phase === 5 || replied
+  useEffect(() => {
+    if (!active || !onDone || !settled) return
+    const id = window.setTimeout(() => onDone(phase === 1 ? FIRST_HOLD_MS : NEXT_HOLD_MS), 400)
+    return () => window.clearTimeout(id)
+  }, [active, onDone, settled, phase])
+  const moved = useRef(replay)
+  useEffect(() => {
+    if (replay === undefined || replay === moved.current) return
+    moved.current = replay
+    setReplied(false)
+    setMore(false)
+    setPhase((p) => (p >= 5 ? 1 : p + 1))
+  }, [replay])
 
   // The answer follows the question on its own; moving to the next phase is the person's call.
   useEffect(() => {
@@ -351,6 +387,29 @@ export function ConceptualiseWidget({ active }: TourWidgetProps) {
   const advance = () => { setReplied(false); setPhase((p) => p + 1) }
   const ready = phase === 1 || replied
   const fade = 'linear-gradient(to bottom, #000 35%, transparent 100%)'
+  // The first slide: the question that was asked, and the long answer under it.
+  // `live` is the one on show; the other is only there to hold its height (below).
+  const first = (live: boolean) => (
+    <>
+      <div className="flex flex-wrap gap-1.5">
+        <Pill hue={SEED.hue}>{SEED.label}</Pill>
+        {/* The landing page's Idea widget has no energy slider, so no energy to carry over. */}
+        {!looping && <Pill hue="verdant">Bright</Pill>}
+      </div>
+      {/* The question being answered, set as it was when it arrived in the Idea Lab: everything below hangs from it. */}
+      <div style={{ marginTop: 10, padding: '2px 0 2px 12px', borderLeft: `3px solid ${t[SEED.hue]}` }}>
+        <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t[SEED.hue] }}>Your question</p>
+        <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 4 }}>
+          {live && active ? <Arriving text={SEED.questions[0]} /> : <span style={{ visibility: 'hidden' }}>{SEED.questions[0]}</span>}
+        </p>
+      </div>
+      <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.textMuted, marginTop: 12 }}>Your answer</p>
+      <div style={live && more ? { marginTop: 4 } : { marginTop: 4, maxHeight: 112, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
+        <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{FIRST_REPLY}</p>
+      </div>
+      <TextButton onClick={() => setMore(!more)}>{live && more ? 'Show less' : 'Read more'}</TextButton>
+    </>
+  )
   return (
     <Container padding={12}>
       <TryIt>
@@ -360,46 +419,50 @@ export function ConceptualiseWidget({ active }: TourWidgetProps) {
       </TryIt>
       <Card padding={16} style={{ minHeight: 330 }}>
         <PhaseDots phase={phase} labels={PHASES} />
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div key={phase} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.3, ease: EASE }} style={{ marginTop: 14 }}>
-            {phase === 1 ? (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  <Pill hue={SEED.hue}>{SEED.label}</Pill>
-                  <Pill hue="verdant">Bright</Pill>
-                </div>
-                <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 10 }}>{SEED.questions[0]}</p>
-                <div style={more ? { marginTop: 10 } : { marginTop: 10, maxHeight: 112, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
-                  <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{FIRST_REPLY}</p>
-                </div>
-                <TextButton onClick={() => setMore(!more)}>{more ? 'Show less' : 'Read more'}</TextButton>
-              </>
-            ) : exchange ? (
-              <>
-                <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
-                  <span aria-hidden>{ask.shown}</span>
-                </p>
-                <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%', minHeight: '3.2em' }}>
-                  {exchange.say}
-                </m.p>
-              </>
-            ) : (
-              <>
-                <Card inner padding={14} style={{ borderLeft: `3px solid ${t.ember}` }}>
-                  <Pill hue="ember">Concept</Pill>
-                  <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Letters Ahead</p>
-                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>A book of letters to my future child: one lesson to a page, each told with the day I learned it.</p>
-                </Card>
-                <TextButton onClick={() => { setMore(false); setPhase(1) }}>Watch again</TextButton>
-              </>
-            )}
-            {phase < 5 && (
-              <m.div initial={false} animate={{ opacity: ready ? 1 : 0.35 }} className="flex justify-end" style={{ marginTop: 8 }}>
-                <PrimaryButton size="sm" onClick={advance} disabled={!ready}>{phase === 4 ? 'Declare it →' : 'Next →'}</PrimaryButton>
-              </m.div>
-            )}
-          </m.div>
-        </AnimatePresence>
+        {/* Moving through the slides by itself, the widget must not change height and push the page about: an unseen copy of the first, tallest slide sits in the same cell as whichever is showing. */}
+        <div style={looping ? { display: 'grid' } : undefined}>
+          {looping && (
+            <div aria-hidden style={{ gridArea: '1 / 1', minWidth: 0, marginTop: 14, visibility: 'hidden', pointerEvents: 'none' }}>
+              {first(false)}
+              <div className="flex justify-end" style={{ paddingTop: 8 }}><PrimaryButton size="sm" onClick={() => {}} disabled>Next →</PrimaryButton></div>
+            </div>
+          )}
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              key={phase}
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? undefined : { opacity: 0, y: -6 }}
+              transition={{ duration: 0.3, ease: EASE }}
+              style={{ marginTop: 14, ...(looping ? { gridArea: '1 / 1', minWidth: 0, display: 'flex', flexDirection: 'column' } : null) }}
+            >
+              {phase === 1 ? first(true) : exchange ? (
+                <>
+                  <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
+                    <span aria-hidden>{ask.shown}</span>
+                  </p>
+                  <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%', minHeight: '3.2em' }}>
+                    {exchange.say}
+                  </m.p>
+                </>
+              ) : (
+                <>
+                  <Card inner padding={14} style={{ borderLeft: `3px solid ${t.ember}` }}>
+                    <Pill hue="ember">Concept</Pill>
+                    <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Letters Ahead</p>
+                    <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>A book of letters to my future child: one lesson to a page, each told with the day I learned it.</p>
+                  </Card>
+                  <TextButton onClick={() => { setMore(false); setPhase(1) }}>Watch again</TextButton>
+                </>
+              )}
+              {phase < 5 && (
+                <m.div initial={false} animate={{ opacity: ready ? 1 : 0.35 }} className="flex justify-end" style={looping ? { marginTop: 'auto', paddingTop: 8 } : { marginTop: 8 }}>
+                  <PrimaryButton size="sm" onClick={advance} disabled={!ready}>{phase === 4 ? 'Declare it →' : 'Next →'}</PrimaryButton>
+                </m.div>
+              )}
+            </m.div>
+          </AnimatePresence>
+        </div>
       </Card>
     </Container>
   )
@@ -505,11 +568,31 @@ const PARTS = [
 ]
 const SHOWN_FIRST = 2
 
-export function WritingWidget({ active }: TourWidgetProps) {
+// On the landing page it shows itself: a part is selected, Companheiro's
+// reflection on it is written out, and after a hold only the reflection is
+// taken back (backspaced) before the next part is selected. The script stays.
+const WRITING_BACK = [520] as const
+/** The longest reflection among the parts on show, to keep the box one height while they change. */
+const LONGEST_ASK = PARTS.slice(0, SHOWN_FIRST).reduce((a, p) => (p.ask.length > a.length ? p.ask : a), '')
+
+export function WritingWidget({ active, replay, onDone }: TourWidgetProps) {
   const { t } = useTheme()
+  const looping = onDone !== undefined
   const [sel, setSel] = useState<number | null>(null)
   const [more, setMore] = useState(false)
-  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 12)
+  const { back, stop } = useRewind(replay, WRITING_BACK, () => setSel((s) => ((s ?? -1) + 1) % SHOWN_FIRST))
+  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 12, back > 0)
+
+  // The first part selects itself, a moment after the widget is seen.
+  useEffect(() => {
+    if (!looping || !active || sel !== null) return
+    const id = window.setTimeout(() => setSel((s) => s ?? 0), 900)
+    return () => window.clearTimeout(id)
+  }, [looping, active, sel])
+  const reflected = sel !== null && ask.done && back === 0
+  useEffect(() => {
+    if (reflected) onDone?.()
+  }, [reflected, sel, onDone])
   const fadeUp = 'linear-gradient(to top, #000 35%, transparent 100%)'
   const shown = more ? PARTS : PARTS.slice(0, SHOWN_FIRST)
 
@@ -535,7 +618,7 @@ export function WritingWidget({ active }: TourWidgetProps) {
               <button
                 key={part.title}
                 type="button"
-                onClick={() => setSel(i)}
+                onClick={() => { stop(); setSel(i) }}
                 aria-pressed={on}
                 className="cursor-pointer"
                 style={{
@@ -553,17 +636,26 @@ export function WritingWidget({ active }: TourWidgetProps) {
         </div>
         <TextButton onClick={() => { if (more && sel !== null && sel >= SHOWN_FIRST) setSel(null); setMore(!more) }}>{more ? 'Show less' : 'Read more'}</TextButton>
 
-        <Card inner padding={12} style={{ marginTop: 4 }}>
-          {sel === null ? (
-            <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a part to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
-          ) : (
-            <>
-              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro <span style={{ fontWeight: 400, color: t.textMuted }}>· on “{PARTS[sel].title}”</span></p>
-              <p aria-label={PARTS[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em', marginTop: 2 }}>
-                <span aria-hidden>{ask.shown}</span>
-              </p>
-            </>
+        <Card inner padding={12} style={{ marginTop: 4, position: 'relative' }}>
+          {/* Looping: room for the longest reflection is held from the start, so the page below never moves as they are written and taken back. */}
+          {looping && !more && (
+            <div aria-hidden style={{ visibility: 'hidden' }}>
+              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600 }}>Companheiro</p>
+              <p style={{ ...typeRoles.ui, fontSize: 14, marginTop: 2 }}>{LONGEST_ASK}</p>
+            </div>
           )}
+          <div style={looping && !more ? { position: 'absolute', inset: 12 } : undefined}>
+            {sel === null ? (
+              <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a part to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
+            ) : (
+              <>
+                <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro <span style={{ fontWeight: 400, color: t.textMuted }}>· on “{PARTS[sel].title}”</span></p>
+                <p aria-label={PARTS[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em', marginTop: 2 }}>
+                  <span aria-hidden>{ask.shown}{looping && !ask.done && <Caret />}</span>
+                </p>
+              </>
+            )}
+          </div>
         </Card>
       </Card>
     </Container>

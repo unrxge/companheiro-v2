@@ -29,8 +29,8 @@ const VISION_LINE = 'A body of work about what we save for later, and the choice
 
 /**
  * Reveals `text` a character at a time once `start` is true. Instant under
- * reduced motion. While `unwind` is true it is backspaced instead, several
- * times faster than it was written.
+ * reduced motion. While `unwind` is true it is backspaced instead, in well
+ * under half a second however long it is.
  */
 export function useTypewriter(text: string, start: boolean, msPerChar = 26, unwind = false) {
   const reduce = useReducedMotion()
@@ -43,7 +43,7 @@ export function useTypewriter(text: string, start: boolean, msPerChar = 26, unwi
             window.clearInterval(id)
             return 0
           }
-          return Math.max(0, prev - 3)
+          return Math.max(0, prev - Math.max(3, Math.ceil(text.length / 25)))
         })
       }, 16)
       return () => window.clearInterval(id)
@@ -124,12 +124,22 @@ const FRAGMENTS: { kind: string; text: string; tilt: number }[] = [
   { kind: 'Photo idea', text: 'Empty café chairs, just before opening.', tilt: 2 },
 ]
 
-// Winding back, in the order it was built: the line is backspaced, the vision
-// drops away and the fragments tip back to how they lay, then they lift off
-// last to first.
-const VISION_BACK = [450, 900, 1450] as const
+// Winding back: the line is backspaced, then the vision drops away and the
+// four fragments jiggle back to how they lay. Nothing leaves; it plays forward
+// again from there.
+const VISION_BACK = [450, 1200] as const
 
-export function VisionFinder({ active = true, replay = 0 }: { /** False until it has been seen. */ active?: boolean; /** Goes up each time it should wind back and play again. */ replay?: number }) {
+/** What a widget that keeps itself moving is handed by the landing page's Replay. */
+export interface LoopProps {
+  /** False until it has been seen. */
+  active?: boolean
+  /** Goes up each time it should wind back, or move on. */
+  replay?: number
+  /** Called each time it finishes playing, optionally with how long to hold there. */
+  onDone?: (holdMs?: number) => void
+}
+
+export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
   const [stage, setStage] = useState(0) // 0 scattered, 1 side by side, 2 the vision being written
@@ -143,8 +153,10 @@ export function VisionFinder({ active = true, replay = 0 }: { /** False until it
       return
     }
     setStage(0)
-    const a = window.setTimeout(() => setStage(1), 1700)
-    const b = window.setTimeout(() => setStage(2), 2900)
+    // The first time the fragments have to arrive; after a rewind they are already lying there.
+    const lead = cycle === 0 ? 1700 : 500
+    const a = window.setTimeout(() => setStage(1), lead)
+    const b = window.setTimeout(() => setStage(2), lead + 1200)
     return () => {
       window.clearTimeout(a)
       window.clearTimeout(b)
@@ -152,9 +164,13 @@ export function VisionFinder({ active = true, replay = 0 }: { /** False until it
   }, [reduce, cycle, active])
 
   const { shown, done } = useTypewriter(VISION_LINE, stage >= 2, 30, back > 0)
-  const away = !reduce && (!active || back === 3)
+  const away = !reduce && !active
   const settled = stage >= 1 && back < 2
   const visionUp = stage >= 2 && back < 2
+  const written = stage >= 2 && done && back === 0
+  useEffect(() => {
+    if (written) onDone?.()
+  }, [written, onDone])
 
   return (
     <Container padding={16} style={{ width: '100%' }}>
@@ -167,8 +183,7 @@ export function VisionFinder({ active = true, replay = 0 }: { /** False until it
               initial={reduce ? false : { opacity: 0, y: 12, rotate: f.tilt * 2 }}
               animate={away ? { opacity: 0, y: 12, rotate: f.tilt * 2 } : { opacity: 1, y: 0, rotate: settled ? 0 : f.tilt }}
               transition={
-                back === 3 ? { duration: 0.3, delay: (FRAGMENTS.length - 1 - i) * 0.07, ease: 'backIn' }
-                : back === 2 ? { type: 'spring', stiffness: 320, damping: 11, delay: (FRAGMENTS.length - 1 - i) * 0.04 }
+                back === 2 ? { type: 'spring', stiffness: 300, damping: 9, delay: (FRAGMENTS.length - 1 - i) * 0.06 }
                 : { duration: 0.7, delay: stage === 0 ? 0.25 + i * 0.15 : i * 0.06, ease: EASE }
               }
             >
@@ -187,19 +202,20 @@ export function VisionFinder({ active = true, replay = 0 }: { /** False until it
           style={{ marginTop: 14 }}
           aria-hidden={!visionUp}
         >
-          <Card inner padding={16} style={{ borderLeft: `3px solid ${t.ember}`, borderRadius: radius.widget }}>
+          {/* The one dark thing on the paper, so the eye lands where the four fragments were heading. */}
+          <div style={{ padding: 18, borderRadius: radius.widget, backgroundColor: t.inverseBg, boxShadow: `0 14px 30px -14px ${alpha(t.ember, 0.6)}, 0 2px 0 ${t.ember} inset` }}>
             <div className="flex items-center justify-between gap-3">
-              <Pill hue="ember">Vision</Pill>
-              <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>In your words</span>
+              <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 999, backgroundColor: t.ember, color: '#ffffff' }}>Vision</span>
+              <span style={{ ...typeRoles.small, fontSize: 11, color: alpha(t.inverseText, 0.6) }}>In your words</span>
             </div>
-            <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 10 }}>{VISION_TITLE}</p>
-            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 4, minHeight: '2.9em' }}>
+            <p style={{ ...typeRoles.h2, fontSize: 21, color: t.inverseText, marginTop: 12 }}>{VISION_TITLE}</p>
+            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: alpha(t.inverseText, 0.82), marginTop: 5, minHeight: '2.9em' }}>
               <span aria-hidden>
                 {shown}
                 {!done && stage >= 2 && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}
               </span>
             </p>
-          </Card>
+          </div>
         </m.div>
       </Card>
       <div className="flex items-center justify-between gap-3 px-2 pb-1 pt-3.5">
@@ -429,7 +445,7 @@ function NodeBody({ node }: { node: BoardNode }) {
   )
 }
 
-function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }: { node: BoardNode; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or any more). */ away: boolean; /** Being taken off again, last to arrive first. */ leaving: boolean }) {
+function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }: { node: BoardNode; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or for the moment). */ away: boolean; /** The canvas is winding back: what leaves does so last to arrive first. */ leaving: boolean }) {
   const reduce = useReducedMotion()
   return (
     <m.div
@@ -452,14 +468,22 @@ function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }:
 
 // The order things arrive in: what it is meant to be, the pieces, the threads, then what is kept beside them.
 const ARRIVE = ['vision', 'treatment', 'shots', 'stills', 'hands', 'reveal', 'frame', 'note', 'tasks']
-// Winding back: the lines go, then everything is taken off in the reverse of that order.
-const CANVAS_BACK = [900] as const
+// Winding back: the lines go, then everything is taken off in the reverse of
+// that order, down to the vision. The vision stays, and the project is laid
+// out around it again.
+const CANVAS_BACK = [850] as const
+const CANVAS_PLAYS = 1900
 
-export function CanvasMockup({ active = true, replay }: { /** False until it has been seen. */ active?: boolean; /** Goes up each time it should wind back and play again. */ replay?: number }) {
+export function CanvasMockup({ active = true, replay, onDone }: LoopProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
-  const { back } = useRewind(replay, CANVAS_BACK)
-  const away = !reduce && (!active || back > 0)
+  const { back, cycle } = useRewind(replay, CANVAS_BACK)
+  const unseen = !reduce && !active
+  useEffect(() => {
+    if (!active || !onDone) return
+    const id = window.setTimeout(() => onDone(), CANVAS_PLAYS)
+    return () => window.clearTimeout(id)
+  }, [active, cycle, onDone])
   const boardRef = useRef<HTMLDivElement>(null)
   const [fine, setFine] = useState(false)
   useEffect(() => {
@@ -539,7 +563,7 @@ export function CanvasMockup({ active = true, replay }: { /** False until it has
             height={boardH}
             className="pointer-events-none absolute inset-0"
             initial={reduce ? false : { opacity: 0 }}
-            animate={{ opacity: away ? 0 : 1 }}
+            animate={{ opacity: unseen || back > 0 ? 0 : 1 }}
             transition={back > 0 ? { duration: 0.2 } : { duration: 0.8, delay: 0.9 }}
           >
             {EDGES.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
@@ -550,7 +574,7 @@ export function CanvasMockup({ active = true, replay }: { /** False until it has
             })}
           </m.svg>
           {nodes.map((n) => (
-            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} away={away} leaving={back > 0} />
+            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} away={unseen || (back > 0 && n.id !== 'vision')} leaving={back > 0} />
           ))}
         </div>
       </div>
@@ -569,12 +593,17 @@ const RULE_QUOTE = 'I don’t want anyone talking over the hands.'
 // and the reply is given again.
 const RULE_BACK = [700] as const
 
-export function RuleHeardMockup({ replay }: { /** Goes up each time it should wind back and play again. */ replay?: number }) {
+export function RuleHeardMockup({ replay, onDone }: LoopProps) {
   const { t } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, amount: 0.5 })
   const reduce = useReducedMotion()
-  const { back } = useRewind(replay, RULE_BACK)
+  const { back, cycle } = useRewind(replay, RULE_BACK)
+  useEffect(() => {
+    if (!inView || !onDone) return
+    const id = window.setTimeout(() => onDone(), 2300)
+    return () => window.clearTimeout(id)
+  }, [inView, cycle, onDone])
   const shownAt = reduce || (inView && back === 0)
   return (
     <div ref={ref}>

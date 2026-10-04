@@ -11,16 +11,19 @@
 // collapses to static under prefers-reduced-motion.
 
 import Link from 'next/link'
-import { createContext, Fragment, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
 import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
+import { Container, Card } from '@/components/shell/page-shell'
+import { Pill } from '@/components/ui/pill'
+import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
-import { alpha, shell, tokensFor, type Hue, type Mood } from '@/lib/design-tokens'
+import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
@@ -90,26 +93,29 @@ function Reveal({ children, delay = 0, className = '' }: { children: React.React
 }
 
 /**
- * Plays what is inside as it comes into view, and again once it has finished
- * and been left alone for a few seconds, until the person touches it. Someone
- * reading the paragraph beside a widget would otherwise arrive to find its
- * animation already over and take it for a picture.
+ * Plays what is inside as it comes into view, and keeps it moving until the
+ * person touches it. Someone reading the paragraph beside a widget would
+ * otherwise arrive to find its animation already over and take it for a
+ * picture.
  *
- * `plays` is how long the widget's own animation runs; a widget that only
- * moves when pressed passes nothing and is never replayed. The wait starts
- * when the animation ends and starts again whenever the pointer moves inside
- * the widget, so it counts stillness: a cursor resting on it, or not on it at
- * all. A press, a tap or a key ends it for good.
+ * A widget that `loops` is handed three things: `active` (it has been seen),
+ * `onDone` and `replay`. It calls `onDone` each time it finishes a stretch of
+ * its own animation, optionally with how long to hold there. The hold counts
+ * stillness: it starts again whenever the pointer moves inside the widget, so
+ * a cursor resting on it, or not on it at all, lets it run out. Then `replay`
+ * goes up and the widget does whatever comes next, which is its own business:
+ * wind back in reverse and play again, or move on to its next step (see
+ * useRewind in mockups.tsx). A press, a tap or a key ends it for good.
  *
- * Replaying is the widget's own doing: it is handed a `replay` count, and
- * each time that goes up it winds itself back in reverse (see useRewind in
- * mockups.tsx) and plays forward again; `rewinds` is how long the winding
- * back takes. Once it has scrolled right out of sight a fresh copy takes its
- * place, so coming back to it is a clean first play, not a rewind.
+ * Once it has scrolled right out of sight a fresh copy takes its place, so
+ * coming back to it is a clean first play. A widget that does not loop only
+ * gets `active`, and is never replaced.
  */
-const REPLAY_AFTER_MS = 4000
+const HOLD_MS = 4000
 
-function Replay({ children, plays = 0, rewinds = 0, className }: { children: (active: boolean, replay: number) => React.ReactNode; plays?: number; rewinds?: number; className?: string }) {
+type Looping = { active: boolean; replay?: number; onDone?: (holdMs?: number) => void }
+
+function Replay({ children, loops = false, className }: { children: (p: Looping) => React.ReactNode; loops?: boolean; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduce = useReducedMotion()
   // Present once a third of it shows, gone only when none of it does: a widget
@@ -125,8 +131,11 @@ function Replay({ children, plays = 0, rewinds = 0, className }: { children: (ac
   const [replay, setReplay] = useState(0)
   const [seen, setSeen] = useState(false)
   const [engaged, setEngaged] = useState(false)
+  // What the widget last finished, and how long to stay on it.
+  const [hold, setHold] = useState<{ ms: number; n: number } | null>(null)
   const wasIn = useRef(false)
-  const replays = plays > 0 && !engaged && !reduce
+  const replays = loops && !engaged && !reduce
+  const onDone = useCallback((ms: number = HOLD_MS) => setHold((h) => ({ ms, n: (h?.n ?? 0) + 1 })), [])
 
   // Arriving plays it. Leaving swaps in a fresh copy while nobody can see it.
   useEffect(() => {
@@ -138,41 +147,41 @@ function Replay({ children, plays = 0, rewinds = 0, className }: { children: (ac
     if (!wasIn.current || !replays) return
     wasIn.current = false
     setSeen(false)
+    setHold(null)
     setReplay(0)
     setCopy((c) => c + 1)
-    // only crossing the edge of the screen matters here; the wait below handles the rest
+    // only crossing the edge of the screen matters here; the hold below handles the rest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inView])
 
-  // Finished, then four still seconds: wind back and play again.
+  // Finished, then left still for the hold: on to whatever the widget does next.
   useEffect(() => {
     const el = ref.current
-    if (!el || !inView || !replays) return
-    const startedAt = performance.now()
-    const runs = (replay > 0 ? rewinds : 0) + plays
+    if (!el || !hold || !inView || !replays) return
     let id = 0
     const arm = (ms: number) => {
       window.clearTimeout(id)
       id = window.setTimeout(() => {
         // Nobody is watching a hidden tab; look again shortly.
-        if (document.visibilityState !== 'visible') arm(1000)
-        else setReplay((r) => r + 1)
+        if (document.visibilityState !== 'visible') return arm(1000)
+        setHold(null)
+        setReplay((r) => r + 1)
       }, ms)
     }
-    arm(runs + REPLAY_AFTER_MS)
-    // Movement inside it means they are with it: the stillness is counted afresh, never before the animation has ended.
-    const onMove = () => arm(Math.max(REPLAY_AFTER_MS, runs + REPLAY_AFTER_MS - (performance.now() - startedAt)))
+    arm(hold.ms)
+    // Movement inside it means they are with it: the stillness is counted afresh.
+    const onMove = () => arm(hold.ms)
     el.addEventListener('pointermove', onMove)
     return () => {
       window.clearTimeout(id)
       el.removeEventListener('pointermove', onMove)
     }
-  }, [inView, replays, replay, copy, plays, rewinds])
+  }, [hold, inView, replays])
 
   const engage = () => setEngaged(true)
   return (
     <div ref={ref} className={className} onPointerDownCapture={engage} onKeyDownCapture={engage}>
-      <Fragment key={copy}>{children(seen, replay)}</Fragment>
+      <Fragment key={copy}>{children(loops ? { active: seen, replay, onDone } : { active: seen })}</Fragment>
     </div>
   )
 }
@@ -242,8 +251,7 @@ function Hero() {
       </div>
 
       <div className={`${ENTER} slide-in-from-bottom-[24px] animation-duration-[1100ms] delay-[300ms] w-full max-w-[480px] lg:justify-self-end`}>
-        {/* Fragments settle, then the vision line types itself: about five seconds. */}
-        <Replay plays={5400} rewinds={1450}>{(active, replay) => <VisionFinder active={active} replay={replay} />}</Replay>
+        <Replay loops>{(p) => <VisionFinder {...p} />}</Replay>
       </div>
     </section>
   )
@@ -301,7 +309,7 @@ const IDEA_BODY = 'No need to wait for the creative muse. Pick a theme you care 
 // Only on this page: the tour's line ends on "one clear sentence", which the page said too often.
 const CONCEPT_BODY = 'Find the voice of your idea outside of the fog of the abstract. ‘Conceptualise’ helps you define the outline of what you want to express, one question at a time, until the concept is clear enough to declare.'
 
-function InsideRow({ slide, flip, title, body, plays, rewinds }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** How long the widget animates on its own, if it does, and how long it takes to wind back (see Replay). */ plays?: number; rewinds?: number }) {
+function InsideRow({ slide, flip, title, body, loops }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** The widget keeps itself moving until it is touched (see Replay). */ loops?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   return (
@@ -312,7 +320,7 @@ function InsideRow({ slide, flip, title, body, plays, rewinds }: { slide: TourSl
         <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{body ?? slide.body}</p>
       </Reveal>
       <Reveal delay={0.1} className={`mx-auto w-full max-w-[460px] ${flip ? 'md:order-1 md:mr-auto md:ml-0' : 'md:ml-auto md:mr-0'}`}>
-        <Replay plays={plays} rewinds={rewinds}>{(active, replay) => <slide.Widget active={active} replay={replay} />}</Replay>
+        <Replay loops={loops}>{(p) => <slide.Widget {...p} />}</Replay>
       </Reveal>
     </div>
   )
@@ -338,7 +346,7 @@ function BoardCanvas() {
         </p>
       </Reveal>
       <Reveal delay={0.1} className="mt-8 md:mt-12">
-        <Replay plays={1800} rewinds={900}>{(active, replay) => <CanvasMockup active={active} replay={replay} />}</Replay>
+        <Replay loops>{(p) => <CanvasMockup {...p} />}</Replay>
       </Reveal>
       <div className="mt-8 grid grid-cols-1 gap-5 md:mt-10 md:grid-cols-3 md:gap-10">
         {CANVAS_FACTS.map((f, i) => (
@@ -354,10 +362,10 @@ function BoardCanvas() {
 function Inside() {
   return (
     <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
-      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} plays={5300} rewinds={1450} />
-      <InsideRow slide={slideFor('Conceptualise')} flip body={CONCEPT_BODY} />
+      <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} loops />
+      <InsideRow slide={slideFor('Conceptualise')} flip body={CONCEPT_BODY} loops />
       <BoardCanvas />
-      <InsideRow slide={slideFor('Writing')} flip={false} />
+      <InsideRow slide={slideFor('Writing')} flip={false} loops />
       <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} />
     </section>
   )
@@ -684,7 +692,7 @@ function Closing() {
       className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-center gap-12 px-4 py-20 md:grid-cols-[0.9fr_1.1fr] md:gap-20 md:px-8 md:py-32"
     >
       <Reveal className="order-2 w-full max-w-[480px] md:order-1">
-        <Replay plays={2300} rewinds={700}>{(_, replay) => <RuleHeardMockup replay={replay} />}</Replay>
+        <Replay loops>{(p) => <RuleHeardMockup {...p} />}</Replay>
       </Reveal>
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
@@ -738,21 +746,22 @@ const PLANS = [
  * (lib/billing/chosen-plan.ts). The free month stays one line below it.
  */
 function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' | 'direction'; billing: Billing }) {
+  const { t } = useTheme()
   const href = useAttributedHref(`${SIGNUP}?plan=${plan}&interval=${billing === 'year' ? 'yearly' : 'monthly'}`)
   const freeHref = useAttributedHref(SIGNUP)
   return (
     <>
       <Link
         href={href}
-        className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-[transform,opacity] duration-300 hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
-        style={lead ? { backgroundColor: shell.text, color: shell.ink } : { backgroundColor: alpha(shell.text, 0.12), color: shell.text }}
+        className="group inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-semibold transition-transform duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+        style={lead ? { backgroundColor: t.inverseBg, color: t.inverseText } : { backgroundColor: t.cardBgInner, color: t.textPrimary }}
       >
         Subscribe
         <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
       </Link>
-      <p className="mt-2.5 text-center text-[14px] text-[var(--muted)]">
+      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 10, textAlign: 'center' }}>
         or{' '}
-        <Link href={freeHref} className="text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4">
+        <Link href={freeHref} style={{ color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}>
           try everything free for 30 days
         </Link>
       </p>
@@ -760,43 +769,38 @@ function PlanButton({ lead, plan, billing }: { lead: boolean; plan: 'practice' |
   )
 }
 
-/** A plan, on glass like the rest of the page; Direction's is the brighter of the two. */
 function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billing: Billing; lead: boolean }) {
+  const { t } = useTheme()
   // In the visitor's own currency once Stripe has answered (lib/billing/use-prices.ts).
   const prices = usePrices()
   const amount = prices.money(plan.id, billing === 'year' ? 'yearly' : 'monthly')
   const perMonth = billing === 'year' ? formatMoney(Math.round(prices.amounts[plan.id].yearly / 12), prices.currency) : null
   return (
-    <div
-      className={`flex h-full flex-col rounded-[28px] border border-[var(--line)] bg-[var(--fill)] ${lead ? 'p-7 md:p-8' : 'p-6 md:p-7'}`}
-      style={lead ? { ...BRIGHT_GLASS, borderTop: `2px solid ${alpha(ember, 0.9)}` } : undefined}
-    >
+    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
       <div className="flex items-center justify-between gap-3">
-        <p className="font-bold tracking-[-0.025em] text-[var(--bone)]" style={{ fontSize: lead ? 26 : 22 }}>{plan.name}</p>
-        {lead && (
-          <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ backgroundColor: alpha(ember, 0.16), color: ember }}>Many visions</span>
-        )}
+        <p style={{ ...typeRoles.h2, fontSize: lead ? 26 : 22, color: t.textPrimary }}>{plan.name}</p>
+        {lead && <Pill hue="ember">Many visions</Pill>}
       </div>
-      <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{plan.line}</p>
+      <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 6 }}>{plan.line}</p>
       <div className="mt-6 flex items-baseline gap-1.5">
-        <span className="font-bold leading-none tracking-[-0.035em] text-[var(--bone)]" style={{ fontSize: lead ? 48 : 40 }}>{amount}</span>
-        <span className="text-[15px] text-[var(--muted)]">a {billing}</span>
+        <span style={{ ...typeRoles.display, fontSize: lead ? 48 : 40, color: t.textPrimary }}>{amount}</span>
+        <span style={{ ...typeRoles.ui, color: t.textMuted }}>a {billing}</span>
       </div>
-      <p className="mt-1.5 min-h-[1.5em] text-[14px] text-[var(--muted)]">
+      <p style={{ ...typeRoles.small, color: t.textMuted, marginTop: 4, minHeight: '1.5em' }}>
         {perMonth ? `${perMonth} a month, two months free` : 'Or yearly, with two months free'}
       </p>
       <ul className="mt-6 flex flex-1 flex-col gap-3">
         {plan.features.map((f) => (
           <li key={f} className="flex items-start gap-3">
-            <Check size={16} strokeWidth={2} aria-hidden style={{ color: lead ? ember : hues.verdant, marginTop: 4, flexShrink: 0 }} />
-            <span className="text-[15px] leading-relaxed text-[var(--bone)]">{f}</span>
+            <Check size={16} strokeWidth={2} aria-hidden style={{ color: lead ? t.ember : t.verdant, marginTop: 3, flexShrink: 0 }} />
+            <span style={{ ...typeRoles.ui, color: t.textPrimary }}>{f}</span>
           </li>
         ))}
       </ul>
       <div className="mt-8">
         <PlanButton lead={lead} plan={plan.id} billing={billing} />
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -839,10 +843,12 @@ function Pricing() {
       </Reveal>
 
       <Reveal delay={0.12} className="mt-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[0.85fr_1.15fr]">
-          <div id="plan-practice" className="scroll-mt-24"><PlanCard plan={PLANS[0]} billing={billing} lead={false} /></div>
-          <div id="plan-direction" className="scroll-mt-24"><PlanCard plan={PLANS[1]} billing={billing} lead /></div>
-        </div>
+        <Container padding={16}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[0.85fr_1.15fr]">
+            <div id="plan-practice" className="scroll-mt-24"><PlanCard plan={PLANS[0]} billing={billing} lead={false} /></div>
+            <div id="plan-direction" className="scroll-mt-24"><PlanCard plan={PLANS[1]} billing={billing} lead /></div>
+          </div>
+        </Container>
       </Reveal>
 
       <p className="mt-4 text-[13px] text-[var(--muted)]">
