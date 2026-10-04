@@ -1,20 +1,21 @@
 'use client'
 
 // Where the button in a sign-up email lands. The email carries a one-time
-// token (not a PKCE code), and it is only spent when the person presses
-// Continue here. Two things that broke the old link no longer can:
-//  - opening the email in a different browser or device from the one that
-//    asked for it (a PKCE code only works in the browser that started it);
-//  - a mail provider's link scanner visiting the link first and using it up
-//    (a scanner loads the page; it does not press the button).
+// token (not a PKCE code), so it works in any browser or device, not only the
+// one that asked for it. It is confirmed as soon as the page runs, with
+// nothing to press: the person sees a moment of "Confirming" and is on their
+// way to choosing a password. The token is spent by this page's script, not
+// by the request for the page, so a mail scanner that only fetches the link
+// does not use it up (one that runs scripts still could; if that ever shows
+// up as "already used" reports, put a button back in front of `confirm`).
 //
 // The Supabase email templates must point here; see the comment at the foot.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AuthShell, AuthLink } from '@/components/auth/auth-shell'
 import { useTheme } from '@/components/theme/theme-provider'
-import { PrimaryButton } from '@/components/ui/buttons'
+import { WorkingDots } from '@/components/ui/working'
 import { type as typeRoles } from '@/lib/design-tokens'
 
 type LinkType = 'email' | 'signup' | 'magiclink'
@@ -34,45 +35,39 @@ function nextUrl(raw: string | null): string {
 
 export default function ConfirmPage() {
   const { t } = useTheme()
-  const [link, setLink] = useState<{ token: string; type: LinkType; next: string } | null>(null)
-  const [missing, setMissing] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+  const started = useRef(false)
 
   useEffect(() => {
+    if (started.current) return
+    started.current = true
     const q = new URLSearchParams(window.location.search)
     const token = q.get('token_hash')
     const type = q.get('type') ?? 'email'
-    if (!token || !TYPES.includes(type)) { setMissing(true); return }
-    setLink({ token, type: type as LinkType, next: nextUrl(q.get('redirect_to')) })
-  }, [])
-
-  const confirm = async () => {
-    if (!link || busy) return
-    setBusy(true)
-    setError(null)
-    const { error: err } = await createClient().auth.verifyOtp({ token_hash: link.token, type: link.type })
-    if (err) {
-      setError('This link has already been used or has expired. Ask for a new one from the sign-in page.')
-      setBusy(false)
+    if (!token || !TYPES.includes(type)) {
+      setFailed('This link is incomplete. Ask for a new one from the sign-in page.')
       return
     }
-    // The callback records the agreed Terms and sends them on to choose a password.
-    window.location.href = link.next
-  }
+    const next = nextUrl(q.get('redirect_to'))
+    void createClient().auth.verifyOtp({ token_hash: token, type: type as LinkType }).then(({ error }) => {
+      if (error) setFailed('This link has already been used or has expired. Ask for a new one from the sign-in page.')
+      // The callback records the agreed Terms and sends them on to choose a password.
+      else window.location.replace(next)
+    })
+  }, [])
 
   return (
     <AuthShell
-      title="Confirm your email."
-      subtitle="One press, then you choose a password."
-      footer={<span><AuthLink href="/login">Back to sign in</AuthLink></span>}
+      title={failed ? 'That link didn’t work.' : 'One moment.'}
+      subtitle={failed ? undefined : 'Confirming your email.'}
+      footer={failed ? <span><AuthLink href="/login">Back to sign in</AuthLink></span> : undefined}
     >
-      {missing ? (
-        <p role="alert" style={{ ...typeRoles.small, color: t.danger }}>This link is incomplete. Ask for a new one from the sign-in page.</p>
+      {failed ? (
+        <p role="alert" style={{ ...typeRoles.small, color: t.danger }}>{failed}</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {error && <p role="alert" style={{ ...typeRoles.small, color: t.danger }}>{error}</p>}
-          <PrimaryButton onClick={() => void confirm()} disabled={!link} loading={busy} loadingLabel="Confirming…" full size="lg">Continue</PrimaryButton>
+        <div role="status" style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, display: 'flex', alignItems: 'center', gap: 10, minHeight: 48 }}>
+          <WorkingDots />
+          <span>Taking you to choose a password…</span>
         </div>
       )}
     </AuthShell>
