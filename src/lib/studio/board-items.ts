@@ -6,10 +6,27 @@
 import type { AssetView } from '@/lib/studio/types'
 import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 
-export type BoardItemKind = 'image' | 'recording' | 'tasks'
+export type BoardItemKind = 'image' | 'recording' | 'tasks' | 'palette'
 
 /** A task that belongs to the list itself: anything that is not the writing. */
 export interface OwnTask { id: string; title: string; done: boolean }
+
+/** One colour on a palette. The name is the person's own and may be blank. */
+export interface Swatch { id: string; hex: string; name: string }
+
+/** How many colours one palette holds. */
+export const MAX_SWATCHES = 12
+/** What a new palette starts with. */
+export const PALETTE_SEED = '#C86A3A'
+
+/** `#rgb` or `#rrggbb`, in a form the browser will take. Null when it is not a colour. */
+export function cleanHex(raw: string): string | null {
+  const v = raw.trim().toLowerCase()
+  const short = /^#?([0-9a-f]{3})$/.exec(v)
+  if (short) return `#${short[1].split('').map((c) => c + c).join('')}`.toUpperCase()
+  const long = /^#?([0-9a-f]{6})$/.exec(v)
+  return long ? `#${long[1]}`.toUpperCase() : null
+}
 
 export interface BoardItemContent {
   /** A recording's name. */
@@ -20,6 +37,8 @@ export interface BoardItemContent {
   tasks?: OwnTask[]
   /** The writing tasks are folded away. */
   writing_closed?: boolean
+  /** A palette's colours. */
+  swatches?: Swatch[]
 }
 
 export interface BoardItem {
@@ -88,6 +107,7 @@ export const ITEM_WIDTH: Record<BoardItemKind, { base: number; min: number; max:
   image: { base: 320, min: 160, max: 960 },
   tasks: { base: 300, min: 260, max: 380 },
   recording: { base: 300, min: 300, max: 300 },
+  palette: { base: 300, min: 220, max: 560 },
 }
 export const RECORDING_H = 116
 /** Rows a caption may wrap to before it stops growing. */
@@ -119,7 +139,7 @@ export function captionLimit(innerWidth: number, fontSize: number, hardMax: numb
   return Math.max(24, Math.min(hardMax, Math.floor(perLine * CAPTION_ROWS * 0.9)))
 }
 /** Used before a task list has been measured, and for an image with no known shape. */
-export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H }
+export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H, palette: 128 }
 const CAPTION_H = 34
 
 export const canResize = (kind: BoardItemKind) => ITEM_WIDTH[kind].min !== ITEM_WIDTH[kind].max
@@ -185,26 +205,24 @@ export function packSpans(wanted: Array<{ centre: number; w: number }>, gap: num
 
 // ── arranging what hangs under the pieces ───────────────────────────────────
 //
-// Everything with no hand placement is laid out here. The old arrangement put
-// them all in one long row, which falls apart as soon as a project has a few
-// pieces and several things hanging off them: the row runs off to the right,
-// and the line from a thing to its piece crosses half the board.
+// Everything with no hand placement of its own is laid out here.
 //
-// So things gather around the piece they belong to instead, in this order:
+// It is packed, not ruled into rows. Each thing drops into the lowest place it
+// will fit, so a short one tucks under a short one and a tall one keeps its
+// own run of board — which is what makes the result look arranged by hand
+// rather than set in a table, while still never overlapping and never
+// wandering away from the piece it belongs to.
 //
-//   1. under their own piece, in the card's own width, small things side by
-//      side — the space directly below a card is used up first;
-//   2. when that column has grown past `sideAfter`, out to the side — but
-//      only where there is open board: the leftmost piece puts them on its
-//      left, the rightmost on its right. A piece with neighbours on both
-//      sides has no side to spill into, so it keeps going down rather than
-//      wander into the space belonging to another card;
-//   3. things connected to nothing belong to no column, so they go below
-//      everything in a row of their own, wrapping across the width the
-//      pieces already occupy.
+// Three things decide where something goes:
 //
-// A thing connected to several pieces hangs under the one nearest the middle
-// of them all, which keeps its lines short without putting it between cards.
+//   1. WHOSE IT IS. It sits in the band belonging to its piece — a band wider
+//      than the card, reaching into the space either side of it, so a row can
+//      hold two things of different widths rather than one card's worth.
+//   2. WHAT IT IS. Threads are placed first, so they take the top of the band,
+//      nearest the card they run through.
+//   3. WHERE IT FITS. After that, the lowest free spot wins.
+//
+// Things connected to nothing belong to no band, so they go below the lot.
 
 export interface ArrangeThing {
   id: string
@@ -212,6 +230,8 @@ export interface ArrangeThing {
   h: number
   /** The top-level pieces it is connected to; empty means it stands alone. */
   on: string[]
+  /** Lower goes in first, so it ends up nearer the card. Threads are 0. */
+  priority?: number
 }
 
 export interface ArrangeColumn {
@@ -228,70 +248,131 @@ export interface ArrangeInput {
   /** The line everything hangs below. */
   top: number
   gap: number
-  /** How tall one piece's column may grow before it spills to the side. */
-  sideAfter: number
   /** Nothing is placed further left than this. */
   minX: number
+  /** How far past the outermost cards the end bands may reach. */
+  outerRoom?: number
 }
 
-/** A band that fills and wraps inside a fixed width, left to right or right
- *  to left — a band to the left of a card is filled from the card outwards,
- *  so a narrow thing still sits beside it rather than off on its own. */
-interface Shelf {
-  x: number
-  w: number
-  rtl: boolean
-  rowY: number
-  /** The edge the next thing goes against: the row's left, or its right. */
-  rowEdge: number
-  rowH: number
-  started: boolean
-}
+/**
+ * A run of board at a given height. Packing keeps a list of these — the
+ * "skyline" — and drops each new thing into the lowest run it fits.
+ */
+interface Span { x: number; w: number; y: number }
 
-const newShelf = (x: number, w: number, top: number, rtl = false): Shelf =>
-  ({ x, w, rtl, rowY: top, rowEdge: rtl ? x + w : x, rowH: 0, started: false })
-
-/** The least room worth calling a band of its own. */
-const MIN_SIDE_W = 160
-
-/** Puts one thing on a band, wrapping to a new row when it will not fit. */
-function placeOn(shelf: Shelf, thing: ArrangeThing, gap: number): { x: number; y: number } {
-  const startsRow = shelf.rowEdge === (shelf.rtl ? shelf.x + shelf.w : shelf.x)
-  const fits = startsRow || (shelf.rtl
-    ? shelf.rowEdge - thing.w >= shelf.x
-    : shelf.rowEdge + thing.w <= shelf.x + shelf.w)
-  if (!fits) {
-    shelf.rowY = shelf.rowY + shelf.rowH + gap
-    shelf.rowEdge = shelf.rtl ? shelf.x + shelf.w : shelf.x
-    shelf.rowH = 0
+class Skyline {
+  private spans: Span[]
+  constructor(private left: number, private width: number, top: number) {
+    this.spans = [{ x: left, w: width, y: top }]
   }
-  const x = shelf.rtl ? shelf.rowEdge - thing.w : shelf.rowEdge
-  const at = { x: Math.round(x), y: shelf.rowY }
-  shelf.rowEdge = shelf.rtl ? x - gap : x + thing.w + gap
-  shelf.rowH = Math.max(shelf.rowH, thing.h)
-  shelf.started = true
-  return at
+
+  /** The highest point along [x, x + w): what a thing put there would rest on. */
+  private restsAt(x: number, w: number): number {
+    let y = -Infinity
+    for (const s of this.spans) {
+      if (s.x + s.w <= x || s.x >= x + w) continue
+      if (s.y > y) y = s.y
+    }
+    return y === -Infinity ? this.spans[0]?.y ?? 0 : y
+  }
+
+  /**
+   * Drops one thing into the lowest place it fits. `within` is the stretch it
+   * is allowed to use — its own piece's reach — and `prefer` the x it would
+   * rather have. Height decides first, so things tuck under each other; among
+   * places of much the same height, the one nearest home wins, which is what
+   * keeps a piece's things together while letting them spread sideways.
+   */
+  place(
+    w: number, h: number, gap: number,
+    within: { left: number; right: number },
+    prefer: number,
+  ): { x: number; y: number } {
+    const left = Math.max(this.left, within.left)
+    const right = Math.min(this.left + this.width, within.right)
+    const width = Math.min(w, Math.max(80, right - left))
+    // Every run's start is a candidate, and so is its right-hand end: a thing
+    // can tuck against either side of what is already down.
+    const candidates = new Set<number>([left, right - width, prefer])
+    for (const s of this.spans) {
+      candidates.add(s.x)
+      candidates.add(s.x + s.w - width)
+    }
+    let best: { x: number; y: number } | null = null
+    for (const raw of candidates) {
+      const x = Math.max(left, Math.min(raw, right - width))
+      const y = this.restsAt(x, width + gap)
+      const better = !best
+        || y < best.y - 0.5
+        || (Math.abs(y - best.y) <= 0.5 && Math.abs(x - prefer) < Math.abs(best.x - prefer))
+      if (better) best = { x, y }
+    }
+    const at = best ?? { x: left, y: this.spans[0]?.y ?? 0 }
+    this.raise(at.x, w + gap, at.y + h + gap)
+    return { x: Math.round(at.x), y: Math.round(at.y) }
+  }
+
+  /** Marks [x, x + w) as used up to `y`. */
+  private raise(x: number, w: number, y: number): void {
+    const next: Span[] = []
+    for (const s of this.spans) {
+      const overlaps = s.x < x + w && s.x + s.w > x
+      if (!overlaps) { next.push(s); continue }
+      if (s.x < x) next.push({ x: s.x, w: x - s.x, y: s.y })
+      const tailX = Math.max(s.x, x + w)
+      if (s.x + s.w > tailX) next.push({ x: tailX, w: s.x + s.w - tailX, y: s.y })
+    }
+    next.push({ x, w, y })
+    next.sort((a, b) => a.x - b.x)
+    // Runs at the same height are one run.
+    const merged: Span[] = []
+    for (const s of next) {
+      const last = merged[merged.length - 1]
+      if (last && Math.abs(last.y - s.y) < 0.5 && Math.abs(last.x + last.w - s.x) < 0.5) last.w += s.w
+      else merged.push({ ...s })
+    }
+    this.spans = merged
+  }
+
+  /** How far down anything has reached. */
+  bottom(top: number): number {
+    return this.spans.reduce((low, s) => Math.max(low, s.y), top)
+  }
 }
 
-/** How far down a band currently reaches. */
-const shelfBottom = (shelf: Shelf, top: number): number =>
-  shelf.started ? shelf.rowY + shelf.rowH : top
+export const OUTER_ROOM = 560
 
 /**
  * Where everything with no hand placement goes. Returns one point per thing,
  * by id. Pure: the board passes in the widths and heights it has measured.
  */
 export function arrange(input: ArrangeInput): Map<string, { x: number; y: number }> {
-  const { things, columns, top, gap, sideAfter, minX } = input
+  const { things, columns, top, gap, minX, outerRoom = OUTER_ROOM } = input
   const out = new Map<string, { x: number; y: number }>()
   if (things.length === 0) return out
 
   const byId = new Map(columns.map((c) => [c.id, c]))
   const order = [...columns].sort((a, b) => a.x - b.x)
-  const leftmost = order[0]
-  const rightmost = order[order.length - 1]
 
-  /** The column a thing hangs under: the one nearest the middle of its pieces. */
+  /**
+   * The run of board each piece's things may use: out to halfway across the
+   * space between it and its neighbour, and well past the ends for the two on
+   * the outside. Wider than the card on purpose — a band the exact width of
+   * the card can only ever hold one column of things, which is what made the
+   * old arrangement look ruled rather than arranged.
+   */
+  const bands = new Map<string, { left: number; right: number }>()
+  order.forEach((c, i) => {
+    // A card's own width plus the space either side of it. Bands do overlap
+    // their neighbours' a little, which is the point: one packing covers the
+    // whole board, so a thing may use the room beside the next card when it
+    // is free, and still cannot land on anything.
+    const left = i === 0 ? Math.max(minX, c.x - outerRoom) : c.x - gap
+    const right = i === order.length - 1 ? c.x + c.w + outerRoom : c.x + c.w + gap
+    bands.set(c.id, { left, right })
+  })
+
+  /** The band a thing hangs in: the piece nearest the middle of its own. */
   const columnFor = (thing: ArrangeThing): ArrangeColumn | null => {
     const mine = thing.on.map((id) => byId.get(id)).filter((c): c is ArrangeColumn => !!c)
     if (mine.length === 0) return null
@@ -311,56 +392,45 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
     grouped.set(column.id, list)
   }
 
-  let deepest = top
+  // One packing for the whole board, not one per piece. Bands say where a
+  // piece's things may reach; the packing is shared, so a thing can sit in the
+  // space beside a neighbouring card when there is room there and nothing
+  // ever lands on anything else.
+  const far = order.length ? bands.get(order[order.length - 1].id)!.right : minX + 1200
+  const near = order.length ? bands.get(order[0].id)!.left : minX
+  const sky = new Skyline(near, Math.max(320, far - near), top)
 
+  /**
+   * Threads first, so they take the top line nearest their card. After that
+   * the tall ones, which leaves the short ones to fill the gaps beside them
+   * rather than starting a row of their own.
+   */
+  const queue: Array<{ thing: ArrangeThing; column: ArrangeColumn }> = []
   for (const column of order) {
-    const mine = grouped.get(column.id)
-    if (!mine || mine.length === 0) continue
+    for (const thing of grouped.get(column.id) ?? []) queue.push({ thing, column })
+  }
+  queue.sort((a, b) =>
+    (a.thing.priority ?? 1) - (b.thing.priority ?? 1)
+    || a.column.x - b.column.x
+    || b.thing.h - a.thing.h
+    || b.thing.w - a.thing.w)
 
-    // Under the card first. Only the leftmost and rightmost pieces have open
-    // board beside them; anything between two cards keeps going down.
-    const side = column.id === leftmost.id && columns.length > 1
-      ? 'left'
-      : column.id === rightmost.id && columns.length > 1
-        ? 'right'
-        : null
-
-    const under = newShelf(column.x, column.w, top)
-    let beside: Shelf | null = null
-    // A side is only usable if there is actually board there to use. The
-    // leftmost card can sit close enough to the edge that its left is too
-    // narrow for anything, and then the column keeps going down instead.
-    let hasSide = side !== null
-    const widest = Math.max(...mine.map((t) => t.w))
-
-    // The tall ones first, so the small ones fill in around them rather than
-    // leaving a short row with a tall thing stranded beneath it.
-    for (const thing of [...mine].sort((a, b) => b.h - a.h || b.w - a.w)) {
-      if (hasSide && !beside && shelfBottom(under, top) - top >= sideAfter) {
-        if (side === 'left') {
-          const room = column.x - gap - minX
-          if (room >= Math.min(widest, MIN_SIDE_W)) {
-            const w = Math.min(widest, room)
-            beside = newShelf(column.x - gap - w, w, top, true)
-          } else {
-            hasSide = false
-          }
-        } else {
-          beside = newShelf(column.x + column.w + gap, widest, top)
-        }
-      }
-      out.set(thing.id, placeOn(beside ?? under, thing, gap))
-    }
-
-    deepest = Math.max(deepest, shelfBottom(under, top), beside ? shelfBottom(beside, top) : top)
+  for (const { thing, column } of queue) {
+    const band = bands.get(column.id)!
+    // Just inside the band's left, not the card's own edge: starting at the
+    // card wastes the room to its left, and then two things that would have
+    // sat side by side end up one under the other.
+    const prefer = Math.max(band.left, column.x - gap)
+    out.set(thing.id, sky.place(thing.w, thing.h, gap, band, prefer))
   }
 
-  // What belongs to no piece sits below the lot, across the pieces' own width.
+  // What belongs to no piece sits below the lot, across the whole width.
   if (loose.length > 0) {
-    const spanLeft = order.length ? order[0].x : minX
-    const spanRight = order.length ? rightmost.x + rightmost.w : spanLeft + 1200
-    const shelf = newShelf(spanLeft, Math.max(320, spanRight - spanLeft), deepest === top ? top : deepest + gap)
-    for (const thing of loose) out.set(thing.id, placeOn(shelf, thing, gap))
+    const under = sky.bottom(top)
+    const below = new Skyline(near, Math.max(320, far - near), under === top ? top : under + gap)
+    for (const thing of [...loose].sort((a, b) => b.h - a.h || b.w - a.w)) {
+      out.set(thing.id, below.place(thing.w, thing.h, gap, { left: near, right: far }, near))
+    }
   }
 
   return out

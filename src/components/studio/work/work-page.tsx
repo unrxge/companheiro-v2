@@ -401,6 +401,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       board.api.clearPlacements(board.items)
     },
     addTaskList: (pieceId) => board.api.addTasks(pieceId),
+    addPalette: (pieceId) => board.api.addPalette(pieceId),
     addImage: (pieceId, file) => board.api.addImage(pieceId, file),
     addRecording: (pieceId, file, opts) => board.api.addRecording(pieceId, file, opts),
     patchItem: (id, patch) => void board.api.patch(id, patch),
@@ -408,6 +409,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     toggleTask: (task) => void board.api.toggleTask(task),
     addTask: (nodeId, title, category) => board.api.addTask(nodeId, title, category),
     removeTask: (task) => void board.api.removeTask(task),
+    reorderTasks: (ids) => void board.api.reorderTasks(ids),
     refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
     onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
   }), [api, board.api, board.items, goNode, goThread, makeConstraint, removeItem, removeNode, roots, setProjectField, tree.threads])

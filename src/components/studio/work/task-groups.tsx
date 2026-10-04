@@ -9,6 +9,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import { OTHER, WRITING, cleanCategory, groupTasks, type Categorised } from '@/lib/studio/task-groups'
+import { SortableList } from '@/components/studio/work/sortable'
 
 export interface GroupTask extends Categorised {
   id: string
@@ -17,12 +18,18 @@ export interface GroupTask extends Categorised {
 }
 
 export function TaskGroups<T extends GroupTask>({
-  tasks, onToggle, onAdd, onRemove, disabled = false,
+  tasks, onToggle, onAdd, onRemove, onReorder, disabled = false,
 }: {
   tasks: T[]
   onToggle: (task: T) => void
   onAdd: (title: string, category: string) => Promise<void> | void
   onRemove?: (task: T) => void
+  /**
+   * Given, the rows in each group can be dragged into another order — passed
+   * only by the larger task list, where the list is the whole screen. Without
+   * it the rows behave exactly as they always have.
+   */
+  onReorder?: (ids: string[]) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -84,11 +91,16 @@ export function TaskGroups<T extends GroupTask>({
 
             {open && (
               <div style={{ marginTop: 6 }}>
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                  {rows.map((task) => {
+                <SortableList
+                  disabled={disabled || !onReorder}
+                  label="this task"
+                  onReorder={(ids) => onReorder?.(ids)}
+                  rows={rows.map((task) => {
                     const done = task.status === 'complete'
-                    return (
-                      <li key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    return {
+                      id: task.id,
+                      node: (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                         <button
                           type="button"
                           aria-pressed={done}
@@ -120,10 +132,11 @@ export function TaskGroups<T extends GroupTask>({
                             ✕
                           </button>
                         )}
-                      </li>
-                    )
+                        </div>
+                      ),
+                    }
                   })}
-                </ul>
+                />
                 {!disabled && (
                   <input
                     aria-label={`A new task under ${group.name}`}

@@ -182,6 +182,8 @@ export function useBoardItems(projectId: string, enabled: boolean) {
 
     addTasks: (nodeId: string | null) => create({ kind: 'tasks', node_id: nodeId }),
 
+    addPalette: (nodeId: string | null) => create({ kind: 'palette', node_id: nodeId }),
+
     addImage: async (nodeId: string | null, file: Blob) => {
       const asset = await upload('image', file, false)
       return create({ kind: 'image', node_id: nodeId, asset_id: asset.id }, asset)
@@ -212,6 +214,21 @@ export function useBoardItems(projectId: string, enabled: boolean) {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status } : t)))
       try {
         await call<{ success: boolean }>('PATCH', `/projects/${projectId}/tasks`, { task_id: task.id, status })
+      } catch {
+        await load()
+      }
+    },
+
+    /** A run of tasks put in a new order, as dragged in the larger list. */
+    reorderTasks: async (ids: string[]) => {
+      const place = new Map(ids.map((id, at) => [id, at]))
+      setTasks((prev) => {
+        const touched = prev.filter((t) => place.has(t.id)).sort((a, b) => place.get(a.id)! - place.get(b.id)!)
+        let next = 0
+        return prev.map((t) => (place.has(t.id) ? touched[next++] : t))
+      })
+      try {
+        await call<{ success: boolean }>('PATCH', `/projects/${projectId}/tasks`, { order: ids })
       } catch {
         await load()
       }

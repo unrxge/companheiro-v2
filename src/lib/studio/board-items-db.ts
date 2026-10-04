@@ -2,10 +2,13 @@
 
 import type { AuthedContext } from '@/lib/supabase/route'
 import { badRequest, fromDbError, isFiniteNumber, isRecord, isString, isUuid, notFound } from '@/lib/studio/db'
-import { itemWidth, type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask } from '@/lib/studio/board-items'
+import {
+  cleanHex, itemWidth, MAX_SWATCHES,
+  type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type Swatch,
+} from '@/lib/studio/board-items'
 
 export const ITEM_COLS = 'id, user_id, project_id, kind, asset_id, node_ids, board_x, board_y, w, content, created_at, updated_at'
-export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks'])
+export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks', 'palette'])
 
 const MAX_OWN_TASKS = 100
 
@@ -37,6 +40,21 @@ export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemConten
       }
       out.tasks = tasks
     }
+  }
+  if (kind === 'palette' && Array.isArray(raw.swatches)) {
+    const swatches: Swatch[] = []
+    for (const sw of raw.swatches) {
+      if (!isRecord(sw) || !isString(sw.id) || !isString(sw.hex)) continue
+      const hex = cleanHex(sw.hex)
+      if (!hex) continue
+      swatches.push({
+        id: sw.id.slice(0, 64),
+        hex,
+        name: isString(sw.name) ? sw.name.replace(/\s+/g, ' ').trim().slice(0, 40) : '',
+      })
+      if (swatches.length >= MAX_SWATCHES) break
+    }
+    out.swatches = swatches
   }
   return out
 }

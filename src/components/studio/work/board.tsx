@@ -31,7 +31,7 @@ import { CheckCard } from '@/components/studio/work/rules'
 import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from '@/components/studio/work/vision-block'
 import { hueOf } from '@/components/studio/work/bits'
 import {
-  ImageBlock, ItemShell, ITEM_LABEL, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
+  ImageBlock, ItemShell, ITEM_LABEL, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
 import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import {
@@ -141,6 +141,7 @@ export interface BoardActions {
   tidyBoard: () => void
   // ── what else a piece's "+" makes ─────────────────────────────────────────
   addTaskList: (pieceId: string) => Promise<BoardItem>
+  addPalette: (pieceId: string) => Promise<BoardItem>
   /** These two reject with a sentence fit to show when the file cannot be added. */
   addImage: (pieceId: string, file: Blob) => Promise<BoardItem>
   addRecording: (pieceId: string, file: Blob, opts: { ownVoice: boolean; seconds?: number }) => Promise<BoardItem>
@@ -149,6 +150,7 @@ export interface BoardActions {
   toggleTask: (task: ProjectTask) => void
   addTask: (nodeId: string, title: string, category: string) => Promise<void>
   removeTask: (task: ProjectTask) => void
+  reorderTasks: (ids: string[]) => void
   /** A picture or sound stopped loading: its address has run out. */
   refreshAsset: (assetId: string) => void
   /** Something the plan does not carry was asked for. */
@@ -345,25 +347,27 @@ export function Board({
    */
   const autoAt = useMemo(() => arrange({
     things: [
+      // Threads go in first (priority 0), so they take the top of the band,
+      // nearest the card they run through: what a piece is about reads before
+      // what has been hung under it.
       ...hubs.map((th) => ({
         id: th.id,
         w: HUB_W,
         h: HUB_H,
         on: [...(presence.get(th.id)?.roots ?? new Set<string>())],
+        priority: 0,
       })),
       ...items.map((it) => ({
         id: it.id,
         w: itemW(it),
         h: itemH(it),
         on: it.node_ids.filter((id) => pieceIds.has(id)),
+        priority: 1,
       })),
     ],
     columns: pieces.map((p, i) => ({ id: p.id, x: pieceAt(p, i).x, w: cardW })),
     top: webTop,
     gap: HUB_GAP,
-    // About a card's worth of depth: past that, the column is taller than the
-    // piece it hangs under and the eye has lost which card it belongs to.
-    sideAfter: Math.round(cardH * 0.8),
     minX: MARGIN,
   }), [hubs, items, presence, pieces, pieceAt, pieceIds, cardW, cardH, itemW, itemH, webTop])
 
@@ -578,7 +582,7 @@ export function Board({
 
   // What this canvas's "+" offers, and which of those the plan does not carry.
   const choices = useMemo<PlusChoice[]>(
-    () => ['thread', ...(tools.items ? (['tasks', 'image', 'recording'] as PlusChoice[]) : [])],
+    () => ['thread', ...(tools.items ? (['tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : [])],
     [tools.items],
   )
   const lockedChoices = useMemo<PlusChoice[]>(
@@ -597,7 +601,8 @@ export function Board({
     if (choice === 'thread') { void addThreadFrom(piece, i); return }
     if (choice === 'image') { imageFor.current = piece.id; imagePicker.current?.click(); return }
     if (choice === 'recording') { setRecorderFor(piece.id); return }
-    actions.addTaskList(piece.id)
+    const made = choice === 'palette' ? actions.addPalette(piece.id) : actions.addTaskList(piece.id)
+    made
       .then((it) => setBorn(it.id))
       .catch((e: unknown) => say(e instanceof Error && e.message ? e.message : 'That did not save. Try again.'))
   }, [actions, addThreadFrom, say])
@@ -967,6 +972,13 @@ export function Board({
                     onStale={stale}
                   />
                 )}
+                {it.kind === 'palette' && (
+                  <PaletteBlock
+                    item={it}
+                    disabled={disabled}
+                    onContent={(content) => actions.patchItem(it.id, { content })}
+                  />
+                )}
                 {it.kind === 'tasks' && (
                   <TaskListBlock
                     item={it}
@@ -976,6 +988,7 @@ export function Board({
                     onToggleTask={actions.toggleTask}
                     onAddTask={actions.addTask}
                     onRemoveTask={actions.removeTask}
+                    onReorderTasks={actions.reorderTasks}
                     onContent={(content) => actions.patchItem(it.id, { content })}
                   />
                 )}

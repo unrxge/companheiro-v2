@@ -139,6 +139,7 @@ export default function DevBoardPage() {
       setItems((xs) => xs.map((x) => ({ ...x, board_x: null, board_y: null })))
     },
     addTaskList: async (pieceId) => make('tasks', pieceId),
+    addPalette: async (pieceId) => make('palette', pieceId),
     addImage: async (pieceId, file) => make('image', pieceId, assetOf('image', file, await imageSizeOf(file))),
     addRecording: async (pieceId, file, opts) =>
       make('recording', pieceId, assetOf('audio', file, { duration_s: opts.seconds ?? 12, own_voice: opts.ownVoice })),
@@ -149,6 +150,12 @@ export default function DevBoardPage() {
     toggleTask: (task) => setTasks((ts) => ts.map((x) => (x.id === task.id ? { ...x, status: x.status === 'complete' ? 'pending' : 'complete' } : x))),
     addTask: async (nodeId, title, category) => setTasks((ts) => [...ts, { id: `t-${Date.now()}`, node_id: nodeId, title, type: 'creation', status: 'pending', is_writing_related: category === 'Writing', category }]),
     removeTask: (task) => setTasks((ts) => ts.filter((x) => x.id !== task.id)),
+    reorderTasks: (ids) => setTasks((ts) => {
+      const place = new Map(ids.map((id, at) => [id, at]))
+      const touched = ts.filter((x) => place.has(x.id)).sort((a, b) => place.get(a.id)! - place.get(b.id)!)
+      let next = 0
+      return ts.map((x) => (place.has(x.id) ? touched[next++] : x))
+    }),
     refreshAsset: () => {},
     onLocked: (choice) => setLocked(choice),
     }

@@ -15,12 +15,13 @@ import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import {
-  canResize, CAPTION_MAX, CAPTION_ROWS, captionLimit, isWritingTask, RECORDING_H,
-  type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type ProjectTask,
+  canResize, CAPTION_MAX, CAPTION_ROWS, captionLimit, isWritingTask, MAX_SWATCHES, PALETTE_SEED, RECORDING_H,
+  type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type ProjectTask, type Swatch,
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
 import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
 import { TaskGroups } from '@/components/studio/work/task-groups'
+import { SortableList } from '@/components/studio/work/sortable'
 
 // ── the menu a piece's "+" opens ────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ const PLUS_OPTIONS: PlusOption[] = [
   { key: 'tasks', label: 'A task list', hint: 'The writing tasks, and anything else to do', icon: stroke(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8.5 12l2.2 2.2L15.5 9.5" /></>) },
   { key: 'image', label: 'An image', hint: 'A picture beside the words', icon: stroke(<><rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" /></>) },
   { key: 'recording', label: 'A recording', hint: 'Your voice, or a sound you already have', icon: stroke(<><rect x="9" y="3.5" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" /></>) },
+  { key: 'palette', label: 'A palette', hint: 'The colours this is in', icon: stroke(<><circle cx="12" cy="12" r="8.5" /><circle cx="9" cy="9.5" r="1.2" fill="currentColor" /><circle cx="15" cy="9.5" r="1.2" fill="currentColor" /><circle cx="9.5" cy="15" r="1.2" fill="currentColor" /></>) },
 ]
 
 /**
@@ -115,6 +117,17 @@ export function PlusMenu({
       <style>{`.plus-menu-row:hover, .plus-menu-row:focus-visible { background: ${alpha(t.textPrimary, 0.06)} !important; outline: none; }`}</style>
     </div>
   )
+}
+
+/** How many rows a task list shows on the canvas before it says "view all". */
+const PREVIEW_ROWS = 4
+
+interface PreviewRow {
+  key: string
+  title: string
+  done: boolean
+  toggle: () => void
+  remove?: () => void
 }
 
 // ── the frame every item stands in ──────────────────────────────────────────
@@ -383,6 +396,126 @@ export function ImageBlock({
   )
 }
 
+// ── a palette ───────────────────────────────────────────────────────────────
+
+/**
+ * The colours a project is in, kept where the work is rather than in another
+ * app. Nothing reads them: they are for the eye, like the pictures.
+ */
+export function PaletteBlock({
+  item, disabled, onContent,
+}: {
+  item: BoardItem
+  disabled: boolean
+  onContent: (content: BoardItemContent) => void
+}) {
+  const { t } = useTheme()
+  const swatches = item.content.swatches ?? []
+  const [open, setOpen] = useState<string | null>(null)
+
+  const set = (next: Swatch[]) => onContent({ swatches: next })
+  const add = () => {
+    if (swatches.length >= MAX_SWATCHES) return
+    const made: Swatch = { id: crypto.randomUUID(), hex: PALETTE_SEED, name: '' }
+    set([...swatches, made])
+    setOpen(made.id)
+  }
+  const edit = (id: string, patch: Partial<Swatch>) =>
+    set(swatches.map((sw) => (sw.id === id ? { ...sw, ...patch } : sw)))
+
+  // Big enough to read the colour, and as many to a row as the block is wide.
+  const size = 38
+  const chosen = swatches.find((sw) => sw.id === open) ?? null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ paddingRight: 48 }}>
+        <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>Palette</span>
+        <div style={{ ...canvasType.chip, color: t.textMuted }}>
+          {swatches.length === 0 ? 'No colours yet' : `${swatches.length} ${swatches.length === 1 ? 'colour' : 'colours'}`}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {swatches.map((sw) => (
+          <button
+            key={sw.id}
+            type="button"
+            title={sw.name ? `${sw.name} — ${sw.hex}` : sw.hex}
+            aria-label={sw.name ? `${sw.name}, ${sw.hex}` : sw.hex}
+            disabled={disabled}
+            onClick={(e) => { e.stopPropagation(); setOpen(open === sw.id ? null : sw.id) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              width: size, height: size, borderRadius: 10, padding: 0, flexShrink: 0,
+              background: sw.hex, cursor: disabled ? 'default' : 'pointer',
+              border: `1px solid ${open === sw.id ? t.tide : alpha(t.textPrimary, 0.18)}`,
+              boxShadow: open === sw.id ? `0 0 0 3px ${alpha(t.tide, 0.2)}` : 'none',
+            }}
+          />
+        ))}
+        {!disabled && swatches.length < MAX_SWATCHES && (
+          <button
+            type="button"
+            aria-label="Add a colour"
+            title="Add a colour"
+            onClick={(e) => { e.stopPropagation(); add() }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              width: size, height: size, borderRadius: 10, padding: 0, flexShrink: 0, cursor: 'pointer',
+              background: 'transparent', border: `1px dashed ${alpha(t.textPrimary, 0.3)}`, color: t.textMuted,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden>
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* the one being worked on: its colour, its name, and the way out */}
+      {chosen && !disabled && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}` }}
+        >
+          <input
+            type="color"
+            aria-label="This colour"
+            value={chosen.hex}
+            onChange={(e) => edit(chosen.id, { hex: e.target.value.toUpperCase() })}
+            style={{ width: 30, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 }}
+          />
+          <input
+            aria-label="What this colour is called"
+            value={chosen.name}
+            placeholder={chosen.hex}
+            maxLength={40}
+            onChange={(e) => edit(chosen.id, { name: e.target.value })}
+            style={{
+              ...canvasType.small, fontSize: 12.5, flex: 1, minWidth: 0, boxSizing: 'border-box',
+              color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`,
+              borderRadius: radius.field, padding: '5px 8px', outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Remove this colour"
+            title="Remove"
+            onClick={(e) => { e.stopPropagation(); set(swatches.filter((sw) => sw.id !== chosen.id)); setOpen(null) }}
+            style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0 }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── a recording ─────────────────────────────────────────────────────────────
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
@@ -483,7 +616,7 @@ export function RecordingBlock({
  * out that is not writing.
  */
 export function TaskListBlock({
-  item, pieces, tasks, disabled, onToggleTask, onAddTask, onRemoveTask, onContent,
+  item, pieces, tasks, disabled, onToggleTask, onAddTask, onRemoveTask, onReorderTasks, onContent,
 }: {
   item: BoardItem
   /** The pieces whose tasks it shows: the ones it is connected to, or every piece when it stands alone. */
@@ -493,24 +626,46 @@ export function TaskListBlock({
   onToggleTask: (task: ProjectTask) => void
   onAddTask: (nodeId: string, title: string, category: string) => Promise<void>
   onRemoveTask: (task: ProjectTask) => void
+  /** A run of the project's tasks put in a new order, from the larger view. */
+  onReorderTasks: (ids: string[]) => void
   onContent: (content: BoardItemContent) => void
 }) {
   const { t } = useTheme()
   const [draft, setDraft] = useState('')
   const [large, setLarge] = useState(false)
   const own = item.content.tasks ?? []
-  const open = !item.content.writing_closed
   const ids = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
   const mine = tasks.filter((x) => ids.has(x.node_id))
   const writing = mine.filter(isWritingTask)
   // The person's own categories fold like Writing does; older uncategorised tasks stay loose at the top.
   const named = groupTasks(mine.filter((x) => !isWritingTask(x))).filter((g) => g.name !== OTHER)
   const other = mine.filter((x) => !isWritingTask(x) && categoryOf(x) === OTHER)
-  const [shut, setShut] = useState<Record<string, boolean>>({})
-  const writingLeft = writing.filter((x) => x.status === 'pending').length
   const scope = item.node_ids.length === 0
     ? 'The whole project'
     : pieces.map((p) => p.title.trim() || 'Untitled').join(', ')
+
+  /**
+   * The rows the card shows, undone first so a glance lands on what is left.
+   * Everything the list holds is counted; only PREVIEW_ROWS of them are drawn.
+   */
+  const rows: PreviewRow[] = [
+    ...other.map((task) => ({ key: task.id, title: task.title, done: task.status === 'complete', toggle: () => onToggleTask(task) })),
+    ...own.map((task) => ({
+      key: task.id,
+      title: task.title,
+      done: task.done,
+      toggle: () => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x))),
+      remove: () => setOwn(own.filter((x) => x.id !== task.id)),
+    })),
+    ...writing.map((task) => ({ key: task.id, title: task.title, done: task.status === 'complete', toggle: () => onToggleTask(task) })),
+    ...named.flatMap((g) => g.tasks.map((task) => ({
+      key: task.id, title: task.title, done: task.status === 'complete', toggle: () => onToggleTask(task),
+    }))),
+  ]
+  const sorted = [...rows].sort((a, b) => Number(a.done) - Number(b.done))
+  const preview = sorted.slice(0, PREVIEW_ROWS)
+  const total = sorted.length
+  const hidden = total - preview.length
 
   const setOwn = (next: OwnTask[]) => onContent({ tasks: next })
   const add = () => {
@@ -520,7 +675,6 @@ export function TaskListBlock({
     setDraft('')
   }
 
-  const rule = `1px solid ${alpha(t.textPrimary, 0.08)}`
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -543,26 +697,54 @@ export function TaskListBlock({
         <div style={{ ...canvasType.chip, color: t.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={scope}>{scope}</div>
       </div>
 
-      {/* everything that is not the writing comes first: it is what this list is for */}
+      {/* A glance, not a workspace: at most four rows here, and the rest
+         behind "view all". A task list that grew without end used to push
+         everything under it down the canvas and break the arrangement. */}
       <div>
-        {other.length + own.length === 0 && disabled && (
-          <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>Nothing else to do here.</p>
+        {preview.length === 0 && (
+          <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
+            {disabled ? 'Nothing else to do here.' : 'Nothing on this list yet.'}
+          </p>
         )}
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {other.map((task) => (
-            <TaskRow key={task.id} title={task.title} done={task.status === 'complete'} disabled={disabled} onToggle={() => onToggleTask(task)} />
-          ))}
-          {own.map((task) => (
-            <TaskRow
-              key={task.id}
-              title={task.title}
-              done={task.done}
-              disabled={disabled}
-              onToggle={() => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x)))}
-              onRemove={() => setOwn(own.filter((x) => x.id !== task.id))}
+        <div style={{ position: 'relative' }}>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {preview.map((row) => (
+              <li key={row.key}>
+                <TaskRow
+                  title={row.title}
+                  done={row.done}
+                  disabled={disabled}
+                  onToggle={row.toggle}
+                  onRemove={row.remove}
+                />
+              </li>
+            ))}
+          </ul>
+          {hidden > 0 && (
+            // The last row fades out, so it reads as a list that carries on
+            // rather than one that has been cut.
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute', left: 0, right: 0, bottom: 0, height: 34, pointerEvents: 'none',
+                background: `linear-gradient(to bottom, ${alpha(t.cardBg, 0)}, ${t.cardBg})`,
+              }}
             />
-          ))}
-        </ul>
+          )}
+        </div>
+        {hidden > 0 && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLarge(true) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              ...canvasType.chip, display: 'block', width: '100%', marginTop: 2, padding: '5px 0',
+              background: 'none', border: 'none', cursor: 'pointer', color: t.textSecondary, textAlign: 'left',
+            }}
+          >
+            View all {total} →
+          </button>
+        )}
         {!disabled && (
           <input
             aria-label="A new task"
@@ -573,91 +755,13 @@ export function TaskListBlock({
             onBlur={add}
             onPointerDown={(e) => e.stopPropagation()}
             style={{
-              ...canvasType.small, fontSize: 13, width: '100%', boxSizing: 'border-box', marginTop: other.length + own.length ? 6 : 0,
+              ...canvasType.small, fontSize: 13, width: '100%', boxSizing: 'border-box', marginTop: preview.length ? 6 : 0,
               color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field,
               padding: '7px 10px', outline: 'none', fontFamily: 'inherit',
             }}
           />
         )}
       </div>
-
-      {/* the writing: there when wanted, folded away when not */}
-      {writing.length > 0 && (
-        <div style={{ borderTop: rule, paddingTop: 8 }}>
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={(e) => { e.stopPropagation(); onContent({ writing_closed: open }) }}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: 0, background: 'none', border: 'none',
-              cursor: 'pointer', textAlign: 'left', color: t.textSecondary,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 160ms ease' }}>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-            <span style={{ ...canvasType.label, color: t.textSecondary }}>Writing</span>
-            <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto' }}>
-              {writingLeft === 0 ? 'all done' : `${writingLeft} to do`}
-            </span>
-          </button>
-          {open && (
-            <div style={{ marginTop: 4 }}>
-              {pieces.map((piece) => {
-                const rows = writing.filter((x) => x.node_id === piece.id)
-                if (rows.length === 0) return null
-                return (
-                  <div key={piece.id}>
-                    {pieces.length > 1 && (
-                      <div style={{ ...canvasType.chip, color: t.textMuted, margin: '8px 0 2px' }}>{piece.title.trim() || 'Untitled'}</div>
-                    )}
-                    <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                      {rows.map((task) => (
-                        <TaskRow key={task.id} title={task.title} done={task.status === 'complete'} disabled={disabled} onToggle={() => onToggleTask(task)} />
-                      ))}
-                    </ul>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {named.map((group) => {
-        const isOpen = !shut[group.name]
-        const left = group.tasks.filter((x) => x.status === 'pending').length
-        return (
-          <div key={group.name} style={{ borderTop: rule, paddingTop: 8 }}>
-            <button
-              type="button"
-              aria-expanded={isOpen}
-              onClick={(e) => { e.stopPropagation(); setShut((c) => ({ ...c, [group.name]: isOpen })) }}
-              onPointerDown={(e) => e.stopPropagation()}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: 0, background: 'none', border: 'none',
-                cursor: 'pointer', textAlign: 'left', color: t.textSecondary,
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ transform: isOpen ? 'rotate(90deg)' : undefined, transition: 'transform 160ms ease' }}>
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-              <span style={{ ...canvasType.label, color: t.textSecondary }}>{group.name}</span>
-              <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto' }}>
-                {left === 0 ? 'all done' : `${left} to do`}
-              </span>
-            </button>
-            {isOpen && (
-              <ul style={{ listStyle: 'none', margin: '4px 0 0', padding: 0 }}>
-                {group.tasks.map((task) => (
-                  <TaskRow key={task.id} title={task.title} done={task.status === 'complete'} disabled={disabled} onToggle={() => onToggleTask(task)} />
-                ))}
-              </ul>
-            )}
-          </div>
-        )
-      })}
 
       {large && (
         // The dialog is drawn on the page, but its events still climb to the
@@ -676,6 +780,7 @@ export function TaskListBlock({
                     onToggle={onToggleTask}
                     onAdd={(title, category) => onAddTask(piece.id, title, category)}
                     onRemove={onRemoveTask}
+                    onReorder={onReorderTasks}
                   />
                 </section>
               ))}
@@ -684,18 +789,23 @@ export function TaskListBlock({
               <section>
                 <div style={{ ...canvasType.small, fontSize: 14, fontWeight: 600, color: t.textPrimary }}>On this list only</div>
                 <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: '2px 0 8px' }}>Tasks that don’t belong to one piece.</p>
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                  {own.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      title={task.title}
-                      done={task.done}
-                      disabled={disabled}
-                      onToggle={() => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x)))}
-                      onRemove={() => setOwn(own.filter((x) => x.id !== task.id))}
-                    />
-                  ))}
-                </ul>
+                <SortableList
+                  disabled={disabled}
+                  label="this task"
+                  onReorder={(ids) => setOwn(ids.map((id) => own.find((x) => x.id === id)).filter((x): x is OwnTask => !!x))}
+                  rows={own.map((task) => ({
+                    id: task.id,
+                    node: (
+                      <TaskRow
+                        title={task.title}
+                        done={task.done}
+                        disabled={disabled}
+                        onToggle={() => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x)))}
+                        onRemove={() => setOwn(own.filter((x) => x.id !== task.id))}
+                      />
+                    ),
+                  }))}
+                />
                 {!disabled && (
                   <input
                     aria-label="A new task on this list"
@@ -729,8 +839,10 @@ function TaskRow({ title, done, disabled, onToggle, onRemove }: {
 }) {
   const { t } = useTheme()
   const [hover, setHover] = useState(false)
+  // A row, not a list item: it is listed by SortableList in the larger view
+  // and by a plain <ul> on the card, and an <li> inside an <li> is not markup.
   return (
-    <li
+    <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}
@@ -776,7 +888,7 @@ function TaskRow({ title, done, disabled, onToggle, onRemove }: {
           </svg>
         </button>
       )}
-    </li>
+    </div>
   )
 }
 
@@ -920,4 +1032,5 @@ export const ITEM_LABEL: Record<BoardItemKind, string> = {
   image: 'this image',
   recording: 'this recording',
   tasks: 'this task list',
+  palette: 'this palette',
 }
