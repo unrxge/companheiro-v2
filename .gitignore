@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .journey-backup/
+
+# research exports of real check-ins (scripts/read-check-ins.mjs)
+.research/
