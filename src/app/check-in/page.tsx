@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDictation } from '@/lib/use-dictation'
 import { useReadAloud } from '@/lib/use-read-aloud'
+import { useStayAwake } from '@/lib/use-stay-awake'
 import { canOfferLab } from '@/lib/check-in-prompt'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -53,6 +54,8 @@ function parseConversation(fullConversation: string | null, rawEntry: string): M
 }
 
 const HISTORY_PAGE_SIZE = 5
+// How long the screen is kept on after the last sign of life in a check-in.
+const STAY_AWAKE_IDLE_MS = 5 * 60_000
 
 function previewText(text: string, maxLen = 90): string {
   const trimmed = text.trim()
@@ -107,6 +110,19 @@ export default function CheckInPage() {
     }, []),
     getContext: () => transcriptRef.current.slice(-80),
   })
+  // Mid check-in the screen stays on, so nobody has to keep tapping it while
+  // they think, speak or listen. It holds for a while after the last sign of
+  // life (words, a reply, the microphone, the read-aloud voice) and then lets
+  // the device rest again, so a check-in left open does not drain the battery.
+  const [recentlyActive, setRecentlyActive] = useState(false)
+  useEffect(() => {
+    if (inputMode === null) { setRecentlyActive(false); return }
+    setRecentlyActive(true)
+    const id = window.setTimeout(() => setRecentlyActive(false), STAY_AWAKE_IDLE_MS)
+    return () => window.clearTimeout(id)
+  }, [inputMode, transcript, dictationInterim, messages.length, isProcessing])
+  useStayAwake(inputMode !== null && (recentlyActive || isRecording || isProcessing || speakingIndex !== null))
+
   const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<HTMLDivElement>(null)
