@@ -18,7 +18,7 @@ import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
 import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
-import { useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
+import { accentWash, useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
 import { THEME_HUES } from '@/lib/tour'
 import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
@@ -319,7 +319,7 @@ export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
         </div>
         </>)}
 
-        <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, borderLeft: `3px solid ${step >= 3 ? t[current.hue] : 'transparent'}`, transition: 'border-color 0.4s ease' }}>
+        <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, ...(step >= 3 ? accentWash(t[current.hue], t.cardBgInner) : null), transition: 'background-image 0.4s ease, border-color 0.4s ease' }}>
           {step < 3 ? (
             <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted }}>The question is waiting.</p>
           ) : (

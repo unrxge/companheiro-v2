@@ -24,7 +24,7 @@ import { CONTACT_EMAIL } from '@/lib/site'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
-import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
+import { accentWash, CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
 const hues = tokensFor('dark')
@@ -608,7 +608,7 @@ function WhoFor() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: EASE }}
           className="mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
-          style={{ ...(bright ? BRIGHT_GLASS : null), borderTop: `2px solid ${alpha(hue, bright ? 0.9 : 0.7)}` }}
+          style={bright ? { ...BRIGHT_GLASS, ...accentWash(hue, alpha(shell.text, 0.11), 'top') } : { borderTop: `2px solid ${alpha(hue, 0.7)}` }}
         >
           <div className="grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
             <div>
@@ -776,7 +776,7 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
   const amount = prices.money(plan.id, billing === 'year' ? 'yearly' : 'monthly')
   const perMonth = billing === 'year' ? formatMoney(Math.round(prices.amounts[plan.id].yearly / 12), prices.currency) : null
   return (
-    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
+    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', ...(lead ? accentWash(t.ember, t.cardBg, 'top') : null) }}>
       <div className="flex items-center justify-between gap-3">
         <p style={{ ...typeRoles.h2, fontSize: lead ? 26 : 22, color: t.textPrimary }}>{plan.name}</p>
         {lead && <Pill hue="ember">Many visions</Pill>}
