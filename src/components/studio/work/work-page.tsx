@@ -393,13 +393,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     renameProject: (title) => void setProjectField({ title }),
     editProjectIntent: (intent) => void setProjectField({ intent }),
     editProjectRules: (rules) => void setProjectField({ rules }),
-    /** Clears every hand placement at once: every piece, every thread's hub
-     *  and every image, recording and task list fall back to their auto positions. */
-    tidyBoard: () => {
-      for (const piece of roots) if (piece.board_x !== null || piece.board_y !== null) void api.editNode(piece.id, { board_x: null, board_y: null })
-      for (const th of tree.threads) if (th.board_x !== null || th.board_y !== null) void api.editThread(th.id, { board_x: null, board_y: null })
-      board.api.clearPlacements(board.items)
-    },
     addTaskList: (pieceId) => board.api.addTasks(pieceId),
     addPalette: (pieceId) => board.api.addPalette(pieceId),
     addImage: (pieceId, file) => board.api.addImage(pieceId, file),

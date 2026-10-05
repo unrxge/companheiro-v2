@@ -2,11 +2,15 @@
 
 // studio/src/components/work/board.tsx — level 2, the board.
 //
-// What hangs under the pieces can be picked up and put down: the threads'
-// hubs, and the images, recordings and task lists a piece's "+" makes. One
-// with no hand placement of its own sits near the pieces it touches —
-// "rearrange" (next to the zoom control) puts everything back there in one
-// motion by clearing every hand placement at once.
+// Everything on it can be picked up and put down: the pieces themselves, the
+// threads' hubs, and the images, recordings and task lists a piece's "+"
+// makes. Anything never moved by hand is placed near the piece it belongs to
+// (see `arrange`), and once it has been moved it stays where it was put.
+//
+// There is no "tidy everything" here on purpose. A board gets busy slowly, a
+// piece at a time, and the person is the one who knows what belongs beside
+// what; a button that rearranged the lot would undo that judgement in one
+// press and be hard to get back.
 //
 // The top of the board is kept clear. The project's title and core concept,
 // and whatever is waiting on an answer, live there and nowhere else; nothing
@@ -138,7 +142,6 @@ export interface BoardActions {
   editProjectRules: (rules: Rule[]) => void
   /** Clears every hand placement at once: pieces, hubs and items all return
    *  to their auto positions. */
-  tidyBoard: () => void
   // ── what else a piece's "+" makes ─────────────────────────────────────────
   addTaskList: (pieceId: string) => Promise<BoardItem>
   addPalette: (pieceId: string) => Promise<BoardItem>
@@ -157,7 +160,7 @@ export interface BoardActions {
   onLocked: (choice: PlusChoice) => void
 }
 
-type Drag = { kind: 'hub' | 'item'; id: string; at: Point }
+type Drag = { kind: 'piece' | 'hub' | 'item'; id: string; at: Point }
 
 // One identity for "none", so a board given no items does not see a new
 // empty list on every render (the world's size is worked out from them).
@@ -281,15 +284,18 @@ export function Board({
   const addPieceH = cardH
   const addHelpH = pieces.length === 0 ? 54 : 0
 
-  /** Where a piece sits: in its reading-order lane, unless it was made
-   *  further along because something else stood at the end of the lane. */
-  const pieceAt = useCallback((piece: TreeNode, i: number): Point =>
-    ({ x: piece.board_x ?? cardX(i), y: cardTop }),
-  [cardX, cardTop])
-
   /** A hand placement as it is kept, to where it shows now, and back. */
   const shown = useCallback((y: number) => Math.max(cardTop, y + shift), [cardTop, shift])
   const kept = useCallback((at: Point): Point => ({ x: Math.round(at.x), y: Math.max(0, Math.round(at.y - shift)) }), [shift])
+
+  /** Where a piece sits: in its reading-order lane, until a hand moves it. */
+  const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
+    if (drag?.kind === 'piece' && drag.id === piece.id) return drag.at
+    return {
+      x: piece.board_x ?? cardX(i),
+      y: piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
+    }
+  }, [cardX, cardTop, drag, shown])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -336,7 +342,20 @@ export function Board({
     return FALLBACK_H[item.kind]
   }, [assets, disabled, heights, itemW, resizing])
 
-  const webTop = cardTop + cardH + WEB_GAP
+  /**
+   * The line anything auto-placed hangs below. Taken from the lowest card
+   * rather than the lane's own top, so a piece dragged down the board does not
+   * end up sitting on the things that are placed under it. Read from where the
+   * cards are kept, not from a drag in flight, so nothing reflows under the
+   * hand mid-drag.
+   */
+  const webTop = useMemo(() => {
+    const lowest = pieces.reduce(
+      (low, piece) => Math.max(low, piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y)),
+      cardTop,
+    )
+    return lowest + cardH + WEB_GAP
+  }, [pieces, cardTop, cardH, shown])
 
   /**
    * Everything under the pieces with no hand placement of its own, gathered
@@ -527,7 +546,6 @@ export function Board({
   }, [actions, canvas.zoom, disabled])
 
   /** Every hand placement, gone at once: hubs and items back under their pieces. */
-  const rearrange = useCallback(() => actions.tidyBoard(), [actions])
 
   /** Arming a connection carries the view toward the nearest piece that could
    *  take it — otherwise the only thing you can click is off the side of the
@@ -678,11 +696,7 @@ export function Board({
         ariaLabel="The board — the pieces of this project and what hangs under them"
         chrome={
           <>
-            <ZoomPill
-              canvas={canvas}
-              onHome={canvas.resetView}
-              after={!disabled && <RearrangeButton onClick={rearrange} />}
-            />
+            <ZoomPill canvas={canvas} onHome={canvas.resetView} />
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
                 Pick the piece <strong style={{ color: hueOf(t, armedThread.hue), fontWeight: 600 }}>{armedThread.name || 'this thread'}</strong> runs through next
@@ -835,9 +849,13 @@ export function Board({
           return (
             <div
               key={piece.id}
+              onPointerDown={beginDrag('piece', piece.id, at, (landed) => actions.movePiece(piece.id, kept(landed)))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
-                transition: `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+                cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                userSelect: 'none', WebkitUserSelect: 'none',
+                transition: drag?.kind === 'piece' && drag.id === piece.id
+                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
               }}
             >
               <PieceCard
@@ -1081,30 +1099,6 @@ export function Board({
   )
 }
 
-// ── the "rearrange" tool, beside the zoom control ───────────────────────────
-
-function RearrangeButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label="Rearrange everything neatly"
-      title="Rearrange everything neatly"
-      onClick={onClick}
-      style={{
-        width: 30, height: 30, borderRadius: 999, padding: 0, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'transparent', border: 'none', color: shell.muted,
-      }}
-    >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="4" width="7" height="7" rx="1.5" />
-        <rect x="13" y="4" width="7" height="7" rx="1.5" />
-        <rect x="4" y="13" width="7" height="7" rx="1.5" />
-        <rect x="13" y="13" width="7" height="7" rx="1.5" />
-      </svg>
-    </button>
-  )
-}
 
 // ── the block that stands for one thread ────────────────────────────────────
 

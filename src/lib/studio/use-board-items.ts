@@ -262,11 +262,6 @@ export function useBoardItems(projectId: string, enabled: boolean) {
         // it stays as it was
       }
     },
-
-    /** "Rearrange": every hand placement cleared, sizes kept. */
-    clearPlacements: (list: BoardItem[]) => {
-      for (const it of list) if (it.board_x !== null || it.board_y !== null) void patch(it.id, { board_x: null, board_y: null })
-    },
   }), [create, load, patch, projectId, upload])
 
   return { ready, items, assets, tasks, api }

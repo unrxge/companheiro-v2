@@ -133,11 +133,6 @@ export default function DevBoardPage() {
     renameProject: () => {},
     editProjectIntent: () => {},
     editProjectRules: () => {},
-    tidyBoard: () => {
-      setPieces((ps) => ps.map((p) => ({ ...p, board_x: null, board_y: null })))
-      setThreads((ts) => ts.map((t) => ({ ...t, board_x: null, board_y: null })))
-      setItems((xs) => xs.map((x) => ({ ...x, board_x: null, board_y: null })))
-    },
     addTaskList: async (pieceId) => make('tasks', pieceId),
     addPalette: async (pieceId) => make('palette', pieceId),
     addImage: async (pieceId, file) => make('image', pieceId, assetOf('image', file, await imageSizeOf(file))),
