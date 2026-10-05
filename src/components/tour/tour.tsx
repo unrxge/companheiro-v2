@@ -149,34 +149,110 @@ export function Tour({
 // ── The two questions before the tour ───────────────────────────────────────
 
 /** The question on the shell, the answer on paper, one button. Wide enough on a desktop that nothing needs scrolling. */
-function Step({ eyebrow, title, lede, children, action }: { eyebrow: string; title: string; lede: string; children: React.ReactNode; action: React.ReactNode }) {
+function Step({ eyebrow, title, lede, children, action, narrow = false }: { eyebrow: string; title: string; lede: string; children: React.ReactNode; action: React.ReactNode; /** One stacked column at every width. */ narrow?: boolean }) {
   return (
     <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto my-auto flex w-full max-w-[520px] flex-col gap-6 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:gap-7 lg:px-10 lg:pb-10">
+      <div className={`mx-auto my-auto flex w-full max-w-[520px] flex-col gap-6 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-2 ${narrow ? 'lg:max-w-[560px]' : 'lg:max-w-[1080px] lg:gap-7 lg:px-10 lg:pb-10'}`}>
         <div>
           <p style={{ ...typeRoles.eyebrow, color: hues.tide }}>{eyebrow}</p>
           <h1 className="mt-3.5" style={TITLE}>{title}</h1>
           <p className={LEDE} style={LEDE_STYLE}>{lede}</p>
         </div>
         {children}
-        <div className="lg:ml-auto lg:w-[320px]">{action}</div>
+        <div className={narrow ? undefined : 'lg:ml-auto lg:w-[320px]'}>{action}</div>
       </div>
     </div>
   )
 }
 
+const ROW = 40
+/** One column of the date wheel: roll it (touch, trackpad, arrow keys) or tap a value, and whatever rests in the middle is chosen. */
+function Wheel({ label, options, index, onIndex }: { label: string; options: string[]; index: number; onIndex: (i: number) => void }) {
+  const { t } = useTheme()
+  const reduce = useReducedMotion()
+  const el = useRef<HTMLDivElement>(null)
+  const settle = useRef<number | undefined>(undefined)
+  // What is in the middle right now, while it is still moving.
+  const [live, setLive] = useState(index)
+
+  useEffect(() => {
+    if (el.current) el.current.scrollTop = index * ROW
+    // only where it starts: after that the wheel itself is the source of truth
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const to = (i: number) => el.current?.scrollTo({ top: Math.max(0, Math.min(options.length - 1, i)) * ROW, behavior: reduce ? 'auto' : 'smooth' })
+  const onScroll = () => {
+    const node = el.current
+    if (!node) return
+    const i = Math.max(0, Math.min(options.length - 1, Math.round(node.scrollTop / ROW)))
+    setLive(i)
+    window.clearTimeout(settle.current)
+    settle.current = window.setTimeout(() => onIndex(i), 110)
+  }
+
+  return (
+    <div
+      ref={el}
+      role="listbox"
+      aria-label={label}
+      aria-activedescendant={`${label}-${live}`}
+      tabIndex={0}
+      onScroll={onScroll}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); to(live + 1) }
+        if (e.key === 'ArrowUp') { e.preventDefault(); to(live - 1) }
+      }}
+      className="snap-y snap-mandatory overflow-y-auto overscroll-contain outline-none [scrollbar-width:none] focus-visible:ring-2 [&::-webkit-scrollbar]:hidden"
+      style={{ height: ROW * 3, padding: `${ROW}px 0`, borderRadius: radius.field, position: 'relative', zIndex: 1 }}
+    >
+      {options.map((o, i) => {
+        const on = i === live
+        return (
+          <div
+            key={o}
+            id={`${label}-${i}`}
+            role="option"
+            aria-selected={on}
+            onClick={() => to(i)}
+            className="flex cursor-pointer snap-center items-center justify-center"
+            style={{ height: ROW, fontFamily: fonts.ui, fontSize: on ? 17 : 15, fontWeight: on ? 600 : 400, letterSpacing: '-0.01em', color: on ? t.textPrimary : t.textMuted, opacity: Math.abs(i - live) > 1 ? 0 : 1, transition: 'color 0.15s ease, font-size 0.15s ease' }}
+          >
+            {o}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1))
+
 function WhoStep({ name, born, onName, onBorn, onNext }: { name: string; born: Born; onName: (v: string) => void; onBorn: (b: Born) => void; onNext: () => void }) {
   const { t } = useTheme()
+  const thisYear = new Date().getFullYear()
+  const years = useMemo(() => Array.from({ length: 100 }, (_, i) => String(thisYear - i)), [thisYear])
+  // Where the wheels rest: where they were left, or somewhere in the middle of a life to start from.
+  const [at, setAt] = useState(() => ({
+    d: born.d ? Number(born.d) - 1 : 14,
+    m: born.m ? Number(born.m) - 1 : 5,
+    y: born.y ? Math.max(0, years.indexOf(born.y)) : 30,
+  }))
+  // The date only counts once they have moved a wheel: the resting place is nobody's birthday.
+  const roll = (next: typeof at) => {
+    setAt(next)
+    onBorn({ d: String(next.d + 1), m: String(next.m + 1), y: years[next.y] })
+  }
   const date = dateOf(born)
   const age = date ? ageFrom(date) : NaN
   const unreal = !!date && Number.isNaN(age)
   const tooYoung = age < MIN_AGE
   const ready = name.trim().length > 0 && age >= MIN_AGE && age <= 120
   const submit = () => { if (ready) onNext() }
-  const thisYear = new Date().getFullYear()
-  const select: React.CSSProperties = { ...typeRoles.ui, height: 46, minWidth: 0, backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '0 10px', color: t.textPrimary, outline: 'none' }
+  const fade = 'linear-gradient(to bottom, transparent 0%, #000 34%, #000 66%, transparent 100%)'
   return (
     <Step
+      narrow
       eyebrow="Welcome"
       title="First, who’s here?"
       lede="Two things about you, so Companheiro can speak to you and not to just anyone."
@@ -184,29 +260,26 @@ function WhoStep({ name, born, onName, onBorn, onNext }: { name: string; born: B
     >
       <Container padding={12}>
         <Card padding={20}>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
+          <div className="flex flex-col gap-6">
             <div>
               <Eyebrow style={{ marginBottom: 8 }}>Your first name</Eyebrow>
               <TextField value={name} onChange={(v) => onName(v.slice(0, 60))} ariaLabel="Your first name" autoComplete="given-name" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') submit() }} />
             </div>
             <div>
-              <Eyebrow style={{ marginBottom: 8 }}>Your date of birth</Eyebrow>
-              {/* Three lists: a wheel to roll on a phone, a short menu on a desktop. */}
-              <div className="grid grid-cols-[0.8fr_1.5fr_1fr] gap-2">
-                <select aria-label="Day of birth" autoComplete="bday-day" value={born.d} onChange={(e) => onBorn({ ...born, d: e.target.value })} style={select}>
-                  <option value="">Day</option>
-                  {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
-                </select>
-                <select aria-label="Month of birth" autoComplete="bday-month" value={born.m} onChange={(e) => onBorn({ ...born, m: e.target.value })} style={select}>
-                  <option value="">Month</option>
-                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                </select>
-                <select aria-label="Year of birth" autoComplete="bday-year" value={born.y} onChange={(e) => onBorn({ ...born, y: e.target.value })} style={select}>
-                  <option value="">Year</option>
-                  {Array.from({ length: 100 }, (_, i) => <option key={i} value={thisYear - i}>{thisYear - i}</option>)}
-                </select>
+              <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 8 }}>
+                <Eyebrow>Your date of birth</Eyebrow>
+                <span aria-live="polite" style={{ ...typeRoles.small, fontWeight: 600, color: date && !unreal ? t.textPrimary : t.textMuted }}>
+                  {date && !unreal ? `${at.d + 1} ${MONTHS[at.m]} ${years[at.y]}` : 'Roll to your birthday'}
+                </span>
               </div>
-              <p role={tooYoung || unreal ? 'alert' : undefined} style={{ ...typeRoles.small, fontSize: 12, color: tooYoung || unreal ? t.danger : t.textMuted, marginTop: 8 }}>
+              {/* Three wheels sharing one band: whatever rests inside it is the date. */}
+              <div className="relative grid grid-cols-[0.7fr_1.4fr_1fr] gap-1" style={{ backgroundColor: t.cardBgInner, borderRadius: radius.widget, padding: '0 8px', maskImage: fade, WebkitMaskImage: fade }}>
+                <div aria-hidden style={{ position: 'absolute', left: 8, right: 8, top: ROW, height: ROW, borderRadius: radius.field, backgroundColor: t.cardBg, boxShadow: `inset 0 0 0 1.5px ${date && !unreal && !tooYoung ? t.tide : t.inputBorder}`, transition: 'box-shadow 0.3s ease' }} />
+                <Wheel label="Day of birth" options={DAYS} index={at.d} onIndex={(d) => roll({ ...at, d })} />
+                <Wheel label="Month of birth" options={MONTHS} index={at.m} onIndex={(m) => roll({ ...at, m })} />
+                <Wheel label="Year of birth" options={years} index={at.y} onIndex={(y) => roll({ ...at, y })} />
+              </div>
+              <p role={tooYoung || unreal ? 'alert' : undefined} style={{ ...typeRoles.small, fontSize: 12, color: tooYoung || unreal ? t.danger : t.textMuted, marginTop: 10 }}>
                 {unreal ? 'That date doesn’t exist. Check the day and the month.' : tooYoung ? `Companheiro is for people aged ${MIN_AGE} and over.` : 'Never shown to anyone. It only helps Companheiro fit you.'}
               </p>
             </div>
