@@ -109,16 +109,16 @@ export function useRewind(signal: number | undefined, marks: readonly number[], 
 
 /**
  * The accent card: the one thing on a surface that is more than the surface. A
- * soft wash of `color` over `base`, a thin outline, a firmer edge on one side
+ * soft wash of `color` over `base`, a thin outline, a firmer edge on the left
  * and a faint glow underneath. `base` is what it sits on when the wash is
  * taken away.
  */
-export function accentWash(color: string, base: string, edge: 'left' | 'top' = 'left'): React.CSSProperties {
+export function accentWash(color: string, base: string): React.CSSProperties {
   return {
     backgroundColor: base,
     backgroundImage: `linear-gradient(135deg, ${alpha(color, 0.13)}, ${alpha(color, 0.04)} 70%)`,
     border: `1px solid ${alpha(color, 0.3)}`,
-    ...(edge === 'left' ? { borderLeft: `4px solid ${color}` } : { borderTop: `4px solid ${color}` }),
+    borderLeft: `4px solid ${color}`,
     boxShadow: `0 10px 26px -16px ${alpha(color, 0.55)}`,
   }
 }

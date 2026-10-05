@@ -24,7 +24,7 @@ import { CONTACT_EMAIL } from '@/lib/site'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
-import { accentWash, CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
+import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
 const hues = tokensFor('dark')
@@ -488,9 +488,9 @@ const AUDIENCES: Audience[] = [
   },
   {
     key: 'studios',
-    tab: 'Studios of one',
+    tab: 'Professionals',
     name: 'One-person studios',
-    hue: 'ochre',
+    hue: 'tide',
     tier: 'direction',
     plans: 'Direction',
     who: 'You are the whole studio: client projects, your own work, and one head to hold all of it.',
@@ -507,7 +507,7 @@ const AUDIENCES: Audience[] = [
     key: 'directors',
     tab: 'Directors',
     name: 'Creative directors',
-    hue: 'ochre',
+    hue: 'violet',
     tier: 'direction',
     plans: 'Direction',
     who: 'You direct work other people make, or a project that runs for years: a documentary, a photo book, an album.',
@@ -535,15 +535,11 @@ function AudienceBegin({ audience }: { audience: Audience }) {
   )
 }
 
-// Direction's tabs and panel are the same glass as Practice's, a step
-// brighter, so the dearer plan reads as lit and not as a different material.
+// Direction's tabs are a step brighter than Practice's; its panels are the
+// same glass, in the same family of colours, so no audience reads as the
+// one the page is really for.
 const PRACTICE_TAB = { rest: { backgroundColor: shell.fill, color: shell.muted }, on: { backgroundColor: shell.text, color: shell.ink } }
 const DIRECTION_TAB = { rest: { backgroundColor: alpha(shell.text, 0.14), color: alpha(shell.text, 0.82) }, on: { backgroundColor: shell.text, color: shell.ink } }
-const BRIGHT_GLASS: React.CSSProperties = {
-  backgroundColor: alpha(shell.text, 0.11),
-  borderColor: alpha(shell.text, 0.24),
-  boxShadow: `inset 0 1px 0 ${alpha(shell.text, 0.1)}`,
-}
 
 function WhoFor() {
   const ref = useRef<HTMLElement>(null)
@@ -556,7 +552,6 @@ function WhoFor() {
     const i = AUDIENCES.findIndex((a) => a.key === wanted)
     if (i >= 0) setIndex(i)
   }, [])
-  const bright = audience.tier === 'direction'
   const hue = hues[audience.hue]
 
   return (
@@ -608,7 +603,7 @@ function WhoFor() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: EASE }}
           className="mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
-          style={bright ? { ...BRIGHT_GLASS, ...accentWash(hue, alpha(shell.text, 0.11), 'top') } : { borderTop: `2px solid ${alpha(hue, 0.7)}` }}
+          style={{ borderTop: `2px solid ${alpha(hue, 0.7)}` }}
         >
           <div className="grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
             <div>
@@ -776,7 +771,7 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
   const amount = prices.money(plan.id, billing === 'year' ? 'yearly' : 'monthly')
   const perMonth = billing === 'year' ? formatMoney(Math.round(prices.amounts[plan.id].yearly / 12), prices.currency) : null
   return (
-    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', ...(lead ? accentWash(t.ember, t.cardBg, 'top') : null) }}>
+    <Card padding={lead ? 30 : 26} style={{ height: '100%', display: 'flex', flexDirection: 'column', borderTop: lead ? `3px solid ${t.ember}` : undefined }}>
       <div className="flex items-center justify-between gap-3">
         <p style={{ ...typeRoles.h2, fontSize: lead ? 26 : 22, color: t.textPrimary }}>{plan.name}</p>
         {lead && <Pill hue="ember">Many visions</Pill>}
