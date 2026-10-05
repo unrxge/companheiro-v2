@@ -3,6 +3,7 @@ import { createRouteClient } from '@/lib/supabase/route'
 import { adminClient } from '@/lib/supabase/admin'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { chosenPlanQuery, readChosenPlan } from '@/lib/billing/chosen-plan'
+import { markEmailVerified } from '@/lib/billing/email-verified'
 
 // Where Google sends people back to (the `redirectTo` given to
 // signInWithOAuth on /login). Supabase has already verified them with the
@@ -47,6 +48,8 @@ export async function GET(request: Request) {
       return fail()
     }
     user = data.user
+    // Google, or an emailed code, vouched for the address.
+    await markEmailVerified(user.id)
   } else {
     // The person cancelled at Google, or Google refused.
     if (url.searchParams.get('error')) {

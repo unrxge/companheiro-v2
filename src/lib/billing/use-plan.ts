@@ -23,6 +23,8 @@ export interface PlanStatus {
   entitlements?: Entitlements
   /** The projects in Active when there are more than the plan carries. */
   over_limit?: Array<{ id: string; title: string }> | null
+  /** false while a free month's address is still to be confirmed. */
+  email_verified?: boolean
 }
 
 let cached: PlanStatus | null = null

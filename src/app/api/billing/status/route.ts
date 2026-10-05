@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/supabase/route'
 import { getSubscription } from '@/lib/billing/access'
 import { allowanceFor, usageFor } from '@/lib/billing/fair-use'
 import { entitlementsFor } from '@/lib/billing/entitlements'
+import { isEmailVerified } from '@/lib/billing/email-verified'
 
 /** GET /api/billing/status — the current user's plan/trial state and fair-use standing. */
 export async function GET() {
@@ -33,5 +34,7 @@ export async function GET() {
     const active = (data as Array<{ id: string; title: string }> | null) ?? []
     if (active.length > entitlements.maxActiveProjects) over_limit = active
   }
-  return NextResponse.json({ subscription, access: allowance.kind, usage, entitlements, over_limit })
+  // Only a free month waits on it; a paid plan never does.
+  const email_verified = entitlements.plan === 'trial' ? await isEmailVerified(auth) : true
+  return NextResponse.json({ subscription, access: allowance.kind, usage, entitlements, over_limit, email_verified })
 }

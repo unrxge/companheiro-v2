@@ -24,12 +24,13 @@ const GATE_HEADER = 'x-companheiro-gate'
 const SEEN_KEY = 'companheiro:trial-ended-seen'
 const NEAR_KEY = 'companheiro:near-limit-seen'
 const CHOICE_KEY = 'companheiro:project-choice-seen'
+const CONFIRM_KEY = 'companheiro:confirm-email-seen'
 const NEAR_SHARE = 0.8
 const NEAR_VISIBLE_MS = 12_000
 // /subscribe is on its way to checkout: no notice should stand in front of that.
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset', '/confirm', '/subscribe', ...LEGAL_PAGES.map((p) => p.href as string)]
 
-type Reason = 'trial_ended' | 'fair_use'
+type Reason = 'trial_ended' | 'fair_use' | 'confirm_email'
 
 export type Status = PlanStatus
 
@@ -52,7 +53,9 @@ export function AccessGate() {
   const [plansOpen, setPlansOpen] = useState(false)
   const [near, setNear] = useState(false)
   const [choosing, setChoosing] = useState(false)
+  const [unconfirmed, setUnconfirmed] = useState(false)
   const dismissNear = useCallback(() => setNear(false), [])
+  const dismissConfirm = useCallback(() => setUnconfirmed(false), [])
   const isPublic = PUBLIC_PATHS.includes(pathname ?? '')
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export function AccessGate() {
     window.fetch = async (...args) => {
       const res = await original(...args)
       const gate = res.headers.get(GATE_HEADER)
-      if (gate === 'trial_ended' || gate === 'fair_use') {
+      if (gate === 'trial_ended' || gate === 'fair_use' || gate === 'confirm_email') {
         setReason(gate)
         original('/api/billing/status')
           .then((r) => (r.ok ? r.json() : null))
@@ -97,6 +100,18 @@ export function AccessGate() {
         if (!d) return
         setStatus(d)
         primePlan(d)
+        // A free month whose address is still to be confirmed: one quiet
+        // line per session, never something that follows them around.
+        if (d.email_verified === false) {
+          let told = false
+          try {
+            told = sessionStorage.getItem(CONFIRM_KEY) === '1'
+            sessionStorage.setItem(CONFIRM_KEY, '1')
+          } catch {
+            // storage blocked: say it
+          }
+          if (!told) setUnconfirmed(true)
+        }
         // More projects in Active than the plan carries: asked once per
         // session on arrival, and again whenever a screen asks for it.
         if (d.over_limit?.length) {
@@ -141,6 +156,7 @@ export function AccessGate() {
   if (choosing && !reason && status?.over_limit?.length) {
     return <KeepOneNotice status={status} onClose={() => setChoosing(false)} onPlans={() => { setChoosing(false); setPlansOpen(true) }} />
   }
+  if (!reason && unconfirmed) return <ConfirmEmailBanner onClose={dismissConfirm} />
   if (!reason) {
     return near && status?.usage ? <NearLimitBanner plan={status.usage.plan} onClose={dismissNear} /> : null
   }
@@ -150,6 +166,8 @@ export function AccessGate() {
     setReason(null)
     setPlansOpen(true)
   }
+
+  if (reason === 'confirm_email') return <ConfirmEmailNotice onClose={close} />
 
   return reason === 'fair_use' ? (
     <FairUseNotice status={status} onClose={close} onPlans={openPlans} />
@@ -386,5 +404,96 @@ export function KeepOneNotice({ status, onClose, onPlans }: { status: Status; on
       {failed && <p role="alert" style={{ ...s.fine, color: t.danger }}>That did not save. Try again.</p>}
       <p style={s.fine}>Until you choose, your projects can be read but not changed.</p>
     </ModalDialog>
+  )
+}
+
+/**
+ * A new account goes straight in; its address is confirmed in the background.
+ * This is said only when the small allowance that comes before confirming
+ * has run out, and offers the email again.
+ */
+export function ConfirmEmailNotice({ onClose }: { onClose: () => void }) {
+  const s = useText()
+  const [sent, setSent] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
+
+  const resend = async () => {
+    setSent('sending')
+    const { sendConfirmEmail } = await import('@/lib/confirm-email')
+    setSent((await sendConfirmEmail()) ? 'sent' : 'failed')
+  }
+
+  return (
+    <ModalDialog
+      onClose={onClose}
+      title="Confirm your email to keep going"
+      maxWidth="520px"
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <GhostButton size="sm" onClick={onClose}>Close</GhostButton>
+          <PrimaryButton size="sm" onClick={() => void resend()} disabled={sent === 'sent'} loading={sent === 'sending'} loadingLabel="Sending…">
+            {sent === 'sent' ? 'Sent' : 'Send it again'}
+          </PrimaryButton>
+        </div>
+      }
+    >
+      <p style={s.body}>
+        When you signed up we sent you an email with a button to confirm your address. Press it and the companion carries on, with the
+        rest of your free month.
+      </p>
+      <p style={s.body}>
+        <span style={s.strong}>Nothing is lost.</span> Everything you have written is saved, and you can keep writing while you look for it.
+      </p>
+      {sent === 'sent' && <p role="status" style={s.fine}>It is on its way. Check your spam folder if it does not turn up.</p>}
+      {sent === 'failed' && <p role="alert" style={s.fine}>That did not send. Wait a minute and try again.</p>}
+    </ModalDialog>
+  )
+}
+
+/** The quiet version, shown once on arrival while the address is unconfirmed. */
+export function ConfirmEmailBanner({ onClose }: { onClose: () => void }) {
+  const { t } = useTheme()
+  const [sent, setSent] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
+
+  useEffect(() => {
+    const id = setTimeout(onClose, 20_000)
+    return () => clearTimeout(id)
+  }, [onClose])
+
+  const resend = async () => {
+    setSent('sending')
+    const { sendConfirmEmail } = await import('@/lib/confirm-email')
+    setSent((await sendConfirmEmail()) ? 'sent' : 'failed')
+  }
+
+  return (
+    <div
+      role="status"
+      style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top))', left: 16, right: 16, zIndex: 60, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}
+    >
+      <div
+        style={{
+          ...typeRoles.small, pointerEvents: 'auto', maxWidth: 520, display: 'flex', alignItems: 'flex-start', gap: 12,
+          padding: '12px 14px', borderRadius: 12, background: t.cardBg, boxShadow: t.shadow, border: `1px solid ${t.divider}`,
+          color: t.textSecondary, lineHeight: 1.5,
+        }}
+      >
+        <span>
+          We’ve emailed you a button to confirm your address. Press it when you have a moment, to keep the companion for your whole free month.{' '}
+          {sent === 'sent' ? 'Sent again.' : sent === 'failed' ? 'That did not send; try in a minute.' : (
+            <button
+              type="button"
+              onClick={() => void resend()}
+              disabled={sent === 'sending'}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: t.textPrimary, textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer' }}
+            >
+              {sent === 'sending' ? 'Sending…' : 'Send it again'}
+            </button>
+          )}
+        </span>
+        <button onClick={onClose} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: t.textMuted, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>
+          ×
+        </button>
+      </div>
+    </div>
   )
 }

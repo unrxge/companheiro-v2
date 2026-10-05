@@ -23,6 +23,8 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { TextField } from '@/components/ui/field'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { readAttribution } from '@/lib/attribution'
+import { LEGAL_VERSION } from '@/lib/legal'
+import { sendConfirmEmail } from '@/lib/confirm-email'
 import type { OAuthProvider } from '@/lib/auth-providers'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { chosenPlanLine, chosenPlanQuery, readChosenPlan, type ChosenPlan } from '@/lib/billing/chosen-plan'
@@ -52,6 +54,9 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   const [password, setPassword] = useState('')
   // True once the server has said this address has an account.
   const [askPassword, setAskPassword] = useState(false)
+  // True once the server has said it does not: the password field is then
+  // for choosing one, and Continue creates the account.
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Set when they came from a plan's own button on the landing page: they are
   // signing up to pay for that plan now, not to start the free month.
@@ -87,28 +92,49 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
     setEmail(v)
     if (askPassword) {
       setAskPassword(false)
+      setCreating(false)
       setPassword('')
       setError(null)
     }
   }
 
-  /** New address: email a sign-up link, which leads to choosing a password. */
-  const sendSignupLink = async () => {
+  /**
+   * New address: the account is made here and now, and they go straight in.
+   * The address is confirmed in the background (lib/confirm-email.ts); until
+   * it is, the free month's companion allowance is a small one.
+   */
+  const createAccount = async () => {
     const address = email.trim()
-    const { error: err } = await createClient().auth.signInWithOtp({
+    if (password.length < 8) {
+      setError('Use at least 8 characters.')
+      return
+    }
+    const { data, error: err } = await createClient().auth.signUp({
       email: address,
+      password,
       options: {
-        shouldCreateUser: true,
-        emailRedirectTo: callbackUrl('set-password'),
-        // Only used if this creates the account: filed by a trigger (migration 026).
-        data: { attribution: readAttribution() },
+        emailRedirectTo: callbackUrl(),
+        data: {
+          // Filed by a trigger (migration 026).
+          attribution: readAttribution(),
+          // Which Terms and Privacy Policy were agreed to, and when.
+          consent: { terms: LEGAL_VERSION, privacy: LEGAL_VERSION, via: 'email', at: new Date().toISOString() },
+        },
       },
     })
     if (err) {
       setError(err.message)
       return
     }
-    setSentTo(address)
+    // No session means the Supabase project still insists on a confirmed
+    // address before signing anyone in: it has sent its own email.
+    if (!data.session) {
+      setSentTo(address)
+      return
+    }
+    // Not waited on: a confirmation that fails to send can be asked for again from inside.
+    void sendConfirmEmail(address)
+    router.push(chosen ? `/subscribe?${chosenPlanQuery(chosen)}` : '/tour')
   }
 
   const run = async (work: () => Promise<void>) => {
@@ -126,6 +152,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const address = email.trim()
+    if (askPassword && creating) return run(createAccount)
     if (askPassword) {
       return run(async () => {
         const { error: err } = await createClient().auth.signInWithPassword({ email: address, password })
@@ -146,7 +173,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
       }
       // Registered accounts sign in with a password (or Google), never a link.
       if (d.exists === true) setAskPassword(true)
-      else if (d.exists === false) await sendSignupLink()
+      else if (d.exists === false) { setCreating(true); setAskPassword(true) }
       else setError('We couldn’t check that address just now. Please try again in a moment.')
     })
   }
@@ -166,7 +193,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
         <div role="status">
           <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary }}>Check your email.</p>
           <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>
-            We sent a link to {sentTo}. Open it on this device to choose a password and finish creating your account.{' '}
+            We sent a link to {sentTo}. Open it to finish creating your account.{' '}
             <button type="button" onClick={() => setSentTo(null)} style={{ ...link, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}>
               Use a different email
             </button>
@@ -190,10 +217,24 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
                 >
                   {/* Padding keeps the field's focus border inside the clipped box. */}
                   <div style={{ padding: '1px 1px 2px' }}>
-                    <TextField type="password" value={password} onChange={setPassword} ariaLabel="Password" placeholder="Your password" autoComplete="current-password" autoFocus />
-                    <div style={{ ...typeRoles.small, fontSize: 12, marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Link href="/reset" style={{ ...link, color: t.textSecondary }}>Forgot password?</Link>
-                    </div>
+                    <TextField
+                      type="password"
+                      value={password}
+                      onChange={setPassword}
+                      ariaLabel={creating ? 'Choose a password' : 'Password'}
+                      placeholder={creating ? 'Choose a password (at least 8 characters)' : 'Your password'}
+                      autoComplete={creating ? 'new-password' : 'current-password'}
+                      autoFocus
+                    />
+                    {creating ? (
+                      <p style={{ ...typeRoles.small, fontSize: 12, marginTop: 8, color: t.textSecondary }}>
+                        New here. Choose a password and you&rsquo;re in.
+                      </p>
+                    ) : (
+                      <div style={{ ...typeRoles.small, fontSize: 12, marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                        <Link href="/reset" style={{ ...link, color: t.textSecondary }}>Forgot password?</Link>
+                      </div>
+                    )}
                   </div>
                 </m.div>
               )}
@@ -203,8 +244,8 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
                 {error}
               </p>
             )}
-            <PrimaryButton type="submit" disabled={oauthBusy !== null || !email.trim() || (askPassword && !password)} loading={loading} loadingLabel={askPassword ? 'Signing in…' : 'One moment…'} full size="lg">
-              Continue
+            <PrimaryButton type="submit" disabled={oauthBusy !== null || !email.trim() || (askPassword && !password)} loading={loading} loadingLabel={creating ? 'Creating your account…' : askPassword ? 'Signing in…' : 'One moment…'} full size="lg">
+              {creating ? 'Create account' : 'Continue'}
             </PrimaryButton>
           </form>
 

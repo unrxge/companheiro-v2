@@ -4,6 +4,7 @@ import type { AuthedContext } from '@/lib/supabase/route'
 import type { UsageLike } from '@/lib/usage-log'
 import type { Subscription } from './access'
 import { MODELS } from '@/lib/models'
+import { isEmailVerified } from './email-verified'
 
 // Fair use, measured in what the AI actually costs us rather than in raw
 // tokens: a Sonnet token costs three times a Haiku one, so a token count
@@ -31,6 +32,12 @@ const usd = (name: string, fallback: number): number => {
 }
 
 export type CappedPlan = 'trial' | 'practice' | 'direction'
+
+// A new account goes straight in, before its email address is confirmed. Until
+// it is, the free month's allowance is this much: enough for first run and a
+// first real session, little enough that a made-up address is not worth
+// making. Confirming opens the rest of the month. FAIR_USE_UNCONFIRMED_USD.
+export const UNCONFIRMED_USD = usd('FAIR_USE_UNCONFIRMED_USD', 0.5)
 
 export const CAPS_USD: Record<CappedPlan, { soft: number; hard: number }> = {
   trial: { soft: usd('FAIR_USE_TRIAL_SOFT_USD', 5), hard: usd('FAIR_USE_TRIAL_HARD_USD', 10) },
@@ -100,7 +107,7 @@ function periodFor(sub: Subscription | null): string {
 // Header the client-side gate listens for (components/billing/access-gate).
 export const GATE_HEADER = 'x-companheiro-gate'
 
-export type GateReason = 'trial_ended' | 'fair_use'
+export type GateReason = 'trial_ended' | 'fair_use' | 'confirm_email'
 
 function gateResponse(reason: GateReason, status: number, message: string) {
   return NextResponse.json({ error: message, gate: reason }, { status, headers: { [GATE_HEADER]: reason } }) as NextResponse<never>
@@ -141,6 +148,9 @@ export async function aiGate(auth: AuthedContext): Promise<NextResponse<never> |
   }
   if (a.kind === 'uncapped') return null
   const used = await usageFor(auth, a.period)
+  if (a.plan === 'trial' && used >= UNCONFIRMED_USD * 1e6 && used < a.hardMicros && !(await isEmailVerified(auth))) {
+    return gateResponse('confirm_email', 429, 'Confirm your email to keep going.')
+  }
   if (used >= a.hardMicros) {
     return gateResponse('fair_use', 429, 'You have reached this period’s fair-use limit.')
   }

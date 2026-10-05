@@ -4,7 +4,7 @@
 // token (not a PKCE code), so it works in any browser or device, not only the
 // one that asked for it. It is confirmed as soon as the page runs, with
 // nothing to press: the person sees a moment of "Confirming" and is on their
-// way to choosing a password. The token is spent by this page's script, not
+// way into the app. The token is spent by this page's script, not
 // by the request for the page, so a mail scanner that only fetches the link
 // does not use it up (one that runs scripts still could; if that ever shows
 // up as "already used" reports, put a button back in front of `confirm`).
@@ -12,7 +12,6 @@
 // The Supabase email templates must point here; see the comment at the foot.
 
 import { useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { AuthShell, AuthLink } from '@/components/auth/auth-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { WorkingDots } from '@/components/ui/working'
@@ -23,7 +22,7 @@ const TYPES: readonly string[] = ['email', 'signup', 'magiclink']
 
 /** Only ever back to our own callback, whatever the link says. */
 function nextUrl(raw: string | null): string {
-  const fallback = '/api/auth/callback?next=set-password'
+  const fallback = '/api/auth/callback'
   if (!raw) return fallback
   try {
     const u = new URL(raw, window.location.origin)
@@ -49,11 +48,16 @@ export default function ConfirmPage() {
       return
     }
     const next = nextUrl(q.get('redirect_to'))
-    void createClient().auth.verifyOtp({ token_hash: token, type: type as LinkType }).then(({ error }) => {
-      if (error) setFailed('This link has already been used or has expired. Ask for a new one from the sign-in page.')
-      // The callback records the agreed Terms and sends them on to choose a password.
+    // Spent on the server, which is also what records the address as confirmed.
+    void fetch('/api/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token_hash: token, type: type as LinkType }),
+    }).then((res) => {
+      if (!res.ok) setFailed('This link has already been used or has expired. Sign in and ask for a new one.')
+      // The callback sends them on: into the app, or to choose a password on an older link.
       else window.location.replace(next)
-    })
+    }).catch(() => setFailed('That did not go through. Check your connection and open the link again.'))
   }, [])
 
   return (
@@ -67,7 +71,7 @@ export default function ConfirmPage() {
       ) : (
         <div role="status" style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, display: 'flex', alignItems: 'center', gap: 10, minHeight: 48 }}>
           <WorkingDots />
-          <span>Taking you to choose a password…</span>
+          <span>Taking you in…</span>
         </div>
       )}
     </AuthShell>
