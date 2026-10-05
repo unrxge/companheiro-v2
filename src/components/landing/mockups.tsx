@@ -202,17 +202,27 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
           style={{ marginTop: 14 }}
           aria-hidden={!visionUp}
         >
-          {/* Filled with the accent itself, the one vivid thing on the paper, so the eye lands where the four fragments were heading. */}
-          <div style={{ padding: 18, borderRadius: radius.widget, backgroundColor: t.ember, boxShadow: `0 14px 30px -14px ${alpha(t.ember, 0.7)}` }}>
+          {/* The one card that is more than paper: a soft wash of the accent, a firmer edge and a faint glow, so it reads as where the four fragments were heading without shouting. */}
+          <div
+            style={{
+              padding: 18,
+              borderRadius: radius.widget,
+              backgroundColor: t.cardBgInner,
+              backgroundImage: `linear-gradient(135deg, ${alpha(t.ember, 0.13)}, ${alpha(t.ember, 0.04)} 70%)`,
+              border: `1px solid ${alpha(t.ember, 0.3)}`,
+              borderLeft: `4px solid ${t.ember}`,
+              boxShadow: `0 10px 26px -16px ${alpha(t.ember, 0.55)}`,
+            }}
+          >
             <div className="flex items-center justify-between gap-3">
-              <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 999, backgroundColor: '#ffffff', color: t.ember }}>Vision</span>
-              <span style={{ ...typeRoles.small, fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>In your words</span>
+              <Pill hue="ember">Vision</Pill>
+              <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>In your words</span>
             </div>
-            <p style={{ ...typeRoles.h2, fontSize: 21, color: '#ffffff', marginTop: 12 }}>{VISION_TITLE}</p>
-            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: 'rgba(255,255,255,0.92)', marginTop: 5, minHeight: '2.9em' }}>
+            <p style={{ ...typeRoles.h2, fontSize: 21, color: t.textPrimary, marginTop: 12 }}>{VISION_TITLE}</p>
+            <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: t.textSecondary, marginTop: 5, minHeight: '2.9em' }}>
               <span aria-hidden>
                 {shown}
-                {!done && stage >= 2 && <span style={{ borderRight: '1.5px solid #ffffff', marginLeft: 1 }}>&#8203;</span>}
+                {!done && stage >= 2 && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}
               </span>
             </p>
           </div>
