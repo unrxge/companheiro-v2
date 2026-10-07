@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { GhostButton } from '@/components/ui/buttons'
+import { Pill } from '@/components/ui/pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { formatDateAsRelative } from '@/lib/dates'
 import { type as typeRoles } from '@/lib/design-tokens'
@@ -16,8 +17,27 @@ interface PortraitEntry {
   statement: string
   reinforcement_count: number
   last_reinforced_at: string
+  created_at?: string
   /** Dates of the check-ins this was noticed in, newest first. */
   seen_in?: string[]
+}
+
+type Order = 'reinforced' | 'recent'
+const ORDER_KEY = 'portrait-order'
+const ORDERS: { key: Order; label: string }[] = [
+  { key: 'reinforced', label: 'Most reinforced' },
+  { key: 'recent', label: 'Most recent' },
+]
+
+// Most reinforced: what has come up most often, ties broken by what was seen
+// last. Most recent: what the companion picked up newest.
+function sortEntries(list: PortraitEntry[], order: Order): PortraitEntry[] {
+  const firstSeen = (e: PortraitEntry) => e.created_at ?? e.last_reinforced_at
+  return [...list].sort((a, b) =>
+    order === 'recent'
+      ? firstSeen(b).localeCompare(firstSeen(a))
+      : b.reinforcement_count - a.reinforcement_count || b.last_reinforced_at.localeCompare(a.last_reinforced_at)
+  )
 }
 
 /** Rows a section shows before it folds, and how many each "Show more" adds. */
@@ -42,6 +62,19 @@ export default function PortraitPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [retiringId, setRetiringId] = useState<string | null>(null)
   const [shown, setShown] = useState<Partial<Record<PortraitEntry['kind'], number>>>({})
+  const [order, setOrder] = useState<Order>('reinforced')
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ORDER_KEY) === 'recent') setOrder('recent')
+    } catch { /* no stored choice */ }
+  }, [])
+
+  const chooseOrder = (next: Order) => {
+    setOrder(next)
+    setShown({})
+    try { localStorage.setItem(ORDER_KEY, next) } catch { /* not remembered, still applied */ }
+  }
 
   useEffect(() => {
     fetchEntries()
@@ -76,7 +109,7 @@ export default function PortraitPage() {
   }
 
   const grouped = (Object.keys(KIND_LABELS) as PortraitEntry['kind'][])
-    .map((kind) => ({ kind, items: entries.filter((e) => e.kind === kind) }))
+    .map((kind) => ({ kind, items: sortEntries(entries.filter((e) => e.kind === kind), order) }))
     .filter((g) => g.items.length > 0)
 
   return (
@@ -98,6 +131,11 @@ export default function PortraitPage() {
           </Card>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div role="group" aria-label="Order patterns by" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {ORDERS.map((o) => (
+                <Pill key={o.key} size="md" selected={order === o.key} onClick={() => chooseOrder(o.key)}>{o.label}</Pill>
+              ))}
+            </div>
             {grouped.map(({ kind, items }) => {
               const limit = shown[kind] ?? PAGE_SIZE
               const visible = items.slice(0, limit)
@@ -112,20 +150,26 @@ export default function PortraitPage() {
                     {visible.map((entry, index) => {
                       const left = daysUntilRetired(entry.last_reinforced_at)
                       return (
-                        <div key={entry.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '16px 0', borderBottom: index < visible.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
-                            <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 4 }}>
+                        <div key={entry.id} style={{ padding: '16px 0', borderBottom: index < visible.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+                          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
+                          {/* The forget action sits in the detail line, so the statement keeps the full width on a phone. */}
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
+                            <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flex: 1, minWidth: 0 }}>
                               Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
+                              {order === 'recent' && entry.created_at && <> · first noticed {formatDateAsRelative(entry.created_at)}</>}
                               {left <= FADING_WITHIN_DAYS && <> · Fading, retires in {left} {left === 1 ? 'day' : 'days'}</>}
+                              {entry.seen_in && entry.seen_in.length > 0 && (
+                                <> · Noticed in {entry.seen_in.length === 1 ? 'a check-in' : `${entry.seen_in.length} check-ins`}: {entry.seen_in.slice(0, 3).map((d) => formatDateAsRelative(d)).join(', ')}{entry.seen_in.length > 3 ? '…' : ''}</>
+                              )}
                             </p>
-                            {entry.seen_in && entry.seen_in.length > 0 && (
-                              <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 2 }}>
-                                Noticed in {entry.seen_in.length === 1 ? 'a check-in' : `${entry.seen_in.length} check-ins`}: {entry.seen_in.slice(0, 3).map((d) => formatDateAsRelative(d)).join(', ')}{entry.seen_in.length > 3 ? '…' : ''}
-                              </p>
-                            )}
+                            <button
+                              onClick={() => handleRetire(entry.id)}
+                              disabled={retiringId === entry.id}
+                              style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, background: 'none', border: 'none', padding: '6px 0 6px 8px', margin: '-6px 0', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, whiteSpace: 'nowrap', flexShrink: 0, opacity: retiringId === entry.id ? 0.5 : 1 }}
+                            >
+                              {retiringId === entry.id ? 'Forgetting…' : 'Forget this'}
+                            </button>
                           </div>
-                          <GhostButton size="sm" onClick={() => handleRetire(entry.id)} disabled={retiringId === entry.id} loading={retiringId === entry.id} loadingLabel="Forgetting…">Forget this</GhostButton>
                         </div>
                       )
                     })}

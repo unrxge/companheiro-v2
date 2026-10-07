@@ -23,6 +23,8 @@ export interface PortraitEntry {
   status: 'pending' | 'active' | 'rejected' | 'dormant'
   reinforcement_count: number
   last_reinforced_at: string
+  /** When it was first noticed. */
+  created_at?: string
 }
 
 function decayCutoff(): string {
@@ -92,7 +94,7 @@ export async function getActivePortrait(
 ): Promise<PortraitEntry[]> {
   const { data } = await supabase
     .from('portrait_entries')
-    .select('id, kind, statement, status, reinforcement_count, last_reinforced_at')
+    .select('id, kind, statement, status, reinforcement_count, last_reinforced_at, created_at')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .gte('last_reinforced_at', decayCutoff())
