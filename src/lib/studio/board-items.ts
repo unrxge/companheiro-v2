@@ -205,22 +205,27 @@ export function packSpans(wanted: Array<{ centre: number; w: number }>, gap: num
 
 // ── arranging what hangs under the pieces ───────────────────────────────────
 //
-// Everything with no hand placement of its own is laid out here.
+// Only things that have never been moved by hand are placed here. Everything
+// else — a card, a thread or a picture someone has already put somewhere, the
+// vision block — is an obstacle: space that is taken.
 //
-// It is packed, not ruled into rows. Each thing drops into the lowest place it
-// will fit, so a short one tucks under a short one and a tall one keeps its
-// own run of board — which is what makes the result look arranged by hand
-// rather than set in a table, while still never overlapping and never
-// wandering away from the piece it belongs to.
+// A new thing goes in the nearest empty space to its own card that it fits in.
+// Nearest means nearest: the distance from the card, not the first free row.
+// So something added to a crowded piece appears beside the pile rather than
+// below all of it, and nothing ever lands on anything else.
 //
 // Three things decide where something goes:
 //
-//   1. WHOSE IT IS. It sits in the band belonging to its piece — a band wider
-//      than the card, reaching into the space either side of it, so a row can
-//      hold two things of different widths rather than one card's worth.
-//   2. WHAT IT IS. Threads are placed first, so they take the top of the band,
-//      nearest the card they run through.
-//   3. WHERE IT FITS. After that, the lowest free spot wins.
+//   1. WHOSE IT IS. It hangs below its own card, in the band belonging to that
+//      piece — wider than the card, reaching into the space either side, so a
+//      row can hold two things rather than one card's worth.
+//   2. WHAT IT IS. Threads go in first, so they take the space closest to the
+//      card they run through.
+//   3. WHERE IT FITS. After that, the nearest free spot that holds it.
+//
+// Things already down keep their place when another arrives: within a kind,
+// they go in in the order they were made, so the new one is last to choose and
+// takes what is left rather than pushing the others along.
 //
 // Things connected to nothing belong to no band, so they go below the lot.
 
@@ -232,6 +237,8 @@ export interface ArrangeThing {
   on: string[]
   /** Lower goes in first, so it ends up nearer the card. Threads are 0. */
   priority?: number
+  /** Order made. Earlier keeps its spot when something new arrives. */
+  seq?: number
 }
 
 export interface ArrangeColumn {
@@ -239,7 +246,12 @@ export interface ArrangeColumn {
   /** The card's own left edge and width. */
   x: number
   w: number
+  /** The line this card's own things hang below; the board's `top` otherwise. */
+  top?: number
 }
+
+/** Space that is already taken: a card, or anything put down by hand. */
+export interface ArrangeBox { x: number; y: number; w: number; h: number }
 
 export interface ArrangeInput {
   things: ArrangeThing[]
@@ -252,91 +264,93 @@ export interface ArrangeInput {
   minX: number
   /** How far past the outermost cards the end bands may reach. */
   outerRoom?: number
+  /** Everything already placed, which nothing here may land on. */
+  obstacles?: ArrangeBox[]
 }
 
 /**
- * A run of board at a given height. Packing keeps a list of these — the
- * "skyline" — and drops each new thing into the lowest run it fits.
+ * The board as a set of taken rectangles, which answers one question: where is
+ * the nearest empty space of this size.
+ *
+ * Candidate corners come off what is already down — flush under a box, flush
+ * beside it, and the edges of the band — so a thing tucks against its
+ * neighbours instead of landing on a grid. Each candidate is tested against
+ * everything on the board, and the one closest to the card wins.
  */
-interface Span { x: number; w: number; y: number }
-
-class Skyline {
-  private spans: Span[]
-  constructor(private left: number, private width: number, top: number) {
-    this.spans = [{ x: left, w: width, y: top }]
+class Field {
+  private boxes: ArrangeBox[]
+  constructor(taken: ArrangeBox[]) {
+    this.boxes = taken.map((b) => ({ ...b }))
   }
 
-  /** The highest point along [x, x + w): what a thing put there would rest on. */
-  private restsAt(x: number, w: number): number {
-    let y = -Infinity
-    for (const s of this.spans) {
-      if (s.x + s.w <= x || s.x >= x + w) continue
-      if (s.y > y) y = s.y
+  /** Would a thing of this size, here, clear everything already down by `gap`? */
+  private free(x: number, y: number, w: number, h: number, gap: number): boolean {
+    for (const b of this.boxes) {
+      if (x + w + gap <= b.x || b.x + b.w + gap <= x) continue
+      if (y + h + gap <= b.y || b.y + b.h + gap <= y) continue
+      return false
     }
-    return y === -Infinity ? this.spans[0]?.y ?? 0 : y
+    return true
   }
 
   /**
-   * Drops one thing into the lowest place it fits. `within` is the stretch it
-   * is allowed to use — its own piece's reach — and `prefer` the x it would
-   * rather have. Height decides first, so things tuck under each other; among
-   * places of much the same height, the one nearest home wins, which is what
-   * keeps a piece's things together while letting them spread sideways.
+   * Puts one thing in the nearest empty space it fits in. `within` is the
+   * stretch of board it may use — its own piece's reach — and `card` the
+   * rectangle it wants to be near: its own card's edges and its bottom.
+   *
+   * Nearness is measured from the card itself, not from a point on it: how far
+   * below it the thing sits, and how far it sticks out past either side. So
+   * anywhere directly under the card is equally near, and those places fill up
+   * — left to right, then down a row — before anything reaches out beside it.
    */
-  place(
+  put(
     w: number, h: number, gap: number,
     within: { left: number; right: number },
-    prefer: number,
-  ): { x: number; y: number } {
-    const left = Math.max(this.left, within.left)
-    const right = Math.min(this.left + this.width, within.right)
+    card: { left: number; right: number; y: number },
+  ): ArrangeBox {
+    const floor = card.y
+    const left = within.left
+    const right = within.right
     const width = Math.min(w, Math.max(80, right - left))
-    // Every run's start is a candidate, and so is its right-hand end: a thing
-    // can tuck against either side of what is already down.
-    const candidates = new Set<number>([left, right - width, prefer])
-    for (const s of this.spans) {
-      candidates.add(s.x)
-      candidates.add(s.x + s.w - width)
+    const xs = new Set<number>([left, right - width, card.left, card.right - width])
+    const ys = new Set<number>([floor])
+    for (const b of this.boxes) {
+      xs.add(b.x)
+      xs.add(b.x + b.w + gap)
+      xs.add(b.x - width - gap)
+      ys.add(b.y)
+      ys.add(b.y + b.h + gap)
     }
-    let best: { x: number; y: number } | null = null
-    for (const raw of candidates) {
-      const x = Math.max(left, Math.min(raw, right - width))
-      const y = this.restsAt(x, width + gap)
-      const better = !best
-        || y < best.y - 0.5
-        || (Math.abs(y - best.y) <= 0.5 && Math.abs(x - prefer) < Math.abs(best.x - prefer))
-      if (better) best = { x, y }
+    const rows = [...ys].filter((y) => y >= floor - 0.5).sort((a, b) => a - b)
+    let best: { x: number; y: number; cost: number } | null = null
+    for (const raw of rows) {
+      const y = Math.max(floor, raw)
+      // Rows are tried from the top down. Once something has been found, a row
+      // far enough below it cannot beat it however well it lines up sideways,
+      // so the search stops rather than walking the whole board.
+      if (best && y - floor > best.cost) break
+      for (const rx of xs) {
+        const x = Math.max(left, Math.min(rx, right - width))
+        if (!this.free(x, y, width, h, gap)) continue
+        // How far it hangs past the card on either side, and how far below it.
+        const dx = Math.max(0, card.left - x, x + width - card.right)
+        const dy = y - floor
+        const cost = Math.hypot(dx, dy)
+        if (!best || cost < best.cost - 0.5
+          || (Math.abs(cost - best.cost) <= 0.5 && (y < best.y - 0.5 || (Math.abs(y - best.y) <= 0.5 && x < best.x)))) {
+          best = { x, y, cost }
+        }
+      }
     }
-    const at = best ?? { x: left, y: this.spans[0]?.y ?? 0 }
-    this.raise(at.x, w + gap, at.y + h + gap)
-    return { x: Math.round(at.x), y: Math.round(at.y) }
-  }
-
-  /** Marks [x, x + w) as used up to `y`. */
-  private raise(x: number, w: number, y: number): void {
-    const next: Span[] = []
-    for (const s of this.spans) {
-      const overlaps = s.x < x + w && s.x + s.w > x
-      if (!overlaps) { next.push(s); continue }
-      if (s.x < x) next.push({ x: s.x, w: x - s.x, y: s.y })
-      const tailX = Math.max(s.x, x + w)
-      if (s.x + s.w > tailX) next.push({ x: tailX, w: s.x + s.w - tailX, y: s.y })
-    }
-    next.push({ x, w, y })
-    next.sort((a, b) => a.x - b.x)
-    // Runs at the same height are one run.
-    const merged: Span[] = []
-    for (const s of next) {
-      const last = merged[merged.length - 1]
-      if (last && Math.abs(last.y - s.y) < 0.5 && Math.abs(last.x + last.w - s.x) < 0.5) last.w += s.w
-      else merged.push({ ...s })
-    }
-    this.spans = merged
+    const at = best ?? { x: left, y: this.bottom(floor) }
+    const box = { x: Math.round(at.x), y: Math.round(at.y), w: width, h }
+    this.boxes.push(box)
+    return box
   }
 
   /** How far down anything has reached. */
-  bottom(top: number): number {
-    return this.spans.reduce((low, s) => Math.max(low, s.y), top)
+  bottom(floor: number): number {
+    return this.boxes.reduce((low, b) => Math.max(low, b.y + b.h), floor)
   }
 }
 
@@ -344,10 +358,11 @@ export const OUTER_ROOM = 560
 
 /**
  * Where everything with no hand placement goes. Returns one point per thing,
- * by id. Pure: the board passes in the widths and heights it has measured.
+ * by id. Pure: the board passes in the widths and heights it has measured,
+ * and the boxes of everything already down.
  */
 export function arrange(input: ArrangeInput): Map<string, { x: number; y: number }> {
-  const { things, columns, top, gap, minX, outerRoom = OUTER_ROOM } = input
+  const { things, columns, top, gap, minX, outerRoom = OUTER_ROOM, obstacles = [] } = input
   const out = new Map<string, { x: number; y: number }>()
   if (things.length === 0) return out
 
@@ -355,20 +370,26 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
   const order = [...columns].sort((a, b) => a.x - b.x)
 
   /**
-   * The run of board each piece's things may use: out to halfway across the
-   * space between it and its neighbour, and well past the ends for the two on
-   * the outside. Wider than the card on purpose — a band the exact width of
-   * the card can only ever hold one column of things, which is what made the
-   * old arrangement look ruled rather than arranged.
+   * The run of board each piece's things may use: out into the space either
+   * side of the card, as far as the neighbouring card but never back over it,
+   * and well past the ends for the two on the outside. Wider than the card on
+   * purpose — a band the exact width of the card can only ever hold one column
+   * of things, which is what made the old arrangement look ruled rather than
+   * arranged. Bands do meet their neighbours', which is safe: one packing
+   * covers the whole board, so a thing may use the room beside the next card
+   * when it is free and still cannot land on anything.
    */
   const bands = new Map<string, { left: number; right: number }>()
   order.forEach((c, i) => {
-    // A card's own width plus the space either side of it. Bands do overlap
-    // their neighbours' a little, which is the point: one packing covers the
-    // whole board, so a thing may use the room beside the next card when it
-    // is free, and still cannot land on anything.
-    const left = i === 0 ? Math.max(minX, c.x - outerRoom) : c.x - gap
-    const right = i === order.length - 1 ? c.x + c.w + outerRoom : c.x + c.w + gap
+    const slack = Math.max(gap, c.w)
+    const prev = order[i - 1]
+    const next = order[i + 1]
+    const left = prev
+      ? Math.max(minX, c.x - slack, prev.x + prev.w)
+      : Math.max(minX, c.x - outerRoom)
+    const right = next
+      ? Math.min(c.x + c.w + slack, next.x + gap)
+      : c.x + c.w + outerRoom
     bands.set(c.id, { left, right })
   })
 
@@ -392,18 +413,16 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
     grouped.set(column.id, list)
   }
 
-  // One packing for the whole board, not one per piece. Bands say where a
-  // piece's things may reach; the packing is shared, so a thing can sit in the
-  // space beside a neighbouring card when there is room there and nothing
-  // ever lands on anything else.
-  const far = order.length ? bands.get(order[order.length - 1].id)!.right : minX + 1200
   const near = order.length ? bands.get(order[0].id)!.left : minX
-  const sky = new Skyline(near, Math.max(320, far - near), top)
+  const far = order.length ? bands.get(order[order.length - 1].id)!.right : minX + 1200
+  // One field for the whole board, seeded with everything already down, so a
+  // thing placed here avoids the cards and anything anyone has moved by hand.
+  const field = new Field(obstacles)
 
   /**
-   * Threads first, so they take the top line nearest their card. After that
-   * the tall ones, which leaves the short ones to fill the gaps beside them
-   * rather than starting a row of their own.
+   * Threads first, so they take the space nearest their card: what a piece is
+   * about reads before what has been hung under it. Within a kind, oldest
+   * first, so the one just made is the one that has to take what is left.
    */
   const queue: Array<{ thing: ArrangeThing; column: ArrangeColumn }> = []
   for (const column of order) {
@@ -412,24 +431,21 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
   queue.sort((a, b) =>
     (a.thing.priority ?? 1) - (b.thing.priority ?? 1)
     || a.column.x - b.column.x
-    || b.thing.h - a.thing.h
-    || b.thing.w - a.thing.w)
+    || (a.thing.seq ?? 0) - (b.thing.seq ?? 0))
 
   for (const { thing, column } of queue) {
     const band = bands.get(column.id)!
-    // Just inside the band's left, not the card's own edge: starting at the
-    // card wastes the room to its left, and then two things that would have
-    // sat side by side end up one under the other.
-    const prefer = Math.max(band.left, column.x - gap)
-    out.set(thing.id, sky.place(thing.w, thing.h, gap, band, prefer))
+    const card = { left: column.x, right: column.x + column.w, y: Math.max(top, column.top ?? top) }
+    out.set(thing.id, field.put(thing.w, thing.h, gap, band, card))
   }
 
   // What belongs to no piece sits below the lot, across the whole width.
   if (loose.length > 0) {
-    const under = sky.bottom(top)
-    const below = new Skyline(near, Math.max(320, far - near), under === top ? top : under + gap)
-    for (const thing of [...loose].sort((a, b) => b.h - a.h || b.w - a.w)) {
-      out.set(thing.id, below.place(thing.w, thing.h, gap, { left: near, right: far }, near))
+    const under = field.bottom(top)
+    const floor = under === top ? top : under + gap
+    const below = new Field([])
+    for (const thing of [...loose].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))) {
+      out.set(thing.id, below.put(thing.w, thing.h, gap, { left: near, right: far }, { left: near, right: far, y: floor }))
     }
   }
 

@@ -288,14 +288,21 @@ export function Board({
   const shown = useCallback((y: number) => Math.max(cardTop, y + shift), [cardTop, shift])
   const kept = useCallback((at: Point): Point => ({ x: Math.round(at.x), y: Math.max(0, Math.round(at.y - shift)) }), [shift])
 
+  /**
+   * Where a piece is kept, whatever a hand is doing with it this moment.
+   * The layout below reads this rather than `pieceAt`, so nothing shifts
+   * around under the hand while a card is being dragged.
+   */
+  const pieceSpot = useCallback((piece: TreeNode, i: number): Point => ({
+    x: piece.board_x ?? cardX(i),
+    y: piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
+  }), [cardX, cardTop, shown])
+
   /** Where a piece sits: in its reading-order lane, until a hand moves it. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
     if (drag?.kind === 'piece' && drag.id === piece.id) return drag.at
-    return {
-      x: piece.board_x ?? cardX(i),
-      y: piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
-    }
-  }, [cardX, cardTop, drag, shown])
+    return pieceSpot(piece, i)
+  }, [drag, pieceSpot])
 
   /** Where each thread appears, by top-level piece. The board only ever asks
    *  this question of the pieces; depth below them is level 1's business. */
@@ -343,52 +350,84 @@ export function Board({
   }, [assets, disabled, heights, itemW, resizing])
 
   /**
-   * The line anything auto-placed hangs below. Taken from the lowest card
-   * rather than the lane's own top, so a piece dragged down the board does not
-   * end up sitting on the things that are placed under it. Read from where the
-   * cards are kept, not from a drag in flight, so nothing reflows under the
-   * hand mid-drag.
+   * The line anything auto-placed hangs below: under the row of cards as the
+   * board rests. Each card's own things hang below that card (see `columns`
+   * further down); this is the floor for the lot, and where things belonging
+   * to no piece at all start.
    */
-  const webTop = useMemo(() => {
-    const lowest = pieces.reduce(
-      (low, piece) => Math.max(low, piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y)),
-      cardTop,
-    )
-    return lowest + cardH + WEB_GAP
-  }, [pieces, cardTop, cardH, shown])
+  const webTop = useMemo(() => cardTop + cardH + WEB_GAP, [cardTop, cardH])
+
+  /** Has this never been put anywhere by hand? */
+  const isFree = (thing: { board_x: number | null; board_y: number | null }) =>
+    thing.board_x === null && thing.board_y === null
+
+  /** Where something placed by hand is kept, as a box. Ignores a drag in flight. */
+  const fixedBox = useCallback(
+    (thing: { board_x: number | null; board_y: number | null }, w: number, h: number): Box => ({
+      x: thing.board_x ?? LEFT_ROOM + MARGIN,
+      y: thing.board_y === null ? webTop : shown(thing.board_y),
+      w,
+      h,
+    }),
+    [webTop, shown],
+  )
+
+  /**
+   * Space that is already taken, which nothing placed below may land on: the
+   * cards themselves, and everything a hand has put somewhere. Without this
+   * the packing would be blind to them — it would reserve room for things
+   * drawn elsewhere and drop new things straight on top of moved ones.
+   */
+  const obstacles = useMemo<Box[]>(() => {
+    const taken: Box[] = pieces.map((p, i) => ({ ...pieceSpot(p, i), w: cardW, h: cardH }))
+    for (const th of hubs) if (!isFree(th)) taken.push(fixedBox(th, HUB_W, HUB_H))
+    for (const it of items) if (!isFree(it)) taken.push(fixedBox(it, itemW(it), itemH(it)))
+    return taken
+  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH])
 
   /**
    * Everything under the pieces with no hand placement of its own, gathered
-   * around the piece it belongs to: under the card first, out to the side
-   * when that column has grown too deep, and below the lot when it belongs to
-   * no piece at all. The arithmetic is in `arrange` (board-items.ts) and
-   * tested there; this only hands it what has been measured.
+   * around the piece it belongs to: in the nearest empty space below its own
+   * card, out to the side once the room directly under it is used, and below
+   * the lot when it belongs to no piece at all. Only things that have never
+   * been moved are in here — the rest is `obstacles`, which this has to clear.
+   * The arithmetic is in `arrange` (board-items.ts) and tested there; this
+   * only hands it what has been measured.
    */
   const autoAt = useMemo(() => arrange({
     things: [
-      // Threads go in first (priority 0), so they take the top of the band,
-      // nearest the card they run through: what a piece is about reads before
-      // what has been hung under it.
-      ...hubs.map((th) => ({
+      // Threads go in first (priority 0), so they take the space nearest the
+      // card they run through: what a piece is about reads before what has
+      // been hung under it. Oldest first within a kind (`seq`), so adding
+      // something leaves everything already down where it is.
+      ...hubs.filter(isFree).map((th) => ({
         id: th.id,
         w: HUB_W,
         h: HUB_H,
         on: [...(presence.get(th.id)?.roots ?? new Set<string>())],
         priority: 0,
+        seq: Date.parse(th.created_at) || 0,
       })),
-      ...items.map((it) => ({
+      ...items.filter(isFree).map((it) => ({
         id: it.id,
         w: itemW(it),
         h: itemH(it),
         on: it.node_ids.filter((id) => pieceIds.has(id)),
         priority: 1,
+        seq: Date.parse(it.created_at) || 0,
       })),
     ],
-    columns: pieces.map((p, i) => ({ id: p.id, x: pieceAt(p, i).x, w: cardW })),
+    // Each card says where its own things hang from, so a card dragged down
+    // the board takes its web with it instead of leaving it up by the others.
+    columns: pieces.map((p, i) => {
+      const spot = pieceSpot(p, i)
+      return { id: p.id, x: spot.x, w: cardW, top: spot.y + cardH + WEB_GAP }
+    }),
     top: webTop,
     gap: HUB_GAP,
     minX: MARGIN,
-  }), [hubs, items, presence, pieces, pieceAt, pieceIds, cardW, cardH, itemW, itemH, webTop])
+    obstacles,
+  }), [hubs, items, presence, pieces, pieceSpot, pieceIds, cardW, cardH, itemW, itemH, webTop, obstacles])
 
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {

@@ -201,3 +201,64 @@ test('one piece on its own still gets room both sides', () => {
 test('an empty board arranges nothing', () => {
   assert.equal(run([]).size, 0)
 })
+
+test('nothing lands on something put down by hand', () => {
+  const things = Array.from({ length: 5 }, (_, i) => thing(`t${i}`, ['a'], 300, 160, 1))
+  // right where the first few would have gone
+  const moved = { x: LEFT, y: TOP, w: 400, h: 300 }
+  const at = arrange({ things, columns: threeColumns, top: TOP, gap: GAP, minX: 80, obstacles: [moved] })
+  assertNoOverlap(things, at)
+  for (const t of things) {
+    const p = at.get(t.id)!
+    const hit = p.x < moved.x + moved.w && moved.x < p.x + t.w
+      && p.y < moved.y + moved.h && moved.y < p.y + t.h
+    assert.ok(!hit, `${t.id} landed on the one that was moved there`)
+  }
+})
+
+test('a card is space that is taken, so nothing hangs on one dragged down', () => {
+  const card = { x: LEFT, y: TOP + 200, w: CARD_W, h: 300 }
+  const things = [thing('x', ['a'], 300, 160, 1), thing('y', ['a'], 300, 160, 1)]
+  const at = arrange({ things, columns: threeColumns, top: TOP, gap: GAP, minX: 80, obstacles: [card] })
+  for (const t of things) {
+    const p = at.get(t.id)!
+    const hit = p.x < card.x + card.w && card.x < p.x + t.w
+      && p.y < card.y + card.h && card.y < p.y + t.h
+    assert.ok(!hit, `${t.id} landed on the card`)
+  }
+})
+
+test('a new thing takes what is left; everything already down stays put', () => {
+  const made = (n: number) => Array.from({ length: n }, (_, i) =>
+    ({ ...thing(`t${i}`, ['a'], 300, 160, 1), seq: i }))
+  const before = arrange({ things: made(4), columns: threeColumns, top: TOP, gap: GAP, minX: 80 })
+  const things = made(5)
+  const after = arrange({ things, columns: threeColumns, top: TOP, gap: GAP, minX: 80 })
+  for (const [id, p] of before) assert.deepEqual(after.get(id), p, `${id} was pushed along`)
+  assert.ok(after.has('t4'))
+  assertNoOverlap(things, after)
+})
+
+test('a new thing goes in the nearest free space to its card, not below the pile', () => {
+  // four tall things fill the room under the card; the fifth should come up
+  // beside the shortest, not be dropped under all of them
+  const things = [
+    { ...thing('a1', ['a'], 300, 400, 1), seq: 1 },
+    { ...thing('a2', ['a'], 300, 120, 1), seq: 2 },
+    { ...thing('new', ['a'], 236, 100, 1), seq: 3 },
+  ]
+  const at = arrange({ things, columns: threeColumns, top: TOP, gap: GAP, minX: 80 })
+  assertNoOverlap(things, at)
+  const p = at.get('new')!
+  assert.ok(p.y < at.get('a1')!.y + 400, 'it tucked in beside rather than going under the tall one')
+})
+
+test("a card's own things hang below that card, not below the highest one", () => {
+  const columns: ArrangeColumn[] = [
+    { id: 'a', x: LEFT, w: CARD_W },
+    { id: 'b', x: LEFT + 564, w: CARD_W, top: TOP + 600 },
+  ]
+  const at = arrange({ things: [thing('x', ['b']), thing('y', ['a'])], columns, top: TOP, gap: GAP, minX: 80 })
+  assert.ok(at.get('x')!.y >= TOP + 600, 'it followed its own card down')
+  assert.equal(at.get('y')!.y, TOP, 'the other card keeps its own line')
+})
