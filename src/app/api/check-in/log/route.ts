@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       const material = full_conversation
         ? `${raw_entry}\n\nFull conversation:\n${full_conversation}`
         : raw_entry
-      await distillPortrait({ supabase, user }, 'check_in', material)
+      await distillPortrait({ supabase, user }, 'check_in', material, data?.id ?? id ?? null)
     }
 
     return NextResponse.json({ success: true, data })

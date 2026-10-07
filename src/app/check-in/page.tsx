@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { KIND_LABELS, KIND_HUE, type PortraitKind } from '@/lib/portrait-kinds'
 import { useDictation } from '@/lib/use-dictation'
 import { useReadAloud } from '@/lib/use-read-aloud'
 import { useStayAwake } from '@/lib/use-stay-awake'
@@ -37,6 +39,8 @@ interface Message {
 interface PastCheckIn extends StoredCheckIn {
   full_conversation: string | null
   check_in_type: CheckInType | null
+  /** Portrait patterns noticed in this check-in (the same entries the portrait shows). */
+  patterns?: { id: string; kind: PortraitKind; statement: string }[]
 }
 
 function parseConversation(fullConversation: string | null, rawEntry: string): Message[] {
@@ -562,6 +566,23 @@ export default function CheckInPage() {
                             </p>
                           ))}
                         </div>
+                        {checkIn.patterns && checkIn.patterns.length > 0 && (
+                          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${t.divider}` }}>
+                            <Eyebrow style={{ marginBottom: 10 }}>Patterns noticed here</Eyebrow>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {checkIn.patterns.map((pt) => (
+                                <div key={pt.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                  <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: t[KIND_HUE[pt.kind]], marginTop: 6, flexShrink: 0 }} />
+                                  <div>
+                                    <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>{KIND_LABELS[pt.kind]}</p>
+                                    <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{pt.statement}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <Link href="/portrait" style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-block', marginTop: 10 }}>See your portrait</Link>
+                          </div>
+                        )}
                       </m.div>
                     )}
                   </AnimatePresence>

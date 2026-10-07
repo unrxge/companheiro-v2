@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
+import { patternsForCheckIns } from '@/lib/portrait'
 
 const HISTORY_LIMIT = 20
 
@@ -19,7 +20,10 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(HISTORY_LIMIT)
 
-    return NextResponse.json({ checkIns: data || [] })
+    const rows = data || []
+    const patterns = await patternsForCheckIns(auth, rows.map((r) => r.id))
+
+    return NextResponse.json({ checkIns: rows.map((r) => ({ ...r, patterns: patterns[r.id] ?? [] })) })
   } catch (error) {
     console.error('check-in history error:', error)
     return NextResponse.json({ checkIns: [] }, { status: 500 })

@@ -17,6 +17,7 @@ const TABLES = [
   'post_publication_logs',
   'trajectories',
   'portrait_entries',
+  'portrait_evidence',
   'conceptualise_drafts',
   'user_territory_config',
   'user_settings',

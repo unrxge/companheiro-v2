@@ -3,8 +3,9 @@ import { MODELS } from './models'
 import { logUsage } from './usage-log'
 import type { AuthedContext } from './supabase/route'
 
+import { DECAY_DAYS } from './portrait-kinds'
+
 const ACTIVE_ENTRY_CAP = 15
-const DECAY_DAYS = 150
 
 export type PortraitSource = 'check_in' | 'conceptualise' | 'zoom_out' | 'writing'
 export type PortraitKind =
@@ -22,19 +23,77 @@ export interface PortraitEntry {
   last_reinforced_at: string
 }
 
+function decayCutoff(): string {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - DECAY_DAYS)
+  return cutoff.toISOString()
+}
+
+export interface CheckInPattern {
+  id: string
+  kind: PortraitKind
+  statement: string
+}
+
+// The evidence table arrives with migration 033. Until it is applied every
+// read answers empty and every write is skipped, so nothing else breaks.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const evidence = (supabase: AuthedContext['supabase']) => (supabase as any).from('portrait_evidence')
+
+// Patterns noticed in each of the given check-ins. Only entries the portrait
+// page itself would show (active and not decayed) are returned: a pattern the
+// person has forgotten, or that has faded, disappears here too.
+export async function patternsForCheckIns(
+  { supabase, user }: AuthedContext,
+  checkInIds: string[]
+): Promise<Record<string, CheckInPattern[]>> {
+  if (checkInIds.length === 0) return {}
+  const { data, error } = await evidence(supabase)
+    .select('check_in_id, portrait_entries!inner(id, kind, statement, status, last_reinforced_at)')
+    .eq('user_id', user.id)
+    .in('check_in_id', checkInIds)
+  if (error || !data) return {}
+
+  const cutoff = decayCutoff()
+  const out: Record<string, CheckInPattern[]> = {}
+  for (const row of data as Array<{ check_in_id: string; portrait_entries: PortraitEntry }>) {
+    const e = row.portrait_entries
+    if (!e || e.status !== 'active' || e.last_reinforced_at < cutoff) continue
+    ;(out[row.check_in_id] ??= []).push({ id: e.id, kind: e.kind, statement: e.statement })
+  }
+  return out
+}
+
+// When each portrait entry was noticed in a check-in, newest first.
+export async function checkInDatesForEntries(
+  { supabase, user }: AuthedContext,
+  entryIds: string[]
+): Promise<Record<string, string[]>> {
+  if (entryIds.length === 0) return {}
+  const { data, error } = await evidence(supabase)
+    .select('entry_id, check_ins!inner(created_at)')
+    .eq('user_id', user.id)
+    .in('entry_id', entryIds)
+  if (error || !data) return {}
+
+  const out: Record<string, string[]> = {}
+  for (const row of data as Array<{ entry_id: string; check_ins: { created_at: string } }>) {
+    ;(out[row.entry_id] ??= []).push(row.check_ins.created_at)
+  }
+  for (const id of Object.keys(out)) out[id].sort().reverse()
+  return out
+}
+
 // Reads the undecayed active portrait for injection into a conversation.
 export async function getActivePortrait(
   { supabase, user }: AuthedContext
 ): Promise<PortraitEntry[]> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - DECAY_DAYS)
-
   const { data } = await supabase
     .from('portrait_entries')
     .select('id, kind, statement, status, reinforcement_count, last_reinforced_at')
     .eq('user_id', user.id)
     .eq('status', 'active')
-    .gte('last_reinforced_at', cutoff.toISOString())
+    .gte('last_reinforced_at', decayCutoff())
     .order('reinforcement_count', { ascending: false })
 
   return data || []
@@ -111,7 +170,10 @@ async function enforceActiveCap({ supabase, user }: AuthedContext): Promise<void
 export async function distillPortrait(
   auth: AuthedContext,
   source: PortraitSource,
-  material: string
+  material: string,
+  // The check-in this material is, when it is one: every entry created or
+  // reinforced from it is linked back, so the check-in can show its patterns.
+  checkInId?: string | null
 ): Promise<void> {
   if (!material?.trim()) return
 
@@ -159,15 +221,26 @@ export async function distillPortrait(
       new_entries?: Array<{ kind: PortraitKind; statement: string }>
     }
 
+    // Leaving a check-in can finalise it more than once (page hidden, then
+    // closed). Entries already linked to this check-in have been counted.
+    const alreadyLinked = new Set<string>()
+    if (checkInId) {
+      const { data: links } = await evidence(supabase).select('entry_id').eq('check_in_id', checkInId)
+      for (const l of (links ?? []) as Array<{ entry_id: string }>) alreadyLinked.add(l.entry_id)
+    }
+    const seenHere: string[] = []
+
     if (parsed.reinforce_ids?.length) {
-      for (const id of parsed.reinforce_ids) {
+      for (const id of new Set(parsed.reinforce_ids)) {
         const target = existing?.find((e) => e.id === id)
-        if (!target) continue
+        if (!target || alreadyLinked.has(id)) continue
         await supabase.rpc('reinforce_portrait_entry', { p_entry_id: id })
+        seenHere.push(id)
       }
     }
 
-    if (parsed.new_entries?.length) {
+    // A second pass over the same check-in must not mint the same insight twice.
+    if (parsed.new_entries?.length && !(checkInId && alreadyLinked.size > 0)) {
       const rows = parsed.new_entries.slice(0, 2).map((e) => ({
         user_id: user.id,
         kind: e.kind,
@@ -175,8 +248,17 @@ export async function distillPortrait(
         source,
         status: 'active' as const,
       }))
-      await supabase.from('portrait_entries').insert(rows)
+      const { data: created } = await supabase.from('portrait_entries').insert(rows).select('id')
+      for (const c of created ?? []) seenHere.push(c.id)
       await enforceActiveCap(auth)
+    }
+
+    if (checkInId && seenHere.length > 0) {
+      const { error: linkError } = await evidence(supabase).upsert(
+        seenHere.map((entry_id) => ({ user_id: user.id, entry_id, check_in_id: checkInId })),
+        { onConflict: 'entry_id,check_in_id', ignoreDuplicates: true }
+      )
+      if (linkError) console.error('portrait evidence not recorded:', linkError.message)
     }
   } catch (error) {
     console.error('distillPortrait error:', error)

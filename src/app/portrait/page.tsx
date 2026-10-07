@@ -8,6 +8,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { formatDateAsRelative } from '@/lib/dates'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
+import { KIND_LABELS, KIND_HUE, DECAY_DAYS } from '@/lib/portrait-kinds'
 
 interface PortraitEntry {
   id: string
@@ -15,23 +16,10 @@ interface PortraitEntry {
   statement: string
   reinforcement_count: number
   last_reinforced_at: string
+  /** Dates of the check-ins this was noticed in, newest first. */
+  seen_in?: string[]
 }
 
-const KIND_LABELS: Record<PortraitEntry['kind'], string> = {
-  processing_pattern: 'How you process things',
-  recurring_theme: 'What keeps recurring',
-  creative_pattern: 'How you develop ideas',
-  guidance_note: 'What kind of guidance works',
-}
-
-const KIND_HUE: Record<PortraitEntry['kind'], 'tide' | 'ochre' | 'ember' | 'verdant'> = {
-  processing_pattern: 'tide',
-  recurring_theme: 'ochre',
-  creative_pattern: 'ember',
-  guidance_note: 'verdant',
-}
-
-const DECAY_DAYS = 150
 /** Rows a section shows before it folds, and how many each "Show more" adds. */
 const PAGE_SIZE = 4
 /** Days left before retirement at which a row starts saying it is fading. */
@@ -131,6 +119,11 @@ export default function PortraitPage() {
                               Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
                               {left <= FADING_WITHIN_DAYS && <> · Fading, retires in {left} {left === 1 ? 'day' : 'days'}</>}
                             </p>
+                            {entry.seen_in && entry.seen_in.length > 0 && (
+                              <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+                                Noticed in {entry.seen_in.length === 1 ? 'a check-in' : `${entry.seen_in.length} check-ins`}: {entry.seen_in.slice(0, 3).map((d) => formatDateAsRelative(d)).join(', ')}{entry.seen_in.length > 3 ? '…' : ''}
+                              </p>
+                            )}
                           </div>
                           <GhostButton size="sm" onClick={() => handleRetire(entry.id)} disabled={retiringId === entry.id} loading={retiringId === entry.id} loadingLabel="Forgetting…">Forget this</GhostButton>
                         </div>
