@@ -6,7 +6,7 @@ import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/sh
 import { GhostButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { formatDateAsRelative } from '@/lib/dates'
+import { formatDateShort } from '@/lib/dates'
 import { type as typeRoles } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
 import { KIND_LABELS, KIND_HUE, DECAY_DAYS } from '@/lib/portrait-kinds'
@@ -117,8 +117,8 @@ export default function PortraitPage() {
       <PageHeader eyebrow="Companheiro" title="My portrait" subtitle="What the companion has noticed about you over time. It shapes how it approaches you, never its voice." />
 
       <Container>
-        <p style={{ ...typeRoles.small, color: t.textSecondary, maxWidth: '58ch', marginBottom: 18 }}>
-          Each line has been reinforced the number of times shown. One that has not come up in a while starts to fade, and retires on its own at {DECAY_DAYS} days. Forget any of them at any time.
+        <p style={{ ...typeRoles.small, color: t.textSecondary, marginBottom: 18 }}>
+          Each line shows how many times it has been noticed, and since when. One that has not come up in a while starts to fade, and retires on its own at {DECAY_DAYS} days. Forget any of them at any time.
         </p>
 
         {isLoading ? (
@@ -155,12 +155,13 @@ export default function PortraitPage() {
                           {/* The forget action sits in the detail line, so the statement keeps the full width on a phone. */}
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
                             <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flex: 1, minWidth: 0 }}>
-                              Reinforced {entry.reinforcement_count}× · last {formatDateAsRelative(entry.last_reinforced_at)}
-                              {order === 'recent' && entry.created_at && <> · first noticed {formatDateAsRelative(entry.created_at)}</>}
-                              {left <= FADING_WITHIN_DAYS && <> · Fading, retires in {left} {left === 1 ? 'day' : 'days'}</>}
+                              Noticed {entry.reinforcement_count === 1 ? 'once' : `${entry.reinforcement_count} times`}
+                              {entry.reinforcement_count > 1 && entry.created_at && <> · since {formatDateShort(entry.created_at)}</>}
+                              {' · '}{entry.reinforcement_count > 1 ? 'last ' : ''}{formatDateShort(entry.last_reinforced_at)}
                               {entry.seen_in && entry.seen_in.length > 0 && (
-                                <> · Noticed in {entry.seen_in.length === 1 ? 'a check-in' : `${entry.seen_in.length} check-ins`}: {entry.seen_in.slice(0, 3).map((d) => formatDateAsRelative(d)).join(', ')}{entry.seen_in.length > 3 ? '…' : ''}</>
+                                <> · {entry.seen_in.length === 1 ? '1 check-in' : `${entry.seen_in.length} check-ins`}</>
                               )}
+                              {left <= FADING_WITHIN_DAYS && <> · Fading, retires in {left} {left === 1 ? 'day' : 'days'}</>}
                             </p>
                             <button
                               onClick={() => handleRetire(entry.id)}
