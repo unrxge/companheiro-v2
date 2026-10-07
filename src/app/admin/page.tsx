@@ -86,7 +86,7 @@ export default function AdminPage() {
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
             <Toggle value={String(days)} options={['7', '30', '90']} suffix="d" onChange={(v) => setDays(Number(v))} />
-            <Toggle value={env} options={['production', 'preview', 'development']} onChange={setEnv} />
+            <Toggle value={env} options={['production', 'preview', 'development', 'script']} onChange={setEnv} />
           </div>
         </header>
 
@@ -172,7 +172,7 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
           <p className="mb-2 text-sm font-medium">AI cost per day <span className="text-xs font-normal" style={muted}>({env})</span></p>
           <Columns values={daily.map((d) => Number(d.ai_cost))} labels={dayLabels} format={eur} />
           {env === 'production' && otherEnv > 0 && (
-            <p className="mt-2 text-xs" style={muted}>Plus {eur(otherEnv)} spent from preview/dev deploys in the same window. Switch the toggle above to see it.</p>
+            <p className="mt-2 text-xs" style={muted}>Plus {eur(otherEnv)} spent from preview/dev deploys and maintenance scripts in the same window. Switch the toggle above to see it.</p>
           )}
         </div>
         <div className={`${card} mt-3`} style={cardStyle}>

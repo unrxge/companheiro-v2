@@ -12,6 +12,7 @@
 // --write first saves every entry as it was to .research/portrait-backup-<time>.json.
 import Anthropic from '@anthropic-ai/sdk'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { recordScriptCall } from './record-usage.mjs'
 
 const job = process.argv[2]
 const write = process.argv.includes('--write')
@@ -36,6 +37,7 @@ const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
 const ask = async (system, content, max_tokens) => {
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await client.messages.create({ model, max_tokens, system, messages: [{ role: 'user', content }] })
+    await recordScriptCall(url, key, `tidy-portrait:${job}`, r)
     const text = r.content[0].text
     const starts = [...text.matchAll(/\{\s*"(?:rewrites|groups)"/g)].map((m) => m.index)
     for (const start of starts.reverse()) {

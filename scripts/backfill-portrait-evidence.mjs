@@ -8,6 +8,7 @@
 //   optional: --days 120
 import Anthropic from '@anthropic-ai/sdk'
 import { readFileSync } from 'node:fs'
+import { recordScriptCall } from './record-usage.mjs'
 
 const write = process.argv.includes('--write')
 const di = process.argv.indexOf('--days')
@@ -48,6 +49,7 @@ for (const c of checkIns) {
     model, max_tokens: 200, system: SYSTEM,
     messages: [{ role: 'user', content: `PATTERNS:\n${mine.map((e) => `[${e.id}] (${e.kind}) ${e.statement}`).join('\n')}\n\nCHECK-IN:\n${material}` }],
   })
+  await recordScriptCall(url, key, 'backfill-portrait-evidence', r)
   let ids = []
   try { ids = JSON.parse(r.content[0].text.replace(/```json\n?|\n?```/g, '').trim()).ids ?? [] } catch { /* unreadable answer: link nothing */ }
   ids = [...new Set(ids)].filter((id) => mine.some((e) => e.id === id))
