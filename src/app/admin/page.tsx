@@ -62,17 +62,15 @@ export default function AdminPage() {
     return () => { live = false }
   }, [days, env])
 
-  const eur = useCallback(
-    (micros: number) => {
-      const v = ((micros ?? 0) / 1e6) * (data?.money?.eurPerUsd ?? 0.86)
-      if (v === 0) return '€0'
-      if (Math.abs(v) >= 100) return `€${v.toFixed(0)}`
-      if (Math.abs(v) >= 1) return `€${v.toFixed(2)}`
-      if (Math.abs(v) >= 0.01) return `€${v.toFixed(3)}`
-      return `€${v.toFixed(4)}`
-    },
-    [data]
-  )
+  // AI cost is billed in dollars, so it is shown in dollars, unconverted.
+  const usd = useCallback((micros: number) => {
+    const v = (micros ?? 0) / 1e6
+    if (v === 0) return '$0'
+    if (Math.abs(v) >= 100) return `$${v.toFixed(0)}`
+    if (Math.abs(v) >= 1) return `$${v.toFixed(2)}`
+    if (Math.abs(v) >= 0.01) return `$${v.toFixed(3)}`
+    return `$${v.toFixed(4)}`
+  }, [])
 
   return (
     <OpsRoot>
@@ -81,7 +79,7 @@ export default function AdminPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Operations</h1>
             <p className="text-xs" style={muted}>
-              {data ? `Updated ${new Date(data.generated_at).toLocaleString()} · money is estimated, AI cost converted at €${data.money.eurPerUsd}/$` : 'Loading…'}
+              {data ? `Updated ${new Date(data.generated_at).toLocaleString()} · AI cost in dollars as billed · revenue is estimated, converted from euros at €${data.money.eurPerUsd} per $1` : 'Loading…'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
@@ -91,7 +89,7 @@ export default function AdminPage() {
         </header>
 
         {error && <p className="mt-6 text-sm" style={{ color: 'var(--critical)' }}>{error}</p>}
-        {data && <Body data={data} eur={eur} days={days} env={env} route={route} setRoute={setRoute} />}
+        {data && <Body data={data} usd={usd} days={days} env={env} route={route} setRoute={setRoute} />}
       </div>
     </OpsRoot>
   )
@@ -114,7 +112,7 @@ function Toggle({ value, options, onChange, suffix = '' }: { value: string; opti
   )
 }
 
-function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: number) => string; days: number; env: string; route: string | null; setRoute: (r: string | null) => void }) {
+function Body({ data, usd, days, env, route, setRoute }: { data: Data; usd: (m: number) => string; days: number; env: string; route: string | null; setRoute: (r: string | null) => void }) {
   const m = data.money
   const daily: any[] = data.daily ?? []
   const dayLabels = daily.map((d) => new Date(d.day + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))
@@ -133,7 +131,9 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
   const net = mrr * m.netFactor
   const aiWindow = daily.reduce((a, d) => a + Number(d.ai_cost), 0)
   const aiMonthly = (aiWindow / Math.max(daily.length, 1)) * 30
-  const aiMonthlyEur = (aiMonthly / 1e6) * m.eurPerUsd
+  const aiMonthlyUsd = aiMonthly / 1e6
+  const mrrUsd = mrr / m.eurPerUsd
+  const netUsd = net / m.eurPerUsd
   const count = (status: string) => (data.subs as any[]).filter((s) => s.status === status).reduce((a, s) => a + s.n, 0)
   const cancelling = paying.filter((s) => s.cancel_at_period_end).reduce((a, s) => a + s.n, 0)
   const otherEnv = daily.reduce((a, d) => a + Number(d.other_env_cost), 0)
@@ -148,6 +148,9 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
   const watch = (data.watch as any[]).filter((w) => (new Date(w.date).getTime() - Date.now()) / 864e5 < 45)
 
   const routes: any[] = useMemo(() => data.routes ?? [], [data])
+  // The day whose per-task totals are open; today (the last one) by default.
+  const [day, setDay] = useState<number | null>(null)
+  const dayIndex = day !== null && day < daily.length ? day : daily.length - 1
   const norms = useMemo(() => Object.fromEntries(routes.map((r) => [r.route, r as RouteNorms])), [routes])
 
   return (
@@ -163,16 +166,18 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
 
       <Section title="Money in vs. out" hint="Revenue from current subscriptions at list price; net after VAT and fees is an estimate (REVENUE_NET_FACTOR).">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Tile label="Monthly revenue (gross)" value={`€${mrr.toFixed(0)}`} sub={`€${net.toFixed(0)} net est.`} />
-          <Tile label="AI cost, monthly pace" value={`€${aiMonthlyEur.toFixed(2)}`} sub={`${eur(aiWindow)} over ${days} days`} />
-          <Tile label="Margin, monthly pace" value={`€${(net - aiMonthlyEur).toFixed(0)}`} sub={net > 0 ? `AI is ${Math.round((aiMonthlyEur / net) * 100)}% of net` : 'no paying users yet'} />
+          <Tile label="Monthly revenue (gross)" value={`$${mrrUsd.toFixed(0)}`} sub={`$${netUsd.toFixed(0)} net est. · €${mrr.toFixed(0)} at list price`} />
+          <Tile label="AI cost, monthly pace" value={`$${aiMonthlyUsd.toFixed(2)}`} sub={`${usd(aiWindow)} over ${days} days`} />
+          <Tile label="Margin, monthly pace" value={`$${(netUsd - aiMonthlyUsd).toFixed(0)}`} sub={netUsd > 0 ? `AI is ${Math.round((aiMonthlyUsd / netUsd) * 100)}% of net` : 'no paying users yet'} />
           <Tile label="People" value={`${payingByTier.practice + payingByTier.direction} paying`} sub={`${payingByTier.practice} Practice · ${payingByTier.direction} Direction · ${count('trialing')} in trial · ${count('grandfathered')} free${cancelling ? ` · ${cancelling} cancelling` : ''}`} />
         </div>
         <div className={`${card} mt-3`} style={cardStyle}>
           <p className="mb-2 text-sm font-medium">AI cost per day <span className="text-xs font-normal" style={muted}>({env})</span></p>
-          <Columns values={daily.map((d) => Number(d.ai_cost))} labels={dayLabels} format={eur} />
+          <Columns values={daily.map((d) => Number(d.ai_cost))} labels={dayLabels} format={usd} highlight={(i) => i === dayIndex} onSelect={setDay} />
+          <p className="mt-1 text-xs" style={muted}>Click a day to see what each task cost on it.</p>
+          <DayByTask routes={routes} daily={daily} labels={dayLabels} index={dayIndex} usd={usd} onSelect={setDay} />
           {env === 'production' && otherEnv > 0 && (
-            <p className="mt-2 text-xs" style={muted}>Plus {eur(otherEnv)} spent from preview/dev deploys and maintenance scripts in the same window. Switch the toggle above to see it.</p>
+            <p className="mt-2 text-xs" style={muted}>Plus {usd(otherEnv)} spent from preview/dev deploys and maintenance scripts in the same window. Switch the toggle above to see it.</p>
           )}
         </div>
         <div className={`${card} mt-3`} style={cardStyle}>
@@ -186,8 +191,8 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
               return (
                 <div key={p.plan} className="grid grid-cols-[110px_1fr_140px] items-center gap-3 text-sm">
                   <span>{p.plan}</span>
-                  <HBar value={per} max={max} marker={netPerPersonMicros} color={netPerPersonMicros && per > netPerPersonMicros ? 'var(--s2)' : 'var(--s1)'} tip={<>{p.plan}: {eur(per)} per person, {p.users} people, {eur(p.cost)} total</>} />
-                  <span className="text-right tabular-nums" style={soft}>{eur(per)} × {p.users}</span>
+                  <HBar value={per} max={max} marker={netPerPersonMicros} color={netPerPersonMicros && per > netPerPersonMicros ? 'var(--s2)' : 'var(--s1)'} tip={<>{p.plan}: {usd(per)} per person, {p.users} people, {usd(p.cost)} total</>} />
+                  <span className="text-right tabular-nums" style={soft}>{usd(per)} × {p.users}</span>
                 </div>
               )
             })}
@@ -223,8 +228,8 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
       </Section>
 
       <Section title="AI cost by task" hint="Click a task for every call it made, what each one carried, and why the unusual ones cost what they did.">
-        <RouteTable routes={routes} eur={eur} selected={route} onSelect={(r) => setRoute(r === route ? null : r)} />
-        {route && <RouteDetail route={route} days={days} env={env} eur={eur} norms={norms[route]} />}
+        <RouteTable routes={routes} usd={usd} selected={route} onSelect={(r) => setRoute(r === route ? null : r)} />
+        {route && <RouteDetail route={route} days={days} env={env} usd={usd} norms={norms[route]} />}
         <div className={`${card} mt-3`} style={cardStyle}>
           <p className="text-sm font-medium">Unusual calls, every task</p>
           <p className="mb-3 text-xs" style={muted}>3× their task’s median and at least $0.005, or cut off at max_tokens. Biggest ratio first.</p>
@@ -232,7 +237,7 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
             <p className="text-sm" style={muted}>None in this window.</p>
           ) : (
             <div className="space-y-3">
-              {(data.outliers as CallRow[]).map((c) => <CallCard key={c.id} call={c} eur={eur} norms={norms[c.route!]} showRoute />)}
+              {(data.outliers as CallRow[]).map((c) => <CallCard key={c.id} call={c} usd={usd} norms={norms[c.route!]} showRoute />)}
             </div>
           )}
         </div>
@@ -260,8 +265,8 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
                       <td className="py-1.5 font-mono text-xs">{u.user}</td>
                       <td>{u.plan}</td>
                       <td className="text-xs" style={soft}>{u.top_route}</td>
-                      <td className="text-right tabular-nums">{eur(u.cost)}</td>
-                      <td className="pl-3">{cap ? <HBar value={u.period_used ?? 0} max={cap * 1e6} color={(u.period_used ?? 0) > cap * 1e6 ? 'var(--s2)' : 'var(--s1)'} tip={<>{eur(u.period_used ?? 0)} this period of a {eur(cap * 1e6)} soft cap</>} /> : <span className="text-xs" style={muted}>uncapped</span>}</td>
+                      <td className="text-right tabular-nums">{usd(u.cost)}</td>
+                      <td className="pl-3">{cap ? <HBar value={u.period_used ?? 0} max={cap * 1e6} color={(u.period_used ?? 0) > cap * 1e6 ? 'var(--s2)' : 'var(--s1)'} tip={<>{usd(u.period_used ?? 0)} this period of a {usd(cap * 1e6)} soft cap</>} /> : <span className="text-xs" style={muted}>uncapped</span>}</td>
                     </tr>
                   )
                 })}
@@ -325,6 +330,64 @@ function Body({ data, eur, days, env, route, setRoute }: { data: Data; eur: (m: 
   )
 }
 
+// One day's spend split by task, then every day as a table (newest first):
+// total, and each task's total for that day.
+function DayByTask({ routes, daily, labels, index, usd, onSelect }: { routes: any[]; daily: any[]; labels: string[]; index: number; usd: (m: number) => string; onSelect: (i: number) => void }) {
+  const [all, setAll] = useState(false)
+  if (!daily.length) return null
+  const onDay = (i: number) => routes.map((r) => ({ route: r.route as string, cost: Number(r.daily?.[i] ?? 0) })).filter((r) => r.cost > 0).sort((a, b) => b.cost - a.cost)
+  const today = onDay(index)
+  const total = Number(daily[index]?.ai_cost ?? 0)
+  const max = Math.max(...today.map((r) => r.cost), 1)
+  const cols = routes.slice(0, 8)
+  const rest = routes.slice(8)
+  return (
+    <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--ops-line)' }}>
+      <p className="text-sm font-medium">{labels[index]}: <span className="tabular-nums">{usd(total)}</span> in total</p>
+      {today.length === 0 ? (
+        <p className="mt-2 text-sm" style={muted}>Nothing spent on this day.</p>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {today.map((r) => (
+            <div key={r.route} className="grid grid-cols-[minmax(120px,220px)_1fr_110px] items-center gap-3 text-sm">
+              <span className="truncate font-mono text-xs" title={r.route}>{r.route}</span>
+              <HBar value={r.cost} max={max} tip={<>{r.route}: {usd(r.cost)} ({pct(r.cost, total)} of the day)</>} />
+              <span className="text-right text-xs tabular-nums" style={soft}>{usd(r.cost)} · {pct(r.cost, total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <button onClick={() => setAll(!all)} className="mt-3 rounded-full px-3 py-1 text-xs" style={{ border: '1px solid var(--ops-line)', color: 'var(--ops-text-2)' }}>
+        {all ? 'Hide the table' : 'Show every day as a table'}
+      </button>
+      {all && (
+        <div className="mt-3 max-h-[420px] overflow-auto">
+          <table className="w-full min-w-[640px] text-xs">
+            <thead>
+              <tr className="text-right" style={muted}>
+                <th className="sticky left-0 pb-2 text-left font-normal" style={{ background: 'var(--ops-surface)' }}>day</th>
+                <th className="px-2 font-semibold" style={{ color: 'var(--ops-text)' }}>total</th>
+                {cols.map((r) => <th key={r.route} className="px-2 font-mono font-normal">{r.route}</th>)}
+                {rest.length > 0 && <th className="px-2 font-normal">other</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {daily.map((d, i) => i).reverse().map((i) => (
+                <tr key={i} onClick={() => onSelect(i)} className="cursor-pointer border-t text-right tabular-nums hover:bg-white/[0.03]" style={{ borderColor: 'var(--ops-line)', background: i === index ? 'rgba(57,135,229,0.08)' : undefined }}>
+                  <td className="sticky left-0 py-1.5 text-left" style={{ background: 'var(--ops-surface)' }}>{labels[i]}</td>
+                  <td className="px-2 font-semibold">{usd(Number(daily[i].ai_cost))}</td>
+                  {cols.map((r) => { const v = Number(r.daily?.[i] ?? 0); return <td key={r.route} className="px-2" style={v ? soft : muted}>{v ? usd(v) : '·'}</td> })}
+                  {rest.length > 0 && (() => { const v = rest.reduce((a, r) => a + Number(r.daily?.[i] ?? 0), 0); return <td className="px-2" style={v ? soft : muted}>{v ? usd(v) : '·'}</td> })()}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SourceTable({ sources }: { sources: any[] }) {
   if (!sources.length) return <p className="text-sm" style={muted}>No signups in this window.</p>
   const max = Math.max(...sources.map((s) => s.signups), 1)
@@ -380,7 +443,7 @@ function Funnel({ f, trialsEnding, trialsExpired, repeat, blocked }: { f: any; t
   )
 }
 
-function RouteTable({ routes, eur, selected, onSelect }: { routes: any[]; eur: (m: number) => string; selected: string | null; onSelect: (r: string) => void }) {
+function RouteTable({ routes, usd, selected, onSelect }: { routes: any[]; usd: (m: number) => string; selected: string | null; onSelect: (r: string) => void }) {
   if (!routes.length) return <div className={card} style={cardStyle}><p className="text-sm" style={muted}>No AI calls recorded in this window yet.</p></div>
   const total = routes.reduce((a, r) => a + Number(r.cost), 0) || 1
   return (
@@ -398,10 +461,10 @@ function RouteTable({ routes, eur, selected, onSelect }: { routes: any[]; eur: (
               <td className="w-32 pr-3"><HBar value={Number(r.cost)} max={total} tip={<>{r.route}: {pct(Number(r.cost), total)} of spend</>} /></td>
               <td><Spark values={r.daily ?? []} /></td>
               <td className="text-right tabular-nums">{r.calls}</td>
-              <td className="text-right tabular-nums">{eur(Number(r.cost))}</td>
-              <td className="text-right tabular-nums" style={soft}>{eur(r.p50)}</td>
-              <td className="text-right tabular-nums" style={soft}>{eur(r.p95)}</td>
-              <td className="text-right tabular-nums" style={r.max > 5 * r.p50 ? { color: 'var(--serious)' } : soft}>{eur(r.max)}</td>
+              <td className="text-right tabular-nums">{usd(Number(r.cost))}</td>
+              <td className="text-right tabular-nums" style={soft}>{usd(r.p50)}</td>
+              <td className="text-right tabular-nums" style={soft}>{usd(r.p95)}</td>
+              <td className="text-right tabular-nums" style={r.max > 5 * r.p50 ? { color: 'var(--serious)' } : soft}>{usd(r.max)}</td>
               <td className="text-right tabular-nums" style={soft}>{Math.round(Number(r.cache_read_share) * 100)}%</td>
               <td className="text-right tabular-nums" style={r.cut_off ? { color: 'var(--serious)' } : soft}>{r.cut_off}</td>
             </tr>
@@ -412,7 +475,7 @@ function RouteTable({ routes, eur, selected, onSelect }: { routes: any[]; eur: (
   )
 }
 
-function RouteDetail({ route, days, env, eur, norms }: { route: string; days: number; env: string; eur: (m: number) => string; norms?: RouteNorms }) {
+function RouteDetail({ route, days, env, usd, norms }: { route: string; days: number; env: string; usd: (m: number) => string; norms?: RouteNorms }) {
   const [calls, setCalls] = useState<CallRow[] | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   useEffect(() => {
@@ -457,10 +520,10 @@ function RouteDetail({ route, days, env, eur, norms }: { route: string; days: nu
           v: c.cost,
           flagged: flagged(c),
           id: c.id,
-          label: <>{new Date(c.at).toLocaleString()}<br /><b>{eur(c.cost)}</b> · {k(c.input + c.cache_read + c.cache_write)} in / {k(c.output)} out{c.stop === 'max_tokens' ? ' · cut off' : ''}</>,
+          label: <>{new Date(c.at).toLocaleString()}<br /><b>{usd(c.cost)}</b> · {k(c.input + c.cache_read + c.cache_write)} in / {k(c.output)} out{c.stop === 'max_tokens' ? ' · cut off' : ''}</>,
         }))}
         median={median}
-        format={eur}
+        format={usd}
         selected={chosen?.id}
         onSelect={setSelected}
       />
@@ -470,18 +533,18 @@ function RouteDetail({ route, days, env, eur, norms }: { route: string; days: nu
           {variants.map(([v, s]) => (
             <div key={v} className="mb-1.5 grid grid-cols-[140px_1fr_120px] items-center gap-3 text-sm">
               <span className="truncate text-xs">{v}</span>
-              <HBar value={s.cost / s.n} max={maxVariant} tip={<>{v}: {s.n} calls, {eur(s.cost / s.n)} each</>} />
-              <span className="text-right text-xs tabular-nums" style={soft}>{eur(s.cost / s.n)} × {s.n}</span>
+              <HBar value={s.cost / s.n} max={maxVariant} tip={<>{v}: {s.n} calls, {usd(s.cost / s.n)} each</>} />
+              <span className="text-right text-xs tabular-nums" style={soft}>{usd(s.cost / s.n)} × {s.n}</span>
             </div>
           ))}
         </div>
       )}
-      {chosen && <div className="mt-4"><CallCard call={{ ...chosen, median, ratio: median ? chosen.cost / median : undefined }} eur={eur} norms={norms} /></div>}
+      {chosen && <div className="mt-4"><CallCard call={{ ...chosen, median, ratio: median ? chosen.cost / median : undefined }} usd={usd} norms={norms} /></div>}
     </div>
   )
 }
 
-function CallCard({ call, eur, norms, showRoute }: { call: CallRow; eur: (m: number) => string; norms?: RouteNorms; showRoute?: boolean }) {
+function CallCard({ call, usd, norms, showRoute }: { call: CallRow; usd: (m: number) => string; norms?: RouteNorms; showRoute?: boolean }) {
   const c = call.context ?? {}
   const sys = (c.sys as number[] | undefined) ?? []
   const parts = (c.parts as Record<string, number> | undefined) ?? {}
@@ -491,8 +554,8 @@ function CallCard({ call, eur, norms, showRoute }: { call: CallRow; eur: (m: num
     <div className="rounded-xl p-3" style={{ background: 'rgba(236,233,226,0.03)', border: '1px solid var(--ops-line)' }}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
         {showRoute && <span className="font-mono text-xs">{call.route}</span>}
-        <span className="font-semibold tabular-nums">{eur(call.cost)}</span>
-        {call.ratio ? <span className="text-xs" style={{ color: 'var(--serious)' }}>{Number(call.ratio).toFixed(1)}× median ({eur(call.median ?? 0)})</span> : null}
+        <span className="font-semibold tabular-nums">{usd(call.cost)}</span>
+        {call.ratio ? <span className="text-xs" style={{ color: 'var(--serious)' }}>{Number(call.ratio).toFixed(1)}× median ({usd(call.median ?? 0)})</span> : null}
         <span className="text-xs" style={muted}>{new Date(call.at).toLocaleString()} · {call.model}{call.ms ? ` · ${(call.ms / 1000).toFixed(1)}s` : ''} · user {call.user ?? 'deleted'}</span>
         {labels.map(([key, v]) => <span key={key} className="rounded-full px-2 py-0.5 text-[11px]" style={{ border: '1px solid var(--ops-line)', color: 'var(--ops-text-2)' }}>{key}: {String(v)}</span>)}
       </div>

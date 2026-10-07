@@ -90,6 +90,7 @@ export function Columns({
   color = 'var(--s1)',
   height = 120,
   highlight,
+  onSelect,
 }: {
   values: number[]
   labels: string[]
@@ -97,6 +98,7 @@ export function Columns({
   color?: string
   height?: number
   highlight?: (i: number) => boolean
+  onSelect?: (i: number) => void
 }) {
   const { show, hide } = useTip()
   const W = 600
@@ -127,6 +129,8 @@ export function Columns({
                 height={H}
                 fill="transparent"
                 onMouseMove={(e) => show(e, <><b>{labels[i]}</b><br />{format(v)}</>)}
+                onClick={onSelect ? () => onSelect(i) : undefined}
+                style={onSelect ? { cursor: 'pointer' } : undefined}
               />
             </g>
           )

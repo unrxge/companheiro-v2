@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '@/lib/supabase/admin'
-import { capsMicros, moneyConfig, WATCH_LIST } from '@/lib/ops/admin'
+import { capsMicros, WATCH_LIST } from '@/lib/ops/admin'
 import { diagnose, type CallRow } from '@/lib/ops/diagnose'
 import { sendOpsEmail } from '@/lib/ops/notify'
 import { SITE_URL } from '@/lib/site'
@@ -30,10 +30,10 @@ export async function GET(request: Request) {
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
 function render(d: any): { subject: string; html: string } {
-  const m = moneyConfig()
-  const eur = (micros: number) => {
-    const v = ((micros ?? 0) / 1e6) * m.eurPerUsd
-    return v >= 1 ? `€${v.toFixed(2)}` : `€${v.toFixed(3)}`
+  // Dollars, as Anthropic bills them.
+  const usd = (micros: number) => {
+    const v = (micros ?? 0) / 1e6
+    return v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`
   }
   const daily: any[] = d.daily ?? []
   // The last row is today (partial, since this runs in the morning).
@@ -67,7 +67,7 @@ function render(d: any): { subject: string; html: string } {
   const bars = week
     .map((r) => {
       const h = Math.max(2, Math.round((Number(r.ai_cost) / maxCost) * 60))
-      return `<td style="vertical-align:bottom;padding:0 2px;text-align:center"><div style="height:${h}px;width:22px;background:#2a78d6;border-radius:3px 3px 0 0;margin:0 auto" title="${eur(Number(r.ai_cost))}"></div><div style="font-size:10px;color:#888">${esc(String(r.day).slice(8))}</div></td>`
+      return `<td style="vertical-align:bottom;padding:0 2px;text-align:center"><div style="height:${h}px;width:22px;background:#2a78d6;border-radius:3px 3px 0 0;margin:0 auto" title="${usd(Number(r.ai_cost))}"></div><div style="font-size:10px;color:#888">${esc(String(r.day).slice(8))}</div></td>`
     })
     .join('')
 
@@ -79,17 +79,17 @@ function render(d: any): { subject: string; html: string } {
 <p style="margin:0 0 16px;color:#666;font-size:13px"><a href="${SITE_URL}/admin">Open the dashboard</a></p>
 ${alerts.length ? `<div style="background:#fff4e5;border-left:4px solid #fab219;padding:10px 14px;margin-bottom:16px;font-size:13px">${alerts.map((a) => `<div>⚠ ${esc(a)}</div>`).join('')}</div>` : `<div style="background:#eef8ee;border-left:4px solid #0ca30c;padding:10px 14px;margin-bottom:16px;font-size:13px">✓ Nothing needs attention.</div>`}
 <table style="width:100%;border-collapse:separate;border-spacing:6px"><tr>
-${tile('Signups', String(y.signups))}${tile('Active', String(y.active), 'people')}${tile('AI cost', eur(Number(y.ai_cost)), `7-day avg ${eur(avgCost)}`)}${tile('Subs', `+${y.subscribed} / −${y.canceled}`, `${d.trials_ending_7d} trials end this week`)}
+${tile('Signups', String(y.signups))}${tile('Active', String(y.active), 'people')}${tile('AI cost', usd(Number(y.ai_cost)), `7-day avg ${usd(avgCost)}`)}${tile('Subs', `+${y.subscribed} / −${y.canceled}`, `${d.trials_ending_7d} trials end this week`)}
 </tr></table>
 <p style="font-size:13px;margin:18px 0 6px;font-weight:600">AI cost, last 7 days</p>
 <table style="border-collapse:collapse"><tr>${bars}</tr></table>
-${routes.length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">Costliest tasks this week</p><table style="border-collapse:collapse;width:100%">${routes.slice(0, 5).map((r) => `<tr><td style="${cell};font-family:monospace">${esc(r.route)}</td><td style="${cell};text-align:right">${r.calls} calls</td><td style="${cell};text-align:right">${eur(Number(r.cost))}</td><td style="${cell};text-align:right;color:#888">typical ${eur(r.p50)}</td></tr>`).join('')}</table>` : ''}
-${outliers.length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">Unusual calls</p>${outliers.map((c) => { const f = diagnose(c, norms[c.route!])[0]; return `<div style="font-size:13px;padding:8px 0;border-bottom:1px solid #eee"><b style="font-family:monospace">${esc(c.route)}</b> · ${eur(c.cost)} (${esc(c.ratio)}× median)<br><span style="color:#555">${esc(f.text)}</span>${f.tweak ? `<br><span style="color:#888;font-size:12px">→ ${esc(f.tweak)}</span>` : ''}</div>` }).join('')}` : ''}
+${routes.length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">Costliest tasks this week</p><table style="border-collapse:collapse;width:100%">${routes.slice(0, 5).map((r) => `<tr><td style="${cell};font-family:monospace">${esc(r.route)}</td><td style="${cell};text-align:right">${r.calls} calls</td><td style="${cell};text-align:right">${usd(Number(r.cost))}</td><td style="${cell};text-align:right;color:#888">typical ${usd(r.p50)}</td></tr>`).join('')}</table>` : ''}
+${outliers.length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">Unusual calls</p>${outliers.map((c) => { const f = diagnose(c, norms[c.route!])[0]; return `<div style="font-size:13px;padding:8px 0;border-bottom:1px solid #eee"><b style="font-family:monospace">${esc(c.route)}</b> · ${usd(c.cost)} (${esc(c.ratio)}× median)<br><span style="color:#555">${esc(f.text)}</span>${f.tweak ? `<br><span style="color:#888;font-size:12px">→ ${esc(f.tweak)}</span>` : ''}</div>` }).join('')}` : ''}
 ${(d.sources ?? []).length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">Sources this week</p><table style="border-collapse:collapse;width:100%">${(d.sources as any[]).slice(0, 6).map((s) => `<tr><td style="${cell}">${esc(s.source)}</td><td style="${cell};text-align:right">${s.signups} signups</td><td style="${cell};text-align:right">${s.started} started</td><td style="${cell};text-align:right">${s.subscribed} subscribed</td></tr>`).join('')}</table>` : ''}
 ${(d.heard_from ?? []).length ? `<p style="font-size:13px;margin:18px 0 6px;font-weight:600">In their words</p>${(d.heard_from as any[]).slice(0, 5).map((h) => `<div style="font-size:13px;color:#444">“${esc(h.text)}”</div>`).join('')}` : ''}
 ${(d.billing_recent ?? []).filter((b: any) => b.detail?.feedback || b.detail?.comment).slice(0, 3).map((b: any) => `<div style="font-size:13px;color:#444;margin-top:6px">${esc(b.kind.replace(/_/g, ' '))}: ${esc(b.detail.feedback ?? '')} ${b.detail.comment ? `“${esc(b.detail.comment)}”` : ''}</div>`).join('')}
 </div>`
 
-  const subject = `Companheiro · ${dayName}: ${y.signups} signup${y.signups === 1 ? '' : 's'}, ${eur(Number(y.ai_cost))} AI${y.subscribed ? `, +${y.subscribed} sub` : ''}${alerts.length ? ` · ⚠ ${alerts.length}` : ''}`
+  const subject = `Companheiro · ${dayName}: ${y.signups} signup${y.signups === 1 ? '' : 's'}, ${usd(Number(y.ai_cost))} AI${y.subscribed ? `, +${y.subscribed} sub` : ''}${alerts.length ? ` · ⚠ ${alerts.length}` : ''}`
   return { subject, html }
 }
