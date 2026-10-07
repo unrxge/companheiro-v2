@@ -13,8 +13,8 @@
 import { execFileSync } from 'child_process'
 import { compareSchemas } from './compare-schemas.mjs'
 
-// The name Vercel signs its result with on each commit (the old studio project reports separately).
-const VERCEL_CHECK = 'Vercel – companheiro-v2'
+// The lab's deployment as GitHub lists it (the old studio project reports separately).
+const LAB_DEPLOYMENT = 'Preview – companheiro-v2'
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const stop = (message) => { console.error(`\nNot promoted. ${message}`); process.exit(1) }
@@ -38,14 +38,17 @@ if (git('log', '--oneline', `${lab}..${main}`)) {
 }
 
 const repo = git('remote', 'get-url', 'origin').replace(/^.*github\.com[:/]/, '').replace(/\.git$/, '')
+const gh = (path) => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))
 let state
 try {
-  const statuses = JSON.parse(execFileSync('gh', ['api', `repos/${repo}/commits/${lab}/status`], { encoding: 'utf8' })).statuses
-  state = statuses.find((s) => s.context === VERCEL_CHECK)?.state
+  // Asked per deployment, not per commit: a commit that is on both branches
+  // carries the live deployment's result too, and that one proves nothing here.
+  const deployment = gh(`repos/${repo}/deployments?sha=${lab}&per_page=30`).find((d) => d.environment === LAB_DEPLOYMENT)
+  state = deployment ? gh(`repos/${repo}/deployments/${deployment.id}/statuses`)[0]?.state : undefined
 } catch {
   stop('Could not ask GitHub how the lab deployment went.')
 }
-if (state !== 'success') stop(`The lab deployment of ${lab.slice(0, 7)} is ${state ?? 'not there yet'}; it has to be up and working first.`)
+if (state !== 'success') stop(`The lab deployment of ${lab.slice(0, 7)} is ${state ?? 'not there'}; it has to be up and working first.`)
 console.log('\nLab deployment: up.')
 
 try {
