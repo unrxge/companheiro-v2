@@ -8,6 +8,8 @@ import { AccessGate } from "@/components/billing/access-gate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { SPLASH_SCREENS } from "@/lib/splash";
 import { shell } from "@/lib/design-tokens";
+import { IS_LAB } from "@/lib/deploy-env";
+import { LabMark } from "@/components/shell/lab-mark";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -45,6 +47,8 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  // A lab deployment stays out of search results even if a link to it leaks.
+  ...(IS_LAB ? { robots: { index: false, follow: false } } : {}),
   // The preview image comes from app/opengraph-image.tsx (Next wires it in).
   openGraph: {
     type: "website",
@@ -94,6 +98,7 @@ export default function RootLayout({
           <ConfirmProvider>
             {children}
             <AccessGate />
+            {IS_LAB && <LabMark />}
           </ConfirmProvider>
         </ThemeProvider>
       </body>

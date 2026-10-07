@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import { assertWiring } from "./src/lib/deploy-env";
+
+// A lab build wired to the live database (or the reverse) stops here.
+assertWiring();
 
 const nextConfig: NextConfig = {
   async redirects() {
