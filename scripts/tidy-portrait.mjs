@@ -95,31 +95,47 @@ Answer with the JSON object and nothing else: { "rewrites": [{ "id": "<id>", "st
 if (job === 'merge') {
   const SYSTEM = `Each item is a one-sentence observation about the same person, all from one section of their profile. Find groups of items that state the SAME pattern in different words, so that keeping both tells the person nothing extra. Related-but-distinct observations are not duplicates; when unsure, do not group. Most items belong to no group.
 Answer with the JSON object and nothing else: { "groups": [["<id>", "<id>", ...], ...] }`
+  // As with reword: the preview saves its proposal and --write applies exactly
+  // that file, so what is folded is what was shown.
+  const PLAN = '.research/portrait-merge.json'
+  let plan
+  if (write) {
+    plan = JSON.parse(readFileSync(PLAN, 'utf8'))
+  } else {
+    plan = []
+    const groupsOf = new Map()
+    for (const e of entries) { const k = `${e.user_id}|${e.kind}`; groupsOf.set(k, [...(groupsOf.get(k) ?? []), e]) }
+    for (const list of groupsOf.values()) {
+      if (list.length < 2) continue
+      const { groups = [] } = await ask(SYSTEM, list.map((e) => `[${e.id}] ${e.statement}`).join('\n'), 1500)
+      for (const ids of groups) {
+        const set = [...new Set(ids)].map((id) => list.find((e) => e.id === id)).filter(Boolean)
+        if (set.length < 2) continue
+        set.sort((a, b) => b.reinforcement_count - a.reinforcement_count || b.last_reinforced_at.localeCompare(a.last_reinforced_at))
+        plan.push({ keep: set[0].id, fold: set.slice(1).map((e) => e.id) })
+      }
+    }
+    mkdirSync('.research', { recursive: true })
+    writeFileSync(PLAN, JSON.stringify(plan, null, 2))
+  }
   let folded = 0
-  const groupsOf = new Map()
-  for (const e of entries) { const k = `${e.user_id}|${e.kind}`; groupsOf.set(k, [...(groupsOf.get(k) ?? []), e]) }
-  for (const [k, list] of groupsOf) {
-    if (list.length < 2) continue
-    const { groups = [] } = await ask(SYSTEM, list.map((e) => `[${e.id}] ${e.statement}`).join('\n'), 1500)
-    for (const ids of groups) {
-      const set = [...new Set(ids)].map((id) => list.find((e) => e.id === id)).filter(Boolean)
-      if (set.length < 2) continue
-      set.sort((a, b) => b.reinforcement_count - a.reinforcement_count || b.last_reinforced_at.localeCompare(a.last_reinforced_at))
-      const [keep, ...rest_] = set
-      folded += rest_.length
-      console.log(`${label(k.split('|')[0])} · ${k.split('|')[1]}\n  keep: ${keep.statement}`)
-      for (const r of rest_) console.log(`  fold: ${r.statement}`)
-      console.log()
-      if (write) {
-        await rest(`portrait_entries?id=eq.${keep.id}`, { method: 'PATCH', body: JSON.stringify({
-          reinforcement_count: set.reduce((n, e) => n + e.reinforcement_count, 0),
-          last_reinforced_at: set.map((e) => e.last_reinforced_at).sort().pop(),
-        }) })
-        for (const r of rest_) {
-          await rest(`portrait_entries?id=eq.${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'dormant' }) })
-          // Carry its check-in links over where the table exists (migration 033).
-          await rest(`portrait_evidence?entry_id=eq.${r.id}`, { method: 'PATCH', body: JSON.stringify({ entry_id: keep.id }) }).catch(() => {})
-        }
+  for (const g of plan) {
+    const keep = entries.find((e) => e.id === g.keep)
+    const rest_ = g.fold.map((id) => entries.find((e) => e.id === id)).filter(Boolean)
+    if (!keep || rest_.length === 0) continue
+    const set = [keep, ...rest_]
+    folded += rest_.length
+    console.log(`${label(keep.user_id)} · ${keep.kind}\n  keep: ${keep.statement}`)
+    for (const r of rest_) console.log(`  fold: ${r.statement}`)
+    console.log()
+    if (write) {
+      await rest(`portrait_entries?id=eq.${keep.id}`, { method: 'PATCH', body: JSON.stringify({
+        reinforcement_count: set.reduce((n, e) => n + e.reinforcement_count, 0),
+        last_reinforced_at: set.map((e) => e.last_reinforced_at).sort().pop(),
+      }) })
+      for (const r of rest_) {
+        await rest(`portrait_entries?id=eq.${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'dormant' }) })
+        await rest(`portrait_evidence?entry_id=eq.${r.id}`, { method: 'PATCH', body: JSON.stringify({ entry_id: keep.id }) }).catch(() => {})
       }
     }
   }
