@@ -5,7 +5,9 @@ import type { AuthedContext } from './supabase/route'
 
 import { DECAY_DAYS } from './portrait-kinds'
 
-const ACTIVE_ENTRY_CAP = 15
+// Per section. The portrait is something people come to read about
+// themselves, so each section keeps room for a real body of evidence.
+const ACTIVE_PER_KIND_CAP = 10
 
 export type PortraitSource = 'check_in' | 'conceptualise' | 'zoom_out' | 'writing'
 export type PortraitKind =
@@ -126,6 +128,11 @@ Kinds:
 - creative_pattern: how they approach ideation/development (e.g. "resists structure early, needs to circle an idea loosely before committing")
 - guidance_note: what kind of companioning strategy actually works or doesn't (e.g. "direct challenge lands; open 'how does that feel' questions get deflected")
 
+How to word a statement. The person will read these about themselves, and they are carried into every future conversation:
+- Refer to the person as "they" / "them" / "their". Never "she", "he", "her", "his", whatever the material suggests.
+- Refer to other people by their role in the person's life ("a partner", "a parent", "a manager", "a friend"), never by name. Use a specific role only when the material states the relationship; otherwise "someone close to them". Never guess a relationship.
+- Before proposing a new entry, check it is not a rewording of an existing one. If it is the same pattern, reinforce the existing entry instead.
+
 Be conservative. A wrong or premature entry is worse than no entry. Return ONLY entries you'd stake real confidence on.
 
 Return as JSON:
@@ -135,31 +142,38 @@ Return as JSON:
 }
 If nothing qualifies, return { "reinforce_ids": [], "new_entries": [] }.`
 
-// Keeps the portrait small and current by retiring the weakest active entry
-// once the cap is exceeded — not a growing dossier.
+// Keeps each section within its cap by retiring its weakest entries (least
+// reinforced, then longest since last seen). Retires as many as it takes:
+// trimming one per call let the portrait drift far past its limit.
 async function enforceActiveCap({ supabase, user }: AuthedContext): Promise<void> {
   const { data: active } = await supabase
     .from('portrait_entries')
-    .select('id, reinforcement_count, last_reinforced_at')
+    .select('id, kind, reinforcement_count, last_reinforced_at')
     .eq('user_id', user.id)
     .eq('status', 'active')
+  if (!active) return
 
-  if (active && active.length > ACTIVE_ENTRY_CAP) {
-    const weakest = [...active].sort((a, b) => {
-      if (a.reinforcement_count !== b.reinforcement_count) {
-        return a.reinforcement_count - b.reinforcement_count
-      }
-      return new Date(a.last_reinforced_at).getTime() - new Date(b.last_reinforced_at).getTime()
-    })[0]
+  const retire = overCap(active)
+  if (retire.length === 0) return
+  await supabase.from('portrait_entries').update({ status: 'dormant' }).in('id', retire).eq('user_id', user.id)
+}
 
-    if (weakest) {
-      await supabase
-        .from('portrait_entries')
-        .update({ status: 'dormant' })
-        .eq('id', weakest.id)
-        .eq('user_id', user.id)
-    }
+export function overCap(
+  active: Array<{ id: string; kind: string; reinforcement_count: number; last_reinforced_at: string }>,
+  cap = ACTIVE_PER_KIND_CAP
+): string[] {
+  const byKind = new Map<string, typeof active>()
+  for (const e of active) byKind.set(e.kind, [...(byKind.get(e.kind) ?? []), e])
+  const retire: string[] = []
+  for (const list of byKind.values()) {
+    const strongestFirst = [...list].sort(
+      (a, b) =>
+        b.reinforcement_count - a.reinforcement_count ||
+        new Date(b.last_reinforced_at).getTime() - new Date(a.last_reinforced_at).getTime()
+    )
+    retire.push(...strongestFirst.slice(cap).map((e) => e.id))
   }
+  return retire
 }
 
 // Proposes 0-2 new portrait entries and/or reinforces existing ones based on
