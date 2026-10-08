@@ -31,6 +31,10 @@ function readEnv(name) {
   )
 }
 
+// Newer Supabase projects name the same column types differently in this
+// listing (int32 where an older one says integer), so both are put in one spelling.
+const SAME_TYPE = { int16: 'smallint', int32: 'integer', int64: 'bigint' }
+
 async function shapeOf(env, label) {
   const url = env.NEXT_PUBLIC_SUPABASE_URL
   const key = env.SUPABASE_SERVICE_ROLE_KEY
@@ -41,7 +45,7 @@ async function shapeOf(env, label) {
   const things = new Set()
   for (const [table, def] of Object.entries(spec.definitions ?? {})) {
     things.add(`table ${table}`)
-    for (const [column, p] of Object.entries(def.properties ?? {})) things.add(`column ${table}.${column} (${p.format ?? p.type})`)
+    for (const [column, p] of Object.entries(def.properties ?? {})) things.add(`column ${table}.${column} (${SAME_TYPE[p.format] ?? p.format ?? p.type})`)
   }
   for (const path of Object.keys(spec.paths ?? {})) if (path.startsWith('/rpc/')) things.add(`function ${path.slice(5)}`)
   return things
