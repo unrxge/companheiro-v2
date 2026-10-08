@@ -41,6 +41,24 @@ export interface BoardItemContent {
   swatches?: Swatch[]
 }
 
+/** What each part of a content block is when it has never been set. */
+const EMPTY_CONTENT: Required<BoardItemContent> = {
+  title: '', caption: '', tasks: [], writing_closed: false, swatches: [],
+}
+
+/**
+ * The content patch that puts `patch` back: the old value of each part it
+ * touches, and the empty one where there was nothing there before. Content is
+ * merged rather than replaced, so only the named parts have to be named back.
+ */
+export function contentBack(was: BoardItemContent, patch: BoardItemContent): BoardItemContent {
+  const back: Record<string, unknown> = {}
+  for (const key of Object.keys(patch) as (keyof BoardItemContent)[]) {
+    back[key] = was[key] ?? EMPTY_CONTENT[key]
+  }
+  return back as BoardItemContent
+}
+
 export interface BoardItem {
   id: string
   user_id: string

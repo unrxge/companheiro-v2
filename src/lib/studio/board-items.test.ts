@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addSpotX, arrange, canResize, imageHeight, isWritingTask, itemWidth, keepBelow, packSpans } from './board-items'
+import { addSpotX, arrange, canResize, contentBack, imageHeight, isWritingTask, itemWidth, keepBelow, packSpans } from './board-items'
 import type { ArrangeColumn, ArrangeThing } from './board-items'
 
 test('images resize widely, a task list a little, a recording not at all', () => {
@@ -261,4 +261,13 @@ test("a card's own things hang below that card, not below the highest one", () =
   const at = arrange({ things: [thing('x', ['b']), thing('y', ['a'])], columns, top: TOP, gap: GAP, minX: 80 })
   assert.ok(at.get('x')!.y >= TOP + 600, 'it followed its own card down')
   assert.equal(at.get('y')!.y, TOP, 'the other card keeps its own line')
+})
+
+test('putting a content change back names only the parts it touched', () => {
+  const was = { caption: 'the old one', swatches: [{ id: 'a', hex: '#fff', name: '' }] }
+  assert.deepEqual(contentBack(was, { caption: 'new' }), { caption: 'the old one' })
+  // nothing there before: the empty value, not undefined, which a merge would ignore
+  assert.deepEqual(contentBack(was, { title: 'new' }), { title: '' })
+  assert.deepEqual(contentBack(was, { writing_closed: true }), { writing_closed: false })
+  assert.deepEqual(contentBack(was, { swatches: [] }), { swatches: was.swatches })
 })

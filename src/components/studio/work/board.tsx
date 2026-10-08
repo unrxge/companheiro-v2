@@ -39,9 +39,10 @@ import {
 } from '@/components/studio/work/board-items'
 import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import {
-  addSpotX, arrange, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
+  addSpotX, arrange, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
+import { useUndo } from '@/lib/studio/use-undo'
 import type { AssetView } from '@/lib/studio/types'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
@@ -140,8 +141,6 @@ export interface BoardActions {
   renameProject: (title: string) => void
   editProjectIntent: (intent: string) => void
   editProjectRules: (rules: Rule[]) => void
-  /** Clears every hand placement at once: pieces, hubs and items all return
-   *  to their auto positions. */
   // ── what else a piece's "+" makes ─────────────────────────────────────────
   addTaskList: (pieceId: string) => Promise<BoardItem>
   addPalette: (pieceId: string) => Promise<BoardItem>
@@ -320,13 +319,11 @@ export function Board({
     return map
   }, [threads, appearancesFor])
 
-  /** The threads that actually have a hub — the ones with at least one piece.
-   *  A thread started from a card is tagged to it immediately, so it has a
-   *  hub from birth. */
-  const hubs = useMemo(
-    () => threads.filter((th) => (presence.get(th.id)?.roots.size ?? 0) > 0),
-    [threads, presence],
-  )
+  /** Every thread has a hub, including one that runs through nothing.
+   *  Hiding those took a thread off the board the moment its last piece was
+   *  unticked — it still existed, but there was no way to see it or run it
+   *  anywhere again. One with no piece simply stands on its own. */
+  const hubs = threads
 
   const pieceIds = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
   const itemW = useCallback(
@@ -452,6 +449,182 @@ export function Board({
     ...items.map((it) => ({ ...itemAt(it), w: itemW(it), h: itemH(it) })),
   ], [hubs, hubAt, items, itemAt, itemW, itemH])
 
+  // ── one step back ─────────────────────────────────────────────────────────
+
+  const history = useUndo()
+  const { remember } = history
+
+  /**
+   * The same actions, each one keeping the way back from itself first.
+   *
+   * It wraps rather than reaches inside, so every call below is unchanged and
+   * nothing can be moved, joined or let go of on this canvas without the way
+   * back being kept. What is here is what can be put back exactly: moves,
+   * sizes, connections, names, order, and the things the "+" makes. Deleting
+   * is not — a deleted row cannot be made again as itself, and an undo that
+   * quietly puts a near-enough copy in its place is worse than none.
+   */
+  const act = useMemo<BoardActions>(() => {
+    const pieceOf = (id: string) => pieces.find((p) => p.id === id)
+    const itemOf = (id: string) => items.find((it) => it.id === id)
+    /** Where something is kept by hand, or null when it has never been moved. */
+    const spotOf = (thing: { board_x?: number | null; board_y?: number | null }): Point | null =>
+      thing.board_x === null || thing.board_x === undefined
+        || thing.board_y === null || thing.board_y === undefined
+        ? null
+        : { x: thing.board_x, y: thing.board_y }
+
+    /**
+     * A thread or an item that loses its last piece belongs to no card any
+     * more, so it would be placed below the whole board — it would seem to
+     * leap away from under the hand that just unticked it. Letting go of the
+     * last connection pins it where it already is instead, and the undo takes
+     * the pin off again with the connection it puts back.
+     */
+    const pinThread = (th: Thread): boolean => {
+      if (spotOf(th)) return false
+      actions.moveThread(th.id, kept(hubAt(th)))
+      return true
+    }
+
+    return {
+      ...actions,
+
+      movePiece: (id, at) => {
+        const was = pieceOf(id)
+        if (was) remember('the move', () => actions.movePiece(id, spotOf(was)))
+        actions.movePiece(id, at)
+      },
+
+      moveThread: (id, at) => {
+        const was = threads.find((th) => th.id === id)
+        if (was) remember('the move', () => actions.moveThread(id, spotOf(was)))
+        actions.moveThread(id, at)
+      },
+
+      renamePiece: (id, title) => {
+        const was = pieceOf(id)
+        if (was && was.title !== title) remember('the rename', () => actions.renamePiece(id, was.title))
+        actions.renamePiece(id, title)
+      },
+
+      reorder: (ids) => {
+        const was = pieces.map((p) => p.id)
+        remember('the reordering', () => actions.reorder(was))
+        actions.reorder(ids)
+      },
+
+      editThread: (id, patch) => {
+        const was = threads.find((th) => th.id === id)
+        if (was) {
+          const back = Object.fromEntries(
+            Object.keys(patch).map((key) => [key, was[key as keyof Thread]]),
+          ) as Partial<Thread>
+          remember('the change', () => actions.editThread(id, back))
+        }
+        actions.editThread(id, patch)
+      },
+
+      tag: (nodeId, threadId, note) => {
+        const had = tagFor(nodeId, threadId)
+        remember(
+          had ? 'the note' : 'the connection',
+          () => (had ? actions.tag(nodeId, threadId, had.note) : actions.untag(nodeId, threadId)),
+        )
+        actions.tag(nodeId, threadId, note)
+      },
+
+      untag: (nodeId, threadId) => {
+        const had = tagFor(nodeId, threadId)
+        const th = threads.find((t) => t.id === threadId)
+        const roots = presence.get(threadId)?.roots ?? new Set<string>()
+        const pinned = th && roots.size <= 1 && roots.has(nodeId) ? pinThread(th) : false
+        remember('the disconnection', () => {
+          actions.tag(nodeId, threadId, had?.note)
+          if (pinned) actions.moveThread(threadId, null)
+        })
+        actions.untag(nodeId, threadId)
+      },
+
+      patchItem: (id, patch) => {
+        const was = itemOf(id)
+        if (was) {
+          const back: PatchItemRequest = {}
+          let label = 'the change'
+          if ('board_x' in patch || 'board_y' in patch) {
+            back.board_x = was.board_x
+            back.board_y = was.board_y
+            label = 'the move'
+          }
+          if ('w' in patch) { back.w = was.w; label = 'the resize' }
+          if (patch.node_ids) {
+            back.node_ids = was.node_ids
+            label = patch.node_ids.length < was.node_ids.length ? 'the disconnection' : 'the connection'
+            // Same as a thread's last piece: pin it where it stands rather
+            // than letting it drop below the board.
+            if (patch.node_ids.length === 0 && !spotOf(was)) {
+              const at = kept(itemAt(was))
+              patch = { ...patch, board_x: at.x, board_y: at.y }
+            }
+          }
+          if (patch.content) back.content = contentBack(was.content, patch.content)
+          remember(label, () => actions.patchItem(id, back))
+        }
+        actions.patchItem(id, patch)
+      },
+
+      toggleTask: (task) => {
+        // Toggling reads the status of the task it is handed, so the way back
+        // is the same task carrying the status it is about to be given.
+        const after = { ...task, status: (task.status === 'complete' ? 'pending' : 'complete') as ProjectTask['status'] }
+        remember(task.status === 'complete' ? 'the untick' : 'the tick', () => actions.toggleTask(after))
+        actions.toggleTask(task)
+      },
+
+      reorderTasks: (ids) => {
+        const was = tasks.map((t) => t.id)
+        remember('the reordering', () => actions.reorderTasks(was))
+        actions.reorderTasks(ids)
+      },
+
+      addTaskList: async (pieceId) => {
+        const made = await actions.addTaskList(pieceId)
+        remember('adding the task list', () => actions.removeItem(made))
+        return made
+      },
+      addPalette: async (pieceId) => {
+        const made = await actions.addPalette(pieceId)
+        remember('adding the palette', () => actions.removeItem(made))
+        return made
+      },
+      addImage: async (pieceId, file) => {
+        const made = await actions.addImage(pieceId, file)
+        remember('adding the image', () => actions.removeItem(made))
+        return made
+      },
+      addRecording: async (pieceId, file, opts) => {
+        const made = await actions.addRecording(pieceId, file, opts)
+        remember('adding the recording', () => actions.removeItem(made))
+        return made
+      },
+    }
+  }, [actions, hubAt, itemAt, items, kept, pieces, presence, remember, tagFor, tasks, threads])
+
+  // ⌘Z, the way everyone already asks for this. Held off anything being typed
+  // in, where the browser's own undo is the one that is wanted.
+  useEffect(() => {
+    if (disabled) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'z' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
+      const on = e.target as HTMLElement | null
+      if (on && (on.isContentEditable || /^(input|textarea|select)$/i.test(on.tagName))) return
+      e.preventDefault()
+      history.undo()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [disabled, history])
+
   const laneEnd = pieces.length
     ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
     : LEFT_ROOM + MARGIN
@@ -502,8 +675,8 @@ export function Board({
     const to = from + delta
     if (from === -1 || to < 0 || to >= ids.length) return
     ids.splice(to, 0, ids.splice(from, 1)[0])
-    actions.reorder(ids)
-  }, [actions, pieces])
+    act.reorder(ids)
+  }, [act, pieces])
 
   /** One drag gesture, for anything on the board. Persists the drop only
    *  when the pointer actually travelled — a plain click never moves
@@ -576,13 +749,13 @@ export function Board({
       target.removeEventListener('pointerup', onUp)
       target.removeEventListener('pointercancel', onUp)
       if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
-      if (w !== startW) actions.patchItem(item.id, { w })
+      if (w !== startW) act.patchItem(item.id, { w })
       setResizing(null)
     }
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [actions, canvas.zoom, disabled])
+  }, [act, canvas.zoom, disabled])
 
   /** Every hand placement, gone at once: hubs and items back under their pieces. */
 
@@ -614,8 +787,8 @@ export function Board({
     const on = presence.get(thread.id)?.roots ?? new Set<string>()
     const wouldBeEverywhere = pieces.length > 1 && !on.has(piece.id) && on.size + 1 >= pieces.length
     if (wouldBeEverywhere) { setAsking({ thread, toId: piece.id }); return }
-    actions.tag(piece.id, thread.id)
-  }, [actions, arming, pieces.length, presence, threads])
+    act.tag(piece.id, thread.id)
+  }, [act, arming, pieces.length, presence, threads])
 
   /** An item joins the piece clicked, or leaves it if it was already there.
    *  With no piece left it simply stands on its own. */
@@ -624,18 +797,18 @@ export function Board({
     setArmingItem(null)
     if (!item) return
     const on = item.node_ids.filter((id) => pieceIds.has(id))
-    actions.patchItem(item.id, { node_ids: on.includes(piece.id) ? on.filter((id) => id !== piece.id) : [...on, piece.id] })
-  }, [actions, armingItem, items, pieceIds])
+    act.patchItem(item.id, { node_ids: on.includes(piece.id) ? on.filter((id) => id !== piece.id) : [...on, piece.id] })
+  }, [act, armingItem, items, pieceIds])
 
   /** A thread begins on a piece: born in that card's colour, already running
    *  through it, and opened so it can be named and carried to the others. */
   const addThreadFrom = useCallback(async (piece: TreeNode, i: number) => {
-    const created = await actions.addThread(pieceHue(i))
+    const created = await act.addThread(pieceHue(i))
     if (!created) return
-    actions.tag(piece.id, created.id)
+    act.tag(piece.id, created.id)
     setBorn(created.id)
     setOpenThread(created.id)
-  }, [actions])
+  }, [act])
 
   // What this canvas's "+" offers, and which of those the plan does not carry.
   const choices = useMemo<PlusChoice[]>(
@@ -658,21 +831,21 @@ export function Board({
     if (choice === 'thread') { void addThreadFrom(piece, i); return }
     if (choice === 'image') { imageFor.current = piece.id; imagePicker.current?.click(); return }
     if (choice === 'recording') { setRecorderFor(piece.id); return }
-    const made = choice === 'palette' ? actions.addPalette(piece.id) : actions.addTaskList(piece.id)
+    const made = choice === 'palette' ? act.addPalette(piece.id) : act.addTaskList(piece.id)
     made
       .then((it) => setBorn(it.id))
       .catch((e: unknown) => say(e instanceof Error && e.message ? e.message : 'That did not save. Try again.'))
-  }, [actions, addThreadFrom, say])
+  }, [act, addThreadFrom, say])
 
   const onPlus = useCallback((piece: TreeNode, i: number) => {
     // With nothing but threads to offer, the "+" is what it always was.
     if (choices.length === 1) {
-      if (lockedChoices.includes('thread')) actions.onLocked('thread')
+      if (lockedChoices.includes('thread')) act.onLocked('thread')
       else void addThreadFrom(piece, i)
       return
     }
     setMenuFor((cur) => (cur === piece.id ? null : piece.id))
-  }, [actions, addThreadFrom, choices.length, lockedChoices])
+  }, [act, addThreadFrom, choices.length, lockedChoices])
 
   const onImageChosen = useCallback(async (file: File | undefined) => {
     const pieceId = imageFor.current
@@ -680,13 +853,13 @@ export function Board({
     if (!file || !pieceId) return
     setWord({ text: 'Adding the image…', busy: true })
     try {
-      const it = await actions.addImage(pieceId, file)
+      const it = await act.addImage(pieceId, file)
       setBorn(it.id)
       setWord(null)
     } catch (e) {
       say(e instanceof Error && e.message ? e.message : 'The image could not be added. Try again.')
     }
-  }, [actions, say])
+  }, [act, say])
 
   // the entrance plays once; after that it is just a block on the board
   useEffect(() => {
@@ -735,7 +908,11 @@ export function Board({
         ariaLabel="The board — the pieces of this project and what hangs under them"
         chrome={
           <>
-            <ZoomPill canvas={canvas} onHome={canvas.resetView} />
+            <ZoomPill
+              canvas={canvas}
+              onHome={canvas.resetView}
+              after={disabled ? undefined : <UndoButton next={history.next} onUndo={history.undo} />}
+            />
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
                 Pick the piece <strong style={{ color: hueOf(t, armedThread.hue), fontWeight: 600 }}>{armedThread.name || 'this thread'}</strong> runs through next
@@ -822,9 +999,9 @@ export function Board({
             rules={project.rules}
             expanded={visionOpen}
             onToggle={() => setVisionOpen((v) => !v)}
-            onRename={actions.renameProject}
-            onEditIntent={actions.editProjectIntent}
-            onEditRules={actions.editProjectRules}
+            onRename={act.renameProject}
+            onEditIntent={act.editProjectIntent}
+            onEditRules={act.editProjectRules}
             disabled={disabled}
             conversationLog={project.conceptualisation_log}
             coreConceptHref={project.coreConceptHref}
@@ -888,7 +1065,7 @@ export function Board({
           return (
             <div
               key={piece.id}
-              onPointerDown={beginDrag('piece', piece.id, at, (landed) => actions.movePiece(piece.id, kept(landed)))}
+              onPointerDown={beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
                 cursor: disabled ? 'default' : 'grab', touchAction: 'none',
@@ -906,9 +1083,9 @@ export function Board({
                 dimmed={Boolean(armedOn && armedOn.has(piece.id))}
                 targeted={targeted}
                 disabled={disabled}
-                onOpen={(el) => actions.openPiece(piece.id, el)}
-                onRename={(title) => actions.renamePiece(piece.id, title)}
-                onRemove={() => actions.removePiece(piece)}
+                onOpen={(el) => act.openPiece(piece.id, el)}
+                onRename={(title) => act.renamePiece(piece.id, title)}
+                onRemove={() => act.removePiece(piece)}
                 onMove={(d) => move(piece.id, d)}
               />
               {targeted && (
@@ -942,7 +1119,7 @@ export function Board({
                   available={choices}
                   locked={lockedChoices}
                   onPick={(choice) => pick(choice, piece, i)}
-                  onLocked={(choice) => { setMenuFor(null); actions.onLocked(choice) }}
+                  onLocked={(choice) => { setMenuFor(null); act.onLocked(choice) }}
                   onClose={() => setMenuFor(null)}
                 />
               )}
@@ -956,7 +1133,7 @@ export function Board({
           return (
             <div
               key={th.id}
-              onPointerDown={beginDrag('hub', th.id, at, (landed) => actions.moveThread(th.id, kept(landed)))}
+              onPointerDown={beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
@@ -971,7 +1148,7 @@ export function Board({
                 disabled={disabled}
                 onOpen={() => setOpenThread(th.id)}
                 onConnect={() => arm(th)}
-                onRemove={() => actions.removeThread(th.id)}
+                onRemove={() => act.removeThread(th.id)}
               />
             </div>
           )
@@ -982,13 +1159,13 @@ export function Board({
           const at = itemAt(it)
           const w = itemW(it)
           const asset = it.asset_id ? assets[it.asset_id] : undefined
-          const stale = () => { if (it.asset_id) actions.refreshAsset(it.asset_id) }
+          const stale = () => { if (it.asset_id) act.refreshAsset(it.asset_id) }
           return (
             <div
               key={it.id}
               onPointerDown={beginDrag('item', it.id, at, (landed) => {
                 const k = kept(landed)
-                actions.patchItem(it.id, { board_x: k.x, board_y: k.y })
+                act.patchItem(it.id, { board_x: k.x, board_y: k.y })
               })}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
@@ -1006,7 +1183,7 @@ export function Board({
                 disabled={disabled}
                 padded={it.kind !== 'image'}
                 onConnect={() => { setArming(null); setArmingItem((cur) => (cur === it.id ? null : it.id)) }}
-                onRemove={() => actions.removeItem(it)}
+                onRemove={() => act.removeItem(it)}
                 onResizeStart={beginResize(it)}
                 onHeight={(h) => setHeights((prev) => (prev[it.id] === h ? prev : { ...prev, [it.id]: h }))}
               >
@@ -1016,7 +1193,7 @@ export function Board({
                     asset={asset}
                     width={w - 2}
                     disabled={disabled}
-                    onCaption={(caption) => actions.patchItem(it.id, { content: { caption } })}
+                    onCaption={(caption) => act.patchItem(it.id, { content: { caption } })}
                     onStale={stale}
                   />
                 )}
@@ -1025,7 +1202,7 @@ export function Board({
                     item={it}
                     asset={asset}
                     disabled={disabled}
-                    onTitle={(title) => actions.patchItem(it.id, { content: { title } })}
+                    onTitle={(title) => act.patchItem(it.id, { content: { title } })}
                     onStale={stale}
                   />
                 )}
@@ -1033,7 +1210,7 @@ export function Board({
                   <PaletteBlock
                     item={it}
                     disabled={disabled}
-                    onContent={(content) => actions.patchItem(it.id, { content })}
+                    onContent={(content) => act.patchItem(it.id, { content })}
                   />
                 )}
                 {it.kind === 'tasks' && (
@@ -1042,11 +1219,11 @@ export function Board({
                     pieces={piecesFor(it)}
                     tasks={tasks}
                     disabled={disabled}
-                    onToggleTask={actions.toggleTask}
-                    onAddTask={actions.addTask}
-                    onRemoveTask={actions.removeTask}
-                    onReorderTasks={actions.reorderTasks}
-                    onContent={(content) => actions.patchItem(it.id, { content })}
+                    onToggleTask={act.toggleTask}
+                    onAddTask={act.addTask}
+                    onRemoveTask={act.removeTask}
+                    onReorderTasks={act.reorderTasks}
+                    onContent={(content) => act.patchItem(it.id, { content })}
                   />
                 )}
               </ItemShell>
@@ -1069,7 +1246,7 @@ export function Board({
               type="button"
               aria-label="Add a piece to this project"
               title="Add a piece"
-              onClick={() => actions.addPiece(addX === cardX(pieces.length) ? null : addX)}
+              onClick={() => act.addPiece(addX === cardX(pieces.length) ? null : addX)}
               className="add-piece-box"
               style={{
                 width: '100%', height: addPieceH,
@@ -1107,20 +1284,20 @@ export function Board({
           tagFor={tagFor}
           disabled={disabled}
           onClose={() => setOpenThread(null)}
-          onEdit={(patch) => actions.editThread(openThread, patch)}
-          onTag={(nodeId) => actions.tag(nodeId, openThread)}
-          onNote={(nodeId, note) => actions.tag(nodeId, openThread, note)}
-          onUntag={(nodeId) => actions.untag(nodeId, openThread)}
-          onRemove={() => { setOpenThread(null); actions.removeThread(openThread) }}
-          onRead={() => { setOpenThread(null); actions.readThread(openThread) }}
+          onEdit={(patch) => act.editThread(openThread, patch)}
+          onTag={(nodeId) => act.tag(nodeId, openThread)}
+          onNote={(nodeId, note) => act.tag(nodeId, openThread, note)}
+          onUntag={(nodeId) => act.untag(nodeId, openThread)}
+          onRemove={() => { setOpenThread(null); act.removeThread(openThread) }}
+          onRead={() => { setOpenThread(null); act.readThread(openThread) }}
         />
       )}
 
       {asking && (
         <EverywhereDialog
           thread={asking.thread}
-          onConstraint={() => { actions.makeConstraint(asking.thread); setAsking(null) }}
-          onAnyway={() => { actions.tag(asking.toId, asking.thread.id); setAsking(null) }}
+          onConstraint={() => { act.makeConstraint(asking.thread); setAsking(null) }}
+          onAnyway={() => { act.tag(asking.toId, asking.thread.id); setAsking(null) }}
           onCancel={() => setAsking(null)}
         />
       )}
@@ -1129,7 +1306,7 @@ export function Board({
         <RecorderDialog
           onClose={() => setRecorderFor(null)}
           onDone={async (file, opts) => {
-            const it = await actions.addRecording(recorderFor, file, opts)
+            const it = await act.addRecording(recorderFor, file, opts)
             setBorn(it.id)
           }}
         />
@@ -1244,6 +1421,33 @@ function HubAct({ label, tone, onClick, children }: { label: string; tone: strin
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
         {children}
+      </svg>
+    </button>
+  )
+}
+
+/** One step back, sharing the zoom pill's glass. Named as the thing it would
+ *  put back, so it says what pressing it does before it is pressed. */
+function UndoButton({ next, onUndo }: { next: string | null; onUndo: () => void }) {
+  const label = next ? `undo ${next}` : 'nothing to undo'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={!next}
+      onClick={onUndo}
+      style={{
+        width: 30, height: 30, borderRadius: 999, padding: 0, border: 'none',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent',
+        color: next ? shell.muted : alpha(shell.muted, 0.35),
+        cursor: next ? 'pointer' : 'default',
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 9h11a5 5 0 0 1 0 10h-6" />
+        <path d="M8 5 4 9l4 4" />
       </svg>
     </button>
   )

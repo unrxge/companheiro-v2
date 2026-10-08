@@ -315,7 +315,7 @@ export function ZoomPill({
   canvas: Canvas
   onHome?: () => void
   /** Extra tools sharing this same glass pill, after a thin divider — e.g.
-   *  the board's "rearrange everything" button. */
+   *  the board's undo button. */
   after?: ReactNode
 }) {
   const at = Math.round(canvas.zoom * 100)
