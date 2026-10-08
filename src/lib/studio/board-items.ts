@@ -41,6 +41,18 @@ export interface BoardItemContent {
   swatches?: Swatch[]
 }
 
+/**
+ * Whether taking this off the canvas is worth asking about first. A picture or
+ * a recording takes its file with it, and a task list takes the tasks written
+ * straight onto it — those cannot be written again. An empty task list or a
+ * palette can, so they go without a word.
+ */
+export function asksBeforeRemoving(item: Pick<BoardItem, 'kind' | 'content'>): boolean {
+  if (item.kind === 'image' || item.kind === 'recording') return true
+  if (item.kind === 'tasks') return (item.content.tasks?.length ?? 0) > 0
+  return false
+}
+
 /** What each part of a content block is when it has never been set. */
 const EMPTY_CONTENT: Required<BoardItemContent> = {
   title: '', caption: '', tasks: [], writing_closed: false, swatches: [],

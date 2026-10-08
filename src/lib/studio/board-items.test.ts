@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addSpotX, arrange, canResize, contentBack, imageHeight, isWritingTask, itemWidth, keepBelow, packSpans } from './board-items'
+import { addSpotX, arrange, asksBeforeRemoving, canResize, contentBack, imageHeight, isWritingTask, itemWidth, keepBelow, packSpans } from './board-items'
 import type { ArrangeColumn, ArrangeThing } from './board-items'
 
 test('images resize widely, a task list a little, a recording not at all', () => {
@@ -270,4 +270,12 @@ test('putting a content change back names only the parts it touched', () => {
   assert.deepEqual(contentBack(was, { title: 'new' }), { title: '' })
   assert.deepEqual(contentBack(was, { writing_closed: true }), { writing_closed: false })
   assert.deepEqual(contentBack(was, { swatches: [] }), { swatches: was.swatches })
+})
+
+test('only what cannot be written again is asked about before it goes', () => {
+  assert.equal(asksBeforeRemoving({ kind: 'image', content: {} }), true)
+  assert.equal(asksBeforeRemoving({ kind: 'recording', content: {} }), true)
+  assert.equal(asksBeforeRemoving({ kind: 'palette', content: { swatches: [] } }), false)
+  assert.equal(asksBeforeRemoving({ kind: 'tasks', content: {} }), false)
+  assert.equal(asksBeforeRemoving({ kind: 'tasks', content: { tasks: [{ id: 'a', title: 'x', done: false }] } }), true)
 })

@@ -306,23 +306,12 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     await api.removeThread(th.id)
   }, [api, projectRules, setProjectField])
 
-  /** An image or a recording goes for good, file and all, so it asks first.
-   *  A task list asks only when it holds tasks of its own. */
-  const removeItem = useCallback(async (item: { id: string; kind: string; content: { tasks?: unknown[] } }) => {
-    const own = item.kind === 'tasks' ? item.content.tasks?.length ?? 0 : 0
-    if (item.kind !== 'tasks' || own > 0) {
-      const ok = await confirm({
-        title: item.kind === 'image' ? 'Remove this image?' : item.kind === 'recording' ? 'Remove this recording?' : 'Remove this task list?',
-        body: item.kind === 'tasks'
-          ? `The ${own === 1 ? 'task' : `${own} tasks`} added to it ${own === 1 ? 'goes' : 'go'} with it. The writing tasks stay where they are, on the pieces.`
-          : 'It is deleted, not only taken off the canvas. This cannot be undone.',
-        confirmLabel: 'Remove',
-        danger: true,
-      })
-      if (!ok) return
-    }
+  /** Taking an item off the canvas. The board asks about the ones worth asking
+   *  about and holds the request for a few seconds afterwards, so by the time
+   *  this runs the answer is already in. */
+  const removeItem = useCallback(async (item: { id: string }) => {
     await board.api.remove(item.id)
-  }, [board.api, confirm])
+  }, [board.api])
 
   /** Shaping, placing and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
   const reshape = useCallback(async (kind: 'shape' | 'place' | 'divide', pieceId: string, alreadyParts = false) => {

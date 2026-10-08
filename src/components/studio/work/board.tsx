@@ -39,9 +39,10 @@ import {
 } from '@/components/studio/work/board-items'
 import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import {
-  addSpotX, arrange, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
+  addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
+import { useDeferred } from '@/lib/studio/use-deferred'
 import { useUndo } from '@/lib/studio/use-undo'
 import type { AssetView } from '@/lib/studio/types'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -170,9 +171,9 @@ const THREADS_ONLY: BoardTools = { threads: true, media: true, items: false }
 
 export function Board({
   project,
-  pieces,
-  threads,
-  items = NO_ITEMS,
+  pieces: allPieces,
+  threads: allThreads,
+  items: allItems = NO_ITEMS,
   assets = NO_ASSETS,
   tasks = NO_TASKS,
   tools = THREADS_ONLY,
@@ -236,6 +237,20 @@ export function Board({
   const [heights, setHeights] = useState<Record<string, number>>({})
   const imagePicker = useRef<HTMLInputElement | null>(null)
   const imageFor = useRef<string | null>(null)
+  /**
+   * Removals waiting to be sent. What is removed goes off the board at once
+   * and the request waits a few seconds, which is the whole of the undo for
+   * deleting: taking it back in that time sends nothing at all.
+   */
+  const binned = useDeferred()
+  /** The removal being offered back, named, while its few seconds last. */
+  const [taking, setTaking] = useState<{ id: string; label: string; back: () => void } | null>(null)
+  /** A photo or recording whose removal would take the file with it. */
+  const [asked, setAsked] = useState<BoardItem | null>(null)
+
+  const pieces = useMemo(() => allPieces.filter((p) => !binned.hidden.has(p.id)), [allPieces, binned.hidden])
+  const threads = useMemo(() => allThreads.filter((th) => !binned.hidden.has(th.id)), [allThreads, binned.hidden])
+  const items = useMemo(() => allItems.filter((it) => !binned.hidden.has(it.id)), [allItems, binned.hidden])
 
   const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
   const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
@@ -452,7 +467,32 @@ export function Board({
   // ── one step back ─────────────────────────────────────────────────────────
 
   const history = useUndo()
-  const { remember } = history
+  const { forgetAbout, remember } = history
+
+  /**
+   * Taking something off the board. It goes at once and the request waits a
+   * few seconds, so taking it back in that time sends nothing — there is
+   * nothing to put back, because nothing happened. Those same seconds sit on
+   * top of the undo stack, so ⌘Z catches it too; once the request has gone the
+   * step is dropped, because from then on it is true that this cannot be
+   * undone.
+   */
+  const bin = useCallback((id: string, label: string, send: () => void) => {
+    let forget = () => {}
+    const clear = () => setTaking((cur) => (cur?.id === id ? null : cur))
+    binned.defer(id, () => {
+      forget()
+      // Once it has actually gone, every earlier step about it would do
+      // nothing: moving it, renaming it, the "+" that made it. Those go too.
+      forgetAbout(id)
+      clear()
+      send()
+    })
+    forget = remember(`removing ${label}`, () => { binned.cancel(id); clear() }, id)
+    // The notice and ⌘Z take the same one back, however many other things have
+    // happened in between.
+    setTaking({ id, label, back: () => { forget(); binned.cancel(id); clear() } })
+  }, [binned, forgetAbout, remember])
 
   /**
    * The same actions, each one keeping the way back from itself first.
@@ -490,21 +530,32 @@ export function Board({
     return {
       ...actions,
 
+      removeThread: (id) => {
+        const th = threads.find((t) => t.id === id)
+        bin(id, th?.name ? `“${th.name}”` : 'the thread', () => actions.removeThread(id))
+      },
+      removeItem: (item) => {
+        // What cannot be written again is asked about first; the rest simply
+        // goes, and the few seconds afterwards are the way back.
+        if (asksBeforeRemoving(item)) { setAsked(item); return }
+        bin(item.id, ITEM_LABEL[item.kind], () => actions.removeItem(item))
+      },
+
       movePiece: (id, at) => {
         const was = pieceOf(id)
-        if (was) remember('the move', () => actions.movePiece(id, spotOf(was)))
+        if (was) remember('the move', () => actions.movePiece(id, spotOf(was)), id)
         actions.movePiece(id, at)
       },
 
       moveThread: (id, at) => {
         const was = threads.find((th) => th.id === id)
-        if (was) remember('the move', () => actions.moveThread(id, spotOf(was)))
+        if (was) remember('the move', () => actions.moveThread(id, spotOf(was)), id)
         actions.moveThread(id, at)
       },
 
       renamePiece: (id, title) => {
         const was = pieceOf(id)
-        if (was && was.title !== title) remember('the rename', () => actions.renamePiece(id, was.title))
+        if (was && was.title !== title) remember('the rename', () => actions.renamePiece(id, was.title), id)
         actions.renamePiece(id, title)
       },
 
@@ -520,7 +571,7 @@ export function Board({
           const back = Object.fromEntries(
             Object.keys(patch).map((key) => [key, was[key as keyof Thread]]),
           ) as Partial<Thread>
-          remember('the change', () => actions.editThread(id, back))
+          remember('the change', () => actions.editThread(id, back), id)
         }
         actions.editThread(id, patch)
       },
@@ -530,6 +581,7 @@ export function Board({
         remember(
           had ? 'the note' : 'the connection',
           () => (had ? actions.tag(nodeId, threadId, had.note) : actions.untag(nodeId, threadId)),
+          threadId,
         )
         actions.tag(nodeId, threadId, note)
       },
@@ -542,7 +594,7 @@ export function Board({
         remember('the disconnection', () => {
           actions.tag(nodeId, threadId, had?.note)
           if (pinned) actions.moveThread(threadId, null)
-        })
+        }, threadId)
         actions.untag(nodeId, threadId)
       },
 
@@ -568,7 +620,7 @@ export function Board({
             }
           }
           if (patch.content) back.content = contentBack(was.content, patch.content)
-          remember(label, () => actions.patchItem(id, back))
+          remember(label, () => actions.patchItem(id, back), id)
         }
         actions.patchItem(id, patch)
       },
@@ -577,7 +629,7 @@ export function Board({
         // Toggling reads the status of the task it is handed, so the way back
         // is the same task carrying the status it is about to be given.
         const after = { ...task, status: (task.status === 'complete' ? 'pending' : 'complete') as ProjectTask['status'] }
-        remember(task.status === 'complete' ? 'the untick' : 'the tick', () => actions.toggleTask(after))
+        remember(task.status === 'complete' ? 'the untick' : 'the tick', () => actions.toggleTask(after), task.id)
         actions.toggleTask(task)
       },
 
@@ -589,26 +641,26 @@ export function Board({
 
       addTaskList: async (pieceId) => {
         const made = await actions.addTaskList(pieceId)
-        remember('adding the task list', () => actions.removeItem(made))
+        remember('adding the task list', () => actions.removeItem(made), made.id)
         return made
       },
       addPalette: async (pieceId) => {
         const made = await actions.addPalette(pieceId)
-        remember('adding the palette', () => actions.removeItem(made))
+        remember('adding the palette', () => actions.removeItem(made), made.id)
         return made
       },
       addImage: async (pieceId, file) => {
         const made = await actions.addImage(pieceId, file)
-        remember('adding the image', () => actions.removeItem(made))
+        remember('adding the image', () => actions.removeItem(made), made.id)
         return made
       },
       addRecording: async (pieceId, file, opts) => {
         const made = await actions.addRecording(pieceId, file, opts)
-        remember('adding the recording', () => actions.removeItem(made))
+        remember('adding the recording', () => actions.removeItem(made), made.id)
         return made
       },
     }
-  }, [actions, hubAt, itemAt, items, kept, pieces, presence, remember, tagFor, tasks, threads])
+  }, [actions, bin, hubAt, itemAt, items, kept, pieces, presence, remember, tagFor, tasks, threads])
 
   // ⌘Z, the way everyone already asks for this. Held off anything being typed
   // in, where the browser's own undo is the one that is wanted.
@@ -923,7 +975,12 @@ export function Board({
                 Pick a piece to connect {ITEM_LABEL[armedItem.kind]} to, or one it is on to take it off
               </ConnectBanner>
             )}
-            {word && !arming && !armedItem && (
+            {taking && !arming && !armedItem && (
+              <ConnectBanner colour={shell.muted} action={{ label: 'undo', onClick: taking.back }}>
+                Removed {taking.label}.
+              </ConnectBanner>
+            )}
+            {word && !arming && !armedItem && !taking && (
               <ConnectBanner colour={word.busy ? t.tide : t.ember} onCancel={word.busy ? undefined : () => setWord(null)}>
                 {word.text}
               </ConnectBanner>
@@ -1293,6 +1350,20 @@ export function Board({
         />
       )}
 
+      {asked && (
+        <RemoveFileDialog
+          item={asked}
+          onCancel={() => setAsked(null)}
+          onRemove={() => {
+            const item = asked
+            setAsked(null)
+            // Past the question it goes the same way as everything else: off
+            // the board now, sent in a few seconds, takeable back until then.
+            bin(item.id, ITEM_LABEL[item.kind], () => actions.removeItem(item))
+          }}
+        />
+      )}
+
       {asking && (
         <EverywhereDialog
           thread={asking.thread}
@@ -1503,10 +1574,12 @@ function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
 
 // ── what the board says while you are connecting ────────────────────────────
 
-function ConnectBanner({ colour, onCancel, children }: {
+function ConnectBanner({ colour, onCancel, action, children }: {
   colour: string
   /** Absent while something is under way that cannot be called off. */
   onCancel?: () => void
+  /** Something to do about it, rather than only to stop it. */
+  action?: { label: string; onClick: () => void }
   children: React.ReactNode
 }) {
   return (
@@ -1517,13 +1590,25 @@ function ConnectBanner({ colour, onCancel, children }: {
       style={{
         position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 41,
         display: 'flex', alignItems: 'center', gap: 10, maxWidth: 'calc(100% - 32px)',
-        padding: onCancel ? '8px 10px 8px 14px' : '8px 14px', borderRadius: 999,
+        padding: onCancel || action ? '8px 10px 8px 14px' : '8px 14px', borderRadius: 999,
         background: 'rgba(13,12,11,0.84)', backdropFilter: 'blur(18px) saturate(1.1)',
         border: `1px solid ${alpha(colour, 0.5)}`,
       }}
     >
       <i aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: colour, flexShrink: 0 }} />
       <span style={{ ...canvasType.small, fontSize: 12.5, color: shell.text }}>{children}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          style={{
+            ...canvasType.chip, color: shell.text, background: alpha(shell.text, 0.12),
+            border: 'none', borderRadius: 999, cursor: 'pointer', padding: '4px 10px', flexShrink: 0,
+          }}
+        >
+          {action.label}
+        </button>
+      )}
       {onCancel && (
         <button
           type="button"
@@ -1534,6 +1619,64 @@ function ConnectBanner({ colour, onCancel, children }: {
         </button>
       )}
     </div>
+  )
+}
+
+/** The removals that take something with them which cannot be written again. */
+function RemoveFileDialog({ item, onRemove, onCancel }: {
+  item: BoardItem
+  onRemove: () => void
+  onCancel: () => void
+}) {
+  const { t } = useTheme()
+  const own = item.content.tasks?.length ?? 0
+  const title = item.kind === 'image' ? 'Remove this picture?'
+    : item.kind === 'recording' ? 'Remove this recording?'
+      : 'Remove this task list?'
+  const name = item.content.caption || item.content.title || ''
+  return (
+    <Portal>
+    <div
+      role="presentation"
+      onClick={onCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16, background: 'rgba(10,9,8,0.78)', backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 420, padding: 24, borderRadius: radius.card,
+          background: t.containerBg, boxShadow: t.containerShadow,
+        }}
+      >
+        <h2 style={{ ...canvasType.headingMd, fontSize: 20, color: t.textPrimary, margin: 0 }}>{title}</h2>
+        <p style={{ ...canvasType.small, color: t.textSecondary, margin: '10px 0 0' }}>
+          {item.kind === 'tasks' ? (
+            <>The {own === 1 ? 'task' : `${own} tasks`} written onto it {own === 1 ? 'goes' : 'go'} with
+            it. The writing tasks stay where they are, on the pieces.</>
+          ) : (
+            <>
+              {name && <><strong style={{ color: t.textPrimary, fontWeight: 600 }}>{name}</strong> — the </>}
+              {!name && 'The '}
+              {item.kind === 'image' ? 'picture' : 'recording'} itself goes too, not just the card.
+            </>
+          )}
+        </p>
+        <p style={{ ...canvasType.small, color: t.textMuted, margin: '10px 0 0' }}>
+          There are a few seconds to take it back afterwards. After that it is gone for good.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end', marginTop: 22 }}>
+          <Choice onClick={onCancel} quiet>Keep it</Choice>
+          <Choice onClick={onRemove}>Remove it</Choice>
+        </div>
+      </div>
+    </div>
+    </Portal>
   )
 }
 
