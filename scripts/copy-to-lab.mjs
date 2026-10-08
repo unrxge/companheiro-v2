@@ -75,6 +75,9 @@ const insert = (table, rows) =>
 
 async function copyAccount(liveId, labId, email) {
   console.log(`\n${email}: live ${liveId.slice(0, 8)} → lab ${labId.slice(0, 8)}`)
+  // The lab's sign-up email may never have been opened; the sign-in page only
+  // asks for a password once an address is confirmed.
+  await lab.call(`/auth/v1/admin/users/${labId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email_confirm: true }) })
   const graph = await tableGraph()
   const names = Object.keys(graph)
   const swap = (v) => JSON.parse(JSON.stringify(v).replaceAll(liveId, labId))
