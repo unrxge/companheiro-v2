@@ -5,9 +5,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 // and route handlers which run on Node.js. This lightweight check is safe
 // for the Edge Runtime that Next.js middleware uses by default.
 function hasSessionCookie(request: NextRequest): boolean {
-  return request.cookies.getAll().some(({ name }) =>
-    name.startsWith('sb-') && name.endsWith('-auth-token')
-  )
+  // A long session is split across numbered cookies (sb-…-auth-token.0, .1),
+  // so the name may end in a chunk number.
+  return request.cookies.getAll().some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name))
 }
 
 const LEGAL_PATHS = new Set(['/terms', '/privacy', '/cookies', '/refunds', '/accessibility', '/legal'])
