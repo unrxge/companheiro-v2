@@ -20,7 +20,6 @@ import { Pill } from '@/components/ui/pill'
 import { useTheme } from '@/components/theme/theme-provider'
 import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
-import { CONTACT_EMAIL } from '@/lib/site'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
@@ -618,9 +617,8 @@ function WhoFor() {
           className="relative mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
           style={{ borderTop: `2px solid ${alpha(hue, 0.7)}` }}
         >
-          {/* Each audience has its own light and its own mark in the corner, so six panels do not read as one panel six times. */}
+          {/* Each audience has its own light in the corner, so six panels do not read as one panel six times. */}
           <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-[420px] w-[420px] rounded-full" style={{ background: `radial-gradient(closest-side, ${alpha(hue, 0.2)}, transparent)` }} />
-          <audience.Icon aria-hidden className="pointer-events-none absolute -right-7 -top-7 h-[150px] w-[150px] md:h-[220px] md:w-[220px]" strokeWidth={0.9} style={{ color: alpha(hue, 0.13) }} />
 
           <div className="relative grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
             <div>
@@ -915,32 +913,6 @@ function FinalCta() {
   )
 }
 
-// ── Who makes it: the one piece of proof the page can honestly carry ────────
-
-function Maker() {
-  return (
-    <section className="mx-auto w-full max-w-[1180px] px-4 pb-16 md:px-8 md:pb-24">
-      <Reveal>
-        <div className="grid grid-cols-1 gap-3 border-t border-[var(--line)] pt-8 md:grid-cols-[220px_1fr] md:gap-10">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Who makes it</p>
-          <p className="max-w-[58ch] text-[17px] leading-relaxed text-[var(--bone)]">
-            Companheiro is built and run by one person, not a team.
-            {CONTACT_EMAIL ? (
-              <>
-                {' '}If something here is unclear, or it isn&rsquo;t working for the way you make things,{' '}
-                <a href={`mailto:${CONTACT_EMAIL}`} className="underline decoration-[var(--line)] underline-offset-4 transition-colors hover:text-white">
-                  write to me
-                </a>{' '}
-                and I&rsquo;ll answer myself.
-              </>
-            ) : null}
-          </p>
-        </div>
-      </Reveal>
-    </section>
-  )
-}
-
 function Footer() {
   return (
     <footer className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 border-t border-[var(--line)] px-4 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 text-[13px] text-[var(--muted)] md:flex-row md:items-center md:justify-between md:px-8">
@@ -977,7 +949,6 @@ export function Landing() {
             <Closing />
             <Pricing />
             <FinalCta />
-            <Maker />
           </main>
           <Footer />
         </div>
