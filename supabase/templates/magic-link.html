@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="supported-color-schemes" content="dark">
-<title>Your sign-in link</title>
+<title>Confirm your email</title>
 <style>
   :root { color-scheme: dark; supported-color-schemes: dark; }
   body, .bg { background:#0d0c0b !important; }
@@ -13,7 +13,7 @@
 </style>
 </head>
 <body class="bg" style="margin:0;padding:0;background:#0d0c0b;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0d0c0b;">Your sign-in link and code.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0d0c0b;">One press, and the companion stays for your whole free month.</div>
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" bgcolor="#0d0c0b" style="background:#0d0c0b;background-image:radial-gradient(ellipse at 50% 0%, #6f2a1a 0%, #171512 38%, #0d0c0b 72%);">
   <tr><td align="center" class="outer" style="padding:48px 16px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
@@ -23,28 +23,25 @@
         </tr></table>
       </td></tr>
       <tr><td style="padding:0 4px 24px;">
-        <div class="h1" style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:32px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:#ece9e2;">Welcome back</div>
-        <div style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#928e86;padding-top:10px;">Your link to sign in.</div>
+        <div class="h1" style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:32px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:#ece9e2;">Confirm your email</div>
+        <div style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#928e86;padding-top:10px;">One press, and you can carry on.</div>
       </td></tr>
       <tr><td bgcolor="#161412" style="background:#161412;border-radius:24px;padding:12px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td bgcolor="#231f1b" class="pad" style="background:#231f1b;border-radius:16px;padding:32px 28px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#ece9e2;padding-bottom:20px;">Use the button to sign in, or enter this code if the app asked for one:</td></tr>
-                <tr><td style="padding:4px 0 24px;">
-                  <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#2a2620" style="border:1px solid #352f29;border-radius:12px;padding:16px 24px;font-family:'Geist Mono','SFMono-Regular',Menlo,Consolas,monospace;font-size:28px;font-weight:600;letter-spacing:8px;color:#ece9e2;">{{ .Token }}</td></tr></table>
-                </td></tr>
+              <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#ece9e2;padding-bottom:20px;">Confirm <strong style="color:#ece9e2;font-weight:600;">{{ .Email }}</strong> so we know this address is yours. Your account is already open; this keeps the companion with you for the rest of your free month.</td></tr>
                 <tr><td style="padding:4px 0 24px;">
                   <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ece9e2" style="border-radius:12px;">
-                    <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 24px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0d0c0b;text-decoration:none;border-radius:12px;">Sign in</a>
+                    <a href="{{ .SiteURL }}/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}" style="display:inline-block;padding:14px 24px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0d0c0b;text-decoration:none;border-radius:12px;">Confirm my email</a>
                   </td></tr></table>
                 </td></tr>
                 <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#928e86;padding-bottom:4px;">Or paste this link into your browser:</td></tr>
-                <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;word-break:break-all;padding-bottom:4px;"><a href="{{ .ConfirmationURL }}" style="color:#aaa59c;text-decoration:underline;">{{ .ConfirmationURL }}</a></td></tr>
+                <tr><td style="font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;word-break:break-all;padding-bottom:4px;"><a href="{{ .SiteURL }}/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}" style="color:#aaa59c;text-decoration:underline;">{{ .SiteURL }}/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}</a></td></tr>
             </table>
           </td>
         </tr>
-        <tr><td style="padding:18px 16px 10px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#aaa59c;">The link and code work once and expire soon. Didn’t try to sign in? You can ignore this email.</td></tr>
+        <tr><td style="padding:18px 16px 10px;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#aaa59c;">The button works once, for a day. If it has run out, sign in and ask for a new one. Not you? You can ignore this email.</td></tr>
         </table>
       </td></tr>
       <tr><td align="center" style="padding:28px 4px 0;font-family:Geist,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#928e86;">
