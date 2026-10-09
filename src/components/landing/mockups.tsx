@@ -16,12 +16,12 @@ import {
   useTransform,
   type MotionValue,
 } from 'motion/react'
-import { Camera, Check, FileText, Mic, Music, type LucideIcon } from 'lucide-react'
+import { Camera, Check, FileText, Mic, Music, Waypoints, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
 import { StageRibbon } from '@/components/widgets'
-import { alpha, radius, type as typeRoles, type Hue, type JourneyStep } from '@/lib/design-tokens'
+import { alpha, onColor, radius, type as typeRoles, type Hue, type JourneyStep } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -163,7 +163,8 @@ export function AutoHeight({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ height: h ?? 'auto', overflow: 'hidden', transition: reduce || h === null ? 'none' : 'height 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}>
       {/* Room underneath for a glow that would otherwise be cut off. */}
-      <div ref={inner} style={{ paddingBottom: 14 }}>{children}</div>
+      {/* flow-root: a top margin inside must count towards the height, or the bottom is cut off by that much. */}
+      <div ref={inner} style={{ display: 'flow-root', paddingBottom: 14 }}>{children}</div>
     </div>
   )
 }
@@ -176,8 +177,9 @@ function Label({ children, style }: { children: React.ReactNode; style?: React.C
 // ── Hero: everything in one place, the vision in your own words ─────────────
 // Four things made at different times, in four different mediums, settle side
 // by side in one project, and the person writes what they add up to. Each
-// fragment looks like what it is (a page, a lyric, a recording, a picture), so
-// someone who only glances sees four kinds of work becoming one. Nothing here
+// fragment is named and coloured for its medium, and all four are built the
+// same way (a mark, a name, a line), so someone who only glances sees four
+// kinds of work becoming one. Nothing here
 // shows Companheiro finding the link for them: the line under "Vision" types
 // as theirs.
 
@@ -188,9 +190,8 @@ const FRAGMENTS: { id: FragmentId; kind: string; hue: Hue; Icon: LucideIcon; til
   { id: 'memo', kind: 'Voice memo', hue: 'verdant', Icon: Mic, tilt: -1.2 },
   { id: 'photo', kind: 'Photo', hue: 'ochre', Icon: Camera, tilt: 2 },
 ]
-const MEMO_BARS = [0.4, 0.75, 0.5, 0.95, 0.6, 0.35, 0.8, 0.55, 0.3, 0.7, 0.45, 0.85, 0.5, 0.3]
 
-/** One thing already made, drawn as its medium. */
+/** One thing already made, in its medium's colour. */
 function FragmentCard({ f }: { f: (typeof FRAGMENTS)[number] }) {
   const { t } = useTheme()
   const c = t[f.hue]
@@ -209,27 +210,8 @@ function FragmentCard({ f }: { f: (typeof FRAGMENTS)[number] }) {
           Every house I&rsquo;ve lived in had a room I never used.
         </p>
       )}
-      {f.id === 'memo' && (
-        <>
-          <div aria-hidden className="flex items-center gap-[3px]" style={{ height: 22, marginTop: 9 }}>
-            {MEMO_BARS.map((b, i) => <span key={i} style={{ width: 3, borderRadius: 2, height: `${Math.round(b * 100)}%`, backgroundColor: i < 9 ? c : alpha(c, 0.3) }} />)}
-            <span style={{ ...typeRoles.small, fontSize: 10.5, color: t.textMuted, marginLeft: 5, fontVariantNumeric: 'tabular-nums' }}>0:42</span>
-          </div>
-          <p style={{ ...text, marginTop: 6, color: t.textSecondary }}>&ldquo;something about waiting until I&rsquo;m ready&rdquo;</p>
-        </>
-      )}
-      {f.id === 'photo' && (
-        <>
-          {/* Drawn, not a photograph: chairs outside a café in early light. */}
-          <div role="img" aria-label="A photograph: empty café chairs in early light" className="relative overflow-hidden" style={{ height: 40, marginTop: 9, borderRadius: 8, background: 'linear-gradient(165deg, #f6d9a3 0%, #e39a62 42%, #7a5a62 78%, #3f3a4a 100%)' }}>
-            <span aria-hidden className="absolute inset-x-0 bottom-0" style={{ height: 11, background: 'rgba(40,32,40,0.55)' }} />
-            {[18, 44, 70].map((x) => (
-              <span key={x} aria-hidden className="absolute" style={{ left: `${x}%`, bottom: 7, width: 11, height: 15, borderRadius: '3px 3px 0 0', border: '2px solid rgba(30,24,30,0.8)', borderBottom: 'none' }} />
-            ))}
-          </div>
-          <p style={{ ...text, marginTop: 6 }}>Empty café chairs, before opening.</p>
-        </>
-      )}
+      {f.id === 'memo' && <p style={text}>&ldquo;something about waiting until I&rsquo;m ready&rdquo;</p>}
+      {f.id === 'photo' && <p style={text}>Empty café chairs, before opening.</p>}
     </div>
   )
 }
@@ -376,7 +358,7 @@ type BoardNode = Box & (
   | { kind: 'hub'; label: string; hue: Hue }
   | { kind: 'piece'; title: string; medium: string; step: JourneyStep }
   | { kind: 'image'; caption: string }
-  | { kind: 'recording'; title: string; length: string }
+  | { kind: 'recording'; title: string; /** For where there is no room for the whole title. */ short: string; length: string }
   | { kind: 'tasks'; title: string; tasks: { text: string; done: boolean }[] }
 )
 
@@ -389,12 +371,12 @@ const NODES: BoardNode[] = [
     { text: 'Book the 50mm', done: false },
     { text: 'Send her the treatment', done: false },
   ] },
-  { id: 'hands', kind: 'hub', x: 312, y: 110, w: 152, h: 40, label: 'hands at work', hue: 'ochre' },
-  { id: 'reveal', kind: 'hub', x: 312, y: 286, w: 156, h: 40, label: 'the slow reveal', hue: 'tide' },
+  { id: 'hands', kind: 'hub', x: 300, y: 104, w: 176, h: 50, label: 'made by hand', hue: 'ochre' },
+  { id: 'reveal', kind: 'hub', x: 300, y: 282, w: 176, h: 50, label: 'nothing rushed', hue: 'tide' },
   { id: 'treatment', kind: 'piece', x: 512, y: 24, w: 210, h: 104, title: 'Treatment', medium: 'For the client', step: 'test' },
   { id: 'shots', kind: 'piece', x: 512, y: 180, w: 210, h: 104, title: 'Shot list', medium: 'Film', step: 'write' },
   { id: 'stills', kind: 'piece', x: 846, y: 40, w: 210, h: 104, title: 'Stills for the site', medium: 'Photo series', step: 'concept' },
-  { id: 'note', kind: 'recording', x: 512, y: 340, w: 232, h: 104, title: 'Voice note after the recce', length: '1:12' },
+  { id: 'note', kind: 'recording', x: 512, y: 340, w: 232, h: 104, title: 'Voice note after the recce', short: 'Recce voice note', length: '1:12' },
   { id: 'frame', kind: 'image', x: 846, y: 204, w: 210, h: 224, caption: 'Kiln at 6am. The light to match.' },
 ]
 
@@ -425,7 +407,7 @@ const BOARD_W_AIRY = 566
 const BOARD_H_AIRY = 372
 const AIRY: Record<string, Box> = {
   vision: { id: 'vision', x: 16, y: 24, w: 196, h: 104 },
-  hands: { id: 'hands', x: 42, y: 170, w: 150, h: 36 },
+  hands: { id: 'hands', x: 34, y: 164, w: 172, h: 46 },
   note: { id: 'note', x: 20, y: 262, w: 178, h: 86 },
   treatment: { id: 'treatment', x: 250, y: 14, w: 164, h: 104 },
   shots: { id: 'shots', x: 228, y: 176, w: 164, h: 104 },
@@ -462,7 +444,29 @@ function Edge({ a, b, na, nb, color, dashed }: { a: Pos; b: Pos; na: BoardNode; 
     const mx = (x1 + x2) / 2
     return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
   })
-  return <m.path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeDasharray={dashed ? '3 5' : undefined} />
+  const reduce = useReducedMotion()
+  if (dashed) return <m.path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeDasharray="3 5" />
+  // A thread is the thing to notice on a canvas: one point that several pieces
+  // share. It is drawn lit, with a pulse travelling out from its name to each
+  // piece it runs through.
+  return (
+    <>
+      <m.path d={d} fill="none" stroke={color} strokeOpacity={0.16} strokeWidth={9} strokeLinecap="round" />
+      <m.path d={d} fill="none" stroke={color} strokeOpacity={0.85} strokeWidth={1.75} strokeLinecap="round" />
+      {!reduce && (
+        <m.path
+          d={d}
+          fill="none"
+          stroke={color}
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeDasharray="0.5 26"
+          animate={{ strokeDashoffset: [0, -53] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+        />
+      )}
+    </>
+  )
 }
 
 /** A waveform that fills as it "plays". No sound: the page has no recording to play. */
@@ -481,7 +485,7 @@ function RecordingBody({ node }: { node: Extract<BoardNode, { kind: 'recording' 
   const compact = node.w < 200
   return (
     <Card padding={compact ? 10 : 12} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <p style={{ ...typeRoles.small, fontSize: compact ? 12 : 13, fontWeight: 600, color: t.textPrimary }}>{node.title}</p>
+      <p style={{ ...typeRoles.small, fontSize: compact ? 12 : 13, fontWeight: 600, color: t.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{compact ? node.short : node.title}</p>
       <div className="mt-auto flex items-center gap-2.5">
         <button
           type="button"
@@ -537,7 +541,7 @@ function TasksBody({ node }: { node: Extract<BoardNode, { kind: 'tasks' }> }) {
   )
 }
 
-function NodeBody({ node }: { node: BoardNode }) {
+function NodeBody({ node, threads }: { node: BoardNode; /** The threads that run through this piece, by colour. */ threads: Hue[] }) {
   const { t } = useTheme()
   if (node.kind === 'vision') {
     const tight = node.w < 240
@@ -553,13 +557,29 @@ function NodeBody({ node }: { node: BoardNode }) {
     )
   }
   if (node.kind === 'hub') {
+    // A thread's name: what several pieces have in common, said in a few words.
+    // Set apart from everything else on the canvas, in its own colour and lit from within.
+    const c = t[node.hue]
+    const small = node.h < 44
+    const disc = node.h - 14
     return (
       <div
-        className="flex h-full items-center gap-2 rounded-full px-4"
-        style={{ backgroundColor: t.cardBg, boxShadow: t.shadow, border: `1.5px solid ${alpha(t[node.hue], 0.55)}` }}
+        className="flex h-full items-center rounded-full"
+        style={{
+          gap: small ? 7 : 9, paddingLeft: 6, paddingRight: 14,
+          backgroundColor: t.cardBg,
+          backgroundImage: `linear-gradient(120deg, ${alpha(c, 0.24)}, ${alpha(c, 0.06)})`,
+          border: `1.5px solid ${alpha(c, 0.7)}`,
+          boxShadow: `0 0 0 4px ${alpha(c, 0.12)}, 0 10px 22px -12px ${alpha(c, 0.8)}`,
+        }}
       >
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: t[node.hue] }} />
-        <span style={{ ...typeRoles.small, fontWeight: 600, color: t.textPrimary, whiteSpace: 'nowrap' }}>{node.label}</span>
+        <span className="flex shrink-0 items-center justify-center rounded-full" style={{ width: disc, height: disc, backgroundColor: c, color: onColor(c) }}>
+          <Waypoints size={small ? 12 : 15} strokeWidth={2.2} aria-hidden />
+        </span>
+        <span className="min-w-0">
+          {!small && <span style={{ ...typeRoles.small, display: 'block', fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1.2, color: c }}>Thread</span>}
+          <span style={{ ...typeRoles.small, display: 'block', fontSize: small ? 12.5 : 13.5, fontWeight: 600, lineHeight: 1.25, color: t.textPrimary, whiteSpace: 'nowrap' }}>{node.label}</span>
+        </span>
       </div>
     )
   }
@@ -584,7 +604,13 @@ function NodeBody({ node }: { node: BoardNode }) {
   if (node.kind === 'tasks') return <TasksBody node={node} />
   return (
     <Card padding={14} style={{ height: '100%' }}>
-      <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>{node.medium}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>{node.medium}</p>
+        {/* Which threads run through it: a piece on two shows both. */}
+        <span aria-hidden className="flex shrink-0 items-center gap-[7px] pr-0.5">
+          {threads.map((h) => <span key={h} style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: t[h], boxShadow: `0 0 0 3px ${alpha(t[h], 0.22)}` }} />)}
+        </span>
+      </div>
       <p style={{ ...typeRoles.h3, color: t.textPrimary, marginTop: 3 }}>{node.title}</p>
       <div style={{ marginTop: 12 }}>
         <StageRibbon step={node.step} compact />
@@ -593,7 +619,7 @@ function NodeBody({ node }: { node: BoardNode }) {
   )
 }
 
-function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }: { node: BoardNode; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or for the moment). */ away: boolean; /** The canvas is winding back: what leaves does so last to arrive first. */ leaving: boolean }) {
+function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving, threads }: { node: BoardNode; threads: Hue[]; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or for the moment). */ away: boolean; /** The canvas is winding back: what leaves does so last to arrive first. */ leaving: boolean }) {
   const reduce = useReducedMotion()
   return (
     <m.div
@@ -609,7 +635,7 @@ function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving }:
       style={{ x: pos.x, y: pos.y, width: node.w, height: node.h, position: 'absolute', left: node.x, top: node.y, touchAction: draggable ? 'none' : 'auto' }}
       className={draggable ? 'cursor-grab active:cursor-grabbing' : undefined}
     >
-      <NodeBody node={node} />
+      <NodeBody node={node} threads={threads} />
     </m.div>
   )
 }
@@ -679,6 +705,11 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
   const boardH = layout === 'folded' ? BOARD_H_PHONE : layout === 'airy' ? BOARD_H_AIRY : BOARD_H
   const edges = layout === 'airy' ? EDGES_AIRY : EDGES
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
+  const through: Record<string, Hue[]> = {}
+  for (const [a, b] of edges) {
+    const from = byId[a]
+    if (from?.kind === 'hub' && byId[b]) (through[b] ??= []).push(from.hue)
+  }
 
   return (
     <Container padding={0} style={{ overflow: 'hidden' }}>
@@ -721,12 +752,12 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
             {edges.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
               const from = byId[a]
               const thread = from.kind === 'hub'
-              const color = from.kind === 'hub' ? alpha(t[from.hue], 0.7) : alpha(t.textPrimary, 0.28)
+              const color = from.kind === 'hub' ? t[from.hue] : alpha(t.textPrimary, 0.28)
               return <Edge key={`${a}-${b}`} a={positions[a]} b={positions[b]} na={from} nb={byId[b]} color={color} dashed={!thread} />
             })}
           </m.svg>
           {nodes.map((n) => (
-            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} away={unseen || (back > 0 && n.id !== 'vision')} leaving={back > 0} />
+            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} threads={through[n.id] ?? []} away={unseen || (back > 0 && n.id !== 'vision')} leaving={back > 0} />
           ))}
         </div>
       </div>
@@ -735,13 +766,16 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
 }
 
 // ── Closing: a rule set in passing, heard, offered back and kept ───────────
-// The same project as the canvas above. Four beats, each one a single thing to
-// look at: a line said in passing, the phrase in it picked out, the offer to
-// keep it, and the rule kept. Few words on purpose: the heading beside it has
+// The documentary from the Writing section, talked through. The rule is the
+// kind that matters: a promise made to someone in the film, which a year of
+// editing could quietly break. Four beats, each one a single thing to look
+// at: a line said in passing, the phrase in it picked out, the offer to keep
+// it, and the rule kept. Few words on purpose: the heading beside it has
 // already said what happens.
 
-const RULE_BEFORE = 'Ana wants a voiceover. '
-const RULE_QUOTE = 'I don’t want anyone talking over the hands.'
+const RULE_BEFORE = 'Marta said yes to the film on one condition. '
+const RULE_QUOTE = 'Her daughter is never shown or named.'
+const RULE_NAME = 'Never show or name Marta’s daughter'
 
 // Winding back: the rule is let go and its card leaves, then the marker comes
 // off the phrase. The line that was said stays, and it is heard again.
@@ -799,7 +833,7 @@ export function RuleHeardMockup({ replay, onDone }: LoopProps) {
               {kept && <Check size={13} strokeWidth={3} aria-hidden />}
               {kept ? 'Kept as a rule' : 'Something this refuses?'}
             </p>
-            <p style={{ ...typeRoles.h2, fontSize: 22, color: t.textPrimary, marginTop: 6 }}>No voiceover</p>
+            <p style={{ ...typeRoles.h2, fontSize: 20, lineHeight: 1.2, color: t.textPrimary, marginTop: 6 }}>{RULE_NAME}</p>
             <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12, minHeight: 34 }}>
               {kept ? (
                 <p style={{ ...typeRoles.small, color: t.textSecondary }}>It will ask before new work breaks it.</p>

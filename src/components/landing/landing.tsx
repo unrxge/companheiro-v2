@@ -260,7 +260,7 @@ function Hero() {
 
 // Short enough to take in without stopping: three plain beats and the turn.
 const MANIFESTO = 'A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are'
-// The turn, set like the hero's "vision": the one phrase a skimmer should leave with.
+// The turn: the one phrase a skimmer should leave with.
 const MANIFESTO_TURN = 'one vision.'
 
 function Word({ word, progress, range, className }: { word: string; progress: MotionValue<number>; range: [number, number]; className?: string }) {
@@ -268,7 +268,8 @@ function Word({ word, progress, range, className }: { word: string; progress: Mo
   return <m.span className={className} style={{ opacity }}>{word} </m.span>
 }
 
-const TURN = 'font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]'
+// Same face as the rest of the line, a good deal heavier.
+const TURN = 'font-black text-[var(--ember)]'
 
 function Manifesto() {
   const sectionRef = useRef<HTMLElement>(null)
@@ -575,12 +576,12 @@ function WhoFor() {
       </Reveal>
 
       <Reveal delay={0.08} className="mt-9 md:mt-12">
-        {/* On a phone every audience is in sight at once, two to a row: Direction's pair, then Practice's four. Nothing to swipe to. From a tablet up they sit on one line with a divider between the two plans. */}
-        <div role="tablist" aria-label="Who it is for" className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-1.5">
+        {/* On a phone every audience is in sight at once, with nothing to swipe to: Direction's two as a pair of wide keys, Practice's four as a row of small ones under them, mark over name. From a tablet up they are pills on one line with a divider between the two plans. */}
+        <div role="tablist" aria-label="Who it is for" className="flex flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center">
           {TIERS.map((tier, ti) => (
             <Fragment key={tier}>
               {ti > 0 && <span aria-hidden className="mx-2 hidden h-6 w-px shrink-0 bg-[var(--line)] md:block" />}
-              <div className="grid grid-cols-2 gap-1.5 md:flex md:items-center">
+              <div className={`grid gap-1.5 md:flex md:items-center ${tier === 'direction' ? 'grid-cols-2' : 'grid-cols-4'}`}>
                 {AUDIENCES.map((a, i) => {
                   if (a.tier !== tier) return null
                   const look = tier === 'direction' ? DIRECTION_TAB : PRACTICE_TAB
@@ -593,7 +594,7 @@ function WhoFor() {
                       aria-selected={i === index}
                       aria-controls="who-panel"
                       onClick={() => setIndex(i)}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)]"
+                      className={`inline-flex cursor-pointer items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)] md:flex-row md:gap-2 md:rounded-full md:px-4 md:py-2.5 md:text-[14px] ${tier === 'direction' ? 'gap-2 rounded-[18px] px-3 py-4 text-[15px]' : 'flex-col gap-1.5 rounded-[18px] px-1 py-3 text-[12px]'}`}
                       style={i === index ? look.on : look.rest}
                     >
                       <a.Icon size={15} strokeWidth={2} aria-hidden style={{ color: i === index ? undefined : alpha(hues[a.hue], 0.95) }} />
@@ -664,7 +665,7 @@ function WhoFor() {
 
 const NEVER = [
   { not: 'Here’s a draft I wrote for you', title: 'Generate the work for you', body: 'It can ask and suggest. Every sentence you keep is one you chose.' },
-  { not: 'This piece scores 8 out of 10', title: 'Tell you whether it’s good', body: 'It helps you see what you meant. It never grades what you made.' },
+  { not: 'This piece scores 8 out of 10', title: 'Tell you whether it’s good', body: 'It helps you see what you meant. Whether it’s good is for your eyes alone to judge.' },
   { not: '12-day streak · 340 views', title: 'Keep score', body: 'No likes, no views, no streaks. Nothing here measures how the work performed.' },
   { not: 'Posted on your behalf', title: 'Speak for you', body: 'It talks only to you. It never posts or sends anything in your name.' },
 ]

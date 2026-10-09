@@ -615,13 +615,29 @@ const PARTS = [
 ]
 const SHOWN_FIRST = 2
 
-// The landing page's own telling of the same script, for someone glancing at
-// it: one line of each part, the phrase Companheiro picks up on marked in it,
-// and one short question back. The tour keeps the full parts and reflections.
-const GLANCE = [
-  { title: 'The night', before: 'Then one night she ', mark: 'cried over nothing', after: ', and I asked what I’d done wrong.', ask: 'You call it nothing, yet the whole film is built on that night. What was she crying over?' },
-  { title: 'What I learned', before: 'In the week before, she ', mark: 'needs patience, so I give her space', after: '.', ask: 'Patience and space aren’t the same thing. Did she tell you which one she wanted?' },
-  { title: 'What I want you to know', before: 'It took me years to get here, and ', mark: 'you can skip them', after: '.', ask: 'Two parts ago you were asking what you’d done wrong. Which mistake are you still making?' },
+// The landing page's own piece, for someone glancing at it: the narration of a
+// documentary, the sort of long project Direction is for. One line of each
+// part, the phrase Companheiro picks up on marked in it, and one short
+// question back. The three questions are three different things it does: hold
+// the work to a rule that was set (the same promise the Rule section shows
+// being kept), help find what was meant, and hold a part to the vision. The
+// tour keeps its own script, in full.
+const GLANCE: { title: string; before: string; mark: string; after: string; kind: string; hue: Hue; ask: string }[] = [
+  {
+    title: 'Evenings', before: 'Every evening ', mark: 'her daughter Inês waits on the quay', after: ' until the last boat is in.',
+    kind: 'A rule you set', hue: 'ochre',
+    ask: 'You promised Marta her daughter is never shown or named. This line does both. How else can the evening be told?',
+  },
+  {
+    title: 'The booth', before: 'Marta has sold tickets here since she was nineteen. For her, ', mark: 'it’s about more than a boat', after: '.',
+    kind: 'What you meant', hue: 'violet',
+    ask: 'More than a boat. What is it, for Marta? Name that, and the line can say it.',
+  },
+  {
+    title: 'Last morning', before: 'On the last morning ', mark: 'the whole town comes down to the quay', after: ', and we end on empty water.',
+    kind: 'Your vision', hue: 'ember',
+    ask: 'Your vision says this is Marta’s film, told from the booth. Here it becomes the town’s. Whose morning is it?',
+  },
 ]
 const GLANCE_LONGEST = GLANCE.reduce((a, p) => (p.ask.length > a.length ? p.ask : a), '')
 // Winding back: only the reflection is taken back and the marker lifted. The
@@ -656,8 +672,8 @@ function WritingGlance({ active, replay, onDone }: TourWidgetProps) {
       <TryIt>{theirs ? 'It only asks. Tap another part.' : 'Watch: it reads a part, then asks. Tap any part.'}</TryIt>
       <Card padding={14}>
         <div className="flex items-baseline justify-between gap-3">
-          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Four Weeks <span style={{ fontWeight: 400, color: t.textMuted }}>· Short film</span></p>
-          <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Write</span>
+          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>The Six O&rsquo;Clock Ferry <span style={{ fontWeight: 400, color: t.textMuted }}>· Documentary</span></p>
+          <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Narration</span>
         </div>
         <div className="flex flex-col gap-1.5" style={{ marginTop: 12 }}>
           {GLANCE.map((p, i) => {
@@ -677,14 +693,14 @@ function WritingGlance({ active, replay, onDone }: TourWidgetProps) {
                 }}
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: on ? t.tide : t.textMuted }}>Part {i + 2} · {p.title}</span>
+                  <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: on ? t.tide : t.textMuted }}>Part {i + 1} · {p.title}</span>
                   <span aria-hidden style={{ fontFamily: fonts.ui, fontSize: 14, lineHeight: 1, color: t.textMuted, transform: on ? 'rotate(45deg)' : 'none', transition: 'transform 0.3s ease' }}>+</span>
                 </span>
                 {/* Only the open part shows its line; the others are their names. */}
                 <span style={{ display: 'grid', gridTemplateRows: on ? '1fr' : '0fr', transition: reduce ? 'none' : 'grid-template-rows 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                   <span style={{ overflow: 'hidden', minHeight: 0 }}>
                     <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, display: 'block', paddingTop: 6 }}>
-                      {p.before}<Marked on={on && marked} color={t.violet}>{p.mark}</Marked>{p.after}
+                      {p.before}<Marked on={on && marked} color={t[p.hue]}>{p.mark}</Marked>{p.after}
                     </span>
                   </span>
                 </span>
@@ -695,8 +711,14 @@ function WritingGlance({ active, replay, onDone }: TourWidgetProps) {
 
         {/* What it asks back: the one thing here set apart, in Companheiro's own colour. */}
         <div style={{ marginTop: 10, padding: '11px 13px 13px', borderRadius: radius.widget, ...accentWash(t.violet, t.cardBgInner) }}>
-          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro asks</p>
-          <p aria-label={part.ask} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, marginTop: 3, display: 'grid' }}>
+          <div className="flex items-center justify-between gap-2">
+            <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro asks</p>
+            {/* Which of its jobs this question is doing. */}
+            <m.span key={part.kind} initial={reduce ? false : { opacity: 0, x: 6 }} animate={{ opacity: marked ? 1 : 0, x: marked ? 0 : 6 }} transition={{ duration: 0.35, ease: EASE }}>
+              <Pill hue={part.hue}>{part.kind}</Pill>
+            </m.span>
+          </div>
+          <p aria-label={part.ask} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, marginTop: 6, display: 'grid' }}>
             <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{GLANCE_LONGEST}</span>
             <span aria-hidden style={{ gridArea: '1 / 1' }}>{ask.shown}{beat >= 2 && !ask.done && <Caret />}</span>
           </p>
