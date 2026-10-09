@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AuthShell, AuthLink } from '@/components/auth/auth-shell'
 import { useTheme } from '@/components/theme/theme-provider'
 import { WorkingDots } from '@/components/ui/working'
+import { PrimaryButton } from '@/components/ui/buttons'
 import { type as typeRoles } from '@/lib/design-tokens'
 
 type LinkType = 'email' | 'signup' | 'magiclink'
@@ -35,6 +36,17 @@ function nextUrl(raw: string | null): string {
 export default function ConfirmPage() {
   const { t } = useTheme()
   const [failed, setFailed] = useState<string | null>(null)
+  // An emailed link only lasts so long (an hour unless Supabase is told
+  // otherwise), and someone who went straight into the app may open it days
+  // later. A fresh one is offered right here rather than sending them away.
+  const [fresh, setFresh] = useState<'idle' | 'sending' | 'sent' | 'signin'>('idle')
+
+  const sendFresh = async () => {
+    setFresh('sending')
+    const { sendConfirmEmail } = await import('@/lib/confirm-email')
+    // It can only be sent to whoever is signed in on this browser.
+    setFresh((await sendConfirmEmail()) ? 'sent' : 'signin')
+  }
   const started = useRef(false)
 
   useEffect(() => {
@@ -54,7 +66,7 @@ export default function ConfirmPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token_hash: token, type: type as LinkType }),
     }).then((res) => {
-      if (!res.ok) setFailed('This link has already been used or has expired. Sign in and ask for a new one.')
+      if (!res.ok) setFailed('This link has expired or has already been used. Nothing is lost: a new one takes a moment.')
       // The callback sends them on: into the app, or to choose a password on an older link.
       else window.location.replace(next)
     }).catch(() => setFailed('That did not go through. Check your connection and open the link again.'))
@@ -67,7 +79,18 @@ export default function ConfirmPage() {
       footer={failed ? <span><AuthLink href="/login">Back to sign in</AuthLink></span> : undefined}
     >
       {failed ? (
-        <p role="alert" style={{ ...typeRoles.small, color: t.danger }}>{failed}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p role="alert" style={{ ...typeRoles.small, color: t.textSecondary }}>{failed}</p>
+          {fresh === 'sent' ? (
+            <p role="status" style={{ ...typeRoles.small, color: t.textPrimary }}>A new link is on its way. Use that one; it works from any device.</p>
+          ) : fresh === 'signin' ? (
+            <p role="status" style={{ ...typeRoles.small, color: t.textPrimary }}>
+              Sign in first, and you&rsquo;ll be offered a new link from inside.
+            </p>
+          ) : (
+            <PrimaryButton onClick={() => void sendFresh()} loading={fresh === 'sending'} loadingLabel="Sending…" full size="lg">Send me a new link</PrimaryButton>
+          )}
+        </div>
       ) : (
         <div role="status" style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, display: 'flex', alignItems: 'center', gap: 10, minHeight: 48 }}>
           <WorkingDots />
