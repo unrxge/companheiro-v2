@@ -12,7 +12,7 @@
 
 import Link from 'next/link'
 import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check } from 'lucide-react'
+import { ArrowRight, Ban, Briefcase, Camera, Check, Compass, Flame, Music, PenLine, type LucideIcon } from 'lucide-react'
 import { motion as m, useInView, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { Container, Card } from '@/components/shell/page-shell'
@@ -259,33 +259,42 @@ function Hero() {
 
 // ── Manifesto: words come up as you read ─────────────────────────────────────
 
-const MANIFESTO =
-  'It usually starts as something you can\u2019t quite name. A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are one vision, seen from different sides. Companheiro helps you see it whole.'
+// Short enough to take in without stopping: three plain beats and the turn.
+const MANIFESTO = 'A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are'
+// The turn, set like the hero's "vision": the one phrase a skimmer should leave with.
+const MANIFESTO_TURN = 'one vision.'
 
-function Word({ word, progress, range }: { word: string; progress: MotionValue<number>; range: [number, number] }) {
+function Word({ word, progress, range, className }: { word: string; progress: MotionValue<number>; range: [number, number]; className?: string }) {
   const opacity = useTransform(progress, range, [0.16, 1])
-  return <m.span style={{ opacity }}>{word} </m.span>
+  return <m.span className={className} style={{ opacity }}>{word} </m.span>
 }
+
+const TURN = 'font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]'
 
 function Manifesto() {
   const sectionRef = useRef<HTMLElement>(null)
   const ref = useRef<HTMLParagraphElement>(null)
   useSectionMood(sectionRef, 'violet')
   const reduce = useReducedMotion()
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.45'] })
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.9', 'end 0.6'] })
   const words = MANIFESTO.split(' ')
+  const turn = MANIFESTO_TURN.split(' ')
+  const all = words.length + turn.length
 
   return (
-    <section ref={sectionRef} className="mx-auto w-full max-w-[1000px] px-4 pb-20 pt-24 md:px-8 md:pb-28 md:pt-40">
+    <section ref={sectionRef} className="mx-auto w-full max-w-[1000px] px-4 pb-20 pt-20 md:px-8 md:pb-28 md:pt-32">
       <p
         ref={ref}
-        className="text-[28px] font-semibold leading-[1.22] tracking-[-0.025em] text-[var(--bone)] md:text-[44px] md:leading-[1.16]"
+        className="max-w-[20ch] text-[30px] font-semibold leading-[1.2] tracking-[-0.025em] text-[var(--bone)] md:text-[52px] md:leading-[1.12]"
       >
-        {reduce
-          ? MANIFESTO
-          : words.map((w, i) => (
-              <Word key={i} word={w} progress={scrollYProgress} range={[i / words.length, (i + 1) / words.length]} />
-            ))}
+        {reduce ? (
+          <>{MANIFESTO} <span className={TURN}>{MANIFESTO_TURN}</span></>
+        ) : (
+          <>
+            {words.map((w, i) => <Word key={i} word={w} progress={scrollYProgress} range={[i / all, (i + 1) / all]} />)}
+            {turn.map((w, i) => <Word key={`t${i}`} word={w} className={TURN} progress={scrollYProgress} range={[(words.length + i) / all, (words.length + i + 1) / all]} />)}
+          </>
+        )}
       </p>
     </section>
   )
@@ -371,16 +380,16 @@ function Inside() {
   )
 }
 
-// ── Who it's for: six kinds of makers, and what each one does with it ───────
+// ── Who it's for: six kinds of makers, and what is here for each ────────────
 // The page above shows the parts; this says whose they are. Each audience
-// gets who it is in a sentence, the use in four steps built only from things
-// the product does today on the plan named, a promise about what it will not
-// do, and their plan. The first four start on Practice (two of them reach into
-// Direction for images and recordings); the last two are Direction's, set
-// apart by a divider, a warmer tab and a white panel. `/?for=writers` opens on
-// that audience, so a post or a bio link can land someone on their own case;
-// the Begin link carries `landing=for-…` into sign-up, where the admin page
-// shows which case worked.
+// gets who it is in a sentence, three things that are here for them (said as
+// what they would find, not as steps to follow: nobody is told how to work),
+// a promise about what it will not do, and their plan. Everything named is
+// something the product does today on the plan named. Direction's two come
+// first, then Practice's four (two of which reach into Direction for images
+// and recordings). `/?for=writers` opens on that audience, so a post or a bio
+// link can land someone on their own case; the Begin link carries
+// `landing=for-…` into sign-up, where the admin page shows which case worked.
 
 /** A plan's name, linked to its card in the pricing section. With no words of its own it says "Practice, €9 a month", in the visitor's currency. */
 function PlanLink({ plan, children }: { plan: 'practice' | 'direction'; children?: React.ReactNode }) {
@@ -395,6 +404,7 @@ function PlanLink({ plan, children }: { plan: 'practice' | 'direction'; children
 type Audience = {
   key: string
   tab: string
+  Icon: LucideIcon
   name: string
   hue: Hue
   /** Which side of the divider the tab sits on. */
@@ -402,25 +412,60 @@ type Audience = {
   /** The eyebrow over the name. */
   plans: string
   who: string
-  steps: React.ReactNode[]
+  /** What is here for them. */
+  here: React.ReactNode[]
   never: string
   footer: React.ReactNode
 }
 
 const AUDIENCES: Audience[] = [
   {
+    key: 'studios',
+    tab: 'Professionals',
+    Icon: Briefcase,
+    name: 'One-person studios',
+    hue: 'tide',
+    tier: 'direction',
+    plans: 'Direction',
+    who: 'You are the whole studio: client projects, your own work, and one head to hold all of it.',
+    here: [
+      'A canvas for every project: its pieces, images, recordings and a task list.',
+      'Threads across the pieces, so what connects them stays in view.',
+      'A constraint said once, back as a question when new work runs against it.',
+    ],
+    never: 'It never posts, sends or speaks to a client in your name.',
+    footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas.</>,
+  },
+  {
+    key: 'directors',
+    tab: 'Directors',
+    Icon: Compass,
+    name: 'Creative directors',
+    hue: 'violet',
+    tier: 'direction',
+    plans: 'Direction',
+    who: 'You direct work other people make, or a project that runs for years: a documentary, a photo book, an album.',
+    here: [
+      'What the project is meant to be, and the rules it must keep, in one place.',
+      'The whole project to talk through from its canvas, whenever something shifts.',
+      'A question, never a verdict, when a new piece pulls away from a rule.',
+    ],
+    never: 'It never scores the work and never measures how it performed.',
+    footer: <><PlanLink plan="direction" />. Yearly suits a project that runs for years, with two months free.</>,
+  },
+  {
     key: 'back',
     tab: 'Creatives',
+    Icon: Flame,
     name: 'Rekindling your passion for making',
     hue: 'ember',
     tier: 'practice',
     plans: 'Practice',
     who: 'You made things once and fell out of practice, but you still remember how it felt when making was part of your week.',
-    steps: [
-      'Pick a theme you care about and get one question to start from.',
-      'Answer it, a question at a time, until the idea has a shape you recognise.',
-      'Write it a part at a time. When you are stuck, it asks what you meant.',
-      'Come and go as life allows. Nothing was counting while you were away.',
+    here: [
+      'One question to start from, drawn from a theme you care about.',
+      'More questions, until the idea has a shape you recognise.',
+      'Room to come and go as life allows. Nothing counts while you are away.',
     ],
     never: 'No streaks, no targets, nobody keeping track of your days.',
     footer: <><PlanLink plan="practice" />. Two projects at a time is the point, not the limit.</>,
@@ -428,16 +473,16 @@ const AUDIENCES: Audience[] = [
   {
     key: 'writers',
     tab: 'Writers',
+    Icon: PenLine,
     name: 'Writers with a vision',
     hue: 'tide',
     tier: 'practice',
     plans: 'Practice',
     who: 'You have imagination, a vision for the work, and the ambition to see it crafted and expressed to its fullest.',
-    steps: [
-      'Bring a draft you already have, or start from a question.',
-      'Say what the piece is for, and keep it beside the draft as you write.',
-      'Select a passage and talk it over until it says what you meant.',
-      'When a piece is out in the world, note what it opened. It comes back as your next ideas.',
+    here: [
+      'A home for the draft you already have, or a question to begin from.',
+      'What the piece is for, kept beside the draft as you write.',
+      'Any passage, talked over until it says what you meant.',
     ],
     never: 'It never asks you to aim smaller, and never steers the work toward anyone’s vision but yours.',
     footer: <><PlanLink plan="practice" />. One project holds as many pieces as it needs: a collection, a series, a book.</>,
@@ -445,16 +490,16 @@ const AUDIENCES: Audience[] = [
   {
     key: 'film',
     tab: 'Creator',
+    Icon: Camera,
     name: 'Cinematographers, photographers and creators',
     hue: 'verdant',
     tier: 'practice',
     plans: 'Practice / Direction',
     who: 'You think in frames, whether it is a film, a photo series or the next thing you post, and it starts as a feeling before it is a shot.',
-    steps: [
-      'Start from a question, or bring the idea you already have, and find what the piece is really about.',
-      'Write the words it needs: the treatment, the script, the caption.',
-      'Say what the work must never do. It comes back as a question when a new piece drifts.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, keep stills, reference frames and voice notes on the project&rsquo;s canvas, and run threads across a series.</>,
+    here: [
+      'What the piece is really about, found before the first frame.',
+      'The words it needs: the treatment, the script, the caption.',
+      <>On <PlanLink plan="direction">Direction</PlanLink>, stills, reference frames and voice notes on the project&rsquo;s canvas.</>,
     ],
     never: 'It never looks at your images or footage, and never measures how a post performed.',
     footer: (
@@ -467,16 +512,16 @@ const AUDIENCES: Audience[] = [
   {
     key: 'songs',
     tab: 'Songwriters',
+    Icon: Music,
     name: 'Songwriters',
     hue: 'violet',
     tier: 'practice',
     plans: 'Practice / Direction',
     who: 'You hum before you write, and the song usually knows what it is about before you do.',
-    steps: [
-      'Speak the idea. Everything here takes your voice as readily as your typing.',
-      'Find what the song is about before the tune hardens.',
-      'Write the lyric in parts you name yourself, and talk over the line that will not sit.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, keep your recordings beside the lyric on the project&rsquo;s canvas.</>,
+    here: [
+      'Your voice, taken as readily as your typing.',
+      'The lyric in parts you name yourself, and the line that will not sit, talked over.',
+      <>On <PlanLink plan="direction">Direction</PlanLink>, your recordings beside the lyric on the project&rsquo;s canvas.</>,
     ],
     never: 'You can upload recordings, but Companheiro never listens to them. Those are for your ears only.',
     footer: (
@@ -485,40 +530,6 @@ const AUDIENCES: Audience[] = [
         <PlanLink plan="direction" />. Upload audio recordings and talk to your long-term vision.
       </>
     ),
-  },
-  {
-    key: 'studios',
-    tab: 'Professionals',
-    name: 'One-person studios',
-    hue: 'tide',
-    tier: 'direction',
-    plans: 'Direction',
-    who: 'You are the whole studio: client projects, your own work, and one head to hold all of it.',
-    steps: [
-      'Paste the brief and talk it through until you know what the project is really for.',
-      'Give each project its own canvas: its pieces, images, recordings and a task list.',
-      'Run threads across the pieces, so what connects them stays in view.',
-      'Mention a constraint once. It comes back as a question when new work runs against it.',
-    ],
-    never: 'It never posts, sends or speaks to a client in your name.',
-    footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas.</>,
-  },
-  {
-    key: 'directors',
-    tab: 'Directors',
-    name: 'Creative directors',
-    hue: 'violet',
-    tier: 'direction',
-    plans: 'Direction',
-    who: 'You direct work other people make, or a project that runs for years: a documentary, a photo book, an album.',
-    steps: [
-      'Write down what the project is meant to be, and the rules it must keep.',
-      'Talk the whole project through from its canvas whenever something shifts.',
-      'When a new piece pulls away from a rule, you get a question, never a verdict.',
-      'Change the piece or change the rule. Either way, somebody decided.',
-    ],
-    never: 'It never scores the work and never measures how it performed.',
-    footer: <><PlanLink plan="direction" />. Yearly suits a project that runs for years, with two months free.</>,
   },
 ]
 
@@ -540,6 +551,7 @@ function AudienceBegin({ audience }: { audience: Audience }) {
 // one the page is really for.
 const PRACTICE_TAB = { rest: { backgroundColor: shell.fill, color: shell.muted }, on: { backgroundColor: shell.text, color: shell.ink } }
 const DIRECTION_TAB = { rest: { backgroundColor: alpha(shell.text, 0.14), color: alpha(shell.text, 0.82) }, on: { backgroundColor: shell.text, color: shell.ink } }
+const TIERS = ['direction', 'practice'] as const
 
 function WhoFor() {
   const ref = useRef<HTMLElement>(null)
@@ -559,39 +571,40 @@ function WhoFor() {
       <Reveal>
         <h2 className={`max-w-[16ch] ${H2}`}>Who it&rsquo;s for.</h2>
         <p className="mt-5 max-w-[50ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Six kinds of makers, and what each one does with it. Pick the one closest to you.
+          Six kinds of makers. Pick the one closest to you.
         </p>
       </Reveal>
 
       <Reveal delay={0.08} className="mt-9 md:mt-12">
-        {/* Bleeds to the screen edge on a phone so the row can be swiped, not wrapped. */}
-        <div
-          role="tablist"
-          aria-label="Who it is for"
-          className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
-        >
-          {AUDIENCES.map((a, i) => {
-            const look = a.tier === 'direction' ? DIRECTION_TAB : PRACTICE_TAB
-            const firstOfDirection = a.tier === 'direction' && AUDIENCES[i - 1]?.tier !== 'direction'
-            return (
-              <span key={a.key} className="flex shrink-0 items-center gap-1.5">
-                {/* Where Practice's makers end and Direction's begin. */}
-                {firstOfDirection && <span aria-hidden className="mx-2 h-6 w-px shrink-0 bg-[var(--line)]" />}
-                <button
-                  type="button"
-                  role="tab"
-                  id={`who-tab-${a.key}`}
-                  aria-selected={i === index}
-                  aria-controls="who-panel"
-                  onClick={() => setIndex(i)}
-                  className="shrink-0 cursor-pointer rounded-full px-4 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)]"
-                  style={i === index ? look.on : look.rest}
-                >
-                  {a.tab}
-                </button>
-              </span>
-            )
-          })}
+        {/* On a phone every audience is in sight at once, two to a row: Direction's pair, then Practice's four. Nothing to swipe to. From a tablet up they sit on one line with a divider between the two plans. */}
+        <div role="tablist" aria-label="Who it is for" className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-1.5">
+          {TIERS.map((tier, ti) => (
+            <Fragment key={tier}>
+              {ti > 0 && <span aria-hidden className="mx-2 hidden h-6 w-px shrink-0 bg-[var(--line)] md:block" />}
+              <div className="grid grid-cols-2 gap-1.5 md:flex md:items-center">
+                {AUDIENCES.map((a, i) => {
+                  if (a.tier !== tier) return null
+                  const look = tier === 'direction' ? DIRECTION_TAB : PRACTICE_TAB
+                  return (
+                    <button
+                      key={a.key}
+                      type="button"
+                      role="tab"
+                      id={`who-tab-${a.key}`}
+                      aria-selected={i === index}
+                      aria-controls="who-panel"
+                      onClick={() => setIndex(i)}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)]"
+                      style={i === index ? look.on : look.rest}
+                    >
+                      <a.Icon size={15} strokeWidth={2} aria-hidden style={{ color: i === index ? undefined : alpha(hues[a.hue], 0.95) }} />
+                      {a.tab}
+                    </button>
+                  )
+                })}
+              </div>
+            </Fragment>
+          ))}
         </div>
 
         <m.div
@@ -602,32 +615,44 @@ function WhoFor() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: EASE }}
-          className="mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
+          className="relative mt-4 overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--fill)]"
           style={{ borderTop: `2px solid ${alpha(hue, 0.7)}` }}
         >
-          <div className="grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
+          {/* Each audience has its own light and its own mark in the corner, so six panels do not read as one panel six times. */}
+          <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-[420px] w-[420px] rounded-full" style={{ background: `radial-gradient(closest-side, ${alpha(hue, 0.2)}, transparent)` }} />
+          <audience.Icon aria-hidden className="pointer-events-none absolute -right-7 -top-7 h-[150px] w-[150px] md:h-[220px] md:w-[220px]" strokeWidth={0.9} style={{ color: alpha(hue, 0.13) }} />
+
+          <div className="relative grid grid-cols-1 gap-8 p-6 md:grid-cols-[0.9fr_1.1fr] md:gap-14 md:p-10">
             <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hue }}>{audience.plans}</p>
-              <h3 className="mt-3 text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[34px]">{audience.name}</h3>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl" style={{ backgroundColor: alpha(hue, 0.18), color: hue }}>
+                  <audience.Icon size={20} strokeWidth={2} aria-hidden />
+                </span>
+                <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ backgroundColor: alpha(hue, 0.14), color: hue }}>{audience.plans}</span>
+              </div>
+              <h3 className="mt-5 max-w-[16ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[34px]">{audience.name}</h3>
               <p className="mt-4 max-w-[40ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{audience.who}</p>
-              <p className="mt-6 flex max-w-[40ch] items-start gap-2.5 text-[15px] leading-relaxed text-[var(--bone)]">
-                <span aria-hidden className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hue }} />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--muted)]">What&rsquo;s here for you</p>
+              <ul className="mt-4 flex flex-col gap-3.5">
+                {audience.here.map((line, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="mt-[3px] flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: alpha(hue, 0.2), color: hue }}>
+                      <Check size={12} strokeWidth={3} aria-hidden />
+                    </span>
+                    <span className="text-[16px] leading-relaxed text-[var(--bone)]">{line}</span>
+                  </li>
+                ))}
+              </ul>
+              {/* The promise, set apart from what is offered. */}
+              <p className="mt-6 flex items-start gap-3 rounded-2xl px-4 py-3.5 text-[15px] leading-relaxed text-[var(--bone)]" style={{ backgroundColor: alpha(shell.text, 0.06) }}>
+                <Ban size={16} strokeWidth={2} aria-hidden className="mt-[3px] shrink-0" style={{ color: hue }} />
                 {audience.never}
               </p>
             </div>
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">How you&rsquo;d use it</p>
-              <ol className="mt-4 flex flex-col">
-                {audience.steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-4 border-t border-[var(--line)] py-4 first:border-t-0 first:pt-0 last:pb-0">
-                    <span className="w-5 shrink-0 text-[15px] font-semibold tabular-nums" style={{ color: hue }}>{i + 1}</span>
-                    <span className="text-[16px] leading-relaxed text-[var(--bone)]">{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
           </div>
-          <div className="flex flex-col gap-4 border-t border-[var(--line)] px-6 py-5 md:flex-row md:items-center md:justify-between md:px-10">
+          <div className="relative flex flex-col gap-4 border-t border-[var(--line)] px-6 py-5 md:flex-row md:items-center md:justify-between md:px-10">
             <p className="max-w-[64ch] text-[15px] leading-relaxed text-[var(--muted)]">{audience.footer}</p>
             <AudienceBegin audience={audience} />
           </div>
@@ -640,7 +665,7 @@ function WhoFor() {
 // ── What it will never do: four cards, each crossing out what others do ─────
 
 const NEVER = [
-  { not: 'Here’s a draft I wrote for you', title: 'Make the work for you', body: 'It can ask and suggest. Every sentence you keep is one you chose.' },
+  { not: 'Here’s a draft I wrote for you', title: 'Generate the work for you', body: 'It can ask and suggest. Every sentence you keep is one you chose.' },
   { not: 'This piece scores 8 out of 10', title: 'Tell you whether it’s good', body: 'It helps you see what you meant. It never grades what you made.' },
   { not: '12-day streak · 340 views', title: 'Keep score', body: 'No likes, no views, no streaks. Nothing here measures how the work performed.' },
   { not: 'Posted on your behalf', title: 'Speak for you', body: 'It talks only to you. It never posts or sends anything in your name.' },
@@ -692,7 +717,7 @@ function Closing() {
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
         <p className="mt-5 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Mention a line you won&rsquo;t cross while you talk the work through, and it asks whether to keep it. Kept rules come back as a question when new work runs against them, and never become rules without you.
+          Mention a line you won&rsquo;t cross, and it asks whether to keep it. Kept rules come back as a question when new work runs against them.
         </p>
       </Reveal>
     </section>

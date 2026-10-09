@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion as m, useReducedMotion } from 'motion/react'
+import { RefreshCw } from 'lucide-react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card, Divider, Eyebrow } from '@/components/shell/page-shell'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
@@ -18,9 +19,9 @@ import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
 import { WorkingDots } from '@/components/ui/working'
 import { PhaseDots, StageRibbon } from '@/components/widgets'
-import { accentWash, useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
+import { accentWash, AutoHeight, Marked, useRewind, useTypewriter, type LoopProps } from '@/components/landing/mockups'
 import { THEME_HUES } from '@/lib/tour'
-import { alpha, columnHue, fonts, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
+import { alpha, columnHue, fonts, onColor, radius, type as typeRoles, type BoardColumn, type Hue } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -277,6 +278,10 @@ export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
   const chosen = step >= 1
   const bright = step >= 2
   const current = list[theme]
+  // On the landing page the card keeps room for the longest question, so the page below never moves as they change.
+  const longest = useMemo(() => list.flatMap((th) => th.questions).reduce((a, q) => (q.length > a.length ? q : a), ''), [list])
+  const tone = t[current.hue]
+  const landed = step === 4 && !!question && back === 0
 
   return (
     <Container padding={12}>
@@ -319,18 +324,36 @@ export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
         </div>
         </>)}
 
-        <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, ...(step >= 3 ? accentWash(t[current.hue], t.cardBgInner) : null), transition: 'background-image 0.4s ease, border-color 0.4s ease' }}>
-          {step < 3 ? (
+        <Card inner padding={14} style={{ marginTop: 14, minHeight: 148, display: 'flex', flexDirection: 'column', ...(step >= 3 ? accentWash(tone, t.cardBgInner) : null), transition: 'background-image 0.4s ease, border-color 0.4s ease' }}>
+          {step < 3 && !looping ? (
             <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted }}>The question is waiting.</p>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-3">
-                <Eyebrow style={{ paddingTop: 6 }}>Your question</Eyebrow>
-                <GhostButton size="sm" onClick={again} disabled={step === 3}>Ask again</GhostButton>
+              <Eyebrow>Your question</Eyebrow>
+              <div style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8, display: 'grid' }}>
+                {looping && <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{longest}</span>}
+                <span style={{ gridArea: '1 / 1' }}>
+                  {step < 3 ? <span style={{ ...typeRoles.ui, fontSize: 14, color: t.textMuted }}>The question is waiting.</span>
+                    : step === 3 || !question ? <WorkingDots color={tone} />
+                    : <Arriving key={`${theme}-${asked[theme]}`} text={question} leaving={back === 1} />}
+                </span>
               </div>
-              <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>
-                {step === 3 || !question ? <WorkingDots color={t[current.hue]} /> : <Arriving key={`${theme}-${asked[theme]}`} text={question} leaving={back === 1} />}
-              </p>
+              {/* The one thing to press: filled in the theme's colour, and beckoning once the question has landed. */}
+              <div style={{ marginTop: 'auto', paddingTop: 14 }}>
+                <m.button
+                  type="button"
+                  onClick={again}
+                  disabled={step !== 4}
+                  whileTap={{ scale: 0.95 }}
+                  animate={landed && looping && !reduce ? { boxShadow: [`0 0 0 0px ${alpha(tone, 0.45)}`, `0 0 0 10px ${alpha(tone, 0)}`] } : { boxShadow: `0 0 0 0px ${alpha(tone, 0)}` }}
+                  transition={landed && looping && !reduce ? { duration: 1.7, repeat: Infinity, ease: 'easeOut' } : { duration: 0.2 }}
+                  className="cursor-pointer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: fonts.ui, fontSize: 13, fontWeight: 600, lineHeight: 1.2, padding: '9px 16px', borderRadius: 999, border: 'none', backgroundColor: tone, color: onColor(tone), opacity: step === 4 ? 1 : 0.4, transition: 'opacity 0.3s ease, background-color 0.4s ease' }}
+                >
+                  <RefreshCw size={14} strokeWidth={2.4} aria-hidden />
+                  Ask again
+                </m.button>
+              </div>
             </>
           )}
         </Card>
@@ -342,8 +365,11 @@ export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
 // ── Conceptualise: from your answer to a declared concept ───────────────────
 
 const PHASES = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
-const FIRST_REPLY =
-  'A book of life lessons for my child. They aren’t even born yet. But for three years I’ve kept a notebook of things I wish someone had told me: how to sit with a bad day without calling it a bad life, how to apologise properly, what to do when the people you love are wrong about you. I mostly write in it after the hard days. I’ve never shown anyone, because it feels arrogant to write advice for someone who doesn’t exist, from someone still getting most of it wrong. But my father never said any of this to me, and I learned it late, and the hard way. If I’m not around on the day they need it, I want them to be able to open it at any page and hear my voice telling them they’re going to be alright.'
+// The first answer, in two parts: what is read at a glance, and the rest of it
+// for whoever presses "Read more".
+const FIRST_LEAD = 'A book of life lessons for my child. They aren’t even born yet.'
+const FIRST_REST =
+  'But for three years I’ve kept a notebook of things I wish someone had told me: how to sit with a bad day without calling it a bad life, how to apologise properly, what to do when the people you love are wrong about you. I mostly write in it after the hard days. I’ve never shown anyone, because it feels arrogant to write advice for someone who doesn’t exist, from someone still getting most of it wrong. But my father never said any of this to me, and I learned it late, and the hard way. If I’m not around on the day they need it, I want them to be able to open it at any page and hear my voice telling them they’re going to be alright.'
 const EXCHANGES = [
   { ask: 'You write in it after the hard days. What does a page sound like when you’ve only just learned the lesson yourself?', say: 'Less like advice. More like a letter from someone still in the middle of it.' },
   { ask: 'Picture them opening it. How old are they, and what kind of day has it been?', say: 'Nineteen, maybe. A day when they’re sure they’ve ruined everything.' },
@@ -351,7 +377,7 @@ const EXCHANGES = [
 ]
 
 // How long the landing page stays on a slide before moving itself on: the
-// first has a long answer to read, the rest are a line each.
+// first has the answer to take in, the rest are a line each.
 const FIRST_HOLD_MS = 6000
 const NEXT_HOLD_MS = 3000
 
@@ -365,10 +391,25 @@ export function ConceptualiseWidget({ active, replay, onDone }: TourWidgetProps)
   const exchange = phase >= 2 && phase <= 4 ? EXCHANGES[phase - 2] : null
   const ask = useTypewriter(exchange?.ask ?? '', active && !!exchange, 18)
 
+  // The first slide leads the eye down it: the question arrives, then the
+  // answer is written under it, then the hint that there is more.
+  // 0 nothing yet · 1 the question · 2 the answer being written
+  const [beat, setBeat] = useState(0)
+  const [round, setRound] = useState(0)
+  useEffect(() => {
+    if (!active || phase !== 1) return
+    if (reduce) { setBeat(2); return }
+    setBeat(0)
+    const ids = [window.setTimeout(() => setBeat(1), 350), window.setTimeout(() => setBeat(2), 350 + SEED.questions[0].split(' ').length * 55 + 450)]
+    return () => ids.forEach((id) => window.clearTimeout(id))
+  }, [active, phase, reduce, round])
+  const lead = useTypewriter(FIRST_LEAD, phase === 1 && beat >= 2, 24)
+  const answered = phase === 1 && beat >= 2 && lead.done
+
   // On the landing page it walks itself through every phase, and round again
   // from the declaration: each slide says when it has finished, and is moved
   // on once it has been held.
-  const settled = phase === 1 || phase === 5 || replied
+  const settled = phase === 1 ? answered : phase === 5 || replied
   useEffect(() => {
     if (!active || !onDone || !settled) return
     const id = window.setTimeout(() => onDone(phase === 1 ? FIRST_HOLD_MS : NEXT_HOLD_MS), 400)
@@ -391,84 +432,84 @@ export function ConceptualiseWidget({ active, replay, onDone }: TourWidgetProps)
   }, [active, exchange, ask.done])
 
   const advance = () => { setReplied(false); setPhase((p) => p + 1) }
-  const ready = phase === 1 || replied
-  const fade = 'linear-gradient(to bottom, #000 35%, transparent 100%)'
-  // The first slide: the question that was asked, and the long answer under it.
-  // `live` is the one on show; the other is only there to hold its height (below).
-  const first = (live: boolean) => (
-    <>
-      <div className="flex flex-wrap gap-1.5">
-        <Pill hue={SEED.hue}>{SEED.label}</Pill>
-        {/* The landing page's Idea widget has no energy slider, so no energy to carry over. */}
-        {!looping && <Pill hue="verdant">Bright</Pill>}
-      </div>
-      {/* The question being answered, set as it was when it arrived in the Idea Lab: everything below hangs from it. */}
-      <div style={{ marginTop: 10, padding: '2px 0 2px 12px', borderLeft: `3px solid ${t[SEED.hue]}` }}>
-        <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t[SEED.hue] }}>Your question</p>
-        <p style={{ ...typeRoles.quote, fontSize: 17, color: t.textPrimary, marginTop: 4 }}>
-          {live && active ? <Arriving text={SEED.questions[0]} /> : <span style={{ visibility: 'hidden' }}>{SEED.questions[0]}</span>}
-        </p>
-      </div>
-      <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.textMuted, marginTop: 12 }}>Your answer</p>
-      <div style={live && more ? { marginTop: 4 } : { marginTop: 4, maxHeight: 112, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
-        <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{FIRST_REPLY}</p>
-      </div>
-      <TextButton onClick={() => setMore(!more)}>{live && more ? 'Show less' : 'Read more'}</TextButton>
-    </>
+  const again = () => { setMore(false); setRound((r) => r + 1); setPhase(1) }
+  const ready = phase === 1 ? answered : replied
+  const fade = 'linear-gradient(to bottom, #000 20%, transparent 100%)'
+  const slides = (
+    <AnimatePresence mode="wait" initial={false}>
+      <m.div
+        key={phase}
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={reduce ? undefined : { opacity: 0, y: -6 }}
+        transition={{ duration: 0.3, ease: EASE }}
+        style={{ marginTop: 14 }}
+      >
+        {phase === 1 ? (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              <Pill hue={SEED.hue}>{SEED.label}</Pill>
+              {/* The landing page's Idea widget has no energy slider, so no energy to carry over. */}
+              {!looping && <Pill hue="verdant">Bright</Pill>}
+            </div>
+            {/* The question being answered: there to be recognised from the Idea Lab, and quieter than the answer under it. */}
+            <div style={{ marginTop: 10, padding: '1px 0 1px 11px', borderLeft: `2px solid ${alpha(t[SEED.hue], 0.7)}` }}>
+              <p style={{ ...typeRoles.quote, fontSize: 14.5, lineHeight: 1.4, color: t.textSecondary }}>
+                {beat >= 1 ? <Arriving text={SEED.questions[0]} /> : <span style={{ visibility: 'hidden' }}>{SEED.questions[0]}</span>}
+              </p>
+            </div>
+            {/* The answer is what this slide is for. Its opening is all that shows at first, written out as if by hand; the next sentence fades off underneath to say there is more. */}
+            <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.ember, marginTop: 14, opacity: beat >= 2 ? 1 : 0, transition: 'opacity 0.3s ease' }}>Your answer</p>
+            <p aria-label={FIRST_LEAD} style={{ ...typeRoles.h3, fontSize: 18, lineHeight: 1.3, color: t.textPrimary, marginTop: 5, display: 'grid' }}>
+              <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{FIRST_LEAD}</span>
+              <span aria-hidden style={{ gridArea: '1 / 1' }}>{lead.shown}{beat >= 2 && !lead.done && <Caret />}</span>
+            </p>
+            <m.div initial={false} animate={{ opacity: answered ? 1 : 0 }} transition={{ duration: 0.5, ease: EASE }}>
+              <div style={more ? { marginTop: 8 } : { marginTop: 8, maxHeight: 34, overflow: 'hidden', maskImage: fade, WebkitMaskImage: fade }}>
+                <p style={{ ...typeRoles.ui, fontSize: 14, color: more ? t.textPrimary : t.textSecondary }}>{FIRST_REST}</p>
+              </div>
+              <TextButton onClick={() => setMore(!more)}>{more ? 'Show less' : 'Read more'}</TextButton>
+            </m.div>
+          </>
+        ) : exchange ? (
+          <>
+            <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
+              <span aria-hidden>{ask.shown}</span>
+            </p>
+            <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%', minHeight: '3.2em' }}>
+              {exchange.say}
+            </m.p>
+          </>
+        ) : (
+          <>
+            {/* The concept, declared: the same card the vision is on the hero and the canvas. */}
+            <div style={{ padding: 16, borderRadius: radius.widget, ...accentWash(t.ember, t.cardBgInner) }}>
+              <Pill hue="ember">Concept</Pill>
+              <p style={{ ...typeRoles.h2, fontSize: 20, color: t.textPrimary, marginTop: 10 }}>Letters Ahead</p>
+              <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 5 }}>A book of letters to my future child: one lesson to a page, each told with the day I learned it.</p>
+            </div>
+            <TextButton onClick={again}>Watch again</TextButton>
+          </>
+        )}
+        {phase < 5 && (
+          <m.div initial={false} animate={{ opacity: ready ? 1 : 0.35 }} className="flex justify-end" style={{ marginTop: 8 }}>
+            <PrimaryButton size="sm" onClick={advance} disabled={!ready}>{phase === 4 ? 'Declare it →' : 'Next →'}</PrimaryButton>
+          </m.div>
+        )}
+      </m.div>
+    </AnimatePresence>
   )
   return (
     <Container padding={12}>
       <TryIt>
-        {phase === 1 ? 'You answer first, at whatever length you need. Then press Next.'
+        {phase === 1 ? (looping ? 'You answer in your own words. Then it asks.' : 'You answer first, at whatever length you need. Then press Next.')
           : phase < 5 ? (ready ? 'Press Next when you’re ready for the next question.' : 'It asks one question at a time.')
           : 'Declared. This concept becomes a project on your board.'}
       </TryIt>
-      <Card padding={16} style={{ minHeight: 330 }}>
+      {/* In the tour the card keeps one height under the carousel. On the landing page, moving through the slides by itself, it takes the height of whichever is showing and eases between them. */}
+      <Card padding={looping ? '16px 16px 2px' : 16} style={looping ? undefined : { minHeight: 330 }}>
         <PhaseDots phase={phase} labels={PHASES} />
-        {/* Moving through the slides by itself, the widget must not change height and push the page about: an unseen copy of the first, tallest slide sits in the same cell as whichever is showing. */}
-        <div style={looping ? { display: 'grid' } : undefined}>
-          {looping && (
-            <div aria-hidden style={{ gridArea: '1 / 1', minWidth: 0, marginTop: 14, visibility: 'hidden', pointerEvents: 'none' }}>
-              {first(false)}
-              <div className="flex justify-end" style={{ paddingTop: 8 }}><PrimaryButton size="sm" onClick={() => {}} disabled>Next →</PrimaryButton></div>
-            </div>
-          )}
-          <AnimatePresence mode="wait" initial={false}>
-            <m.div
-              key={phase}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduce ? undefined : { opacity: 0, y: -6 }}
-              transition={{ duration: 0.3, ease: EASE }}
-              style={{ marginTop: 14, ...(looping ? { gridArea: '1 / 1', minWidth: 0, display: 'flex', flexDirection: 'column' } : null) }}
-            >
-              {phase === 1 ? first(true) : exchange ? (
-                <>
-                  <p aria-label={exchange.ask} style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, minHeight: '4.7em' }}>
-                    <span aria-hidden>{ask.shown}</span>
-                  </p>
-                  <m.p initial={false} animate={{ opacity: replied ? 1 : 0, y: replied ? 0 : 6 }} transition={{ duration: 0.4, ease: EASE }} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, textAlign: 'right', marginTop: 12, marginLeft: '12%', minHeight: '3.2em' }}>
-                    {exchange.say}
-                  </m.p>
-                </>
-              ) : (
-                <>
-                  <Card inner padding={14} style={{ borderLeft: `3px solid ${t.ember}` }}>
-                    <Pill hue="ember">Concept</Pill>
-                    <p style={{ ...typeRoles.h3, fontSize: 17, color: t.textPrimary, marginTop: 8 }}>Letters Ahead</p>
-                    <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary, marginTop: 4 }}>A book of letters to my future child: one lesson to a page, each told with the day I learned it.</p>
-                  </Card>
-                  <TextButton onClick={() => { setMore(false); setPhase(1) }}>Watch again</TextButton>
-                </>
-              )}
-              {phase < 5 && (
-                <m.div initial={false} animate={{ opacity: ready ? 1 : 0.35 }} className="flex justify-end" style={looping ? { marginTop: 'auto', paddingTop: 8 } : { marginTop: 8 }}>
-                  <PrimaryButton size="sm" onClick={advance} disabled={!ready}>{phase === 4 ? 'Declare it →' : 'Next →'}</PrimaryButton>
-                </m.div>
-              )}
-            </m.div>
-          </AnimatePresence>
-        </div>
+        {looping ? <AutoHeight>{slides}</AutoHeight> : slides}
       </Card>
     </Container>
   )
@@ -574,31 +615,107 @@ const PARTS = [
 ]
 const SHOWN_FIRST = 2
 
-// On the landing page it shows itself: a part is selected, Companheiro's
-// reflection on it is written out, and after a hold only the reflection is
-// taken back (backspaced) before the next part is selected. The script stays.
-const WRITING_BACK = [520] as const
-/** The longest reflection among the parts on show, to keep the box one height while they change. */
-const LONGEST_ASK = PARTS.slice(0, SHOWN_FIRST).reduce((a, p) => (p.ask.length > a.length ? p.ask : a), '')
+// The landing page's own telling of the same script, for someone glancing at
+// it: one line of each part, the phrase Companheiro picks up on marked in it,
+// and one short question back. The tour keeps the full parts and reflections.
+const GLANCE = [
+  { title: 'The night', before: 'Then one night she ', mark: 'cried over nothing', after: ', and I asked what I’d done wrong.', ask: 'You call it nothing, yet the whole film is built on that night. What was she crying over?' },
+  { title: 'What I learned', before: 'In the week before, she ', mark: 'needs patience, so I give her space', after: '.', ask: 'Patience and space aren’t the same thing. Did she tell you which one she wanted?' },
+  { title: 'What I want you to know', before: 'It took me years to get here, and ', mark: 'you can skip them', after: '.', ask: 'Two parts ago you were asking what you’d done wrong. Which mistake are you still making?' },
+]
+const GLANCE_LONGEST = GLANCE.reduce((a, p) => (p.ask.length > a.length ? p.ask : a), '')
+// Winding back: only the reflection is taken back and the marker lifted. The
+// script stays, and the next part opens.
+const WRITING_BACK = [480] as const
 
-export function WritingWidget({ active, replay, onDone }: TourWidgetProps) {
+function WritingGlance({ active, replay, onDone }: TourWidgetProps) {
   const { t } = useTheme()
-  const looping = onDone !== undefined
+  const reduce = useReducedMotion()
+  const [sel, setSel] = useState(0)
+  // 0 the part is open · 1 a phrase is marked in it · 2 the question is being written
+  const [beat, setBeat] = useState(0)
+  const [theirs, setTheirs] = useState(false)
+  const { back, cycle, stop } = useRewind(replay, WRITING_BACK, () => { setSel((s) => (s + 1) % GLANCE.length); setBeat(0) })
+  useEffect(() => {
+    if (!active || theirs) return
+    if (reduce) { setBeat(2); return }
+    const ids = [window.setTimeout(() => setBeat(1), cycle === 0 ? 900 : 450), window.setTimeout(() => setBeat(2), cycle === 0 ? 1700 : 1200)]
+    return () => ids.forEach((id) => window.clearTimeout(id))
+  }, [active, cycle, reduce, theirs])
+  const part = GLANCE[sel]
+  const ask = useTypewriter(part.ask, beat >= 2, 20, back > 0)
+  const asked = beat >= 2 && ask.done && back === 0
+  useEffect(() => {
+    if (asked) onDone?.()
+  }, [asked, sel, onDone])
+  const open = (i: number) => { stop(); setTheirs(true); setSel(i); setBeat(2) }
+  const marked = beat >= 1 && back === 0
+
+  return (
+    <Container padding={12}>
+      <TryIt>{theirs ? 'It only asks. Tap another part.' : 'Watch: it reads a part, then asks. Tap any part.'}</TryIt>
+      <Card padding={14}>
+        <div className="flex items-baseline justify-between gap-3">
+          <p style={{ ...typeRoles.h3, color: t.textPrimary }}>Four Weeks <span style={{ fontWeight: 400, color: t.textMuted }}>· Short film</span></p>
+          <span style={{ fontFamily: fonts.ui, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.ember, whiteSpace: 'nowrap' }}>Write</span>
+        </div>
+        <div className="flex flex-col gap-1.5" style={{ marginTop: 12 }}>
+          {GLANCE.map((p, i) => {
+            const on = sel === i
+            return (
+              <button
+                key={p.title}
+                type="button"
+                onClick={() => open(i)}
+                aria-pressed={on}
+                className="cursor-pointer"
+                style={{
+                  textAlign: 'left', borderRadius: radius.field, padding: '9px 11px',
+                  border: `1px solid ${on ? alpha(t.tide, 0.5) : t.divider}`,
+                  backgroundColor: on ? t.soft.tide : 'transparent',
+                  transition: 'background-color 0.3s ease, border-color 0.3s ease',
+                }}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: on ? t.tide : t.textMuted }}>Part {i + 2} · {p.title}</span>
+                  <span aria-hidden style={{ fontFamily: fonts.ui, fontSize: 14, lineHeight: 1, color: t.textMuted, transform: on ? 'rotate(45deg)' : 'none', transition: 'transform 0.3s ease' }}>+</span>
+                </span>
+                {/* Only the open part shows its line; the others are their names. */}
+                <span style={{ display: 'grid', gridTemplateRows: on ? '1fr' : '0fr', transition: reduce ? 'none' : 'grid-template-rows 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <span style={{ overflow: 'hidden', minHeight: 0 }}>
+                    <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, display: 'block', paddingTop: 6 }}>
+                      {p.before}<Marked on={on && marked} color={t.violet}>{p.mark}</Marked>{p.after}
+                    </span>
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* What it asks back: the one thing here set apart, in Companheiro's own colour. */}
+        <div style={{ marginTop: 10, padding: '11px 13px 13px', borderRadius: radius.widget, ...accentWash(t.violet, t.cardBgInner) }}>
+          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro asks</p>
+          <p aria-label={part.ask} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, marginTop: 3, display: 'grid' }}>
+            <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{GLANCE_LONGEST}</span>
+            <span aria-hidden style={{ gridArea: '1 / 1' }}>{ask.shown}{beat >= 2 && !ask.done && <Caret />}</span>
+          </p>
+        </div>
+      </Card>
+    </Container>
+  )
+}
+
+/** In the tour it is the full script, waiting to be pressed; on the landing page, the short telling that plays by itself. */
+export function WritingWidget(p: TourWidgetProps) {
+  return p.onDone ? <WritingGlance {...p} /> : <WritingFull {...p} />
+}
+
+function WritingFull({ active }: TourWidgetProps) {
+  const { t } = useTheme()
   const [sel, setSel] = useState<number | null>(null)
   const [more, setMore] = useState(false)
-  const { back, stop } = useRewind(replay, WRITING_BACK, () => setSel((s) => ((s ?? -1) + 1) % SHOWN_FIRST))
-  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 12, back > 0)
-
-  // The first part selects itself, a moment after the widget is seen.
-  useEffect(() => {
-    if (!looping || !active || sel !== null) return
-    const id = window.setTimeout(() => setSel((s) => s ?? 0), 900)
-    return () => window.clearTimeout(id)
-  }, [looping, active, sel])
-  const reflected = sel !== null && ask.done && back === 0
-  useEffect(() => {
-    if (reflected) onDone?.()
-  }, [reflected, sel, onDone])
+  const ask = useTypewriter(sel !== null ? PARTS[sel].ask : '', sel !== null, 12)
   const fadeUp = 'linear-gradient(to top, #000 35%, transparent 100%)'
   const shown = more ? PARTS : PARTS.slice(0, SHOWN_FIRST)
 
@@ -624,7 +741,7 @@ export function WritingWidget({ active, replay, onDone }: TourWidgetProps) {
               <button
                 key={part.title}
                 type="button"
-                onClick={() => { stop(); setSel(i) }}
+                onClick={() => setSel(i)}
                 aria-pressed={on}
                 className="cursor-pointer"
                 style={{
@@ -642,26 +759,17 @@ export function WritingWidget({ active, replay, onDone }: TourWidgetProps) {
         </div>
         <TextButton onClick={() => { if (more && sel !== null && sel >= SHOWN_FIRST) setSel(null); setMore(!more) }}>{more ? 'Show less' : 'Read more'}</TextButton>
 
-        <Card inner padding={12} style={{ marginTop: 4, position: 'relative' }}>
-          {/* Looping: room for the longest reflection is held from the start, so the page below never moves as they are written and taken back. */}
-          {looping && !more && (
-            <div aria-hidden style={{ visibility: 'hidden' }}>
-              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600 }}>Companheiro</p>
-              <p style={{ ...typeRoles.ui, fontSize: 14, marginTop: 2 }}>{LONGEST_ASK}</p>
-            </div>
+        <Card inner padding={12} style={{ marginTop: 4 }}>
+          {sel === null ? (
+            <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a part to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
+          ) : (
+            <>
+              <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro <span style={{ fontWeight: 400, color: t.textMuted }}>· on “{PARTS[sel].title}”</span></p>
+              <p aria-label={PARTS[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em', marginTop: 2 }}>
+                <span aria-hidden>{ask.shown}</span>
+              </p>
+            </>
           )}
-          <div style={looping && !more ? { position: 'absolute', inset: 12 } : undefined}>
-            {sel === null ? (
-              <p style={{ ...typeRoles.small, color: t.textSecondary }}>Select a part to talk about it. It asks questions and reflects things back, so the words stay yours.</p>
-            ) : (
-              <>
-                <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet }}>Companheiro <span style={{ fontWeight: 400, color: t.textMuted }}>· on “{PARTS[sel].title}”</span></p>
-                <p aria-label={PARTS[sel].ask} style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '4.7em', marginTop: 2 }}>
-                  <span aria-hidden>{ask.shown}{looping && !ask.done && <Caret />}</span>
-                </p>
-              </>
-            )}
-          </div>
         </Card>
       </Card>
     </Container>

@@ -186,6 +186,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
       subtitle={chosen
         ? `Sign in or create your account, then on to checkout for ${chosenPlanLine(chosen, prices.money(chosen.tier, chosen.interval))}.`
         : 'Try Companheiro risk-free for 30 days. No card needed.'}
+      back="/"
       footer={chosen ? <span>Rather look around first? <Link href="/login" onClick={() => setChosen(null)} style={{ color: t.textPrimary, textDecoration: 'underline', textUnderlineOffset: 3 }}>Start with 30 days free</Link></span> : undefined}
       wide
     >

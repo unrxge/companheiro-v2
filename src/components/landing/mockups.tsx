@@ -16,6 +16,7 @@ import {
   useTransform,
   type MotionValue,
 } from 'motion/react'
+import { Camera, Check, FileText, Mic, Music, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
@@ -123,22 +124,115 @@ export function accentWash(color: string, base: string): React.CSSProperties {
   }
 }
 
+/** A phrase picked out with a marker stroke, which sweeps across it when `on`. */
+export function Marked({ on, color, children }: { on: boolean; color: string; children: React.ReactNode }) {
+  const reduce = useReducedMotion()
+  return (
+    <span
+      style={{
+        backgroundImage: `linear-gradient(${alpha(color, 0.3)}, ${alpha(color, 0.3)})`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: '0 85%',
+        backgroundSize: on ? '100% 82%' : '0% 82%',
+        transition: reduce ? 'none' : `background-size ${on ? 0.65 : 0.25}s cubic-bezier(0.16, 1, 0.3, 1)`,
+        borderRadius: 3,
+        padding: '0 1px',
+        boxDecorationBreak: 'clone',
+        WebkitBoxDecorationBreak: 'clone',
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** Takes the height of what is inside it, and eases to the next height when that changes. */
+export function AutoHeight({ children }: { children: React.ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null)
+  const [h, setH] = useState<number | null>(null)
+  const reduce = useReducedMotion()
+  useEffect(() => {
+    const el = inner.current
+    if (!el) return
+    // Between one slide leaving and the next arriving there is nothing inside: keep the last height through that.
+    const read = () => { if (el.childElementCount) setH(el.offsetHeight) }
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div style={{ height: h ?? 'auto', overflow: 'hidden', transition: reduce || h === null ? 'none' : 'height 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+      {/* Room underneath for a glow that would otherwise be cut off. */}
+      <div ref={inner} style={{ paddingBottom: 14 }}>{children}</div>
+    </div>
+  )
+}
+
 function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   const { t } = useTheme()
   return <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, ...style }}>{children}</p>
 }
 
 // ── Hero: everything in one place, the vision in your own words ─────────────
-// Four things made at different times settle side by side in one project, and
-// the person writes what they add up to. Nothing here shows Companheiro
-// finding the link for them: the line under "Vision" types as theirs.
+// Four things made at different times, in four different mediums, settle side
+// by side in one project, and the person writes what they add up to. Each
+// fragment looks like what it is (a page, a lyric, a recording, a picture), so
+// someone who only glances sees four kinds of work becoming one. Nothing here
+// shows Companheiro finding the link for them: the line under "Vision" types
+// as theirs.
 
-const FRAGMENTS: { kind: string; text: string; tilt: number }[] = [
-  { kind: 'Draft', text: 'My mother kept the good plates for guests who never came.', tilt: -2.2 },
-  { kind: 'Lyric', text: 'Every house I’ve lived in had a room I never used.', tilt: 1.6 },
-  { kind: 'Voice memo, 0:42', text: 'something about waiting until I’m ready', tilt: -1.2 },
-  { kind: 'Photo idea', text: 'Empty café chairs, just before opening.', tilt: 2 },
+type FragmentId = 'draft' | 'lyric' | 'memo' | 'photo'
+const FRAGMENTS: { id: FragmentId; kind: string; hue: Hue; Icon: LucideIcon; tilt: number }[] = [
+  { id: 'draft', kind: 'Draft', hue: 'tide', Icon: FileText, tilt: -2.2 },
+  { id: 'lyric', kind: 'Lyric', hue: 'violet', Icon: Music, tilt: 1.6 },
+  { id: 'memo', kind: 'Voice memo', hue: 'verdant', Icon: Mic, tilt: -1.2 },
+  { id: 'photo', kind: 'Photo', hue: 'ochre', Icon: Camera, tilt: 2 },
 ]
+const MEMO_BARS = [0.4, 0.75, 0.5, 0.95, 0.6, 0.35, 0.8, 0.55, 0.3, 0.7, 0.45, 0.85, 0.5, 0.3]
+
+/** One thing already made, drawn as its medium. */
+function FragmentCard({ f }: { f: (typeof FRAGMENTS)[number] }) {
+  const { t } = useTheme()
+  const c = t[f.hue]
+  const text: React.CSSProperties = { ...typeRoles.small, fontSize: 13, lineHeight: 1.4, color: t.textPrimary, marginTop: 8 }
+  return (
+    <div style={{ height: '100%', padding: '10px 11px 12px', borderRadius: radius.widget, backgroundColor: t.cardBgInner, borderTop: `2px solid ${alpha(c, 0.75)}` }}>
+      <div className="flex items-center gap-1.5">
+        <span className="flex shrink-0 items-center justify-center" style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.soft[f.hue], color: c }}>
+          <f.Icon size={12} strokeWidth={2.4} aria-hidden />
+        </span>
+        <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', color: c, whiteSpace: 'nowrap' }}>{f.kind}</span>
+      </div>
+      {f.id === 'draft' && <p style={text}>My mother kept the good plates for guests who never came.</p>}
+      {f.id === 'lyric' && (
+        <p style={{ ...typeRoles.quote, fontSize: 14.5, lineHeight: 1.35, color: t.textPrimary, marginTop: 8 }}>
+          Every house I&rsquo;ve lived in had a room I never used.
+        </p>
+      )}
+      {f.id === 'memo' && (
+        <>
+          <div aria-hidden className="flex items-center gap-[3px]" style={{ height: 22, marginTop: 9 }}>
+            {MEMO_BARS.map((b, i) => <span key={i} style={{ width: 3, borderRadius: 2, height: `${Math.round(b * 100)}%`, backgroundColor: i < 9 ? c : alpha(c, 0.3) }} />)}
+            <span style={{ ...typeRoles.small, fontSize: 10.5, color: t.textMuted, marginLeft: 5, fontVariantNumeric: 'tabular-nums' }}>0:42</span>
+          </div>
+          <p style={{ ...text, marginTop: 6, color: t.textSecondary }}>&ldquo;something about waiting until I&rsquo;m ready&rdquo;</p>
+        </>
+      )}
+      {f.id === 'photo' && (
+        <>
+          {/* Drawn, not a photograph: chairs outside a café in early light. */}
+          <div role="img" aria-label="A photograph: empty café chairs in early light" className="relative overflow-hidden" style={{ height: 40, marginTop: 9, borderRadius: 8, background: 'linear-gradient(165deg, #f6d9a3 0%, #e39a62 42%, #7a5a62 78%, #3f3a4a 100%)' }}>
+            <span aria-hidden className="absolute inset-x-0 bottom-0" style={{ height: 11, background: 'rgba(40,32,40,0.55)' }} />
+            {[18, 44, 70].map((x) => (
+              <span key={x} aria-hidden className="absolute" style={{ left: `${x}%`, bottom: 7, width: 11, height: 15, borderRadius: '3px 3px 0 0', border: '2px solid rgba(30,24,30,0.8)', borderBottom: 'none' }} />
+            ))}
+          </div>
+          <p style={{ ...text, marginTop: 6 }}>Empty café chairs, before opening.</p>
+        </>
+      )}
+    </div>
+  )
+}
 
 // Winding back: the line is backspaced, then the vision drops away and the
 // four fragments jiggle back to how they lay. Nothing leaves; it plays forward
@@ -189,13 +283,13 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
   }, [written, onDone])
 
   return (
-    <Container padding={16} style={{ width: '100%' }}>
-      <Card padding={20}>
+    <Container padding="clamp(10px, 3vw, 16px)" style={{ width: '100%' }}>
+      <Card padding="clamp(13px, 4vw, 20px)">
         <Label>Things you&rsquo;ve already made</Label>
-        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="mt-3.5 grid grid-cols-2 gap-2 sm:gap-2.5">
           {FRAGMENTS.map((f, i) => (
             <m.div
-              key={f.kind}
+              key={f.id}
               initial={reduce ? false : { opacity: 0, y: 12, rotate: f.tilt * 2 }}
               animate={away ? { opacity: 0, y: 12, rotate: f.tilt * 2 } : { opacity: 1, y: 0, rotate: settled ? 0 : f.tilt }}
               transition={
@@ -203,10 +297,7 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
                 : { duration: 0.7, delay: stage === 0 ? 0.25 + i * 0.15 : i * 0.06, ease: EASE }
               }
             >
-              <Card inner padding={12} style={{ height: '100%' }}>
-                <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>{f.kind}</p>
-                <p style={{ ...typeRoles.small, fontSize: 14, color: t.textPrimary, marginTop: 4 }}>{f.text}</p>
-              </Card>
+              <FragmentCard f={f} />
             </m.div>
           ))}
         </div>
@@ -220,9 +311,26 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
         >
           {/* The one card that is more than paper: a soft wash of the accent, a firmer edge and a faint glow, so it reads as where the four fragments were heading without shouting. */}
           <div style={{ padding: 18, borderRadius: radius.widget, ...accentWash(t.ember, t.cardBgInner) }}>
-            <div className="flex items-center justify-between gap-3">
-              <Pill hue="ember">Vision</Pill>
-              <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>In your words</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Pill hue="ember">Vision</Pill>
+                <span style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, whiteSpace: 'nowrap' }}>In your words</span>
+              </div>
+              {/* The four it was made from, landing in it one after another. */}
+              <div aria-hidden className="flex shrink-0 items-center">
+                {FRAGMENTS.map((f, i) => (
+                  <m.span
+                    key={f.id}
+                    initial={false}
+                    animate={{ scale: visionUp || reduce ? 1 : 0, opacity: visionUp || reduce ? 1 : 0 }}
+                    transition={visionUp ? { type: 'spring', stiffness: 380, damping: 18, delay: 0.25 + i * 0.09 } : { duration: 0.15 }}
+                    className="flex items-center justify-center"
+                    style={{ width: 22, height: 22, marginLeft: i ? -5 : 0, borderRadius: 999, backgroundColor: t[f.hue], color: '#ffffff', border: `2px solid ${t.cardBgInner}` }}
+                  >
+                    <f.Icon size={10} strokeWidth={2.6} />
+                  </m.span>
+                ))}
+              </div>
             </div>
             <p style={{ ...typeRoles.h2, fontSize: 21, color: t.textPrimary, marginTop: 12 }}>{VISION_TITLE}</p>
             <p aria-label={VISION_LINE} style={{ ...typeRoles.small, fontSize: 14, color: t.textSecondary, marginTop: 5, minHeight: '2.9em' }}>
@@ -240,8 +348,8 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
           <button
             type="button"
             onClick={() => setAgain((n) => n + 1)}
-            style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}
-            className="cursor-pointer rounded-full px-2 py-1"
+            style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}
+            className="shrink-0 cursor-pointer rounded-full px-2 py-1"
           >
             Show me again
           </button>
@@ -308,6 +416,28 @@ const PHONE: Record<string, Box | null> = {
   tasks: null,
 }
 const NODES_PHONE: BoardNode[] = NODES.filter((n) => PHONE[n.id]).map((n) => ({ ...n, ...PHONE[n.id]! }))
+
+// The landing page on a phone shows less of it, further apart and off the
+// grid: the vision by its title alone, one thread, two pieces, and one image
+// and one recording kept beside them. It is there to be taken in at a glance,
+// not to list everything a canvas can hold; the wide version does that.
+const BOARD_W_AIRY = 566
+const BOARD_H_AIRY = 372
+const AIRY: Record<string, Box> = {
+  vision: { id: 'vision', x: 16, y: 24, w: 196, h: 104 },
+  hands: { id: 'hands', x: 42, y: 170, w: 150, h: 36 },
+  note: { id: 'note', x: 20, y: 262, w: 178, h: 86 },
+  treatment: { id: 'treatment', x: 250, y: 14, w: 164, h: 104 },
+  shots: { id: 'shots', x: 228, y: 176, w: 164, h: 104 },
+  frame: { id: 'frame', x: 424, y: 110, w: 126, h: 178 },
+}
+const NODES_AIRY: BoardNode[] = NODES.filter((n) => AIRY[n.id]).map((n) => ({ ...n, ...AIRY[n.id] }))
+const EDGES_AIRY: [string, string][] = [
+  ['hands', 'treatment'],
+  ['hands', 'shots'],
+  ['shots', 'note'],
+  ['shots', 'frame'],
+]
 
 /** A thread from its hub to a piece (coloured), or a piece to something kept beside it (plain, dashed). */
 const EDGES: [string, string][] = [
@@ -411,12 +541,14 @@ function NodeBody({ node }: { node: BoardNode }) {
   const { t } = useTheme()
   if (node.kind === 'vision') {
     const tight = node.w < 240
+    // Short enough to hold only its name: the lighter phone layout.
+    const bare = node.h < 130
     return (
       <Card padding={tight ? 14 : 18} style={{ height: '100%', ...accentWash(t.ember, t.cardBg) }}>
         <Pill hue="ember">Vision</Pill>
-        <p style={{ ...typeRoles.h2, fontSize: tight ? 18 : 20, color: t.textPrimary, marginTop: 10 }}>{PROJECT_TITLE}</p>
-        <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>{PROJECT_LINE}</p>
-        <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 10 }}>{PROJECT_RULES}</p>
+        <p style={{ ...typeRoles.h2, fontSize: tight ? 18 : 20, color: t.textPrimary, marginTop: bare ? 8 : 10 }}>{PROJECT_TITLE}</p>
+        {!bare && <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>{PROJECT_LINE}</p>}
+        {!bare && <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 10 }}>{PROJECT_RULES}</p>}
       </Card>
     )
   }
@@ -530,18 +662,22 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Phone layout once the width is known; the wide one renders first.
+  // Phone layout once the width is known; the wide one renders first. The
+  // tour asks for the folded one by name (it describes everything on it); a
+  // phone on the landing page gets the lighter one.
   const [phone, setPhone] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
-    setPhone(compact || mq.matches)
-    const on = (e: MediaQueryListEvent) => setPhone(compact || e.matches)
+    setPhone(mq.matches)
+    const on = (e: MediaQueryListEvent) => setPhone(e.matches)
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])
-  const nodes = phone ? NODES_PHONE : NODES
-  const boardW = phone ? BOARD_W_PHONE : BOARD_W
-  const boardH = phone ? BOARD_H_PHONE : BOARD_H
+  const layout = compact ? 'folded' : phone ? 'airy' : 'wide'
+  const nodes = layout === 'folded' ? NODES_PHONE : layout === 'airy' ? NODES_AIRY : NODES
+  const boardW = layout === 'folded' ? BOARD_W_PHONE : layout === 'airy' ? BOARD_W_AIRY : BOARD_W
+  const boardH = layout === 'folded' ? BOARD_H_PHONE : layout === 'airy' ? BOARD_H_AIRY : BOARD_H
+  const edges = layout === 'airy' ? EDGES_AIRY : EDGES
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
 
   return (
@@ -582,7 +718,7 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
             animate={{ opacity: unseen || back > 0 ? 0 : 1 }}
             transition={back > 0 ? { duration: 0.2 } : { duration: 0.8, delay: 0.9 }}
           >
-            {EDGES.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
+            {edges.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
               const from = byId[a]
               const thread = from.kind === 'hub'
               const color = from.kind === 'hub' ? alpha(t[from.hue], 0.7) : alpha(t.textPrimary, 0.28)
@@ -598,57 +734,93 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
   )
 }
 
-// ── Closing: a rule set in passing, heard and offered back ─────────────────
-// The same project as the canvas above, talked through as a director would:
-// the client asks for something the work refuses, and saying so once is enough.
+// ── Closing: a rule set in passing, heard, offered back and kept ───────────
+// The same project as the canvas above. Four beats, each one a single thing to
+// look at: a line said in passing, the phrase in it picked out, the offer to
+// keep it, and the rule kept. Few words on purpose: the heading beside it has
+// already said what happens.
 
-const RULE_TALK = 'Ana wants a voiceover explaining the process. I don’t want anyone talking over the hands. The sound of the wheel is the script.'
+const RULE_BEFORE = 'Ana wants a voiceover. '
 const RULE_QUOTE = 'I don’t want anyone talking over the hands.'
 
-// Winding back only as far as what was said: the offer goes, then the reply,
-// and the reply is given again.
-const RULE_BACK = [700] as const
+// Winding back: the rule is let go and its card leaves, then the marker comes
+// off the phrase. The line that was said stays, and it is heard again.
+const RULE_BACK = [380, 760] as const
 
 export function RuleHeardMockup({ replay, onDone }: LoopProps) {
   const { t } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, amount: 0.5 })
   const reduce = useReducedMotion()
-  const { back, cycle } = useRewind(replay, RULE_BACK)
+  // 0 said · 1 the phrase is picked out · 2 the offer · 3 "Keep it" being pressed · 4 kept
+  const [stage, setStage] = useState(0)
+  const [theirs, setTheirs] = useState(false)
+  const { back, cycle } = useRewind(replay, RULE_BACK, () => setStage(0))
   useEffect(() => {
-    if (!inView || !onDone) return
-    const id = window.setTimeout(() => onDone(), 2300)
+    if (!inView || theirs) return
+    if (reduce) { setStage(4); return }
+    const at: [number, number][] = [[cycle === 0 ? 900 : 350, 1], [cycle === 0 ? 1750 : 1150, 2], [cycle === 0 ? 3300 : 2600, 3], [cycle === 0 ? 3650 : 2950, 4]]
+    const ids = at.map(([ms, to]) => window.setTimeout(() => setStage(to), ms))
+    return () => ids.forEach((id) => window.clearTimeout(id))
+  }, [inView, cycle, reduce, theirs])
+  useEffect(() => {
+    if (stage !== 4 || !onDone) return
+    const id = window.setTimeout(() => onDone(), 500)
     return () => window.clearTimeout(id)
-  }, [inView, cycle, onDone])
-  const shownAt = reduce || (inView && back === 0)
+  }, [stage, onDone])
+
+  const marked = stage >= 1 && back < 2
+  const offered = stage >= 2 && back === 0
+  const kept = stage >= 4 && back === 0
+  const tone = kept ? t.verdant : t.ochre
+  const decide = (to: number) => { setTheirs(true); setStage(to) }
   return (
     <div ref={ref}>
       <Container padding={16}>
         <Card padding={22}>
-          <Label>Talking the vision through · {PROJECT_TITLE}</Label>
+          <Label>Talking a project through</Label>
           <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, marginTop: 16 }}>You</p>
-          <p style={{ ...typeRoles.ui, color: t.textSecondary, marginTop: 4 }}>{RULE_TALK}</p>
-          <m.div initial={false} animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 8 }} transition={back > 0 ? { duration: 0.3, delay: 0.3, ease: 'easeIn' } : { duration: 0.6, delay: reduce ? 0 : 0.5, ease: EASE }}>
-            <p style={{ ...typeRoles.small, fontWeight: 600, color: t.violet, marginTop: 14 }}>Companheiro</p>
-            <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 4 }}>
-              Then the film has to make the process clear without a word. Which shot carries the part she is afraid people will miss?
-            </p>
-          </m.div>
+          <p style={{ ...typeRoles.ui, fontSize: 17, lineHeight: 1.5, color: t.textPrimary, marginTop: 4 }}>
+            {RULE_BEFORE}
+            <Marked on={marked} color={t.ochre}>{RULE_QUOTE}</Marked>
+          </p>
           <m.div
             initial={false}
-            animate={{ opacity: shownAt ? 1 : 0, y: shownAt ? 0 : 10 }}
-            transition={back > 0 ? { duration: 0.3, ease: 'backIn' } : { duration: 0.7, delay: reduce ? 0 : 1.6, ease: EASE }}
+            animate={{ opacity: offered ? 1 : 0, y: offered ? 0 : 14, scale: offered ? 1 : 0.97 }}
+            transition={offered ? { type: 'spring', stiffness: 260, damping: 22 } : { duration: 0.28, ease: 'easeIn' }}
+            aria-hidden={!offered}
             style={{
-              marginTop: 18, padding: '12px 14px', borderRadius: radius.widget,
-              background: alpha(t.ochre, 0.08), border: `1px solid ${alpha(t.ochre, 0.28)}`,
+              marginTop: 18, padding: '14px 16px 16px', borderRadius: radius.widget,
+              ...accentWash(tone, t.cardBgInner), transition: 'border-color 0.4s ease, background-image 0.4s ease',
+              pointerEvents: offered ? 'auto' : 'none',
             }}
           >
-            <p style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: t.ochre }}>Something this refuses?</p>
-            <p style={{ ...typeRoles.ui, color: t.textPrimary, marginTop: 6 }}>No voiceover</p>
-            <p style={{ ...typeRoles.small, fontStyle: 'italic', color: t.textMuted, marginTop: 4 }}>You said: &ldquo;{RULE_QUOTE}&rdquo;</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Pill hue="neutral" size="md">Keep it as a rule</Pill>
-              <Pill hue="neutral" size="md">Not a rule</Pill>
+            <p className="flex items-center gap-1.5" style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: tone }}>
+              {kept && <Check size={13} strokeWidth={3} aria-hidden />}
+              {kept ? 'Kept as a rule' : 'Something this refuses?'}
+            </p>
+            <p style={{ ...typeRoles.h2, fontSize: 22, color: t.textPrimary, marginTop: 6 }}>No voiceover</p>
+            <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12, minHeight: 34 }}>
+              {kept ? (
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>It will ask before new work breaks it.</p>
+              ) : (
+                <>
+                  <m.button
+                    type="button"
+                    onClick={() => decide(4)}
+                    animate={{ scale: stage === 3 ? 0.93 : 1 }}
+                    transition={{ duration: 0.18 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="cursor-pointer"
+                    style={{ ...typeRoles.small, fontSize: 12.5, fontWeight: 600, padding: '8px 15px', borderRadius: 999, border: 'none', backgroundColor: stage === 3 ? t.verdant : t.inverseBg, color: stage === 3 ? '#ffffff' : t.inverseText, transition: 'background-color 0.2s ease' }}
+                  >
+                    Keep it as a rule
+                  </m.button>
+                  <button type="button" onClick={() => decide(1)} className="cursor-pointer" style={{ ...typeRoles.small, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: 'none', background: 'none', color: t.textSecondary }}>
+                    Not a rule
+                  </button>
+                </>
+              )}
             </div>
           </m.div>
         </Card>
