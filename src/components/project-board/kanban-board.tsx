@@ -23,7 +23,7 @@ import { ModalDialog } from '@/components/ui/modal-dialog'
 import { TextField } from '@/components/ui/field'
 import { Level, useTravel } from '@/components/studio/surface/travel'
 import { StageRibbon } from '@/components/widgets'
-import { journeyStepFromStage, toneHue, type as typeRoles } from '@/lib/design-tokens'
+import { journeyStepFromStage, type as typeRoles } from '@/lib/design-tokens'
 import { api, ApiError } from '@/lib/studio/api-client'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { projectState } from '@/lib/studio/shelf-view'
@@ -44,11 +44,6 @@ const PHASE_LABELS: Record<number, string> = {
   3: 'The Reader',
   4: 'The Principle',
   5: 'Declaration',
-}
-
-interface Trajectory {
-  statement: string
-  tone: string | null
 }
 
 type Column = 'Queue' | 'Active' | 'Completed'
@@ -100,7 +95,6 @@ function Board() {
   const [drafts, setDrafts] = useState<ConceptualiseDraft[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(() => (lastSeenProjects.get() ? 'ready' : 'loading'))
   const [errorCode, setErrorCode] = useState(0)
-  const [trajectory, setTrajectory] = useState<Trajectory | null>(null)
   const [activeTab, setActiveTab] = useState<Column>('Active')
   const [dragged, setDragged] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<Column | null>(null)
@@ -108,8 +102,6 @@ function Board() {
   const [peek, setPeek] = useState<ShelfProject | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null)
   const [showNewIdea, setShowNewIdea] = useState(false)
-  const [bannerExpanded, setBannerExpanded] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
   // On a plan that carries a set number of projects, moving another into a
   // full Active is a swap (one there rests), and a resting one cannot come
   // back yet.
@@ -137,10 +129,6 @@ function Board() {
       .then((r) => (r.ok ? r.json() : { drafts: [] }))
       .then((d) => setDrafts(d.drafts || []))
       .catch(() => {})
-    fetch('/api/trajectory/current')
-      .then((r) => (r.ok ? r.json() : { trajectory: null }))
-      .then((d) => setTrajectory(d.trajectory || null))
-      .catch(() => {})
   }, [load])
 
   // Moves and deletions are applied here before the server answers, so the
@@ -148,13 +136,6 @@ function Board() {
   useEffect(() => {
     if (status === 'ready') lastSeenProjects.set(projects)
   }, [projects, status])
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
 
   const columns = useMemo(() => {
     const recent = (a: ShelfProject, b: ShelfProject) =>
@@ -585,8 +566,6 @@ function Board() {
     )
   }
 
-  const toneDot = trajectory?.tone ? c[toneHue[trajectory.tone]] ?? c.textPrimary : null
-
   return (
     <PageShell mood="verdant" fill>
       <style>{`
@@ -641,54 +620,6 @@ function Board() {
           </div>
         </div>
 
-        {/* Trajectory: its own floating card, divided from the board above */}
-        <div style={{ borderTop: `1px solid ${c.divider}`, padding: '16px', flexShrink: 0 }}>
-          <div
-            className="flex items-center justify-between gap-4"
-            style={{ backgroundColor: c.cardBg, boxShadow: c.shadow, borderRadius: '16px', padding: '14px 20px' }}
-          >
-            <div className="min-w-0 flex-1" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              {toneDot && (
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: toneDot, flexShrink: 0, marginTop: '5px' }} />
-              )}
-              {trajectory ? (
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ position: 'relative' }}>
-                    <p style={{
-                      fontSize: '14px',
-                      lineHeight: 1.5,
-                      color: c.textPrimary,
-                      margin: 0,
-                      ...(isMobile && !bannerExpanded ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
-                    }}>
-                      {trajectory.statement}
-                    </p>
-                    {isMobile && !bannerExpanded && (
-                      <div aria-hidden style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: `linear-gradient(to bottom, transparent, ${c.cardBg})`, pointerEvents: 'none' }} />
-                    )}
-                  </div>
-                  {isMobile && !bannerExpanded && (
-                    <button
-                      onClick={() => setBannerExpanded(true)}
-                      style={{ marginTop: '4px', fontSize: '11px', letterSpacing: '0.04em', color: c.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                    >
-                      See more ↓
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p style={{ fontSize: '13px', color: c.textMuted, margin: 0 }}>No trajectory set yet</p>
-              )}
-            </div>
-            <button
-              onClick={() => router.push('/zoom-out')}
-              className="rounded-lg transition-opacity whitespace-nowrap flex-shrink-0 hover:opacity-85"
-              style={{ fontFamily: 'var(--font-geist-sans)', fontWeight: 600, fontSize: '13px', padding: '8px 16px', backgroundColor: c.ember, color: '#ffffff', border: 'none', cursor: 'pointer' }}
-            >
-              {trajectory ? 'Zoom out' : 'Find your direction'}
-            </button>
-          </div>
-        </div>
       </Container>
 
       {peek && (

@@ -35,7 +35,7 @@ const SEATS: Seat[] = [
   {
     href: '/project-board',
     label: 'Project Board',
-    match: (p) => p.startsWith('/shelf') || p.startsWith('/project-board') || p.startsWith('/new') || p.startsWith('/p/') || p.startsWith('/write') || p.startsWith('/zoom-out') || p.startsWith('/post-publication') || p.startsWith('/read'),
+    match: (p) => p.startsWith('/shelf') || p.startsWith('/project-board') || p.startsWith('/new') || p.startsWith('/p/') || p.startsWith('/write') || p.startsWith('/post-publication') || p.startsWith('/read'),
     icon: <svg width="18" height="18" viewBox="0 0 24 24" {...stroke}><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="9.5" y="4" width="5" height="11" rx="1.5" /><rect x="16" y="4" width="5" height="8" rx="1.5" /></svg>,
   },
   {

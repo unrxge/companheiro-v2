@@ -188,7 +188,6 @@ function installMock(o: Opts) {
     // ?view=kanban: the Project Board. "demo" is the one card whose canvas and writing are mocked too.
     if (path === '/api/studio/projects' && method === 'GET') return json({ projects: shelf })
     if (path === '/api/idea-lab/conceptualise/draft') return json({ drafts: method === 'GET' ? [{ id: 'd1', phase: 2, messages: [{ role: 'assistant', content: 'What would it cost you to leave that sentence out?' }] }] : [] })
-    if (path === '/api/trajectory/current') return json({ trajectory: { statement: 'Writing toward the things I stopped noticing, one ordinary morning at a time.', born_project: null, tone: 'grounded', created_at: NOW } })
     if (path === '/api/idea-lab/territories') return json({})
     {
       const m = /^\/api\/studio\/projects\/([^/]+)$/.exec(path)

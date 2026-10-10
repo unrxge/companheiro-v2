@@ -3,7 +3,7 @@
 export const MODELS = {
   // Fast + cheap: signals extraction, punctuation, unpacking, one-shot prompts
   fast: 'claude-haiku-4-5',
-  // Deeper multi-turn reasoning: conceptualise, zoom-out, writing companion.
+  // Deeper multi-turn reasoning: conceptualise, writing companion.
   // Reverted from Sonnet 5 back to 4.6 (2026-09-08) — 5's lower per-token
   // price didn't hold up once its longer replies were counted: it wrote
   // enough more per response that the same conversation cost more overall,

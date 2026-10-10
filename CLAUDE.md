@@ -60,12 +60,12 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 
 | Table | Read By | Write By | Selection | Notes |
 |-------|---------|----------|-----------|-------|
-| `check_ins` | `/api/trajectory/converse`, `lib/companion-context.ts` (specific cols) | `/api/check-in/log` | Explicit columns | Drought protocol removed 2026-08; additions safe if nullable |
+| `check_ins` | `lib/companion-context.ts` (specific cols) | `/api/check-in/log` | Explicit columns | Drought protocol removed 2026-08; additions safe if nullable |
 | `pieces` | `/api/project-board/*` (specific cols) | `/api/project-board/*` | Mixed | Project board reads exact columns; safe to add optional fields |
 | `ideas` | `/api/idea-lab/*` (specific cols) | `/api/idea-lab/*` | Explicit columns | Idea development flow; verify arc/territory assumptions |
 | `captures` | `/api/idea-lab/captures` | `/api/collector/capture` | Explicit columns | Collector flow; safe to extend |
 | `session_logs` | `/api/project-board/session-log` | Session logging | Explicit columns | Track piece work sessions |
-| `studio_post_publication_logs` | `/api/idea-lab/continuations`, `lib/companion-context.ts`, `lib/recall.ts`, `/api/trajectory/converse`, `/api/letter` | `/api/post-publication/log` | Explicit columns | Close the loop. The old `post_publication_logs` is legacy (copied in by studio migration 009); read this one |
+| `studio_post_publication_logs` | `/api/idea-lab/continuations`, `lib/companion-context.ts`, `lib/recall.ts`, `/api/letter` | `/api/post-publication/log` | Explicit columns | Close the loop. The old `post_publication_logs` is legacy (copied in by studio migration 009); read this one |
 | `studio_board_items` | `/api/studio/projects/[id]/items` (GET), `/api/account` (export) | `/api/studio/projects/[id]/items` (POST), `/api/studio/items/[itemId]` | Explicit columns (`ITEM_COLS`) | Migration 028. Images, recordings and task lists on a project's canvas. Until it is applied the items route answers `ready: false` and the canvas offers threads only. Files live in `studio_assets` + the `studio-media` bucket; the companion reads neither |
 | `studio_vision_messages` | `/api/studio/projects/[id]/vision` (the whole project, `node_id` null), `/api/studio/projects/[id]/companion` (one part), `/api/account` (export) | the same two routes | Explicit columns | One conversation per project and one per part. A reply that looked something up carries its sources inside `text` after the words (`withSources` / `splitSources` in `lib/studio/vision/types.ts`); anything reading this table for the words should split them off |
 
@@ -89,7 +89,7 @@ Two copies of the app, so work in progress never reaches the people using it.
 - **Promoting:** only when the user says so. `node scripts/promote.mjs` shows what is waiting and checks that the lab deployment is up, that live's database has everything the lab's has, and that `main` has not moved on its own; `--go` then moves `main` up to `lab` on GitHub. It never changes the working folder.
 - **Databases:** `node scripts/compare-schemas.mjs` compares the two (needs `.env.lab`). `node scripts/lab-schema.mjs` writes `supabase/lab-schema.sql`, the whole history in the right order for an empty project: main 001–022, then `studio/supabase/migrations`, then main 023 onwards.
 - **Your real data in the lab:** sign up in the lab with the same email, then `node scripts/copy-to-lab.mjs` replaces that lab account's contents with a copy of the live account (rows, plan, storage files). Re-run for a fresh copy. It only reads live.
-- **Experiments that need real history** (portrait, recall, trajectory) cannot be judged on the lab's empty database. Ship those to live behind `ADMIN_USER_IDS` instead.
+- **Experiments that need real history** (portrait, recall) cannot be judged on the lab's empty database. Ship those to live behind `ADMIN_USER_IDS` instead.
 - **Not yet separated:** `.env.local` on this machine still points at the live database, and the maintenance scripts in `scripts/` rely on that. A local dev server reads and writes live data.
 
 ---

@@ -26,7 +26,7 @@ export interface ThreadMessage {
 }
 
 /**
- * One conversation surface for Conceptualise, Zoom out, Reimagine and
+ * One conversation surface for Conceptualise, Reimagine and
  * onboarding. The person's words sit right, medium weight; the companion's
  * sit left, one step quieter. A gradient veil covers the streaming tail.
  * `onShell` renders with shell colours (Check-in keeps its thread on the ink).

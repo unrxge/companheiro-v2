@@ -19,7 +19,7 @@ interface ContextOptions {
 }
 
 // Builds the compact brief the companion carries into every conversation:
-// recent check-ins, the agreed trajectory, what's actively being made, and
+// recent check-ins, what's actively being made, and
 // open threads from published work. This is what turns isolated Claude
 // calls into a companion that remembers the person across surfaces.
 export async function buildCompanionContext(
@@ -41,18 +41,11 @@ export async function buildCompanionContext(
 
     const [
       { data: checkIns },
-      { data: trajectory },
       { data: activeStudioProjects },
       { data: postPubLogs },
       portrait,
     ] = await Promise.all([
       checkInQuery.order('created_at', { ascending: false }).limit(checkInLimit),
-      supabase
-        .from('trajectories')
-        .select('statement, created_at')
-        .eq('user_id', user.id)
-        .is('superseded_at', null)
-        .maybeSingle(),
       // `studio_projects` is the complete dataset for active work — migration
       // 009 copied every old `pieces` row here too, so this is no longer a
       // supplement to a `pieces` query, it's the whole picture.
@@ -90,12 +83,6 @@ export async function buildCompanionContext(
 
     const portraitBlock = formatPortraitForPrompt(portrait)
     if (portraitBlock) parts.push(portraitBlock)
-
-    if (trajectory) {
-      parts.push(
-        `Agreed creative trajectory (from ${formatDateAsRelative(trajectory.created_at)}): "${trajectory.statement}"`
-      )
-    }
 
     if (checkIns && checkIns.length > 0) {
       const lines = checkIns.map((c, i) => {

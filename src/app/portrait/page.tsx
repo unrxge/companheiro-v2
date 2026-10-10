@@ -126,7 +126,7 @@ export default function PortraitPage() {
         ) : entries.length === 0 ? (
           <Card>
             <p style={{ ...typeRoles.ui, color: t.textSecondary }}>
-              Nothing here yet. As you check in, develop ideas, write and zoom out, the companion may notice a pattern worth keeping. When it does, it shows up here, and you can forget it at any time.
+              Nothing here yet. As you check in, develop ideas and write, the companion may notice a pattern worth keeping. When it does, it shows up here, and you can forget it at any time.
             </p>
           </Card>
         ) : (
