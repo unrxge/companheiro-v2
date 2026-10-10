@@ -285,13 +285,16 @@ export function SummonWidget({ active, replay, onDone, own }: TourWidgetProps) {
 
   return (
     <Container padding={12}>
-      <TryIt>
-        {note === 'energy' ? 'Energy is set to Bright for this tour. In the app, slide it to match your day.'
-          : note === 'add' ? 'In the app, this is where you add a theme of your own.'
-          : step >= 3 && !question ? 'Writing a question from your theme…'
-          : step < 4 ? (looping ? 'Watch: a theme, then a question.' : 'Watch: a theme, an energy level, then a question.')
-          : 'Tap another theme, or “Ask again” for a new question.'}
-      </TryIt>
+      {/* On the landing page it plays by itself and the words beside it say what it is for: no instruction on top. */}
+      {!looping && (
+        <TryIt>
+          {note === 'energy' ? 'Energy is set to Bright for this tour. In the app, slide it to match your day.'
+            : note === 'add' ? 'In the app, this is where you add a theme of your own.'
+            : step >= 3 && !question ? 'Writing a question from your theme…'
+            : step < 4 ? (looping ? 'Watch: a theme, then a question.' : 'Watch: a theme, an energy level, then a question.')
+            : 'Tap another theme, or “Ask again” for a new question.'}
+        </TryIt>
+      )}
       <Card padding={16}>
         <Eyebrow style={{ marginBottom: 10 }}>Theme</Eyebrow>
         <div className="flex flex-wrap gap-1.5">
@@ -501,11 +504,13 @@ export function ConceptualiseWidget({ active, replay, onDone }: TourWidgetProps)
   )
   return (
     <Container padding={12}>
-      <TryIt>
-        {phase === 1 ? (looping ? 'You answer in your own words. Then it asks.' : 'You answer first, at whatever length you need. Then press Next.')
-          : phase < 5 ? (ready ? 'Press Next when you’re ready for the next question.' : 'It asks one question at a time.')
-          : 'Declared. This concept becomes a project on your board.'}
-      </TryIt>
+      {!looping && (
+        <TryIt>
+          {phase === 1 ? (looping ? 'You answer in your own words. Then it asks.' : 'You answer first, at whatever length you need. Then press Next.')
+            : phase < 5 ? (ready ? 'Press Next when you’re ready for the next question.' : 'It asks one question at a time.')
+            : 'Declared. This concept becomes a project on your board.'}
+        </TryIt>
+      )}
       {/* In the tour the card keeps one height under the carousel. On the landing page, moving through the slides by itself, it takes the height of whichever is showing and eases between them. */}
       <Card padding={looping ? '16px 16px 2px' : 16} style={looping ? undefined : { minHeight: 330 }}>
         <PhaseDots phase={phase} labels={PHASES} />
@@ -669,7 +674,6 @@ function WritingGlance({ active, replay, onDone }: TourWidgetProps) {
 
   return (
     <Container padding={12}>
-      <TryIt>{theirs ? 'It only asks. Tap another part.' : 'Watch: it reads a part, then asks. Tap any part.'}</TryIt>
       <Card padding={14}>
         <div className="flex items-baseline justify-between gap-3">
           <p style={{ ...typeRoles.h3, color: t.textPrimary }}>The Six O&rsquo;Clock Ferry <span style={{ fontWeight: 400, color: t.textMuted }}>· Documentary</span></p>

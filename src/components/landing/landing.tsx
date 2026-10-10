@@ -301,22 +301,25 @@ function Manifesto() {
 }
 
 // ── Inside: the app's parts, each with a working copy of its screen ─────────
-// The same slides the tour shows after sign-up (components/tour/slides.tsx),
-// laid down the page so nothing sits behind a Next button. There is no
-// heading: the manifesto runs straight into the first row. Portrait and
-// Capture are left for the tour itself. The Project Board is shown as the
-// canvas, not the tour's widget.
+// The same widgets the tour shows after sign-up (components/tour/slides.tsx),
+// laid down the page. The one-word name over each is the app's own, so what
+// someone reads here is what they will find inside. Everything under the name
+// is written from the person's side: the headline is the moment they are in,
+// the sentence is what is different afterwards, and the widget is the proof.
+// No part is called by its name in a sentence, and nothing explains how it
+// works: the widget does that. There is no heading: the manifesto runs
+// straight into the first row. Portrait and Capture are left for the tour.
 
 const slideFor = (where: string) => SLIDES.find((s) => s.where === where) as TourSlide
 
-// Only on this page: how a Check-in feels, where the tour says what it does.
+const IDEA_TITLE = 'Always somewhere to begin.'
+const IDEA_BODY = 'No more waiting for the muse. Name what you care about, and you leave with a question worth making something from.'
+const CONCEPT_TITLE = 'Turn a rough idea into a clear one.'
+const CONCEPT_BODY = 'You know there is something there, but not yet what it is. A few honest questions later, you can say it out loud.'
+const WRITING_TITLE = 'Stuck on a line? Talk it over.'
+const WRITING_BODY = 'When a line will not say what you mean, you are asked the question that finds it. The words stay yours.'
 const CHECK_IN_TITLE = 'Say it out loud. Feel it land.'
-// Only on this page: straight after the manifesto, "Systemise your creativity"
-// read like the productivity software the refusals below promise this is not.
-const IDEA_TITLE = 'A question worth making something from.'
-const IDEA_BODY = 'No need to wait for the creative muse. Pick a theme you care about, and the ‘Idea Lab’ gives you one, every time you sit down.'
-// Only on this page: the tour's line ends on "one clear sentence", which the page said too often.
-const CONCEPT_BODY = 'Find the voice of your idea outside of the fog of the abstract. ‘Conceptualise’ helps you define the outline of what you want to express, one question at a time, until the concept is clear enough to declare.'
+const CHECK_IN_BODY = 'Some days it is not the work, it is everything around it. Say it, and be answered on what you actually said.'
 
 function InsideRow({ slide, flip, title, body, loops }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** The widget keeps itself moving until it is touched (see Replay). */ loops?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -336,9 +339,9 @@ function InsideRow({ slide, flip, title, body, loops }: { slide: TourSlide; flip
 }
 
 const CANVAS_FACTS = [
-  'Any medium: essays, songs, photographs, film.',
-  'Several visions at once, each on its own canvas.',
-  'Images and recordings are for your eyes. It only reads what you write about them.',
+  'An essay, a song, a photo series, a film: it holds whatever you make.',
+  'Carry several projects without losing sight of any of them.',
+  'Your images and recordings stay yours. It only reads what you write about them.',
 ]
 
 /** The Project Board's place in the run: the whole canvas, full width. */
@@ -350,8 +353,8 @@ function BoardCanvas() {
       <Reveal>
         <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues.tide }}>Project Board</p>
         <h3 className="mt-3 max-w-[20ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">Hold every project to what it was meant to be.</h3>
-        <p className="mt-4 max-w-[56ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">
-          For the studio of one and the director carrying several projects at once. Each gets its own canvas: the vision and its rules, the pieces, the threads between them, and the reference images, voice notes and task lists you keep beside the work.
+        <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">
+          Months in, with three things on the go, it is easy to lose what each one was for. Here you can see it, and see the moment the work starts to drift.
         </p>
       </Reveal>
       <Reveal delay={0.1} className="mt-8 md:mt-12">
@@ -368,22 +371,41 @@ function BoardCanvas() {
   )
 }
 
-function Inside() {
+const INSIDE = 'mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 md:gap-32 md:px-8'
+
+/** Finding the work: somewhere to begin, what it is, the words for it. */
+function Making() {
   return (
-    <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 pb-20 md:gap-32 md:px-8 md:pb-28">
+    <section className={`${INSIDE} pb-4 md:pb-8`}>
       <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} loops />
-      <InsideRow slide={slideFor('Conceptualise')} flip body={CONCEPT_BODY} loops />
+      <InsideRow slide={slideFor('Conceptualise')} flip title={CONCEPT_TITLE} body={CONCEPT_BODY} loops />
+      <InsideRow slide={slideFor('Writing')} flip={false} title={WRITING_TITLE} body={WRITING_BODY} loops />
+    </section>
+  )
+}
+
+/** Holding it over time: the project laid out. The promise kept (Closing) follows straight on. */
+function Holding() {
+  return (
+    <section className={`${INSIDE} pt-4 md:pt-8`}>
       <BoardCanvas />
-      <InsideRow slide={slideFor('Writing')} flip={false} loops />
-      <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} />
+    </section>
+  )
+}
+
+/** The day around the work. */
+function Around() {
+  return (
+    <section className={`${INSIDE} pb-8 pt-4 md:pb-12 md:pt-8`}>
+      <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} body={CHECK_IN_BODY} />
     </section>
   )
 }
 
 // ── Who it's for: six kinds of makers, and what is here for each ────────────
 // The page above shows the parts; this says whose they are. Each audience
-// gets who it is in a sentence, three things that are here for them (said as
-// what they would find, not as steps to follow: nobody is told how to work),
+// gets who it is in a sentence, three things that change for them (said from
+// their side, not as a list of what is in the product or steps to follow),
 // a promise about what it will not do, and their plan. Everything named is
 // something the product does today on the plan named. Direction's two come
 // first, then Practice's four (two of which reach into Direction for images
@@ -412,7 +434,7 @@ type Audience = {
   /** The eyebrow over the name. */
   plans: string
   who: string
-  /** What is here for them. */
+  /** What changes for them. */
   here: React.ReactNode[]
   never: string
   footer: React.ReactNode
@@ -429,9 +451,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Direction',
     who: 'You are the whole studio: client projects, your own work, and one head to hold all of it.',
     here: [
-      'A canvas for every project: its pieces, images, recordings and a task list.',
-      'Threads across the pieces, so what connects them stays in view.',
-      'A constraint said once, back as a question when new work runs against it.',
+      'Every client project where you can take it in at a glance.',
+      'You see what connects the pieces before anyone has to point it out.',
+      'A constraint agreed in week one is still there in month three.',
     ],
     never: 'It never posts, sends or speaks to a client in your name.',
     footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas.</>,
@@ -446,9 +468,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Direction',
     who: 'You direct work other people make, or a project that runs for years: a documentary, a photo book, an album.',
     here: [
-      'What the project is meant to be, and the rules it must keep, in one place.',
-      'The whole project to talk through from its canvas, whenever something shifts.',
-      'A question, never a verdict, when a new piece pulls away from a rule.',
+      'What the project is meant to be lives on the page, not only in your head.',
+      'When something shifts, you think the whole project through, not one piece at a time.',
+      'You hear about drift as a question, while there is still time to decide.',
     ],
     never: 'It never scores the work and never measures how it performed.',
     footer: <><PlanLink plan="direction" />. Yearly suits a project that runs for years, with two months free.</>,
@@ -463,9 +485,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Practice',
     who: 'You made things once and fell out of practice, but you still remember how it felt when making was part of your week.',
     here: [
-      'One question to start from, drawn from a theme you care about.',
-      'More questions, until the idea has a shape you recognise.',
-      'Room to come and go as life allows. Nothing counts while you are away.',
+      'Somewhere to start, even after months away.',
+      'A vague pull becomes an idea you recognise as yours.',
+      'Nothing to catch up on. You come back when life allows.',
     ],
     never: 'No streaks, no targets, nobody keeping track of your days.',
     footer: <><PlanLink plan="practice" />. Two projects at a time is the point, not the limit.</>,
@@ -480,9 +502,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Practice',
     who: 'You have imagination, a vision for the work, and the ambition to see it crafted and expressed to its fullest.',
     here: [
-      'A home for the draft you already have, or a question to begin from.',
-      'What the piece is for, kept beside the draft as you write.',
-      'Any passage, talked over until it says what you meant.',
+      'The draft you already have gets a home, and a purpose beside it.',
+      'You stop losing what the piece is for halfway through.',
+      'The passage that would not sit says what you meant.',
     ],
     never: 'It never asks you to aim smaller, and never steers the work toward anyone’s vision but yours.',
     footer: <><PlanLink plan="practice" />. One project holds as many pieces as it needs: a collection, a series, a book.</>,
@@ -497,9 +519,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Practice / Direction',
     who: 'You think in frames, whether it is a film, a photo series or the next thing you post, and it starts as a feeling before it is a shot.',
     here: [
-      'What the piece is really about, found before the first frame.',
-      'The words it needs: the treatment, the script, the caption.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, stills, reference frames and voice notes on the project&rsquo;s canvas.</>,
+      'You know what the piece is about before the first frame.',
+      'The treatment, the script and the caption all say the same thing.',
+      <>On <PlanLink plan="direction">Direction</PlanLink>, your stills, reference frames and voice notes sit beside the work.</>,
     ],
     never: 'It never looks at your images or footage, and never measures how a post performed.',
     footer: (
@@ -519,9 +541,9 @@ const AUDIENCES: Audience[] = [
     plans: 'Practice / Direction',
     who: 'You hum before you write, and the song usually knows what it is about before you do.',
     here: [
-      'Your voice, taken as readily as your typing.',
-      'The lyric in parts you name yourself, and the line that will not sit, talked over.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, your recordings beside the lyric on the project&rsquo;s canvas.</>,
+      'You talk the song through as easily as you type it.',
+      'You find what the song is about before the tune hardens.',
+      <>On <PlanLink plan="direction">Direction</PlanLink>, your recordings sit beside the lyric.</>,
     ],
     never: 'You can upload recordings, but Companheiro never listens to them. Those are for your ears only.',
     footer: (
@@ -633,7 +655,7 @@ function WhoFor() {
               <p className="mt-4 max-w-[40ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{audience.who}</p>
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-[var(--muted)]">What&rsquo;s here for you</p>
+              <p className="text-[13px] font-semibold text-[var(--muted)]">What changes for you</p>
               <ul className="mt-4 flex flex-col gap-3.5">
                 {audience.here.map((line, i) => (
                   <li key={i} className="flex items-start gap-3">
@@ -716,7 +738,7 @@ function Closing() {
       <Reveal delay={0.1} className="order-1 md:order-2">
         <h2 className={`max-w-[16ch] ${H2} md:text-[52px]`}>Say a rule once. It keeps it for you.</h2>
         <p className="mt-5 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Mention a line you won&rsquo;t cross, and it asks whether to keep it. Kept rules come back as a question when new work runs against them.
+          A year in, you will not remember every promise you made at the start. It does, and it asks before you break one.
         </p>
       </Reveal>
     </section>
@@ -942,12 +964,15 @@ export function Landing() {
         <div className="relative z-[1]">
           <Nav />
           <main>
+            {/* The order is the person's, not the app's menu: finding the work (three parts), what it refuses to do to it, holding it over time (two), then the day around it. */}
             <Hero />
             <Manifesto />
-            <Inside />
-            <WhoFor />
+            <Making />
             <Never />
+            <Holding />
             <Closing />
+            <Around />
+            <WhoFor />
             <Pricing />
             <FinalCta />
           </main>
