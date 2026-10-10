@@ -27,16 +27,18 @@ export interface Entitlements {
   media: boolean
   /** "Talk about the vision", the conversation about the whole project. */
   visionTalk: boolean
+  /** Every Idea Lab question is written by the deep model, from the first one. */
+  deepQuestions: boolean
 }
 
 /** How long a project rests after giving up its place to another. */
 export const REST_DAYS = 14
 
-const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, visionTalk: true } as const
+const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: true } as const
 /** How many projects Practice (and an ended plan, which keeps its shape) works on at once. */
 export const PRACTICE_ACTIVE_PROJECTS = 2
 
-const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: false, media: false, visionTalk: false } as const
+const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: false, media: false, visionTalk: false, deepQuestions: false } as const
 
 export function entitlementsFor(sub: Subscription | null): Entitlements {
   if (!sub) return { plan: 'unknown', companion: false, ...EVERYTHING }

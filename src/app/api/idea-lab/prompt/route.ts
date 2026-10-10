@@ -8,6 +8,7 @@ import { withLanguage } from "@/lib/language";
 import { logUsage } from "@/lib/usage-log";
 import { buildIdeaPrompt, getRandomArcs, getRandomTerritories, overallRegister, pickFacetSeed, promptModelTier, type TerritoryInput } from "@/lib/idea-prompt";
 import { classifyRegister, makesFrom } from "@/lib/territory-map";
+import { entitlementsOf } from "@/lib/studio/plan-access";
 
 // How the question itself is assembled lives in lib/idea-prompt.ts. This route
 // reads the request, gathers what the builder needs and picks the model.
@@ -147,10 +148,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       looseMap,
     });
 
-    // The first question and two more come from the fast model. Asked a third
-    // time, the next three come from the deep one, then three fast, and so on.
+    // Direction (and whatever else carries deepQuestions) gets the deep model
+    // for every question. Otherwise the first question and two more come from
+    // the fast model; asked a third time, the next three come from the deep
+    // one, then three fast, and so on.
     const regeneration = Number.isFinite(body.regeneration) ? Math.max(0, Math.floor(body.regeneration as number)) : rejected.length > 0 ? 1 : 0;
-    const tier = promptModelTier(regeneration);
+    const tier = (await entitlementsOf(auth)).deepQuestions ? "deep" : promptModelTier(regeneration);
 
     const response = await anthropic.messages.create({
       model: tier === "deep" ? pickModel(auth, MODELS.deep) : MODELS.fast,
@@ -159,7 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
       messages: [{ role: "user", content: userMessage }],
     });
 
-    logUsage(auth.user.id, "idea-lab/prompt", response.model, response.usage, { register, regeneration });
+    logUsage(auth.user.id, "idea-lab/prompt", response.model, response.usage, { register, regeneration, tier });
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {

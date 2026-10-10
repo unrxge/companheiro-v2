@@ -17,12 +17,12 @@ const past = new Date(Date.now() - 86_400_000).toISOString()
 
 test('a live trial has everything Direction has', () => {
   const e = entitlementsFor(sub({ trial_ends_at: soon }))
-  assert.deepEqual(e, { plan: 'trial', companion: true, maxActiveProjects: null, threads: true, media: true, visionTalk: true })
+  assert.deepEqual(e, { plan: 'trial', companion: true, maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: true })
 })
 
 test('Practice is two projects at a time, in words', () => {
   const e = entitlementsFor(sub({ status: 'active', tier: 'practice' }))
-  assert.deepEqual(e, { plan: 'practice', companion: true, maxActiveProjects: 2, threads: false, media: false, visionTalk: false })
+  assert.deepEqual(e, { plan: 'practice', companion: true, maxActiveProjects: 2, threads: false, media: false, visionTalk: false, deepQuestions: false })
   // A paid plan with no tier recorded is treated as the smaller one.
   assert.equal(entitlementsFor(sub({ status: 'active', tier: null })).plan, 'practice')
   // A failed payment does not take the plan away.
