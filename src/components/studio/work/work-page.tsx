@@ -684,6 +684,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             <StageHeader
               onUp={(el) => goShelf(el)}
               upLabel={`Back to ${LEVELS.shelf.name}`}
+              upText={LEVELS.shelf.name}
               status={savingMark}
             />
           }

@@ -46,6 +46,7 @@ export function StageHeader({
   title,
   onUp,
   upLabel,
+  upText,
   reveal,
   actions,
   status,
@@ -54,6 +55,9 @@ export function StageHeader({
   title?: ReactNode
   onUp?: (el: HTMLElement | null) => void
   upLabel?: string
+  /** Names where back leads, beside the arrow: the same labelled pill the
+   *  vision room uses to go back to the canvas. Only when the pill holds nothing else. */
+  upText?: string
   reveal?: ReactNode
   actions?: ReactNode
   /** A quiet word beside the theme toggle: `saving…`, and nothing else. */
@@ -75,6 +79,23 @@ export function StageHeader({
         .stage-header-pad { padding: 14px 16px 0; }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .stage-header-pad { padding-top: 84px; } }
       `}</style>
+      {onUp && upText && iconOnly ? (
+        <button
+          type="button"
+          data-hold
+          onClick={(e) => onUp(e.currentTarget)}
+          aria-label={upLabel ?? `Back to ${upText}`}
+          style={{
+            pointerEvents: 'auto',
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px 9px 10px', borderRadius: 999, cursor: 'pointer',
+            background: 'rgba(13,12,11,0.6)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+            border: `1px solid ${shell.line}`, color: shell.text, ...canvasType.small,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
+          {upText}
+        </button>
+      ) : (
       <div
         data-hold
         style={{
@@ -111,6 +132,7 @@ export function StageHeader({
 
         {actions}
       </div>
+      )}
 
       <AnimatePresence initial={false}>
         {open && reveal && (
