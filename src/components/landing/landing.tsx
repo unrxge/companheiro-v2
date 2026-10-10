@@ -23,7 +23,7 @@ import { LEGAL_PAGES } from '@/lib/legal'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
-import { CanvasMockup, RuleHeardMockup, VisionFinder } from './mockups'
+import { CanvasMockup, RuleHeardMockup, VisionFinder, VisionRoomMockup } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
 
 const hues = tokensFor('dark')
@@ -119,7 +119,7 @@ function Replay({ children, loops = false, className }: { children: (p: Looping)
   const reduce = useReducedMotion()
   // Present once a third of it shows, gone only when none of it does: a widget
   // that changes height as it plays must not count as leaving and returning.
-  const enough = useInView(ref, { amount: 0.3 })
+  const enough = useInView(ref, { amount: 0.4 })
   const any = useInView(ref)
   const [inView, setInView] = useState(false)
   useEffect(() => {
@@ -177,9 +177,20 @@ function Replay({ children, loops = false, className }: { children: (p: Looping)
     }
   }, [hold, inView, replays])
 
+  // Using it: a click or a tap on something, a key, a mouse pressed down (the
+  // start of a drag), or swiping its contents sideways. Not a finger that only
+  // rests on it on the way down the page: on a phone that is how every widget
+  // is passed, and it used to end the loop before it had begun.
   const engage = () => setEngaged(true)
   return (
-    <div ref={ref} className={className} onPointerDownCapture={engage} onKeyDownCapture={engage}>
+    <div
+      ref={ref}
+      className={className}
+      onClickCapture={engage}
+      onKeyDownCapture={engage}
+      onPointerDownCapture={(e) => { if (e.pointerType === 'mouse') engage() }}
+      onScrollCapture={engage}
+    >
       <Fragment key={copy}>{children(loops ? { active: seen, replay, onDone } : { active: seen })}</Fragment>
     </div>
   )
@@ -234,14 +245,17 @@ function Hero() {
     >
       <div className="max-w-[640px]">
         <h1
-          className={`${ENTER_TEXT} delay-[150ms] text-balance text-[44px] font-bold leading-[1.04] tracking-[-0.035em] text-[var(--bone)] md:text-[60px] xl:text-[72px]`}
+          className={`${ENTER_TEXT} delay-[150ms] text-balance text-[40px] font-bold leading-[1.06] tracking-[-0.035em] text-[var(--bone)] md:text-[54px] xl:text-[64px]`}
         >
-          {/* Same pairing as the brand document: Geist headline, one word in Newsreader italic. */}
-          You already have a{' '}
-          <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">vision</span>.
+          {/* Same pairing as the brand document: Geist headline, one word in Newsreader italic. The first sentence names what the person fears about themselves; the second takes it away. */}
+          <span className="block">You&rsquo;re not scattered.</span>
+          <span className="block">
+            You&rsquo;re circling one{' '}
+            <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">vision</span>.
+          </span>
         </h1>
         <p className={`${ENTER_TEXT} delay-[270ms] mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]`}>
-          It&rsquo;s scattered across your notes, drafts and half-finished things. Companheiro helps you find it, hold it, and build from it.
+          It runs through your notes, your drafts and every half-finished thing. Companheiro is where it all starts to make sense.
         </p>
         <div className={`${ENTER_TEXT} delay-[390ms] mt-8 flex flex-wrap items-center gap-x-5 gap-y-3`}>
           <BeginButton />
@@ -268,8 +282,8 @@ function Word({ word, progress, range, className }: { word: string; progress: Mo
   return <m.span className={className} style={{ opacity }}>{word} </m.span>
 }
 
-// Same face as the rest of the line, a good deal heavier.
-const TURN = 'font-black text-[var(--ember)]'
+// Same face and weight as the rest of the line; only the colour turns.
+const TURN = 'text-[var(--ember)]'
 
 function Manifesto() {
   const sectionRef = useRef<HTMLElement>(null)
@@ -308,7 +322,8 @@ function Manifesto() {
 // the sentence is what is different afterwards, and the widget is the proof.
 // No part is called by its name in a sentence, and nothing explains how it
 // works: the widget does that. There is no heading: the manifesto runs
-// straight into the first row. Portrait and Capture are left for the tour.
+// straight into the first row. Writing, Check-in, Portrait and Capture are
+// left for the tour, which shows each person the ones that fit them.
 
 const slideFor = (where: string) => SLIDES.find((s) => s.where === where) as TourSlide
 
@@ -316,18 +331,23 @@ const IDEA_TITLE = 'Always somewhere to begin.'
 const IDEA_BODY = 'No more waiting for the muse. Name what you care about, and you leave with a question worth making something from.'
 const CONCEPT_TITLE = 'Turn a rough idea into a clear one.'
 const CONCEPT_BODY = 'You know there is something there, but not yet what it is. A few honest questions later, you can say it out loud.'
-const WRITING_TITLE = 'Stuck on a line? Talk it over.'
-const WRITING_BODY = 'When a line will not say what you mean, you are asked the question that finds it. The words stay yours.'
-const CHECK_IN_TITLE = 'Say it out loud. Feel it land.'
-const CHECK_IN_BODY = 'Some days it is not the work, it is everything around it. Say it, and be answered on what you actually said.'
+// Not one of the tour's slides: the room that opens from a project's canvas,
+// shown here as its own part because it is what someone carrying a long
+// project most needs, and what someone on Practice is most likely to wonder about.
+const VISION_ROW = { where: 'Vision', mood: 'ochre' as const, Widget: VisionRoomMockup }
+const VISION_TITLE = 'Think the whole project through, out loud.'
+const VISION_BODY = 'When something shifts, you do not have to hold it all in your head. Everything you have written about the project is already there, and it can look things up while you think.'
 
-function InsideRow({ slide, flip, title, body, loops }: { slide: TourSlide; flip: boolean; title?: string; body?: string; /** The widget keeps itself moving until it is touched (see Replay). */ loops?: boolean }) {
+function InsideRow({ slide, flip, title, body, loops, tag }: { slide: Pick<TourSlide, 'where' | 'mood' | 'Widget'> & { title?: string; body?: string }; flip: boolean; title?: string; body?: string; /** The widget keeps itself moving until it is touched (see Replay). */ loops?: boolean; /** Beside the name: the plan it belongs to, where that is not every plan. */ tag?: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useSectionMood(ref, slide.mood as Mood)
   return (
     <div ref={ref} className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-16">
       <Reveal className={flip ? 'md:order-2' : ''}>
-        <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues[slide.mood] }}>{slide.where}</p>
+        <p className="flex items-center gap-2.5 text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues[slide.mood] }}>
+          {slide.where}
+          {tag}
+        </p>
         <h3 className="mt-3 max-w-[18ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">{title ?? slide.title}</h3>
         <p className="mt-4 max-w-[44ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">{body ?? slide.body}</p>
       </Reveal>
@@ -352,9 +372,9 @@ function BoardCanvas() {
     <div ref={ref}>
       <Reveal>
         <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: hues.tide }}>Project Board</p>
-        <h3 className="mt-3 max-w-[20ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">Hold every project to what it was meant to be.</h3>
+        <h3 className="mt-3 max-w-[20ch] text-balance text-[26px] font-bold leading-[1.1] tracking-[-0.025em] text-[var(--bone)] md:text-[36px]">See the whole vision in one place.</h3>
         <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-[var(--muted)] md:text-[17px]">
-          Months in, with three things on the go, it is easy to lose what each one was for. Here you can see it, and see the moment the work starts to drift.
+          What the project is for, every piece of it, and what has to run through all of them, on one canvas. Months in, you can still see the whole of it at a glance.
         </p>
       </Reveal>
       <Reveal delay={0.1} className="mt-8 md:mt-12">
@@ -373,31 +393,29 @@ function BoardCanvas() {
 
 const INSIDE = 'mx-auto flex w-full max-w-[1180px] flex-col gap-20 px-4 md:gap-32 md:px-8'
 
-/** Finding the work: somewhere to begin, what it is, the words for it. */
+/** Finding the work: somewhere to begin, and what it is. */
 function Making() {
   return (
     <section className={`${INSIDE} pb-4 md:pb-8`}>
       <InsideRow slide={slideFor('Idea')} flip={false} title={IDEA_TITLE} body={IDEA_BODY} loops />
       <InsideRow slide={slideFor('Conceptualise')} flip title={CONCEPT_TITLE} body={CONCEPT_BODY} loops />
-      <InsideRow slide={slideFor('Writing')} flip={false} title={WRITING_TITLE} body={WRITING_BODY} loops />
     </section>
   )
 }
 
-/** Holding it over time: the project laid out. The promise kept (Closing) follows straight on. */
+/** Holding it over time: the project laid out, then thought through out loud. The promise kept (Closing) follows straight on. */
 function Holding() {
   return (
     <section className={`${INSIDE} pt-4 md:pt-8`}>
       <BoardCanvas />
-    </section>
-  )
-}
-
-/** The day around the work. */
-function Around() {
-  return (
-    <section className={`${INSIDE} pb-8 pt-4 md:pb-12 md:pt-8`}>
-      <InsideRow slide={slideFor('Check-in')} flip title={CHECK_IN_TITLE} body={CHECK_IN_BODY} />
+      <InsideRow
+        slide={VISION_ROW}
+        flip={false}
+        title={VISION_TITLE}
+        body={VISION_BODY}
+        loops
+        tag={<a href="#plan-direction" className="rounded-full px-2.5 py-0.5 text-[11px] normal-case tracking-normal transition-opacity hover:opacity-80" style={{ backgroundColor: alpha(hues.ochre, 0.16), color: hues.ochre }}>Direction</a>}
+      />
     </section>
   )
 }
@@ -964,14 +982,13 @@ export function Landing() {
         <div className="relative z-[1]">
           <Nav />
           <main>
-            {/* The order is the person's, not the app's menu: finding the work (three parts), what it refuses to do to it, holding it over time (two), then the day around it. */}
+            {/* The order is the person's, not the app's menu: finding the work, what it refuses to do to it, then holding it over time (the whole of it in view, thought through out loud, its promises kept). */}
             <Hero />
             <Manifesto />
             <Making />
             <Never />
             <Holding />
             <Closing />
-            <Around />
             <WhoFor />
             <Pricing />
             <FinalCta />

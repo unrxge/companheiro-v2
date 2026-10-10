@@ -16,11 +16,12 @@ import {
   useTransform,
   type MotionValue,
 } from 'motion/react'
-import { Camera, Check, FileText, Mic, Music, Waypoints, type LucideIcon } from 'lucide-react'
+import { Camera, Check, FileText, Mic, Music, Search, Waypoints, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Container, Card } from '@/components/shell/page-shell'
 import { Pill } from '@/components/ui/pill'
 import { StageRibbon } from '@/components/widgets'
+import { WorkingDots } from '@/components/ui/working'
 import { alpha, onColor, radius, type as typeRoles, type Hue, type JourneyStep } from '@/lib/design-tokens'
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
@@ -178,17 +179,17 @@ function Label({ children, style }: { children: React.ReactNode; style?: React.C
 // Four things made at different times, in four different mediums, settle side
 // by side in one project, and the person writes what they add up to. Each
 // fragment is named and coloured for its medium, and all four are built the
-// same way (a mark, a name, a line), so someone who only glances sees four
+// same way (a mark, a name, a line in one size and face), so someone who only glances sees four
 // kinds of work becoming one. Nothing here
 // shows Companheiro finding the link for them: the line under "Vision" types
 // as theirs.
 
 type FragmentId = 'draft' | 'lyric' | 'memo' | 'photo'
-const FRAGMENTS: { id: FragmentId; kind: string; hue: Hue; Icon: LucideIcon; tilt: number }[] = [
-  { id: 'draft', kind: 'Draft', hue: 'tide', Icon: FileText, tilt: -2.2 },
-  { id: 'lyric', kind: 'Lyric', hue: 'violet', Icon: Music, tilt: 1.6 },
-  { id: 'memo', kind: 'Voice memo', hue: 'verdant', Icon: Mic, tilt: -1.2 },
-  { id: 'photo', kind: 'Photo', hue: 'ochre', Icon: Camera, tilt: 2 },
+const FRAGMENTS: { id: FragmentId; kind: string; hue: Hue; Icon: LucideIcon; tilt: number; text: string }[] = [
+  { id: 'draft', kind: 'Draft', hue: 'tide', Icon: FileText, tilt: -2.2, text: 'My mother kept the good plates for guests who never came.' },
+  { id: 'lyric', kind: 'Lyric', hue: 'violet', Icon: Music, tilt: 1.6, text: 'Every house I’ve lived in had a room I never used.' },
+  { id: 'memo', kind: 'Voice memo', hue: 'verdant', Icon: Mic, tilt: -1.2, text: '“something about waiting until I’m ready”' },
+  { id: 'photo', kind: 'Photo', hue: 'ochre', Icon: Camera, tilt: 2, text: 'Empty café chairs, before opening.' },
 ]
 
 /** One thing already made, in its medium's colour. */
@@ -204,14 +205,7 @@ function FragmentCard({ f }: { f: (typeof FRAGMENTS)[number] }) {
         </span>
         <span style={{ ...typeRoles.small, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', color: c, whiteSpace: 'nowrap' }}>{f.kind}</span>
       </div>
-      {f.id === 'draft' && <p style={text}>My mother kept the good plates for guests who never came.</p>}
-      {f.id === 'lyric' && (
-        <p style={{ ...typeRoles.quote, fontSize: 14.5, lineHeight: 1.35, color: t.textPrimary, marginTop: 8 }}>
-          Every house I&rsquo;ve lived in had a room I never used.
-        </p>
-      )}
-      {f.id === 'memo' && <p style={text}>&ldquo;something about waiting until I&rsquo;m ready&rdquo;</p>}
-      {f.id === 'photo' && <p style={text}>Empty café chairs, before opening.</p>}
+      <p style={text}>{f.text}</p>
     </div>
   )
 }
@@ -341,95 +335,131 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
   )
 }
 
-// ── The canvas: one client project, as a studio of one or a director holds it ─
-// A launch film for a ceramics studio: what it is meant to be, the pieces, the
-// threads across them, and the things the canvas keeps beside the work (a
-// reference image, a voice note, a task list). Drawn in the design language of
-// the real canvas items (components/studio/work/board-items.tsx); nothing here
-// is uploaded or played.
-
-const PROJECT_TITLE = 'Atlas Ceramics · launch film'
-const PROJECT_LINE = 'Sixty seconds on hands, heat and patience.'
-const PROJECT_RULES = 'Keeps: natural light. Refuses: a voiceover, stock music.'
+// ── The canvas: a whole project in one view, as two people would have it ────
+// Two projects take turns on it. On Direction, a launch film for a ceramics
+// studio: what it is meant to be, the pieces, the threads that run through
+// them, and what is kept beside the work (a reference image, a voice note, a
+// task list). On Practice, a book of letters (the one declared in the
+// Conceptualise widget): its vision, its pieces and a task list, in words.
+// The loop winds one off the canvas, down to the vision card, and lays the
+// other out around it. Drawn in the design language of the real canvas items
+// (components/studio/work/board-items.tsx); nothing here is uploaded or played.
 
 type Box = { id: string; x: number; y: number; w: number; h: number }
-type BoardNode = Box & (
-  | { kind: 'vision' }
+type Content =
+  | { kind: 'vision'; title: string; line: string; rules: string }
   | { kind: 'hub'; label: string; hue: Hue }
   | { kind: 'piece'; title: string; medium: string; step: JourneyStep }
   | { kind: 'image'; caption: string }
   | { kind: 'recording'; title: string; /** For where there is no room for the whole title. */ short: string; length: string }
   | { kind: 'tasks'; title: string; tasks: { text: string; done: boolean }[] }
-)
+type BoardNode = Box & Content
+type Layout = { w: number; h: number; nodes: BoardNode[]; edges: [string, string][] }
+type Scene = { id: string; title: string; plan: string; wide: Layout; airy: Layout }
 
-const BOARD_W = 1080
-const BOARD_H = 468
-const NODES: BoardNode[] = [
-  { id: 'vision', kind: 'vision', x: 24, y: 24, w: 252, h: 214 },
-  { id: 'tasks', kind: 'tasks', x: 24, y: 258, w: 252, h: 172, title: 'Before the shoot', tasks: [
+/** Puts each thing in its box. The order of `boxes` is the order they arrive in. A link is left out where either end is. */
+function lay(content: Record<string, Content>, w: number, h: number, boxes: Record<string, [number, number, number, number]>, edges: [string, string][]): Layout {
+  const nodes = Object.entries(boxes).map(([id, [x, y, bw, bh]]) => ({ id, x, y, w: bw, h: bh, ...content[id] }))
+  return { w, h, nodes, edges: edges.filter(([a, b]) => boxes[a] && boxes[b]) }
+}
+
+// A thread is the thing a project is easiest to lose sight of once the work
+// is under way: who it is for, and the one thing it has to say. Each is named
+// as plainly as that, and runs through every piece that has to answer to it.
+const FILM: Record<string, Content> = {
+  vision: { kind: 'vision', title: 'Atlas Ceramics · launch film', line: 'Sixty seconds on hands, heat and patience.', rules: 'Keeps: natural light. Refuses: a voiceover, stock music.' },
+  treatment: { kind: 'piece', title: 'Treatment', medium: 'For the client', step: 'test' },
+  shots: { kind: 'piece', title: 'Shot list', medium: 'Film', step: 'write' },
+  stills: { kind: 'piece', title: 'Stills for the site', medium: 'Photo series', step: 'concept' },
+  who: { kind: 'hub', label: 'for first-time buyers', hue: 'ochre' },
+  promise: { kind: 'hub', label: 'patience is the product', hue: 'tide' },
+  frame: { kind: 'image', caption: 'Kiln at 6am. The light to match.' },
+  note: { kind: 'recording', title: 'Voice note after the recce', short: 'Recce voice note', length: '1:12' },
+  tasks: { kind: 'tasks', title: 'Before the shoot', tasks: [
     { text: 'Confirm the kiln day with Ana', done: true },
     { text: 'Book the 50mm', done: false },
     { text: 'Send her the treatment', done: false },
   ] },
-  { id: 'hands', kind: 'hub', x: 300, y: 104, w: 176, h: 50, label: 'made by hand', hue: 'ochre' },
-  { id: 'reveal', kind: 'hub', x: 300, y: 282, w: 176, h: 50, label: 'nothing rushed', hue: 'tide' },
-  { id: 'treatment', kind: 'piece', x: 512, y: 24, w: 210, h: 104, title: 'Treatment', medium: 'For the client', step: 'test' },
-  { id: 'shots', kind: 'piece', x: 512, y: 180, w: 210, h: 104, title: 'Shot list', medium: 'Film', step: 'write' },
-  { id: 'stills', kind: 'piece', x: 846, y: 40, w: 210, h: 104, title: 'Stills for the site', medium: 'Photo series', step: 'concept' },
-  { id: 'note', kind: 'recording', x: 512, y: 340, w: 232, h: 104, title: 'Voice note after the recce', short: 'Recce voice note', length: '1:12' },
-  { id: 'frame', kind: 'image', x: 846, y: 204, w: 210, h: 224, caption: 'Kiln at 6am. The light to match.' },
-]
-
-// On a phone the same canvas is folded up: the threads sit above and below
-// the vision so no height is wasted, and the pieces start close enough that
-// the first column shows at the edge of the screen. One swipe reaches the end.
-// The task list is left to the wide version.
-const BOARD_W_PHONE = 610
-const BOARD_H_PHONE = 344
-const PHONE: Record<string, Box | null> = {
-  hands: { id: 'hands', x: 14, y: 14, w: 150, h: 36 },
-  vision: { id: 'vision', x: 14, y: 62, w: 212, h: 222 },
-  reveal: { id: 'reveal', x: 14, y: 296, w: 154, h: 36 },
-  treatment: { id: 'treatment', x: 246, y: 14, w: 168, h: 104 },
-  shots: { id: 'shots', x: 246, y: 130, w: 168, h: 104 },
-  note: { id: 'note', x: 246, y: 246, w: 168, h: 86 },
-  stills: { id: 'stills', x: 428, y: 14, w: 168, h: 104 },
-  frame: { id: 'frame', x: 428, y: 130, w: 168, h: 202 },
-  tasks: null,
 }
-const NODES_PHONE: BoardNode[] = NODES.filter((n) => PHONE[n.id]).map((n) => ({ ...n, ...PHONE[n.id]! }))
-
-// The landing page on a phone shows less of it, further apart and off the
-// grid: the vision by its title alone, one thread, two pieces, and one image
-// and one recording kept beside them. It is there to be taken in at a glance,
-// not to list everything a canvas can hold; the wide version does that.
-const BOARD_W_AIRY = 566
-const BOARD_H_AIRY = 372
-const AIRY: Record<string, Box> = {
-  vision: { id: 'vision', x: 16, y: 24, w: 196, h: 104 },
-  hands: { id: 'hands', x: 34, y: 164, w: 172, h: 46 },
-  note: { id: 'note', x: 20, y: 262, w: 178, h: 86 },
-  treatment: { id: 'treatment', x: 250, y: 14, w: 164, h: 104 },
-  shots: { id: 'shots', x: 228, y: 176, w: 164, h: 104 },
-  frame: { id: 'frame', x: 424, y: 110, w: 126, h: 178 },
+/** A thread from its name to a piece (coloured), or a piece to something kept beside it (plain, dashed). */
+const FILM_EDGES: [string, string][] = [
+  ['who', 'treatment'], ['who', 'shots'], ['who', 'stills'],
+  ['promise', 'treatment'], ['promise', 'shots'],
+  ['shots', 'note'], ['stills', 'frame'],
+]
+const FILM_SCENE: Scene = {
+  id: 'film',
+  title: 'Atlas Ceramics · launch film',
+  plan: 'On Direction',
+  wide: lay(FILM, 1080, 468, {
+    vision: [24, 24, 252, 214],
+    treatment: [520, 24, 210, 104],
+    shots: [520, 180, 210, 104],
+    stills: [846, 40, 210, 104],
+    who: [300, 106, 198, 40],
+    promise: [300, 288, 204, 40],
+    frame: [846, 204, 210, 224],
+    note: [520, 340, 232, 104],
+    tasks: [24, 258, 252, 172],
+  }, FILM_EDGES),
+  // A phone shows less of it, further apart and off the grid: the vision by
+  // its title alone, one thread, two pieces and a recording. It is there to
+  // be taken in at a glance, not to list everything a canvas can hold.
+  airy: lay(FILM, 432, 372, {
+    vision: [16, 24, 196, 104],
+    treatment: [252, 14, 164, 104],
+    shots: [236, 178, 164, 104],
+    who: [22, 168, 196, 40],
+    note: [22, 262, 178, 86],
+  }, FILM_EDGES),
 }
-const NODES_AIRY: BoardNode[] = NODES.filter((n) => AIRY[n.id]).map((n) => ({ ...n, ...AIRY[n.id] }))
-const EDGES_AIRY: [string, string][] = [
-  ['hands', 'treatment'],
-  ['hands', 'shots'],
-  ['shots', 'note'],
-  ['shots', 'frame'],
-]
+// The tour's canvas slide, in a narrow column: everything folded up, the
+// threads above and below the vision so no height is wasted.
+const FILM_FOLDED: Layout = lay(FILM, 610, 344, {
+  vision: [14, 62, 212, 222],
+  treatment: [246, 14, 168, 104],
+  shots: [246, 130, 168, 104],
+  stills: [428, 14, 168, 104],
+  who: [14, 14, 186, 36],
+  promise: [14, 296, 200, 36],
+  frame: [428, 130, 168, 202],
+  note: [246, 246, 168, 86],
+}, FILM_EDGES)
 
-/** A thread from its hub to a piece (coloured), or a piece to something kept beside it (plain, dashed). */
-const EDGES: [string, string][] = [
-  ['hands', 'shots'],
-  ['hands', 'stills'],
-  ['reveal', 'treatment'],
-  ['reveal', 'shots'],
-  ['shots', 'note'],
-  ['stills', 'frame'],
-]
+const BOOK: Record<string, Content> = {
+  vision: { kind: 'vision', title: 'Letters Ahead', line: 'A book of letters to my future child.', rules: 'Keeps: the day I learned it. Refuses: sounding wiser than I am.' },
+  l1: { kind: 'piece', title: 'Sitting with a bad day', medium: 'Letter', step: 'test' },
+  l2: { kind: 'piece', title: 'How to apologise', medium: 'Letter', step: 'write' },
+  l3: { kind: 'piece', title: 'Wrong about you', medium: 'Letter', step: 'concept' },
+  l4: { kind: 'piece', title: 'The first page', medium: 'Opening', step: 'concept' },
+  week: { kind: 'tasks', title: 'This week', tasks: [
+    { text: 'Read two letters aloud', done: true },
+    { text: 'Finish the bad-day letter', done: false },
+    { text: 'Decide the order', done: false },
+  ] },
+}
+const BOOK_SCENE: Scene = {
+  id: 'book',
+  title: 'Letters Ahead · a book',
+  plan: 'On Practice',
+  wide: lay(BOOK, 1080, 468, {
+    vision: [24, 24, 252, 214],
+    l1: [336, 48, 220, 104],
+    l2: [668, 84, 220, 104],
+    l3: [404, 228, 220, 104],
+    l4: [748, 272, 220, 104],
+    week: [24, 258, 252, 172],
+  }, []),
+  airy: lay(BOOK, 432, 372, {
+    vision: [16, 24, 196, 104],
+    l1: [252, 14, 164, 104],
+    l2: [32, 180, 164, 104],
+    l3: [238, 214, 164, 104],
+  }, []),
+}
+const SCENES = [FILM_SCENE, BOOK_SCENE]
+/** Every id any layout uses, in a fixed order: each gets one pair of drag offsets for the widget's lifetime. */
+const ALL_IDS = [...new Set([...Object.keys(FILM), ...Object.keys(BOOK)])]
 
 type Pos = { x: MotionValue<number>; y: MotionValue<number> }
 
@@ -550,23 +580,25 @@ function NodeBody({ node, threads }: { node: BoardNode; /** The threads that run
     return (
       <Card padding={tight ? 14 : 18} style={{ height: '100%', ...accentWash(t.ember, t.cardBg) }}>
         <Pill hue="ember">Vision</Pill>
-        <p style={{ ...typeRoles.h2, fontSize: tight ? 18 : 20, color: t.textPrimary, marginTop: bare ? 8 : 10 }}>{PROJECT_TITLE}</p>
-        {!bare && <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>{PROJECT_LINE}</p>}
-        {!bare && <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 10 }}>{PROJECT_RULES}</p>}
+        {/* The card stays where it is when the project on the canvas changes; only what it says does. */}
+        <m.div key={node.title} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE }}>
+          <p style={{ ...typeRoles.h2, fontSize: tight ? 18 : 20, color: t.textPrimary, marginTop: bare ? 8 : 10 }}>{node.title}</p>
+          {!bare && <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 6 }}>{node.line}</p>}
+          {!bare && <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 10 }}>{node.rules}</p>}
+        </m.div>
       </Card>
     )
   }
   if (node.kind === 'hub') {
-    // A thread's name: what several pieces have in common, said in a few words.
-    // Set apart from everything else on the canvas, in its own colour and lit from within.
+    // A thread's name: the point several pieces have to answer to. Set apart
+    // from everything else on the canvas, in its own colour and lit from within.
     const c = t[node.hue]
-    const small = node.h < 44
-    const disc = node.h - 14
+    const disc = node.h - 12
     return (
       <div
         className="flex h-full items-center rounded-full"
         style={{
-          gap: small ? 7 : 9, paddingLeft: 6, paddingRight: 14,
+          gap: 8, paddingLeft: 6, paddingRight: 14,
           backgroundColor: t.cardBg,
           backgroundImage: `linear-gradient(120deg, ${alpha(c, 0.24)}, ${alpha(c, 0.06)})`,
           border: `1.5px solid ${alpha(c, 0.7)}`,
@@ -574,12 +606,9 @@ function NodeBody({ node, threads }: { node: BoardNode; /** The threads that run
         }}
       >
         <span className="flex shrink-0 items-center justify-center rounded-full" style={{ width: disc, height: disc, backgroundColor: c, color: onColor(c) }}>
-          <Waypoints size={small ? 12 : 15} strokeWidth={2.2} aria-hidden />
+          <Waypoints size={node.h < 40 ? 12 : 14} strokeWidth={2.2} aria-hidden />
         </span>
-        <span className="min-w-0">
-          {!small && <span style={{ ...typeRoles.small, display: 'block', fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1.2, color: c }}>Thread</span>}
-          <span style={{ ...typeRoles.small, display: 'block', fontSize: small ? 12.5 : 13.5, fontWeight: 600, lineHeight: 1.25, color: t.textPrimary, whiteSpace: 'nowrap' }}>{node.label}</span>
-        </span>
+        <span style={{ ...typeRoles.small, fontSize: node.h < 40 ? 12.5 : 13.5, fontWeight: 600, lineHeight: 1.25, color: t.textPrimary, whiteSpace: 'nowrap' }}>{node.label}</span>
       </div>
     )
   }
@@ -619,7 +648,7 @@ function NodeBody({ node, threads }: { node: BoardNode; /** The threads that run
   )
 }
 
-function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving, threads }: { node: BoardNode; threads: Hue[]; pos: Pos; order: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or for the moment). */ away: boolean; /** The canvas is winding back: what leaves does so last to arrive first. */ leaving: boolean }) {
+function BoardNodeView({ node, pos, order, count, draggable, boardRef, away, leaving, threads }: { node: BoardNode; threads: Hue[]; pos: Pos; /** Its place in the order things arrive in, and how many there are. */ order: number; count: number; draggable: boolean; boardRef: React.RefObject<HTMLDivElement | null>; /** Not on the canvas (yet, or for the moment). */ away: boolean; /** The canvas is winding back: what leaves does so last to arrive first. */ leaving: boolean }) {
   const reduce = useReducedMotion()
   return (
     <m.div
@@ -631,7 +660,7 @@ function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving, t
       // Each thing arrives on the canvas in turn, so a replay reads as the project being laid out.
       initial={reduce ? false : { opacity: 0, scale: 0.94 }}
       animate={away ? { opacity: 0, scale: 0.94 } : { opacity: 1, scale: 1 }}
-      transition={leaving ? { duration: 0.26, delay: (ARRIVE.length - 1 - order) * 0.055, ease: 'backIn' } : { duration: 0.5, delay: 0.15 + order * 0.14, ease: EASE }}
+      transition={leaving ? { duration: 0.26, delay: (count - 1 - order) * 0.055, ease: 'backIn' } : { duration: 0.5, delay: 0.15 + order * 0.14, ease: EASE }}
       style={{ x: pos.x, y: pos.y, width: node.w, height: node.h, position: 'absolute', left: node.x, top: node.y, touchAction: draggable ? 'none' : 'auto' }}
       className={draggable ? 'cursor-grab active:cursor-grabbing' : undefined}
     >
@@ -640,24 +669,17 @@ function BoardNodeView({ node, pos, order, draggable, boardRef, away, leaving, t
   )
 }
 
-// The order things arrive in: what it is meant to be, the pieces, the threads, then what is kept beside them.
-const ARRIVE = ['vision', 'treatment', 'shots', 'stills', 'hands', 'reveal', 'frame', 'note', 'tasks']
 // Winding back: the lines go, then everything is taken off in the reverse of
-// that order, down to the vision. The vision stays, and the project is laid
-// out around it again.
+// the order it arrived in, down to the vision. The vision card stays; the
+// other project's name comes up on it, and that project is laid out around it.
 const CANVAS_BACK = [850] as const
-const CANVAS_PLAYS = 1900
 
-export function CanvasMockup({ active = true, replay, onDone, compact = false }: LoopProps & { /** The folded (phone) layout at any width, for a narrow column. */ compact?: boolean }) {
+export function CanvasMockup({ active = true, replay, onDone, compact = false }: LoopProps & { /** The tour's: the film alone, folded into a narrow column at any width. */ compact?: boolean }) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
-  const { back, cycle } = useRewind(replay, CANVAS_BACK)
+  const [which, setWhich] = useState(0)
+  const { back, cycle } = useRewind(replay, CANVAS_BACK, () => setWhich((w) => (w + 1) % SCENES.length))
   const unseen = !reduce && !active
-  useEffect(() => {
-    if (!active || !onDone) return
-    const id = window.setTimeout(() => onDone(), CANVAS_PLAYS)
-    return () => window.clearTimeout(id)
-  }, [active, cycle, onDone])
   const boardRef = useRef<HTMLDivElement>(null)
   const [fine, setFine] = useState(false)
   useEffect(() => {
@@ -674,23 +696,21 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
   // (Offsets start at 0: non-zero starting x/y with dragConstraints get
   // double-applied by Motion's measurement.)
   const positions: Record<string, Pos> = {}
-  for (const n of NODES) {
+  for (const id of ALL_IDS) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    positions[n.id] = { x: useMotionValue(0), y: useMotionValue(0) }
+    positions[id] = { x: useMotionValue(0), y: useMotionValue(0) }
   }
 
   const rearrange = useCallback(() => {
-    for (const n of NODES) {
-      animate(positions[n.id].x, 0, { type: 'spring', stiffness: 120, damping: 20 })
-      animate(positions[n.id].y, 0, { type: 'spring', stiffness: 120, damping: 20 })
+    for (const id of ALL_IDS) {
+      animate(positions[id].x, 0, { type: 'spring', stiffness: 120, damping: 20 })
+      animate(positions[id].y, 0, { type: 'spring', stiffness: 120, damping: 20 })
     }
     // positions are stable motion values for the component's lifetime
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Phone layout once the width is known; the wide one renders first. The
-  // tour asks for the folded one by name (it describes everything on it); a
-  // phone on the landing page gets the lighter one.
+  // Phone layout once the width is known; the wide one renders first.
   const [phone, setPhone] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -699,24 +719,45 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])
-  const layout = compact ? 'folded' : phone ? 'airy' : 'wide'
-  const nodes = layout === 'folded' ? NODES_PHONE : layout === 'airy' ? NODES_AIRY : NODES
-  const boardW = layout === 'folded' ? BOARD_W_PHONE : layout === 'airy' ? BOARD_W_AIRY : BOARD_W
-  const boardH = layout === 'folded' ? BOARD_H_PHONE : layout === 'airy' ? BOARD_H_AIRY : BOARD_H
-  const edges = layout === 'airy' ? EDGES_AIRY : EDGES
+  const scene = compact ? FILM_SCENE : SCENES[which]
+  const layout = compact ? FILM_FOLDED : phone ? scene.airy : scene.wide
+  const { nodes, edges } = layout
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
   const through: Record<string, Hue[]> = {}
   for (const [a, b] of edges) {
     const from = byId[a]
-    if (from?.kind === 'hub' && byId[b]) (through[b] ??= []).push(from.hue)
+    if (from.kind === 'hub') (through[b] ??= []).push(from.hue)
   }
+  // Laid out: say so, for whoever is keeping this moving. The more there is on it, the longer it takes.
+  const plays = 650 + nodes.length * 140
+  useEffect(() => {
+    if (!active || !onDone) return
+    const id = window.setTimeout(() => onDone(), plays)
+    return () => window.clearTimeout(id)
+  }, [active, cycle, onDone, plays])
+  // "Swipe across" beckons until someone has.
+  const [swiped, setSwiped] = useState(false)
 
   return (
     <Container padding={0} style={{ overflow: 'hidden' }}>
       <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
-        <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary }}>{PROJECT_TITLE}</p>
-        <div className="flex items-center gap-3">
-          <span style={{ ...typeRoles.small, color: t.textMuted }}>{fine ? 'Drag anything' : 'Swipe across →'}</span>
+        <m.div key={scene.id} initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45 }} className="min-w-0">
+          <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{scene.title}</p>
+          {/* Which plan a canvas like this one is on. The tour shows one canvas and has no need to say. */}
+          {!compact && <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted }}>{scene.plan}</p>}
+        </m.div>
+        <div className="flex shrink-0 items-center gap-3">
+          {fine ? (
+            <span style={{ ...typeRoles.small, color: t.textMuted }}>Drag anything</span>
+          ) : (
+            <m.span
+              animate={swiped || reduce ? { opacity: 1, x: 0 } : { opacity: [0.55, 1, 0.55], x: [0, 5, 0] }}
+              transition={swiped || reduce ? { duration: 0.2 } : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ ...typeRoles.small, fontWeight: 600, color: swiped ? t.textMuted : t.textPrimary, display: 'inline-block', whiteSpace: 'nowrap' }}
+            >
+              Swipe across →
+            </m.span>
+          )}
           {/* Nothing can be moved by touch, so there is nothing to put back. */}
           {fine && (
             <button type="button" onClick={rearrange} className="cursor-pointer" style={{ all: 'unset', cursor: 'pointer' }}>
@@ -727,13 +768,13 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
           )}
         </div>
       </div>
-      <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+      <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]" onScroll={(e) => { if (e.currentTarget.scrollLeft > 8) setSwiped(true) }}>
         <div
           ref={boardRef}
           className="relative m-3 mt-2 md:m-4 md:mt-3"
           style={{
-            width: boardW,
-            height: boardH,
+            width: layout.w,
+            height: layout.h,
             borderRadius: radius.card,
             backgroundColor: t.cardBgInner,
             backgroundImage: `radial-gradient(${t.divider} 1.2px, transparent 1.2px)`,
@@ -742,25 +783,123 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
         >
           <m.svg
             aria-hidden
-            width={boardW}
-            height={boardH}
+            width={layout.w}
+            height={layout.h}
             className="pointer-events-none absolute inset-0"
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: unseen || back > 0 ? 0 : 1 }}
             transition={back > 0 ? { duration: 0.2 } : { duration: 0.8, delay: 0.9 }}
           >
-            {edges.filter(([a, b]) => byId[a] && byId[b]).map(([a, b]) => {
+            {edges.map(([a, b]) => {
               const from = byId[a]
               const thread = from.kind === 'hub'
               const color = from.kind === 'hub' ? t[from.hue] : alpha(t.textPrimary, 0.28)
-              return <Edge key={`${a}-${b}`} a={positions[a]} b={positions[b]} na={from} nb={byId[b]} color={color} dashed={!thread} />
+              return <Edge key={`${scene.id}-${a}-${b}`} a={positions[a]} b={positions[b]} na={from} nb={byId[b]} color={color} dashed={!thread} />
             })}
           </m.svg>
-          {nodes.map((n) => (
-            <BoardNodeView key={n.id} node={n} pos={positions[n.id]} order={ARRIVE.indexOf(n.id)} draggable={fine} boardRef={boardRef} threads={through[n.id] ?? []} away={unseen || (back > 0 && n.id !== 'vision')} leaving={back > 0} />
+          {nodes.map((n, i) => (
+            // The vision keeps its place between projects; everything else belongs to one of them.
+            <BoardNodeView key={n.kind === 'vision' ? 'vision' : `${scene.id}-${n.id}`} node={n} pos={positions[n.id]} order={i} count={nodes.length} draggable={fine} boardRef={boardRef} threads={through[n.id] ?? []} away={unseen || (back > 0 && n.kind !== 'vision')} leaving={back > 0} />
           ))}
         </div>
       </div>
+    </Container>
+  )
+}
+
+// ── Vision: the whole project thought through, out loud ─────────────────────
+// The room that opens from a project's canvas (Direction), in small: the
+// vision on one page above, the talk under it. The documentary from the rule
+// below. Five beats: the question, something looked up, the answer (which
+// leans on what the page already says and on what it found), and an open
+// question heard in the talk and offered to the page. It asks; it does not
+// decide, and nothing reaches the page without being kept.
+
+const ROOM_ASK = 'They want the last day moved to a Sunday. Does my ending still hold?'
+const ROOM_REPLY = 'Your ending is the six o’clock crossing. On Sundays the last boat leaves at 16:30. Which gives way: the day, or the ending?'
+const ROOM_OPEN = 'Sunday, or the six o’clock?'
+// Winding back: the answer is backspaced and the offer leaves, then what was
+// looked up. The page and the question stay, and it is answered again.
+const ROOM_BACK = [450, 800] as const
+
+export function VisionRoomMockup({ active = true, replay, onDone }: LoopProps) {
+  const { t } = useTheme()
+  const reduce = useReducedMotion()
+  // 0 the page · 1 the question is asked · 2 looking something up · 3 found, and answering
+  const [beat, setBeat] = useState(0)
+  const [kept, setKept] = useState(false)
+  const { back, cycle } = useRewind(replay, ROOM_BACK, () => setBeat(1))
+  useEffect(() => {
+    if (!active) return
+    if (reduce) { setBeat(3); return }
+    const at: [number, number][] = cycle === 0 ? [[700, 1], [1700, 2], [3000, 3]] : [[500, 2], [1700, 3]]
+    const ids = at.map(([ms, to]) => window.setTimeout(() => setBeat(to), ms))
+    return () => ids.forEach((id) => window.clearTimeout(id))
+  }, [active, cycle, reduce])
+  const reply = useTypewriter(ROOM_REPLY, beat >= 3, 20, back > 0)
+  const answered = beat >= 3 && reply.done && back === 0
+  useEffect(() => {
+    if (!answered || !onDone) return
+    const id = window.setTimeout(() => onDone(), 900)
+    return () => window.clearTimeout(id)
+  }, [answered, onDone])
+
+  const asked = beat >= 1
+  const looking = beat === 2 && back === 0
+  const found = beat >= 3 && back < 2
+  const row: React.CSSProperties = { display: 'grid', gridTemplateColumns: '92px 1fr', gap: 10, alignItems: 'baseline' }
+  const key: React.CSSProperties = { ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }
+  const val: React.CSSProperties = { ...typeRoles.small, fontSize: 13.5, color: t.textPrimary }
+  return (
+    <Container padding={12}>
+      <Card padding={16}>
+        <p style={{ ...typeRoles.h3, color: t.textPrimary }}>The Six O&rsquo;Clock Ferry <span style={{ fontWeight: 400, color: t.textMuted }}>· Documentary</span></p>
+
+        {/* The page: what the project is, as written on its canvas. */}
+        <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: radius.widget, ...accentWash(t.ember, t.cardBgInner) }}>
+          <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.ember }}>The vision, on one page</p>
+          <div className="flex flex-col gap-1.5" style={{ marginTop: 8 }}>
+            <div style={row}><span style={key}>Meant to be</span><span style={val}>Marta&rsquo;s film, told from the booth.</span></div>
+            <div style={row}><span style={key}>Never</span><span style={val}>Show or name her daughter.</span></div>
+            <div style={row}><span style={key}>Ends on</span><span style={val}><Marked on={found} color={t.ochre}>The six o&rsquo;clock crossing.</Marked></span></div>
+            {/* Heard in the talk, and offered: it is on the page only once it is kept. */}
+            <m.div initial={false} animate={{ opacity: answered ? 1 : 0, y: answered ? 0 : 6 }} transition={{ duration: 0.45, ease: EASE }} aria-hidden={!answered} style={{ ...row, alignItems: 'center', pointerEvents: answered ? 'auto' : 'none' }}>
+              <span style={{ ...key, color: t.ochre }}>Open question</span>
+              <span className="flex flex-wrap items-center justify-between gap-2">
+                <span style={{ ...val, fontWeight: 600 }}>{ROOM_OPEN}</span>
+                <button type="button" onClick={() => setKept(true)} disabled={kept} className={kept ? undefined : 'cursor-pointer'} style={{ ...typeRoles.small, fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999, border: 'none', backgroundColor: kept ? t.soft.verdant : t.inverseBg, color: kept ? t.verdant : t.inverseText, whiteSpace: 'nowrap' }}>
+                  {kept ? 'Kept' : 'Keep it'}
+                </button>
+              </span>
+            </m.div>
+          </div>
+        </div>
+
+        {/* The talk. */}
+        <m.div initial={false} animate={{ opacity: asked || reduce ? 1 : 0, y: asked || reduce ? 0 : 8 }} transition={{ duration: 0.5, ease: EASE }} style={{ marginTop: 14 }}>
+          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>You</p>
+          <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, marginTop: 2 }}>{ROOM_ASK}</p>
+        </m.div>
+        <div style={{ marginTop: 12, minHeight: 26 }}>
+          <m.span
+            initial={false}
+            animate={{ opacity: looking || found ? 1 : 0, scale: looking || found ? 1 : 0.96 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="inline-flex items-center gap-1.5"
+            style={{ ...typeRoles.small, fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 999, backgroundColor: t.soft.tide, color: t.tide }}
+          >
+            <Search size={12} strokeWidth={2.4} aria-hidden />
+            {found ? 'Looked up: the Sunday timetable' : <>Looking it up <WorkingDots color={t.tide} /></>}
+          </m.span>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, opacity: beat >= 3 ? 1 : 0, transition: 'opacity 0.3s ease' }}>Companheiro</p>
+          <p aria-label={ROOM_REPLY} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, marginTop: 2, display: 'grid' }}>
+            <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{ROOM_REPLY}</span>
+            <span aria-hidden style={{ gridArea: '1 / 1' }}>{reply.shown}{beat >= 3 && !reply.done && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}</span>
+          </p>
+        </div>
+      </Card>
     </Container>
   )
 }
