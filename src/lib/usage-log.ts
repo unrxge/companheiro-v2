@@ -18,6 +18,8 @@ export interface UsageLike {
   output_tokens?: number | null
   cache_creation_input_tokens?: number | null
   cache_read_input_tokens?: number | null
+  /** Lookups the model ran on Anthropic's side (web search), billed per request. */
+  server_tool_use?: { web_search_requests?: number | null } | null
 }
 
 export function logUsage(

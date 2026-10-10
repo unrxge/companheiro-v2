@@ -52,6 +52,8 @@ export const CAPS_USD: Record<CappedPlan, { soft: number; hard: number }> = {
 const PRICES: Array<{ match: string; input: number; output: number }> = [
   { match: 'haiku', input: 1, output: 5 },
   { match: 'sonnet', input: 3, output: 15 },
+  // Before the general Opus line: 5.5 is priced below the Opus models before it.
+  { match: 'opus-5-5', input: 4, output: 20 },
   { match: 'opus', input: 5, output: 25 },
   // Kept last: the unknown-model fallback below is by position.
   // Speech (api/read-aloud): the meter is fed characters as `input`, and
@@ -59,14 +61,18 @@ const PRICES: Array<{ match: string; input: number; output: number }> = [
   { match: 'tts', input: 17, output: 0 },
 ]
 
+const WEB_SEARCH_MICROS = 10_000
+
 export function costMicros(model: string, usage: UsageLike): number {
   const p = PRICES.find((x) => model.includes(x.match)) ?? PRICES[1]
   const input = usage.input_tokens ?? 0
   const output = usage.output_tokens ?? 0
   const cacheWrite = usage.cache_creation_input_tokens ?? 0
   const cacheRead = usage.cache_read_input_tokens ?? 0
+  // A web search is $10 per thousand, on top of the tokens its results cost.
+  const searches = usage.server_tool_use?.web_search_requests ?? 0
   // $/MTok × tokens = micro-dollars.
-  return Math.round(p.input * (input + cacheWrite * 2 + cacheRead * 0.1) + p.output * output)
+  return Math.round(p.input * (input + cacheWrite * 2 + cacheRead * 0.1) + p.output * output + searches * WEB_SEARCH_MICROS)
 }
 
 export type Allowance =

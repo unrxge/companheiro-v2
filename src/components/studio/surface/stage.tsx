@@ -30,7 +30,8 @@ export function CanvasStage({
   return (
     <div style={{ position: 'relative', height: '100dvh', overflow: 'hidden', background: shell.ink }}>
       <Atmosphere mood={mood} intensity={intensity} />
-      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{children}</div>
+      {/* Named so the vision room (work/vision-room.tsx) can push the canvas forward behind it. */}
+      <div className="canvas-stage-content" style={{ position: 'absolute', inset: 0, zIndex: 1 }}>{children}</div>
       {header && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 8 }}>{header}</div>}
     </div>
   )

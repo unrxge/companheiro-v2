@@ -34,6 +34,7 @@ import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
 import { LockModal } from '@/components/studio/work/lock-modal'
 import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
+import { VisionRoom, type RoomOrigin } from '@/components/studio/work/vision-room'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
 import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
@@ -101,6 +102,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const [planNote, setPlanNote] = useState<'thread' | 'media' | 'talk' | null>(null)
   const [view, setView] = useState<View>('write')
   const [rail, setRail] = useState<RailKey | null>(null)
+  // The room the canvas's "Talk about the vision" opens, and where on the
+  // window it opens out of (the button that was pressed).
+  const [visionRoom, setVisionRoom] = useState<{ origin: RoomOrigin | null } | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
@@ -720,13 +724,32 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           {/* Bottom and centred, not a small icon in a corner pill — this is
              the invitation to talk the vision through, not an afterthought. */}
           <CompanionLauncher
-            active={rail === 'companion'}
+            active={!!visionRoom}
             locked={!canTalkVision}
-            onClick={() => (canTalkVision ? setRail((r) => (r === 'companion' ? null : 'companion')) : setPlanNote('talk'))}
+            onClick={(from) => {
+              if (!canTalkVision) { setPlanNote('talk'); return }
+              const box = from?.getBoundingClientRect()
+              setRail(null)
+              setVisionRoom({ origin: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null })
+            }}
           />
         </CanvasStage>
         <Dock />
         {companionDrawer}
+        {visionRoom && (
+          <VisionRoom
+            projectId={projectId}
+            origin={visionRoom.origin}
+            project={{ title: project.title, intent: project.intent ?? '', rules: projectRules }}
+            pieces={roots}
+            threads={tree.threads}
+            appearancesFor={appearancesFor}
+            onClose={() => setVisionRoom(null)}
+            onOpenPiece={(id) => { setVisionRoom(null); goNode(id) }}
+            onRulesChanged={() => void api.refresh()}
+            disabled={readOnly}
+          />
+        )}
         {planNote && (
           <PlanNote
             title={planNote === 'talk' ? 'Talking the vision through' : planNote === 'thread' ? 'Threads across your pieces' : 'Images and recordings'}
@@ -735,7 +758,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           >
             <p style={{ margin: 0 }}>
               {planNote === 'talk'
-                ? 'A conversation about the whole project, from its canvas, is part of Direction. The writing assistant inside each piece is yours on every plan.'
+                ? 'A room for the whole project, opened from its canvas: its vision on one page, and a conversation about who it is for, how it reaches them and where its field is heading. It is part of Direction. The writing assistant inside each piece is yours on every plan.'
                 : planNote === 'thread'
                   ? 'New threads, the things that run through some of your pieces, are part of Direction. The ones already here stay, and a task list can be added on any plan.'
                   : 'New images and recordings on the canvas are part of Direction. The ones already here stay.'}

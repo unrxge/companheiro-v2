@@ -10,4 +10,9 @@ export const MODELS = {
   // not less, and hit output caps 4.6 never came close to on equally dense
   // prompts.
   deep: 'claude-sonnet-4-6',
+  // The room where a whole project's vision is talked through (Direction).
+  // The one place the strongest Opus is worth its price: few, long-lived
+  // conversations that the plan is sold on. Thinking is always on with this
+  // model and counts toward max_tokens, so its callers leave room for it.
+  vision: 'claude-opus-5-5',
 } as const

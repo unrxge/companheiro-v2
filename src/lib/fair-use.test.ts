@@ -28,6 +28,11 @@ test('costMicros prices by model family, cache writes at the 1h rate', () => {
   assert.equal(costMicros('some-future-model', { input_tokens: 1_000_000 }), 3_000_000)
   // speech is metered by the character: a 400-character reply is under a cent
   assert.equal(costMicros('gpt-4o-mini-tts', { input_tokens: 400 }), 6_800)
+  // Opus 5.5 is priced below the Opus models before it
+  assert.equal(costMicros('claude-opus-5-5', { input_tokens: 1_000_000, output_tokens: 1_000_000 }), 24_000_000)
+  assert.equal(costMicros('claude-opus-4-8', { input_tokens: 1_000_000 }), 5_000_000)
+  // a web search is a cent, on top of the tokens
+  assert.equal(costMicros('claude-opus-5-5', { server_tool_use: { web_search_requests: 3 } }), 30_000)
 })
 
 const sub = (over: Partial<Subscription>): Subscription => ({

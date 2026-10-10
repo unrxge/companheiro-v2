@@ -122,7 +122,8 @@ export function CompanionLauncher({
   active, onClick, locked = false,
 }: {
   active: boolean
-  onClick: () => void
+  /** Handed the button itself, so what it opens can open out of it. */
+  onClick: (from: HTMLElement | null) => void
   /** The plan does not carry it: shown quietly, and pressing it says so. */
   locked?: boolean
 }) {
@@ -141,8 +142,8 @@ export function CompanionLauncher({
         type="button"
         aria-label="Talk through the vision"
         aria-pressed={active}
-        title="Talk it through"
-        onClick={onClick}
+        title="Talk about the vision"
+        onClick={(e) => onClick(e.currentTarget)}
         className="companion-launcher"
         style={{
           position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,

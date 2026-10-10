@@ -24,6 +24,11 @@
 // At the project altitude it can see every piece and every thread. Inside a
 // part it sees that part, what it owes the thing above it, and its siblings.
 //
+// The canvas no longer sends its "Talk about the vision" here: that is the
+// vision room now (../vision/route.ts), which reads the whole canvas and can
+// look things up. With no node_id this still answers, for anything older
+// that calls it, and shares that room's conversation.
+//
 // The vision is more than the shape, too: who this actually reaches, what it
 // takes for that to happen, what it is really handing someone, why any of it
 // is worth their time or the person's own — that lives in reflect mode as

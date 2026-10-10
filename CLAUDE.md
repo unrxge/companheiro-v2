@@ -67,6 +67,7 @@ Companheiro is a companion app for inner life reflection and creative work. It i
 | `session_logs` | `/api/project-board/session-log` | Session logging | Explicit columns | Track piece work sessions |
 | `studio_post_publication_logs` | `/api/idea-lab/continuations`, `lib/companion-context.ts`, `lib/recall.ts`, `/api/trajectory/converse`, `/api/letter` | `/api/post-publication/log` | Explicit columns | Close the loop. The old `post_publication_logs` is legacy (copied in by studio migration 009); read this one |
 | `studio_board_items` | `/api/studio/projects/[id]/items` (GET), `/api/account` (export) | `/api/studio/projects/[id]/items` (POST), `/api/studio/items/[itemId]` | Explicit columns (`ITEM_COLS`) | Migration 028. Images, recordings and task lists on a project's canvas. Until it is applied the items route answers `ready: false` and the canvas offers threads only. Files live in `studio_assets` + the `studio-media` bucket; the companion reads neither |
+| `studio_vision_messages` | `/api/studio/projects/[id]/vision` (the whole project, `node_id` null), `/api/studio/projects/[id]/companion` (one part), `/api/account` (export) | the same two routes | Explicit columns | One conversation per project and one per part. A reply that looked something up carries its sources inside `text` after the words (`withSources` / `splitSources` in `lib/studio/vision/types.ts`); anything reading this table for the words should split them off |
 
 ---
 
@@ -135,6 +136,20 @@ Two copies of the app, so work in progress never reaches the people using it.
 
 ---
 
+## The vision room
+
+"Talk about the vision" on a project's canvas opens a full-screen room (`components/studio/work/vision-room.tsx`): the state of the vision on one page, a conversation beside it. Part of Direction (`visionTalk`).
+
+- **One project only.** The room is handed a project id and asks only that project's routes. Nothing from another project is read or shown, by the person's decision (2026-10-10); do not add cross-project views here.
+- **What it reads** is decided in one place, `canvasText()` in `lib/studio/vision/canvas-text.ts`: every word written on the canvas (purpose, rules, each piece's purpose and core concept, fragments, tasks, threads, and the words written on an image, recording or palette). Never an image, a recording, or the writing inside a piece. The conversation inside a part (`/companion` with a `node_id`) is the one that may see prose, and it is a different conversation.
+- **The page** is mostly the canvas itself, read out. Three things are added, each only because the person asked or agreed: a reading of the canvas (`/vision/reading`, made on request, dated, goes stale when the canvas changes), decisions and open questions heard in talk (`lib/studio/vision/hear.ts`, offered, never added silently, quote checked word for word). All of it lives in `studio_projects.settings.vision`; change it only through `changeVision()`, which re-reads the row first.
+- **It looks things up.** The talk route gives the model a web search (`web_search_20250305`, at most three per reply). That older tool type is deliberate: it is the one that returns the page each sentence came from. Each search is metered (`costMicros`).
+- **Model:** `MODELS.vision` (Opus 5.5). Thinking is always on and counts toward `max_tokens`; it takes no `temperature`. Past the fair-use soft cap the fast model stands in, without search. If Opus declines a subject, `streamClaudeText`'s `fallbackModel` asks `MODELS.deep` once.
+- **What it must never do** is in `VISION_ROLE` (`lib/studio/vision/prompts.ts`): make the work, say whether the work is good, measure or promise how it will perform, bring in another project.
+- **Preview without an account:** `/dev/work-page?plan=direction&board=1&pieces=1`, then the button at the bottom of the canvas. The server is faked there, including a slow lookup with sources.
+
+---
+
 ## Plans and what they allow
 
 One place decides what a plan includes: `entitlementsFor()` in `src/lib/billing/entitlements.ts` (pure, shared by server and browser). Never branch on `subscription.tier` anywhere else.
@@ -165,7 +180,7 @@ One place decides what a plan includes: `entitlementsFor()` in `src/lib/billing/
 
 ### Claude API calls
 - Use `@anthropic-ai/sdk` (never raw HTTP)
-- Default model: `claude-haiku-4-5-20251001` (fast, cheap, good enough for signals)
+- Default model: `claude-haiku-4-5-20251001` (fast, cheap, good enough for signals). Models are named once, in `src/lib/models.ts`
 - System prompts should be clear and concise
 - Keep `max_tokens` reasonable (512 for summaries, 1024 for responses)
 

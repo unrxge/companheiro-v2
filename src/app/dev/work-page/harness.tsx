@@ -131,6 +131,13 @@ function installMock(o: Opts) {
   const openChecks: unknown[] = []
   let suggestions = [{ id: 'sg-1', name: 'Kept for later', intent: 'Things saved for a day that never comes.', piece_ids: ['node-1', 'node-2'], why: 'A room “kept for a guest who never came” and a morning when nobody needed you.' }]
 
+  const visionTalk: Array<{ id: string; role: string; text: string; sources: Array<{ url: string; title: string }>; created_at: string }> = []
+  const visionKept: Array<{ id: string; kind: string; text: string; why: string; quote: string; at: string; state: string }> = o.pieces ? [
+    { id: 'vk-1', kind: 'decision', text: 'It is three pieces, not one long one', why: 'each of them has to be able to stand without the others', quote: '', at: '2026-09-18T10:00:00.000Z', state: 'kept' },
+    { id: 'vk-2', kind: 'open', text: 'Whether the song is sung or only printed', why: '', quote: '', at: '2026-09-21T10:00:00.000Z', state: 'kept' },
+  ] : []
+  let visionReading: { at: string; statement: string; gaps: Array<{ id: string; text: string; where: string[] }>; signature: string } | null = null
+
   const resync = (parentId: string | null) => {
     while (parentId) {
       const parent = nodes.find((n) => n.id === parentId)
@@ -328,6 +335,70 @@ function installMock(o: Opts) {
       })
     }
     if (path === '/api/write/distill' || path === '/api/write/activity') return json({ success: true })
+    // The vision room (components/studio/work/vision-room.tsx): the page, the
+    // talk, a reading of the canvas, and what is kept from talk.
+    if (path === '/api/studio/projects/demo/vision') {
+      if (method === 'GET') return json({ messages: visionTalk, kept: visionKept, reading: visionReading, stale: false, unread: { images: 0, recordings: 0 } })
+      const said = String(body.message || '')
+      visionTalk.push({ id: `vm-${++seq}`, role: 'person', text: said, sources: [], created_at: NOW })
+      const looked = body.lens === 'field'
+      const sources = looked ? [
+        { url: 'https://example.com/short-documentary-distribution-2026', title: 'Where short documentaries are being shown this year' },
+        { url: 'https://example.org/commissioners-survey', title: 'What commissioners say they are buying' },
+      ] : []
+      const reply = body.lens === 'audience'
+        ? 'Three kinds of people are on this canvas, and only one of them is being made for.\n\n- People who are needed all day and have stopped noticing it. They have to meet the empty morning first, before any idea about rest.\n- People who already write about rest. They have heard the argument; they would stay for the room, not the claim.\n- The person you were before that morning. This is who the pieces are actually addressed to.\n\nThe canvas as written serves the third. Is that the one you mean it to reach?'
+        : body.lens === 'weakest'
+          ? 'The case against it: what the whole thing is for says rest is not the absence of worth, and every piece arrives there by the same door, a quiet room. Someone who is not already persuaded gets the same proof three times.\n\nWhat would a piece look like that reaches it from somewhere loud?'
+          : looked
+            ? 'What I found, both from the last few weeks: short documentaries are being bought in packages for free streaming channels more than one at a time, and commissioners say they are asking for a series shape even from single films.\n\nThat is what I found. What I am inferring: three pieces with one thread across them is closer to what is being bought than one long piece would be.'
+            : 'Then the question is which of the three carries that, and which two are there to earn it. Which one could you least afford to lose?'
+      const decided = said.match(/[^.!?]*\b(we are|we're|I am|I'm|it will|it goes|decided)\b[^.!?]*[.!?]?/i)?.[0]?.trim()
+      const unsure = said.match(/[^.!?]*\b(don['’]t know|not sure|still deciding)\b[^.!?]*[.!?]?/i)?.[0]?.trim()
+      const heard = [
+        ...(decided ? [{ id: `vk-${++seq}`, kind: 'decision', text: decided.replace(/[.!?]$/, ''), why: '', quote: decided, at: NOW, state: 'pending' }] : []),
+        ...(unsure && unsure !== decided ? [{ id: `vk-${++seq}`, kind: 'open', text: unsure.replace(/[.!?]$/, ''), why: '', quote: unsure, at: NOW, state: 'pending' }] : []),
+      ]
+      visionKept.push(...heard)
+      visionTalk.push({ id: `vm-${++seq}`, role: 'companion', text: reply, sources, created_at: NOW })
+      const enc = new TextEncoder()
+      const parts = reply.match(/\S+\s*/g) ?? [reply]
+      return new Response(new ReadableStream({
+        async start(c) {
+          // A lookup is slow to start, the way the real one is.
+          await new Promise((r) => setTimeout(r, looked ? 5200 : 700))
+          for (const piece of parts) { c.enqueue(enc.encode(piece)); await new Promise((r) => setTimeout(r, 18)) }
+          c.enqueue(enc.encode(`\u001e${JSON.stringify({ sources, proposals: [], heard })}`))
+          c.close()
+        },
+      }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
+    }
+    if (path === '/api/studio/projects/demo/vision/reading' && method === 'POST') {
+      if (body?.dismiss) { if (visionReading) visionReading.gaps = visionReading.gaps.filter((g) => g.id !== body.dismiss); return json({ reading: visionReading, stale: false }) }
+      await new Promise((r) => setTimeout(r, 1800))
+      const tops = nodes.filter((n) => !n.parent_id)
+      visionReading = {
+        at: new Date().toISOString(),
+        statement: tops.length > 1
+          ? 'Three pieces about things kept for a later that does not come: a morning, a room, a stack of chairs. Each one stays with the waiting itself and refuses to resolve it. It is for someone who has mistaken being useful for being alive.'
+          : 'One piece about a morning when nothing was asked, and what is left of a person when the asking stops.',
+        gaps: tops.length > 1 ? [
+          { id: `g-${++seq}`, text: 'What the whole thing is for speaks of rest, while “Before Opening” is written as photographs of things waiting to be used; nothing on the canvas says how waiting and rest are the same thing here.', where: ['Before Opening'] },
+          { id: `g-${++seq}`, text: '“The Room I Never Used” is called a song and the other two are not; the canvas does not say whether this is one form or three.', where: ['The Room I Never Used'] },
+        ] : [],
+        signature: 'mock',
+      }
+      return json({ reading: visionReading, stale: false })
+    }
+    if (path === '/api/studio/projects/demo/vision/kept' && method === 'POST') return write(() => {
+      if (body.action === 'add') { visionKept.push({ id: `vk-${++seq}`, kind: body.kind === 'open' ? 'open' : 'decision', text: body.text, why: body.why ?? '', quote: '', at: new Date().toISOString(), state: 'kept' }); return json({ kept: visionKept }) }
+      const i = visionKept.findIndex((k) => k.id === body.id)
+      if (i < 0) return json({ error: 'already answered' }, 409)
+      if (body.action === 'keep') Object.assign(visionKept[i], { text: body.text || visionKept[i].text, why: body.why ?? visionKept[i].why, state: 'kept' })
+      else if (body.action === 'settle') Object.assign(visionKept[i], { kind: 'decision', text: body.text, why: body.why ?? '', state: 'kept', at: new Date().toISOString() })
+      else visionKept.splice(i, 1)
+      return json({ kept: visionKept })
+    })
     if (path === '/api/studio/projects/demo/companion') {
       if (method === 'GET') return json({ messages: [] })
       const said = String(body.message || '').match(/[^.!?]*\b(won['’]t|never|has to|no )[^.!?]*[.!?]?/i)?.[0]?.trim()
