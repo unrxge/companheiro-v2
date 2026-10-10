@@ -471,7 +471,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   if (state.status === 'loading') {
     return (
       <>
-        <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
+        <CanvasStage header={<StageHeader onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} upText={LEVELS.shelf.name} />}>
           <span />
         </CanvasStage>
         <Dock />
@@ -667,7 +667,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     // the meantime so it never flashes before the writing view takes over.
     return (
       <>
-        <CanvasStage header={<StageHeader title="Opening…" onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} />}>
+        <CanvasStage header={<StageHeader onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} upText={LEVELS.shelf.name} />}>
           <span />
         </CanvasStage>
         <Dock />
