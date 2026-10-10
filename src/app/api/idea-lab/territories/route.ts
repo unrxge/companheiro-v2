@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/supabase/route'
 
 type TerritorySlot =
   | { type: 'predefined'; key: string }
-  | { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[] }
+  | { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[]; register?: 'inner' | 'field' }
   | null
 
 const DEFAULT_SLOTS: TerritorySlot[] = [

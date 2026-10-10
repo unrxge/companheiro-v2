@@ -5,7 +5,15 @@
 import type { Hue } from '@/lib/design-tokens'
 
 export type PredefinedSlot = { type: 'predefined'; key: string }
-export type CustomSlot = { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[] }
+/**
+ * What kind of theme a territory is. "inner" is lived experience (grief,
+ * devotion, a way of living); "field" is a concrete discipline or subject
+ * (brand design, documentary editing, food). It decides how the territory's
+ * map and its Idea Lab questions are written. Missing on older territories
+ * until the Idea Lab reads them once (see lib/territory-map.ts).
+ */
+export type Register = 'inner' | 'field'
+export type CustomSlot = { type: 'custom'; key: string; label: string; rangeMap?: string; facetSeeds?: string[]; register?: Register }
 export type TerritorySlot = PredefinedSlot | CustomSlot | null
 export type FilledSlot = PredefinedSlot | CustomSlot
 

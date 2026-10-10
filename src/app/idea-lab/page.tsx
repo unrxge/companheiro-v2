@@ -66,6 +66,10 @@ export default function IdeaLabPage() {
   const [impersonal, setImpersonal] = useState(true)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
+  // Questions turned down with "Ask again" since the page opened, most recent
+  // last. Their count decides which model writes the next one (see
+  // promptModelTier), and the last few are sent so it does not circle back.
+  const rejectedPrompts = useRef<string[]>([])
   const [responseText, setResponseText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -90,6 +94,56 @@ export default function IdeaLabPage() {
       .catch((err) => console.error('Failed to fetch captures:', err))
       .finally(() => setIsLoadingCaptures(false))
   }, [])
+
+  // Themes named before the Idea Lab told inner life from concrete fields
+  // (brand design, documentary editing) apart: sort each one once, in the
+  // background, when the page opens. An inner theme keeps the map it has; a
+  // field gets a map written for it. The "·" on its pill shows while that
+  // runs, and a question asked in the meantime is still written the right way
+  // (the prompt route sorts an unsorted theme for itself).
+  const slotsRef = useRef(territorySlots)
+  useEffect(() => { slotsRef.current = territorySlots }, [territorySlots])
+  const sortingStarted = useRef(false)
+  const [sortingKeys, setSortingKeys] = useState<string[]>([])
+  useEffect(() => {
+    if (!territoriesLoaded || sortingStarted.current) return
+    sortingStarted.current = true
+    const unsorted = territorySlots.filter((slot): slot is CustomSlot => !!slot && slot.type === 'custom' && !slot.register)
+    if (unsorted.length === 0) return
+    const labels = territorySlots.filter(isFilled)
+    setSortingKeys(unsorted.map((slot) => slot.key))
+    Promise.all(
+      unsorted.map(async (slot) => {
+        try {
+          const res = await fetch('/api/idea-lab/territories/generate-map', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: slot.label, otherThemes: labels.filter((other) => other.key !== slot.key).map(slotLabel), keepInnerMap: !!slot.rangeMap }),
+          })
+          if (!res.ok) return null
+          const data = (await res.json()) as { register?: CustomSlot['register']; rangeMap?: string; facetSeeds?: string[] }
+          const hasMap = !!data.rangeMap && !!data.facetSeeds
+          // A field whose map could not be written stays unsorted, so the next visit tries again.
+          if (!data.register || (data.register === 'field' && !hasMap)) return null
+          return { key: slot.key, update: { register: data.register, ...(hasMap ? { rangeMap: data.rangeMap, facetSeeds: data.facetSeeds } : {}) } }
+        } catch {
+          return null
+        }
+      })
+    ).then((results) => {
+      const sorted = results.filter((r) => r !== null)
+      if (sorted.length > 0) {
+        // Onto the slots as they are now: a theme may have been added or removed while this ran.
+        const next = slotsRef.current.map((slot) => {
+          if (!slot || slot.type !== 'custom') return slot
+          const found = sorted.find((r) => r.key === slot.key)
+          return found ? { ...slot, ...found.update } : slot
+        })
+        saveTerritoryConfig(next)
+      }
+      setSortingKeys([])
+    })
+  }, [territoriesLoaded, territorySlots, saveTerritoryConfig])
 
   // ── Arc handlers ──────────────────────────────────────────────────────────
   const toggleArc = (arc: Arc) => setSelectedArcs((prev) => (prev.includes(arc) ? prev.filter((a) => a !== arc) : [...prev, arc]))
@@ -158,11 +212,11 @@ export default function IdeaLabPage() {
       const res = await fetch('/api/idea-lab/territories/generate-map', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label, otherThemes: territorySlots.filter(isFilled).map(slotLabel) }),
       })
       const data = await res.json()
       if (data.rangeMap && data.facetSeeds) {
-        const enriched: CustomSlot = { ...baseSlot, rangeMap: data.rangeMap, facetSeeds: data.facetSeeds }
+        const enriched: CustomSlot = { ...baseSlot, rangeMap: data.rangeMap, facetSeeds: data.facetSeeds, ...(data.register ? { register: data.register } : {}) }
         const updated = [...next] as TerritorySlot[]
         const idx = updated.findIndex((s) => s?.key === key)
         if (idx !== -1) updated[idx] = enriched
@@ -188,7 +242,12 @@ export default function IdeaLabPage() {
     setError(null)
     try {
       const payload: Record<string, unknown> = { energy: energyLevel, impersonal }
-      if (generatedPrompt) payload.previousPrompt = generatedPrompt
+      const rejected = generatedPrompt ? [...rejectedPrompts.current, generatedPrompt] : rejectedPrompts.current
+      if (generatedPrompt) {
+        payload.previousPrompt = generatedPrompt
+        payload.rejected = rejected.slice(-5)
+        payload.regeneration = rejected.length
+      }
       if (skipArcs) payload.arcs = null
       else if (useRandomArcs) payload.randomArcs = true
       else payload.arcs = selectedArcs
@@ -200,13 +259,14 @@ export default function IdeaLabPage() {
         payload.territories = selectedSlots.map((s) =>
           s.type === 'predefined'
             ? s.key
-            : { key: s.key, label: s.label, custom: true as const, ...(s.rangeMap ? { rangeMap: s.rangeMap } : {}), ...(s.facetSeeds ? { facetSeeds: s.facetSeeds } : {}) }
+            : { key: s.key, label: s.label, custom: true as const, ...(s.rangeMap ? { rangeMap: s.rangeMap } : {}), ...(s.facetSeeds ? { facetSeeds: s.facetSeeds } : {}), ...(s.register ? { register: s.register } : {}) }
         )
       }
 
       const res = await fetch('/api/idea-lab/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
       if (data.prompt) {
+        rejectedPrompts.current = rejected
         setGeneratedPrompt(data.prompt)
       } else {
         setError('Failed to generate — try again')
@@ -416,7 +476,7 @@ export default function IdeaLabPage() {
                         <span title={slotLabel(slot)}>
                           <Pill hue={territories.hue(slot.key)} selected={isSelected} onClick={() => handleTerritoryPillClick(slot)} size="md">
                             {slotShort(slot)}
-                            {generatingMapKey === slot.key && <span style={{ opacity: 0.6 }}>·</span>}
+                            {(generatingMapKey === slot.key || sortingKeys.includes(slot.key)) && <span style={{ opacity: 0.6 }}>·</span>}
                           </Pill>
                         </span>
                         <AnimatePresence>
