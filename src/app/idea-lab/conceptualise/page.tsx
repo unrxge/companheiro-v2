@@ -37,6 +37,12 @@ function ConceptualiseContent() {
   const resumeId = searchParams.get('resume')
   const bringMode = searchParams.get('mode') === 'bring'
   const checkInMode = searchParams.get('mode') === 'checkin'
+  // Working out another piece for a project that already exists, started from
+  // that project's canvas. The conversation knows what it is joining, the
+  // way back is the canvas, and the piece is added to it at the end.
+  const joiningProject = searchParams.get('project')
+  const standsAt = searchParams.get('at')
+  const backTo = joiningProject ? `/p/${joiningProject}` : '/idea-lab'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -51,9 +57,9 @@ function ConceptualiseContent() {
   const broughtSeedRef = useRef<string | null>(null)
 
   const [checkInHandover, setCheckInHandover] = useState<{ entry: string; conversation: string } | null>(null)
-  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode && !checkInMode)
+  const [isCheckingDraft, setIsCheckingDraft] = useState(!seed && !resumeId && !bringMode && !checkInMode && !searchParams.get('project'))
   const [existingDrafts, setExistingDrafts] = useState<Draft[]>([])
-  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode)
+  const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode || !!searchParams.get('project'))
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
@@ -181,7 +187,7 @@ function ConceptualiseContent() {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
@@ -258,13 +264,15 @@ function ConceptualiseContent() {
     sessionStorage.removeItem('bring_idea_flow')
     sessionStorage.setItem('conceptualisation_conversation', JSON.stringify(messages.map((x) => ({ ...x, content: x.content.split(PHASE_MARKER).join('').trim() }))))
     fetch(`/api/idea-lab/conceptualise/draft?id=${draftIdRef.current}`, { method: 'DELETE' }).catch((err) => console.error('Failed to clear draft on declare:', err))
-    router.push('/idea-lab/core-concept')
+    router.push(joiningProject
+      ? `/idea-lab/core-concept?project=${joiningProject}&piece=new${standsAt ? `&at=${standsAt}` : ''}`
+      : '/idea-lab/core-concept')
   }
 
   if (!seed && isCheckingDraft) {
     return (
       <PageShell mood="ember" maxWidth={widths.conversation}>
-        <PageHeader eyebrow="Idea Lab" title="Conceptualise" size="md" back="/idea-lab" />
+        <PageHeader eyebrow="Idea Lab" title="Conceptualise" size="md" back={backTo} />
         <p style={{ ...typeRoles.small, color: shell.muted }}><WorkingDots /> Loading…</p>
       </PageShell>
     )
@@ -273,7 +281,7 @@ function ConceptualiseContent() {
   if (existingDrafts.length > 0 && !resumeDecided) {
     return (
       <PageShell mood="ember" maxWidth={widths.conversation}>
-        <PageHeader eyebrow="Idea Lab · Unfinished explorations" title={existingDrafts.length === 1 ? 'Resume where you left off?' : `You have ${existingDrafts.length} unfinished ideas`} size="md" back="/idea-lab" />
+        <PageHeader eyebrow="Idea Lab · Unfinished explorations" title={existingDrafts.length === 1 ? 'Resume where you left off?' : `You have ${existingDrafts.length} unfinished ideas`} size="md" back={backTo} />
         <Container>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {existingDrafts.map((draft) => {
@@ -301,10 +309,10 @@ function ConceptualiseContent() {
   return (
     <PageShell mood="ember" maxWidth={widths.conversation + 160} fill>
       <PageHeader
-        eyebrow="Idea Lab"
+        eyebrow={joiningProject ? 'A new piece' : 'Idea Lab'}
         title="Conceptualise"
         size="md"
-        back="/idea-lab"
+        back={backTo}
       />
 
       <Container fill flush padding={0}>

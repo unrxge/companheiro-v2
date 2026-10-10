@@ -7,7 +7,7 @@ import { insertTasks, type TaskRow } from "@/lib/studio/tasks-db";
 import { WRITING } from "@/lib/studio/task-groups";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
-import { claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
+import { assertProjectIdWorkable, claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
 
 interface SaveRequest {
   one_sentence: string;
@@ -28,6 +28,12 @@ interface SaveRequest {
   /** Building the core concept later for a project that already exists
    *  (it was started via "Skip to writing"): update it, don't create one. */
   project_id?: string | null;
+  /** With `project_id`: this is another piece for that project, worked out
+   *  before it was started, rather than the project's own concept arriving
+   *  late. A piece is added; the project's own vision is left alone. */
+  new_piece?: boolean;
+  /** Where the new piece stands, when the end of the lane was taken up. */
+  board_x?: number | null;
 }
 
 interface SaveResponse {
@@ -95,6 +101,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const normalisedArc = normaliseArc(body.arc);
     const theme = (body.thematic_territory ?? "").trim().slice(0, 80) || null;
 
+    if (body.project_id && body.new_piece) {
+      return await addPieceToProject(supabase, userData.user, body);
+    }
     if (body.project_id) {
       return await completeExistingProject(supabase, userData.user, body, normalisedArc, theme);
     }
@@ -279,6 +288,131 @@ function toThreadArray(raw: unknown): string[] {
   return typeof raw === "string"
     ? raw.split("\n").map((line) => line.replace(/^\s*[-•\d.)]+\s*/, "").trim()).filter((x) => x.length > 0)
     : Array.isArray(raw) ? (raw as string[]) : [];
+}
+
+// Another piece for a project that already exists, worked out before it was
+// started. Everything the concept says is the piece's own, so it all lands on
+// the new node: the project's arc, theme and vision belong to the whole
+// project and several pieces share them — a new piece does not get to rewrite
+// what the project is about.
+async function addPieceToProject(
+  supabase: Awaited<ReturnType<typeof createRouteClient>>,
+  user: User,
+  body: SaveRequest,
+): Promise<NextResponse<SaveResponse>> {
+  const userId = user.id;
+  const projectId = body.project_id as string;
+  const auth = { supabase, user };
+
+  // The plan decides whether this project can be worked on at all; a resting
+  // project does not take new pieces.
+  try {
+    await assertProjectIdWorkable(auth, projectId);
+  } catch {
+    return NextResponse.json({ success: false, error: "This project is not open for work right now" }, { status: 403 });
+  }
+
+  const { data: project } = await supabase
+    .from("studio_projects")
+    .select("id, rules")
+    .eq("id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!project) {
+    return NextResponse.json({ success: false, error: "Project not found" }, { status: 404 });
+  }
+
+  // After the pieces already there, in reading order.
+  const { data: last } = await supabase
+    .from("studio_nodes")
+    .select("position")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .is("parent_id", null)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const position = ((last as { position: number } | null)?.position ?? -1) + 1;
+
+  const poeticTitle = await generatePoeticTitle(userId, {
+    one_sentence: body.one_sentence,
+    conviction_statement: body.conviction_statement,
+    emotional_journey: body.emotional_journey,
+    core_truth: body.core_truth,
+  });
+
+  const openThreadsArray = toThreadArray(body.open_threads);
+
+  const { data: nodeData, error: nodeError } = await supabase
+    .from("studio_nodes")
+    .insert([
+      {
+        user_id: userId,
+        project_id: projectId,
+        parent_id: null,
+        position,
+        title: poeticTitle,
+        intent: body.conviction_statement,
+        stands_whole: true,
+        status: "open",
+        emotional_journey: body.emotional_journey,
+        core_truth: body.core_truth,
+        substack_goals: body.writing_goals,
+        open_threads: openThreadsArray,
+        writing_ethos: null,
+        body: body.brought_idea?.trim() ?? "",
+        ...(typeof body.board_x === "number" ? { board_x: Math.round(body.board_x) } : {}),
+      },
+    ])
+    .select("id")
+    .single();
+
+  if (nodeError || !nodeData) {
+    console.error("Error adding piece to project:", nodeError);
+    return NextResponse.json({ success: false, error: "Failed to save piece" }, { status: 500 });
+  }
+  const nodeId = nodeData.id as string;
+
+  const conversationText = body.conversation_history.map((m) => `${m.role}: ${m.content}`).join("\n\n");
+  const [, suggestedTasks] = await Promise.all([
+    distillPortrait(
+      auth,
+      "conceptualise",
+      `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
+    ),
+    generateTasks(userId, {
+      one_sentence: body.one_sentence,
+      arc: normaliseArc(body.arc),
+      conviction_statement: body.conviction_statement,
+      emotional_journey: body.emotional_journey,
+      core_truth: body.core_truth,
+      writing_goals: body.writing_goals,
+      open_threads: openThreadsArray,
+    }),
+  ]);
+
+  let insertedTasks: TaskRow[] = [];
+  if (suggestedTasks.length > 0) {
+    const { tasks: made, error: tasksError } = await insertTasks(
+      { supabase, user: { id: userId } },
+      suggestedTasks.map((task, index) => ({ project_id: projectId, node_id: nodeId, title: task.title, category: WRITING, order: index }))
+    );
+    if (tasksError) console.error("Error inserting tasks for the new piece:", tasksError);
+    else insertedTasks = made.map((t) => ({ ...t, category: t.category ?? WRITING }));
+  }
+
+  // What this piece is meant to be, read against the rules the project is
+  // already working under — the same boundary a concept arriving late meets.
+  const hasRules = Array.isArray(project.rules) && (project.rules as Array<{ retired_at?: string | null }>).some((r) => r && !r.retired_at);
+  if (hasRules) {
+    try {
+      await checkNodeAgainstRules(auth, nodeId);
+    } catch (e) {
+      console.error("New piece rule check failed (non-fatal):", e);
+    }
+  }
+
+  return NextResponse.json({ success: true, project_id: projectId, node_id: nodeId, tasks: insertedTasks });
 }
 
 // The core concept arriving after the fact: fills the project's lens and

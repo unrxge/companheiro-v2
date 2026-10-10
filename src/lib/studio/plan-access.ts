@@ -85,13 +85,16 @@ export interface ProjectAccess {
   threads: boolean
   media: boolean
   visionTalk: boolean
+  /** The companion answers at all: without it, nothing that is a conversation
+   *  is offered — working a piece out before making it, among them. */
+  companion: boolean
 }
 
 type Staged = Pick<Project, 'id' | 'resting_until'> & { shelf_stage?: Project['shelf_stage'] | null }
 
 export async function projectAccess(auth: AuthedContext, project: Staged): Promise<ProjectAccess> {
   const ent = await entitlementsOf(auth)
-  const base = { plan: ent.plan, limit: ent.maxActiveProjects, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
+  const base = { plan: ent.plan, limit: ent.maxActiveProjects, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk, companion: ent.companion }
   const resting_until = isResting(project.resting_until) ? project.resting_until : null
   if (ent.maxActiveProjects === null) return { ...base, workable: true, reason: null, active: [], resting_until: null }
   let rows: ActiveRow[]

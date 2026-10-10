@@ -35,7 +35,7 @@ import { CheckCard } from '@/components/studio/work/rules'
 import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from '@/components/studio/work/vision-block'
 import { hueOf } from '@/components/studio/work/bits'
 import {
-  ImageBlock, ItemShell, ITEM_LABEL, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
+  ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
 import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import {
@@ -116,12 +116,18 @@ export interface BoardTools {
   media: boolean
   /** Task lists, images and recordings exist at all here (migration 028 applied). */
   items: boolean
+  /** The companion answers at all. Without it there is nothing to work a
+   *  piece out with, so "add a piece" just makes one. */
+  companion: boolean
 }
 
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
   /** `x` is where the new piece stands when the usual end of the lane is taken up by something else. */
   addPiece: (x: number | null) => void
+  /** Works the piece out in conversation first, and makes it at the end of
+   *  that. Leaves this page. */
+  conceptualisePiece: (x: number | null) => void
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
@@ -167,7 +173,7 @@ type Drag = { kind: 'piece' | 'hub' | 'item'; id: string; at: Point }
 const NO_ITEMS: BoardItem[] = []
 const NO_ASSETS: Record<string, AssetView> = {}
 const NO_TASKS: ProjectTask[] = []
-const THREADS_ONLY: BoardTools = { threads: true, media: true, items: false }
+const THREADS_ONLY: BoardTools = { threads: true, media: true, items: false, companion: true }
 
 export function Board({
   project,
@@ -229,6 +235,8 @@ export function Board({
   const [visionOpen, setVisionOpen] = useState(false)
   /** The piece whose "+" is open. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** The "add a piece" box is asking which way. */
+  const [askingNewPiece, setAskingNewPiece] = useState(false)
   const [recorderFor, setRecorderFor] = useState<string | null>(null)
   /** A word at the foot of the board while a file goes up, or when one could not. */
   const [word, setWord] = useState<{ text: string; busy: boolean } | null>(null)
@@ -683,6 +691,9 @@ export function Board({
   // Put something down where the next piece would go and the spot makes
   // room: it steps to the right of it, and the next piece is made there.
   const addX = addSpotX(laneEnd, addColW, GAP, { top: cardTop, bottom: cardTop + cardH }, boxes)
+  // null while the end of the lane is free: the new piece takes its lane slot
+  // like every other. A number means something stands there and it goes past.
+  const newPieceX = addX === cardX(pieces.length) ? null : addX
 
   const world = useMemo(() => {
     let w = { w: frame.w || 0, h: frame.h || 0 }
@@ -1303,7 +1314,11 @@ export function Board({
               type="button"
               aria-label="Add a piece to this project"
               title="Add a piece"
-              onClick={() => act.addPiece(addX === cardX(pieces.length) ? null : addX)}
+              aria-haspopup={tools.companion ? 'menu' : undefined}
+              aria-expanded={tools.companion ? askingNewPiece : undefined}
+              // With the companion resting there is nothing to work a piece
+              // out with, so the box does the one thing it can.
+              onClick={() => (tools.companion ? setAskingNewPiece((open) => !open) : act.addPiece(newPieceX))}
               className="add-piece-box"
               style={{
                 width: '100%', height: addPieceH,
@@ -1322,10 +1337,17 @@ export function Board({
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
-            {pieces.length === 0 && (
+            {pieces.length === 0 && !askingNewPiece && (
               <p style={{ ...canvasType.small, color: shell.muted, margin: '14px 0 0', textAlign: 'center', height: addHelpH - 14, boxSizing: 'border-box' }}>
                 A piece is one whole thing — a film, a chapter, a song, an essay.
               </p>
+            )}
+            {askingNewPiece && (
+              <NewPieceMenu
+                onStart={() => { setAskingNewPiece(false); act.addPiece(newPieceX) }}
+                onConceptualise={() => { setAskingNewPiece(false); act.conceptualisePiece(newPieceX) }}
+                onClose={() => setAskingNewPiece(false)}
+              />
             )}
           </div>
         )}

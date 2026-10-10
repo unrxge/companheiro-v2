@@ -102,6 +102,7 @@ export default function DevBoardPage() {
     })
     return {
     openPiece: () => {},
+    conceptualisePiece: () => {},
     addPiece: (x) => setPieces((ps) => [...ps, { ...piece(`p${ps.length + 1}`, '', ps.length), board_x: x }]),
     removePiece: (p) => setPieces((ps) => ps.filter((x) => x.id !== p.id)),
     renamePiece: (id, title) => setPieces((ps) => ps.map((p) => (p.id === id ? { ...p, title } : p))),
@@ -167,7 +168,7 @@ export default function DevBoardPage() {
         items={items}
         assets={assets}
         tasks={tasks}
-        tools={{ threads: !practice, media: !practice, items: true }}
+        tools={{ threads: !practice, media: !practice, items: true, companion: true }}
         checks={[]}
         onResolveCheck={() => {}}
         onAmendCheck={() => {}}

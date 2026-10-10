@@ -169,6 +169,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const canThread = access?.threads ?? true
   const canMedia = access?.media ?? true
   const canTalkVision = access?.visionTalk ?? true
+  const hasCompanion = access?.companion ?? true
 
   // A whole piece (not a part of one) carries the Write page's tools with it.
   const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
@@ -367,6 +368,12 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       // Something stands at the end of the lane: the new piece goes past it.
       if (made && x !== null) void api.editNode(made.id, { board_x: x })
     }),
+    // Nothing is made here. The piece is worked out first and created at the
+    // end of that, by the core concept's own save — so backing out of the
+    // conversation leaves no empty piece behind on the canvas.
+    conceptualisePiece: (x) => router.push(
+      `/idea-lab/conceptualise?project=${projectId}${x === null ? '' : `&at=${Math.round(x)}`}`,
+    ),
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
@@ -394,7 +401,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     reorderTasks: (ids) => void board.api.reorderTasks(ids),
     refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
     onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
-  }), [api, board.api, board.items, goNode, goThread, makeConstraint, removeItem, removeNode, roots, setProjectField, tree.threads])
+  }), [api, board.api, board.items, goNode, goThread, makeConstraint, projectId, removeItem, removeNode, roots, router, setProjectField, tree.threads])
 
   // Every project has a canvas, a single piece of writing included: threads
   // go under it and more pieces beside it. The Project Board always opens that
@@ -681,7 +688,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             items={board.items}
             assets={board.assets}
             tasks={board.tasks}
-            tools={{ threads: canThread, media: canMedia, items: board.ready }}
+            tools={{ threads: canThread, media: canMedia, items: board.ready, companion: hasCompanion }}
             checks={openChecks}
             notices={[...planBanner, ...carriedCards, ...threadIdeas.suggestions.map((sg) => (
               <ThreadSuggestionCard

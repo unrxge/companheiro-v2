@@ -57,7 +57,13 @@ function CoreConceptContent() {
   const router = useRouter()
   // Read via the router, not window.location: on an in-app navigation the
   // address bar can update after this page's first effect has already run.
-  const projectParam = useSearchParams().get('project')
+  const params = useSearchParams()
+  const projectParam = params.get('project')
+  // ?piece=new: another piece for a project that already exists, worked out
+  // on the way in from its canvas. The conversation is the one just had, not
+  // the project's own — the project keeps its vision, this piece gets its own.
+  const newPiece = params.get('piece') === 'new'
+  const standsAt = params.get('at')
   const { t } = useTheme()
 
   const [conversation, setConversation] = useState<ConversationMessage[]>([])
@@ -83,8 +89,8 @@ function CoreConceptContent() {
 
   useEffect(() => {
     const pid = projectParam
-    if (pid) {
-      setExistingProjectId(pid)
+    if (pid) setExistingProjectId(pid)
+    if (pid && !newPiece) {
       fetch(`/api/studio/projects/${pid}`)
         .then((res) => res.json())
         .then((data) => {
@@ -110,7 +116,7 @@ function CoreConceptContent() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectParam])
+  }, [projectParam, newPiece])
 
   const initializePhase = async (conversationData: ConversationMessage[], phase: number) => {
     setIsLoading(true)
@@ -161,8 +167,10 @@ function CoreConceptContent() {
         writing_goals: sections.phase4.content.writing_goals || '',
         open_threads: sections.phase4.content.open_threads || '',
         conversation_history: conversation,
-        brought_idea: existingProjectId ? null : sessionStorage.getItem('brought_idea'),
+        brought_idea: existingProjectId && !newPiece ? null : sessionStorage.getItem('brought_idea'),
         project_id: existingProjectId,
+        new_piece: newPiece || undefined,
+        board_x: newPiece && standsAt ? Number(standsAt) : undefined,
       }
       const res = await fetch('/api/idea-lab/core-concept/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(documentData) })
       const data = await res.json()
@@ -173,7 +181,11 @@ function CoreConceptContent() {
         sessionStorage.removeItem('conceptualisation_conversation')
         // Both branches route by project id, not a piece id — `?write=1` asks
         // work-page.tsx to take a single piece straight into its writing.
-        if (existingProjectId) router.push(`/p/${existingProjectId}?write=1`)
+        // A new piece opens on its own writing page: `?write=1` only takes a
+        // project into writing when it holds a single piece, and this one is
+        // joining others.
+        if (newPiece && data.node_id) { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
+        else if (existingProjectId) router.push(`/p/${existingProjectId}?write=1`)
         else if (bringIdeaFlow) router.push(`/p/${data.project_id}?write=1`)
         else { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
       } else setError(data.error || 'Failed to save document')
@@ -264,7 +276,7 @@ function CoreConceptContent() {
             Anything beyond the writing (research, artwork, release) is yours to plan. A new category keeps it separate from the writing.
           </p>
           <div style={{ marginTop: 20 }}>
-            <PrimaryButton onClick={() => router.push(`/p/${projectId}?write=1`)} full size="lg">Begin</PrimaryButton>
+            <PrimaryButton onClick={() => router.push(newPiece && nodeId ? `/p/${projectId}/n/${nodeId}` : `/p/${projectId}?write=1`)} full size="lg">Begin</PrimaryButton>
           </div>
         </Container>
       </PageShell>

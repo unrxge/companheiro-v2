@@ -44,6 +44,116 @@ const PLUS_OPTIONS: PlusOption[] = [
 ]
 
 /**
+ * The glass a canvas menu stands on, and the two ways out of it: a press
+ * anywhere else, or Escape. Both menus on this board use it, so they dismiss
+ * alike and there is one place to change how that works.
+ */
+function MenuShell({ label, children }: { label: string; children: ReactNode }) {
+  const { t } = useTheme()
+  return (
+    <div
+      data-hold
+      role="menu"
+      aria-label={label}
+      onPointerDown={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute', left: '50%', top: 'calc(100% + 24px)', transform: 'translateX(-50%)', zIndex: 5,
+        width: 276, padding: 6, borderRadius: radius.widget,
+        background: t.containerBg, boxShadow: t.containerShadow, border: `1px solid ${alpha(t.textPrimary, 0.08)}`,
+      }}
+    >
+      {children}
+      <style>{`.plus-menu-row:hover, .plus-menu-row:focus-visible { background: ${alpha(t.textPrimary, 0.06)} !important; outline: none; }`}</style>
+    </div>
+  )
+}
+
+/** One line of a canvas menu: what it makes, and what that means. */
+function MenuRow({ icon, label, hint, locked, onClick }: {
+  icon: ReactNode
+  label: string
+  hint: string
+  locked?: boolean
+  onClick: () => void
+}) {
+  const { t } = useTheme()
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="plus-menu-row"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '9px 10px',
+        background: 'none', border: 'none', borderRadius: radius.field, cursor: 'pointer', textAlign: 'left',
+        color: locked ? t.textMuted : t.textPrimary,
+      }}
+    >
+      <span style={{ flexShrink: 0, display: 'flex', color: locked ? t.textMuted : t.textSecondary }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ ...canvasType.small, fontSize: 13.5, fontWeight: 600, display: 'block', color: 'inherit' }}>{label}</span>
+        <span style={{ ...canvasType.small, fontSize: 12, lineHeight: 1.35, display: 'block', color: t.textMuted }}>{hint}</span>
+      </span>
+      {locked && (
+        <span style={{ ...canvasType.chip, flexShrink: 0, padding: '2px 8px', borderRadius: 999, border: `1px solid ${alpha(t.textPrimary, 0.16)}`, color: t.textSecondary }}>
+          Direction
+        </span>
+      )}
+    </button>
+  )
+}
+
+/** Closes on a press anywhere else, or on Escape. */
+function useDismiss(onClose: () => void) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) onClose() }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // After this click has finished, or the press that opened it closes it.
+    const id = window.setTimeout(() => window.addEventListener('pointerdown', away), 0)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('pointerdown', away)
+      window.removeEventListener('keydown', key)
+    }
+  }, [onClose])
+  return ref
+}
+
+/**
+ * What the board's "add a piece" offers: straight onto the board, or the
+ * conversation that works out what the piece is first. Most pieces do not
+ * need working out — someone adding the next chapter already knows what it
+ * is — so starting it now is the plain first choice, not the afterthought.
+ */
+export function NewPieceMenu({ onStart, onConceptualise, onClose }: {
+  onStart: () => void
+  onConceptualise: () => void
+  onClose: () => void
+}) {
+  const ref = useDismiss(onClose)
+  return (
+    <div ref={ref}>
+      <MenuShell label="Add a piece">
+        <MenuRow
+          icon={stroke(<><path d="M4 20h16" /><path d="M14.5 4.5l5 5L8 21H3v-5z" /></>)}
+          label="Start it now"
+          hint="An empty piece, named and written as you go"
+          onClick={onStart}
+        />
+        <MenuRow
+          icon={stroke(<><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.4a2.5 2.5 0 1 1 2.9 3v1.4" /><circle cx="12.5" cy="16.6" r="0.9" fill="currentColor" /></>)}
+          label="Work out what it is first"
+          hint="A conversation that finds the concept, then makes the piece"
+          onClick={onConceptualise}
+        />
+      </MenuShell>
+    </div>
+  )
+}
+
+/**
  * Opens under the "+" it came from. `available` are the kinds this canvas
  * can make at all; `locked` are the ones the plan does not carry, shown with
  * the plan that does and answered by `onLocked` instead of `onPick`.
@@ -57,64 +167,25 @@ export function PlusMenu({
   onLocked: (choice: PlusChoice) => void
   onClose: () => void
 }) {
-  const { t } = useTheme()
-  const ref = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) onClose() }
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    // After this click has finished, or the press that opened it closes it.
-    const id = window.setTimeout(() => window.addEventListener('pointerdown', away), 0)
-    window.addEventListener('keydown', key)
-    return () => {
-      window.clearTimeout(id)
-      window.removeEventListener('pointerdown', away)
-      window.removeEventListener('keydown', key)
-    }
-  }, [onClose])
+  const ref = useDismiss(onClose)
 
   return (
-    <div
-      ref={ref}
-      data-hold
-      role="menu"
-      aria-label="Add to this piece"
-      onPointerDown={(e) => e.stopPropagation()}
-      style={{
-        position: 'absolute', left: '50%', top: 'calc(100% + 24px)', transform: 'translateX(-50%)', zIndex: 5,
-        width: 276, padding: 6, borderRadius: radius.widget,
-        background: t.containerBg, boxShadow: t.containerShadow, border: `1px solid ${alpha(t.textPrimary, 0.08)}`,
-      }}
-    >
+    <div ref={ref}>
+    <MenuShell label="Add to this piece">
       {PLUS_OPTIONS.filter((o) => available.includes(o.key)).map((o) => {
         const isLocked = locked.includes(o.key)
         return (
-          <button
+          <MenuRow
             key={o.key}
-            type="button"
-            role="menuitem"
+            icon={o.icon}
+            label={o.label}
+            hint={o.hint}
+            locked={isLocked}
             onClick={() => (isLocked ? onLocked(o.key) : onPick(o.key))}
-            className="plus-menu-row"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '9px 10px',
-              background: 'none', border: 'none', borderRadius: radius.field, cursor: 'pointer', textAlign: 'left',
-              color: isLocked ? t.textMuted : t.textPrimary,
-            }}
-          >
-            <span style={{ flexShrink: 0, display: 'flex', color: isLocked ? t.textMuted : t.textSecondary }}>{o.icon}</span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ ...canvasType.small, fontSize: 13.5, fontWeight: 600, display: 'block', color: 'inherit' }}>{o.label}</span>
-              <span style={{ ...canvasType.small, fontSize: 12, lineHeight: 1.35, display: 'block', color: t.textMuted }}>{o.hint}</span>
-            </span>
-            {isLocked && (
-              <span style={{ ...canvasType.chip, flexShrink: 0, padding: '2px 8px', borderRadius: 999, border: `1px solid ${alpha(t.textPrimary, 0.16)}`, color: t.textSecondary }}>
-                Direction
-              </span>
-            )}
-          </button>
+          />
         )
       })}
-      <style>{`.plus-menu-row:hover, .plus-menu-row:focus-visible { background: ${alpha(t.textPrimary, 0.06)} !important; outline: none; }`}</style>
+    </MenuShell>
     </div>
   )
 }

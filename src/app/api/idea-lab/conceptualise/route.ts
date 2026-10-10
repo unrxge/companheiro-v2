@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/supabase/route";
+import { requireUser, type AuthedContext } from "@/lib/supabase/route";
 import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
@@ -23,6 +23,9 @@ interface ConceptualiseRequest {
   brought?: boolean;
   /** The person is arriving from a check-in that surfaced creative energy. */
   checkInHandover?: boolean;
+  /** This idea is becoming another piece of a project that already exists.
+   *  The conversation is told what it is joining. */
+  projectId?: string;
 }
 
 const PHASE_PROMPTS: Record<number, string> = {
@@ -74,6 +77,45 @@ function hitTurnCap(messages: Message[], phase: number): boolean {
   return userTurns >= phase * MAX_USER_TURNS_PER_PHASE;
 }
 
+/**
+ * What a new piece is joining, for the system prompt: the project's name, what
+ * it is for, the rules it works under and the pieces already in it. Best
+ * effort — a project that cannot be read just means the conversation runs as
+ * it always did.
+ */
+async function projectBeingJoined(auth: AuthedContext, projectId: string): Promise<string> {
+  const { data: project } = await auth.supabase
+    .from("studio_projects")
+    .select("title, intent, rules")
+    .eq("id", projectId)
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+  if (!project) return "";
+
+  const { data: siblings } = await auth.supabase
+    .from("studio_nodes")
+    .select("title")
+    .eq("project_id", projectId)
+    .eq("user_id", auth.user.id)
+    .is("parent_id", null)
+    .order("position", { ascending: true })
+    .limit(12);
+
+  const rules = Array.isArray(project.rules)
+    ? (project.rules as Array<{ text?: string; retired_at?: string | null }>)
+        .filter((r) => r && !r.retired_at && r.text)
+        .map((r) => `- ${r.text}`)
+    : [];
+  const named = (siblings ?? [])
+    .map((n) => (n as { title: string | null }).title?.trim())
+    .filter((x): x is string => !!x);
+
+  return `\nTHIS PIECE IS JOINING A PROJECT THAT ALREADY EXISTS:
+Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is for: ${project.intent}` : ""}${named.length ? `\nThe pieces already in it: ${named.join("; ")}` : ""}${rules.length ? `\nThe rules it works under:\n${rules.join("\n")}` : ""}
+
+Hold this as the room the idea is walking into, not as a brief to satisfy. Do not ask how the piece will fit, sit alongside the others, or serve the project — a piece that pulls against the vision is worth having, and the rules are checked separately once it is written down. Use it only to avoid asking what is already settled, and to notice when this idea is really the same one as a piece that exists — if it is, say so plainly, once.`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser();
@@ -105,6 +147,14 @@ export async function POST(request: NextRequest) {
     const nextPhase = shouldAdvance ? Math.min(currentPhase + 1, 5) : currentPhase;
 
     const companionContext = await buildCompanionContext(auth);
+
+    // Joining a project that already has a vision and, often, rules. The
+    // conversation has to know what it is standing beside: a piece worked out
+    // in ignorance of the project around it is the one thing this step should
+    // never produce. It is told, and told not to make the piece obedient —
+    // a piece that pulls against the vision is worth having, and is checked
+    // against the rules when it is saved.
+    const joining = body.projectId ? await projectBeingJoined(auth, body.projectId) : "";
 
     const questionContext = body.question
       ? `\nTHE QUESTION THAT OPENED THIS:\n"${body.question}"\nThis is what the person was responding to when they started. Let it inform the shape of the conversation without quoting it back.`
@@ -142,7 +192,7 @@ Keep every question on the idea itself, and only ask one when it opens the idea 
         ? `\n\nNEXT PHASE (only if you are emitting ${PHASE_MARKER} this turn — then your closing question must come from here, not from the current phase):\n${PHASE_PROMPTS[nextPhase + 1]}`
         : "";
 
-    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}${checkInHandoverContext}`;
+    const volatileSystemBlock = `CURRENT PHASE:\n${PHASE_PROMPTS[nextPhase]}${nextPhaseBlock}${questionContext}${broughtContext}${checkInHandoverContext}${joining}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to
