@@ -106,7 +106,7 @@ Two copies of the app, so work in progress never reaches the people using it.
 1. **Check-in** (`/check-in`): Voice or text input, signals extraction (energy, arc, weather)
 2. **Idea Lab** (`/idea-lab`): Develop ideas from captures, conversation with Claude
    - Every territory has a **register**: `inner` (grief, devotion, a way of living) or `field` (brand design, documentary editing, food). It is decided once, when the territory's map is written (`lib/territory-map.ts`), and stored on the slot in `user_territory_config.slots`. Questions are assembled in `lib/idea-prompt.ts`, which has a separate set of instructions per register; change the inner ones with care, they are the original and work
-   - "Ask again" counts: the first question and two more come from the fast model, the next three from the deep one, then three fast, and so on (`promptModelTier`). Plans with `deepQuestions` (Direction, trial, grandfathered) get the deep model for every question
+   - "Ask again" counts: the first question and two more come from the fast model, the next three from the deep one, then three fast, and so on (`promptModelTier`). Plans with `deepQuestions` (Direction and grandfathered, not the trial: paying for Practice must never make the Idea Lab worse) get the deep model for every question
 3. **Project Board** (`/project-board`): Kanban view (Queue/Active/Completed), task tracking per piece
 4. **Writing** (`/p/[project]/n/[piece]`): One page per piece: the sectioned editor, with the core concept, anchor lines, tasks and the writing assistant on its rail, and Reimagine → Test → Post → Reflect after the draft. `/write` only redirects here
 5. **Post-Publication** (`/post-publication`): Log reflections, feed insights back to Idea Lab

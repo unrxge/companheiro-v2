@@ -17,7 +17,7 @@ const past = new Date(Date.now() - 86_400_000).toISOString()
 
 test('a live trial has everything Direction has', () => {
   const e = entitlementsFor(sub({ trial_ends_at: soon }))
-  assert.deepEqual(e, { plan: 'trial', companion: true, maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: true })
+  assert.deepEqual(e, { plan: 'trial', companion: true, maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: false })
 })
 
 test('Practice is two projects at a time, in words', () => {

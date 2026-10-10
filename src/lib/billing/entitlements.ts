@@ -4,7 +4,7 @@ import type { Subscription } from './access'
 // instead of looking at the tier itself, so a plan's shape is changed here
 // and nowhere else. Pure: safe to import from the browser.
 //
-//   trial          everything Direction has, for 30 days
+//   trial          everything Direction has, for 30 days (bar deepQuestions)
 //   practice       two projects worked on at a time, in words
 //   direction      any number of projects, the canvas tools, the vision talk
 //   ended          a trial that ran out or a plan that was cancelled: the
@@ -45,7 +45,10 @@ export function entitlementsFor(sub: Subscription | null): Entitlements {
   if (sub.status === 'grandfathered') return { plan: 'grandfathered', companion: true, ...EVERYTHING }
   if (sub.status === 'trialing') {
     const live = !!sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > Date.now()
-    return live ? { plan: 'trial', companion: true, ...EVERYTHING } : { plan: 'ended', companion: false, ...IN_WORDS }
+    // A trial has everything Direction has except the deep model on every
+    // question: someone who then chooses Practice must not find the Idea Lab
+    // got worse the day they started paying.
+    return live ? { plan: 'trial', companion: true, ...EVERYTHING, deepQuestions: false } : { plan: 'ended', companion: false, ...IN_WORDS }
   }
   if (sub.status === 'active' || sub.status === 'past_due') {
     return sub.tier === 'direction'
