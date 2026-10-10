@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { InlineField, hueOf } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
+import { TextArea } from '@/components/ui/field'
 import type { Thread, ThreadHue, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 
 const HUES: ThreadHue[] = ['ember', 'verdant', 'violet', 'ochre', 'tide']
@@ -260,22 +261,24 @@ function NoteField({
   useEffect(() => { if (!focused) setDraft(note) }, [note, focused])
 
   return (
-    <input
-      aria-label="What it does here"
+    <TextArea
+      bare
+      oneParagraph
+      maxHeight={120}
+      ariaLabel="What it does here"
       value={draft}
       placeholder="What does it do in this piece?"
       disabled={disabled}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={setDraft}
       onFocus={() => setFocused(true)}
       onBlur={() => {
         setFocused(false)
         if (draft.trim() !== note.trim()) onCommit(draft.trim())
       }}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLElement).blur() }}
       style={{
-        ...canvasType.small, fontSize: 12, width: '100%',
+        ...canvasType.small, fontSize: 12,
         color: note ? t.textSecondary : alpha(t.textPrimary, 0.35),
-        background: 'transparent', border: 'none', outline: 'none', padding: 0,
       }}
     />
   )

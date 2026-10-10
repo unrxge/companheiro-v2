@@ -19,6 +19,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
+import { TextArea } from '@/components/ui/field'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
 import { Label } from '@/components/studio/work/bits'
@@ -524,14 +525,17 @@ export function ProposalCard({
       <span style={{ ...canvasType.chip, color: t.ochre }}>
         {proposal.kind === 'non_negotiable' ? 'Something this has to keep?' : 'Something this refuses?'}
       </span>
-      <input
-        aria-label="The rule, in your words"
+      <TextArea
+        bare
+        oneParagraph
+        maxHeight={200}
+        ariaLabel="The rule, in your words"
         value={text}
         disabled={disabled || !!busy}
-        onChange={(e) => setText(e.target.value)}
+        onChange={setText}
         style={{
-          ...canvasType.body, color: t.textPrimary, background: 'transparent', border: 'none',
-          borderBottom: `1px dashed ${alpha(t.textPrimary, 0.2)}`, padding: '2px 0', outline: 'none', width: '100%',
+          ...canvasType.body,
+          borderBottom: `1px dashed ${alpha(t.textPrimary, 0.2)}`, padding: '2px 0',
         }}
       />
       {proposal.quote && (

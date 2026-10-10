@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton } from '@/components/ui/buttons'
-import { TextArea, TextField } from '@/components/ui/field'
+import { TextArea } from '@/components/ui/field'
 import { MicButton } from '@/components/ui/mic-button'
 import { JourneyNav, JourneyNavNode } from '@/components/widgets'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
@@ -125,7 +125,8 @@ function PostPublicationContent() {
                   <div key={f.key}>
                     <Eyebrow style={{ marginBottom: 8 }}>{f.label}</Eyebrow>
                     {f.single ? (
-                      <TextField
+                      <TextArea
+                        oneParagraph
                         value={form[f.key]}
                         onChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
                         onFocus={() => { setFocusedField(f.key); lastFieldRef.current = f.key }}

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
 import { PrimaryButton, QuietButton, GhostButton } from '@/components/ui/buttons'
-import { TextArea, TextField } from '@/components/ui/field'
+import { TextArea } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
@@ -329,7 +329,7 @@ function CoreConceptContent() {
                   {p1.status === 'confirmed' ? (
                     <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary }}>{p1.content.thematic_territory}</p>
                   ) : (
-                    <TextField value={p1.content.thematic_territory || ''} onChange={(v) => handleEditContent('phase1', 'thematic_territory', v)} placeholder="What this piece is about…" ariaLabel="Theme" />
+                    <TextArea oneParagraph value={p1.content.thematic_territory || ''} onChange={(v) => handleEditContent('phase1', 'thematic_territory', v)} placeholder="What this piece is about…" ariaLabel="Theme" />
                   )}
                 </div>
               </div>

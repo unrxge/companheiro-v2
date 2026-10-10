@@ -63,7 +63,8 @@ export function ConceptReview({
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {label('Title')}
-        <TextField
+        <TextArea
+          oneParagraph
           value={title}
           onChange={setTitle}
           placeholder="A name for it"
@@ -92,7 +93,8 @@ export function ConceptReview({
         {constraints.length === 0 && <div style={{ ...canvasType.small, color: t.textMuted }}>None stated · add one if there is one</div>}
         {constraints.map((c, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TextField
+            <TextArea
+              oneParagraph
               value={c}
               onChange={(v) => setConstraints((prev) => prev.map((x, j) => (j === i ? v : x)))}
               placeholder="A limit, a rule, a scope"

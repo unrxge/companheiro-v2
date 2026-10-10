@@ -21,7 +21,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Atmosphere } from '@/components/shell/atmosphere'
 import { Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton } from '@/components/ui/buttons'
-import { TextField } from '@/components/ui/field'
+import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
 import { ageFrom, GENERAL_QUESTIONS, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
@@ -351,7 +351,7 @@ function PracticeStep({ name, work, onWork, onBack, onNext }: { name: string; wo
             </div>
             {tooMany && <p role="alert" style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 10 }}>Three at most. Tap one you’ve chosen to swap it.</p>}
             <div style={{ marginTop: 14 }}>
-              <TextField value={other} onChange={(v) => onWork({ ...work, other: v.slice(0, 80) })} placeholder="Something else? Say it in your own words." ariaLabel="Another kind of practice" />
+              <TextArea oneParagraph value={other} onChange={(v) => onWork({ ...work, other: v.slice(0, 80) })} placeholder="Something else? Say it in your own words." ariaLabel="Another kind of practice" />
             </div>
           </Card>
 

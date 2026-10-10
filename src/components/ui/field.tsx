@@ -63,8 +63,11 @@ export function TextField({ value, onChange, placeholder, disabled, ariaLabel, v
   )
 }
 
-/** Auto-growing textarea. `maxHeight` caps growth and scrolls inside. */
-export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, voice = false, bare = false, style, onKeyDown, onFocus, onBlur, autoFocus, minRows = 1, maxHeight = 420 }: CommonProps & { minRows?: number; maxHeight?: number }) {
+/** Auto-growing textarea. `maxHeight` caps growth and scrolls inside.
+ *  `oneParagraph` is for a short answer that used to sit in a one-line box:
+ *  the words wrap, but Enter never starts a new line (the caller's `onKeyDown`
+ *  still hears it first, to submit). */
+export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, voice = false, bare = false, style, onKeyDown, onFocus, onBlur, autoFocus, minRows = 1, maxHeight = 420, oneParagraph = false, maxLength }: CommonProps & { minRows?: number; maxHeight?: number; oneParagraph?: boolean; maxLength?: number }) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [focused, setFocused] = useState(false)
   const s = useFieldStyle(bare, voice, focused)
@@ -72,21 +75,35 @@ export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, vo
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+    const fit = () => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+    }
+    fit()
+    // The parent, never the box itself: the same words need more lines when
+    // the column narrows (a phone turned, a panel opened).
+    const parent = el.parentElement
+    if (!parent || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(fit)
+    ro.observe(parent)
+    return () => ro.disconnect()
   }, [value, maxHeight])
 
   return (
     <textarea
       ref={ref}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(oneParagraph ? e.target.value.replace(/\s*[\r\n]+\s*/g, ' ') : e.target.value)}
       placeholder={placeholder}
       disabled={disabled}
       aria-label={ariaLabel}
       rows={minRows}
+      maxLength={maxLength}
       spellCheck
-      onKeyDown={onKeyDown}
+      onKeyDown={(e) => {
+        onKeyDown?.(e)
+        if (oneParagraph && e.key === 'Enter') e.preventDefault()
+      }}
       // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus={autoFocus}
       onFocus={() => { setFocused(true); onFocus?.() }}

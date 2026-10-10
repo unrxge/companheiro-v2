@@ -7,7 +7,7 @@ import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
 import { QuietButton, GhostButton, PrimaryButton } from '@/components/ui/buttons'
-import { TextField } from '@/components/ui/field'
+import { TextArea, TextField } from '@/components/ui/field'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { ModalDialog } from '@/components/ui/modal-dialog'
@@ -305,7 +305,9 @@ export function HomeView() {
               <Eyebrow>Capture what&apos;s alive</Eyebrow>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
                 <TextField type="url" value={captureUrl} onChange={setCaptureUrl} placeholder="Paste a link that inspired you…" ariaLabel="Link" style={{ fontSize: 13, padding: '10px 12px' }} />
-                <TextField
+                <TextArea
+                  oneParagraph
+                  maxHeight={160}
                   value={captureNote}
                   onChange={setCaptureNote}
                   placeholder="What caught your eye? (optional)"

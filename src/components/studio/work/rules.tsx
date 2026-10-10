@@ -14,6 +14,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
+import { TextArea } from '@/components/ui/field'
 import type { CheckOutcome, Rule, RuleCheck } from '@/lib/studio/node-types'
 import { newRule } from '@/lib/studio/tree'
 import { InlineField } from '@/components/studio/work/bits'
@@ -105,18 +106,16 @@ export function RuleList({
       )}
 
       {!disabled && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            aria-label="A new rule"
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <TextArea
+            oneParagraph
+            maxHeight={160}
+            ariaLabel="A new rule"
             value={adding}
             placeholder="Add a rule…"
-            onChange={(e) => setAdding(e.target.value)}
+            onChange={setAdding}
             onKeyDown={(e) => { if (e.key === 'Enter') add() }}
-            style={{
-              flex: 1, ...canvasType.small, color: t.textPrimary,
-              background: t.inputBg, border: `1px solid ${t.inputBorder}`,
-              borderRadius: radius.field, padding: '6px 10px', outline: 'none',
-            }}
+            style={{ flex: 1, minWidth: 0, width: 'auto', ...canvasType.small, padding: '6px 10px' }}
           />
           <GhostButton size="sm" onClick={add} disabled={!adding.trim()}>Add</GhostButton>
         </div>
@@ -156,15 +155,13 @@ export function CheckCard({
 
       {amending ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input
-            aria-label="The rule, reworded"
+          <TextArea
+            oneParagraph
+            maxHeight={160}
+            ariaLabel="The rule, reworded"
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            style={{
-              ...canvasType.small, color: t.textPrimary, background: t.inputBg,
-              border: `1px solid ${t.inputBorder}`, borderRadius: radius.field,
-              padding: '8px 10px', outline: 'none',
-            }}
+            onChange={setText}
+            style={{ ...canvasType.small, padding: '8px 10px' }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <QuietButton

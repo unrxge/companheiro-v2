@@ -13,6 +13,7 @@ import { Thread, Composer, type ThreadMessage } from '@/components/conversation/
 import { SectionEditor } from '@/components/writing/section-editor'
 import { JourneyNavNode, writeHrefForNode } from '@/components/widgets'
 import { alpha, radius, shell, type as typeRoles, widths } from '@/lib/design-tokens'
+import { TextArea } from '@/components/ui/field'
 import { htmlToPlainText, plainTextToHtml } from '@/lib/rich-text'
 
 interface Part {
@@ -720,15 +721,18 @@ function ReimagineContent() {
                               <GhostButton size="sm" onClick={() => void generate([target])} disabled={busy || !lens.trim()} loading={busy} loadingLabel="Reimagining…">
                                 Another take
                               </GhostButton>
-                              <input
+                              <TextArea
+                                bare
+                                oneParagraph
+                                maxHeight={160}
                                 value={notes[target.key] ?? ''}
-                                onChange={(e) => setNotes((n) => ({ ...n, [target.key]: e.target.value }))}
+                                onChange={(v) => setNotes((n) => ({ ...n, [target.key]: v }))}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && !busy) void generate([target]) }}
                                 placeholder="Steer it, if you like: quieter, keep the first line…"
-                                aria-label="Steer the next take"
+                                ariaLabel="Steer the next take"
                                 style={{
-                                  flex: '1 1 180px', minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
-                                  borderBottom: `1px solid ${t.divider}`, padding: '6px 2px', color: t.textPrimary, ...typeRoles.small,
+                                  flex: '1 1 180px', minWidth: 0, width: 'auto',
+                                  borderBottom: `1px solid ${t.divider}`, padding: '6px 2px', ...typeRoles.small,
                                 }}
                               />
                             </div>
