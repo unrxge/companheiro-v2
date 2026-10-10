@@ -243,8 +243,11 @@ function useText() {
 function Footer({ onClose, onPlans, plansLabel }: { onClose: () => void; onPlans?: () => void; plansLabel?: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-      <GhostButton size="sm" onClick={onClose}>Close</GhostButton>
-      {onPlans && <PrimaryButton size="sm" onClick={onPlans}>{plansLabel ?? 'See plans'}</PrimaryButton>}
+      {/* The notice already closes from the × at its top. A second "Close"
+         is only written here when there would otherwise be nothing to press. */}
+      {onPlans
+        ? <PrimaryButton size="sm" onClick={onPlans}>{plansLabel ?? 'See plans'}</PrimaryButton>
+        : <GhostButton size="sm" onClick={onClose}>Close</GhostButton>}
     </div>
   )
 }
@@ -429,7 +432,6 @@ export function ConfirmEmailNotice({ onClose }: { onClose: () => void }) {
       maxWidth="520px"
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <GhostButton size="sm" onClick={onClose}>Close</GhostButton>
           <PrimaryButton size="sm" onClick={() => void resend()} disabled={sent === 'sent'} loading={sent === 'sending'} loadingLabel="Sending…">
             {sent === 'sent' ? 'Sent' : 'Send it again'}
           </PrimaryButton>

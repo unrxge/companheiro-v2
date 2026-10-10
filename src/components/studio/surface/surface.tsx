@@ -15,6 +15,7 @@ import {
 } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { fonts, shell } from '@/lib/design-tokens'
+import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import {
   ZOOM, clampPan, clampZoom, centreOn, toWorld, zoomAbout,
   type Frame, type Point, type World,
@@ -80,7 +81,14 @@ export function useCanvas(
   ref: RefObject<HTMLDivElement | null>,
   frame: Frame,
   world: World,
-  opts: { initialCentre?: Point | null; minZoom?: number; home?: Point } = {},
+  opts: {
+    initialCentre?: Point | null
+    minZoom?: number
+    home?: Point
+    /** Nothing here can be picked up (a phone looking at the board), so a
+     *  finger put down on a card moves the ground under it as well. */
+    lookOnly?: boolean
+  } = {},
 ): Canvas {
   const [pan, setPanRaw] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoomRaw] = useState(1)
@@ -94,6 +102,8 @@ export function useCanvas(
   const clampK = useCallback((k: number) => Math.max(floor.current, clampZoom(k)), [])
   const home = useRef<Point>(opts.home ?? { x: 0, y: 0 })
   home.current = opts.home ?? { x: 0, y: 0 }
+  const lookOnly = useRef(opts.lookOnly === true)
+  lookOnly.current = opts.lookOnly === true
   const glide = useRef<number | null>(null)
   const placed = useRef(false)
 
@@ -197,19 +207,31 @@ export function useCanvas(
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    let from: { x: number; y: number; pan: Point } | null = null
+    let from: { x: number; y: number; pan: Point; held: boolean } | null = null
 
     const down = (e: PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return
       const target = e.target as HTMLElement | null
-      if (target?.closest('[data-hold]')) return
+      const onCard = !!target?.closest('[data-hold]')
+      if (onCard && !lookOnly.current) return
       stopGlide()
-      from = { x: e.clientX, y: e.clientY, pan: live.current.pan }
-      el.setPointerCapture(e.pointerId)
-      setDragging(true)
+      from = { x: e.clientX, y: e.clientY, pan: live.current.pan, held: !onCard }
+      // Started on a card, the press may still be a tap on something inside
+      // it. Capturing now would hand that tap to the ground instead, so the
+      // ground only takes hold once the finger has actually travelled.
+      if (!onCard) {
+        el.setPointerCapture(e.pointerId)
+        setDragging(true)
+      }
     }
     const move = (e: PointerEvent) => {
       if (!from) return
+      if (!from.held) {
+        if (Math.abs(e.clientX - from.x) < 6 && Math.abs(e.clientY - from.y) < 6) return
+        from.held = true
+        el.setPointerCapture(e.pointerId)
+        setDragging(true)
+      }
       settle({ x: from.pan.x + (e.clientX - from.x), y: from.pan.y + (e.clientY - from.y) })
     }
     const up = (e: PointerEvent) => {
@@ -320,10 +342,19 @@ export function ZoomPill({
 }) {
   const at = Math.round(canvas.zoom * 100)
   return (
+    <>
+    {/* Below the Dock's breakpoint the Dock is at the bottom of the screen
+       (44px seats, 4px padding, max(14px, safe area) off the edge — see
+       dock.tsx), and this was underneath it. It stands above it there. */}
+    <style>{`
+      .zoom-pill { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px + 10px); }
+      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .zoom-pill { bottom: 16px; } }
+    `}</style>
     <div
       data-hold
+      className="zoom-pill"
       style={{
-        position: 'absolute', left: 16, bottom: 16, zIndex: 6,
+        position: 'absolute', left: 16, zIndex: 6,
         display: 'flex', alignItems: 'center', gap: 4,
         padding: 5, borderRadius: 999,
         background: 'rgba(13,12,11,0.74)', backdropFilter: 'blur(18px) saturate(1.1)',
@@ -352,6 +383,7 @@ export function ZoomPill({
         </>
       )}
     </div>
+    </>
   )
 }
 

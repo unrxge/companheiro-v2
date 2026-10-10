@@ -302,7 +302,7 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
           style={{ ...field, width: '100%', resize: 'none' }}
         />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
+          <span className="key-hint" style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
           <GhostButton size="sm" onClick={() => void add()} disabled={!draft.trim()} loading={placing} loadingLabel="Placing…">
             Add
           </GhostButton>
@@ -370,7 +370,7 @@ export function PartLines({ lines, onAdd, onRemove }: {
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); add() } }}
         style={{ ...field, width: '100%', resize: 'none' }}
       />
-      <span style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
+      <span className="key-hint key-hint-alone" style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
     </div>
   )
 }

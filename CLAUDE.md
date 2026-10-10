@@ -150,6 +150,21 @@ Two copies of the app, so work in progress never reaches the people using it.
 
 ---
 
+## Phones
+
+Two different questions, answered in two different ways. Do not mix them.
+
+- **Is there room?** (layout) is a width media query at the Dock's breakpoint, 720px (`DOCK_DESKTOP_MIN` in `components/shell/dock.tsx`; `useNarrow()` in `components/studio/work/bits.tsx` where it has to be known in code). Below it the Dock is along the bottom, so anything else fixed to the bottom stands above it: the canvas's zoom controls (`.zoom-pill`), the writing page's section marks (`.section-dock`), the rail's panels.
+- **Is this a phone?** (what the person is asked to do) is `usePhone()` in `src/lib/use-phone.ts`: a touch screen whose short side is under 600px and which is clearly taller than wide. A tablet is never one. A foldable is one shut (its cover screen is a phone's) and not one open, and the answer follows the fold. A narrow window on a computer is never one. The rule is tested in `use-phone.test.ts`.
+- **On a phone the canvas is for looking.** `Board` treats a phone as it treats a project the plan is not carrying (`disabled`): nothing can be moved, added, connected, renamed or removed, a banner says so (`PhoneBanner`), and a finger put down on a card moves the ground (`lookOnly` in `useCanvas`). A tap still opens a piece, and the writing page is whole on a phone. "Talk about the vision", thread suggestions and things carried from a check-in are not offered there (`work-page.tsx`). Add nothing to a phone's canvas that needs arranging.
+- **Nothing may depend on hover.** Controls a mouse reveals by resting on a card are shown outright where nothing can hover (`useNoHover()`), and are not pressable while unseen.
+- **Padding on a phone:** a `Container` given a plain number narrows to 12px and reaches 8px into the page gutter (`.shell-container` in `globals.css`), so page gutter + container + card do not leave a card's words two thirds of the screen. A row that holds words beside a wide control (a select, two pills) should wrap (`flexWrap`), as the Settings rows do.
+- **Message boxes** carry `className="composer-row"`: on a phone the box takes the row and the microphone and Send sit under it.
+- **Small marks** stay small to look at and get a finger's size to press, either by a media query (`.section-tool`, `.part-action`, `.storyline-mini`) or by an unseen `before:` area (`UnderlineLink`, the card menu on the Project Board).
+- **Preview:** the Browser pane's phone size reports itself as a touch phone, so `/dev/work-page?plan=direction&board=1&pieces=1` shows the view-only canvas there; its tablet size does not.
+
+---
+
 ## Plans and what they allow
 
 One place decides what a plan includes: `entitlementsFor()` in `src/lib/billing/entitlements.ts` (pure, shared by server and browser). Never branch on `subscription.tier` anywhere else.

@@ -22,6 +22,7 @@ import type { AssetView } from '@/lib/studio/types'
 import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
 import { TaskGroups } from '@/components/studio/work/task-groups'
 import { SortableList } from '@/components/studio/work/sortable'
+import { useNoHover } from '@/lib/use-phone'
 
 // ── the menu a piece's "+" opens ────────────────────────────────────────────
 
@@ -244,7 +245,8 @@ export function ItemShell({
   }, [])
 
   const ring = armed ? t.tide : alpha(t.textPrimary, hover ? 0.16 : 0.08)
-  const showTools = !disabled && (hover || armed)
+  const noHover = useNoHover()
+  const showTools = !disabled && (hover || armed || noHover)
 
   return (
     <div
@@ -910,6 +912,7 @@ function TaskRow({ title, done, disabled, onToggle, onRemove }: {
 }) {
   const { t } = useTheme()
   const [hover, setHover] = useState(false)
+  const noHover = useNoHover()
   // A row, not a list item: it is listed by SortableList in the larger view
   // and by a plain <ul> on the card, and an <li> inside an <li> is not markup.
   return (
@@ -950,7 +953,7 @@ function TaskRow({ title, done, disabled, onToggle, onRemove }: {
           onPointerDown={(e) => e.stopPropagation()}
           style={{
             flexShrink: 0, width: 20, height: 20, marginTop: 5, padding: 0, border: 'none', borderRadius: 6, background: 'transparent',
-            color: t.textMuted, cursor: 'pointer', opacity: hover ? 1 : 0, transition: 'opacity 140ms ease',
+            color: t.textMuted, cursor: 'pointer', opacity: hover || noHover ? 1 : 0, pointerEvents: hover || noHover ? 'auto' : 'none', transition: 'opacity 140ms ease',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >

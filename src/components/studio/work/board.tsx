@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
+import { useNoHover, usePhone } from '@/lib/use-phone'
 import { Surface, ZoomPill, useCanvas, useElementFrame, useFrame } from '@/components/studio/surface/surface'
 import { PieceCard } from '@/components/studio/work/piece-card'
 import { ThreadCard } from '@/components/studio/work/thread-card'
@@ -194,7 +195,7 @@ export function Board({
   tagFor,
   appearancesFor,
   actions,
-  disabled = false,
+  disabled: lockedForPlan = false,
 }: {
   project: BoardProject
   pieces: TreeNode[]
@@ -219,6 +220,12 @@ export function Board({
   disabled?: boolean
 }) {
   const { t } = useTheme()
+  // A phone looks at the board and opens pieces from it; arranging it (moving,
+  // adding, connecting, removing) is for a tablet or a computer. Everything
+  // the board already switches off for a project the plan is not carrying is
+  // switched off here too, and the ground can be moved from anywhere.
+  const phone = usePhone()
+  const disabled = lockedForPlan || phone
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
   const visionRef = useRef<HTMLDivElement | null>(null)
@@ -758,7 +765,7 @@ export function Board({
     return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
   }, [pieces, pieceSpot, cardW, cardH, frame.w])
 
-  const canvas = useCanvas(ref, frame, world, { home, initialCentre })
+  const canvas = useCanvas(ref, frame, world, { home, initialCentre, lookOnly: phone })
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {
@@ -986,6 +993,8 @@ export function Board({
         .add-piece-box:hover { background: ${alpha(shell.text, 0.07)}; border-color: ${alpha(shell.text, 0.46)}; color: ${shell.text}; }
         .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 12px); }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .board-banner { bottom: calc(22px + 52px + 12px); } }
+        /* A phone only: above the zoom pill, which is itself above the Dock (surface.tsx). */
+        .phone-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px + 10px + 42px + 10px); }
       `}</style>
       <style>{`@keyframes threadBorn {
         from { opacity: 0; transform: translateY(-10px) scaleY(0.82); }
@@ -1012,6 +1021,7 @@ export function Board({
               onHome={canvas.resetView}
               after={disabled ? undefined : <UndoButton next={history.next} onUndo={history.undo} />}
             />
+            {phone && <PhoneBanner />}
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
                 Pick the piece <strong style={{ color: hueOf(t, armedThread.hue), fontWeight: 600 }}>{armedThread.name || 'this thread'}</strong> runs through next
@@ -1462,6 +1472,7 @@ function Hub({
   const { t, theme } = useTheme()
   const colour = hueOf(t, thread.hue)
   const [hover, setHover] = useState(false)
+  const noHover = useNoHover()
   const ring = armed ? colour : alpha(t.textPrimary, hover ? 0.16 : 0.08)
   const liveRules = thread.rules.filter((r) => !r.retired_at).length
   // A low-alpha tint reads fine over an opaque card, but this block floats
@@ -1506,7 +1517,7 @@ function Hub({
           {thread.name || 'Name this thread'}
         </button>
         {!disabled && (
-          <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed ? 1 : 0, transition: 'opacity 140ms ease' }}>
+          <div style={{ display: 'flex', gap: 1, flexShrink: 0, opacity: hover || armed || noHover ? 1 : 0, pointerEvents: hover || armed || noHover ? 'auto' : 'none', transition: 'opacity 140ms ease' }}>
             <HubAct label={armed ? 'Stop connecting' : 'Connect it to another piece'} tone={armed ? colour : t.textMuted} onClick={onConnect}>
               <circle cx="6" cy="12" r="2.6" />
               <circle cx="18" cy="12" r="2.6" />
@@ -1631,6 +1642,33 @@ function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
 }
 
 // ── what the board says while you are connecting ────────────────────────────
+
+/** Said on a phone, where the board can be looked at but not arranged. */
+function PhoneBanner() {
+  return (
+    <div
+      data-hold
+      role="status"
+      className="phone-banner"
+      style={{
+        position: 'absolute', left: 16, right: 16, zIndex: 41,
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+        padding: '10px 14px', borderRadius: 16,
+        background: 'rgba(13,12,11,0.84)', backdropFilter: 'blur(18px) saturate(1.1)',
+        WebkitBackdropFilter: 'blur(18px) saturate(1.1)',
+        border: `1px solid ${shell.line}`,
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={shell.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0, marginTop: 1 }}>
+        <rect x="7" y="2.5" width="10" height="19" rx="2.4" />
+        <path d="M11 18h2" />
+      </svg>
+      <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.4, color: shell.text }}>
+        View only on a phone. Tap a piece to open it. To move or add things, use a tablet or a computer.
+      </span>
+    </div>
+  )
+}
 
 function ConnectBanner({ colour, onCancel, action, children }: {
   colour: string

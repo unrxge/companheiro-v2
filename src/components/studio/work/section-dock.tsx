@@ -11,9 +11,11 @@
 // writing view to that part and focuses it; nothing here ever navigates
 // anywhere, because the writing module only ever has the one page.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { useDockAway } from '@/components/shell/page-shell'
+import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { Storyline } from '@/components/studio/work/storyline'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
@@ -28,6 +30,7 @@ export function SectionDock({
   onEditBeat,
   onOpenThread,
   onRemove,
+  onExpanded,
   disabled = false,
 }: {
   parts: TreeNode[]
@@ -39,10 +42,19 @@ export function SectionDock({
   onEditBeat: (id: string, beat: string) => void
   onOpenThread?: (id: string) => void
   onRemove?: (part: TreeNode) => void
+  /** Told when the storyline panel opens and closes, so whatever it would
+   *  rise over on a narrow screen (the rail) can step aside. */
+  onExpanded?: (open: boolean) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
   const [expanded, setExpanded] = useState(false)
+  const dockAway = useDockAway()
+  useEffect(() => {
+    onExpanded?.(expanded)
+    return () => { if (expanded) onExpanded?.(false) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded])
 
   const jump = (id: string) => {
     onSelect(id)
@@ -51,11 +63,27 @@ export function SectionDock({
 
   return (
     <div
+      className="section-dock"
+      data-dock-away={dockAway || undefined}
       style={{
-        position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 40,
+        position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
       }}
     >
+      {/* Below the Dock's breakpoint the Dock is along the bottom too (44px
+         seats, 4px padding, max(14px, safe area) off the edge — dock.tsx),
+         and this was underneath it at the top of the page. It stands above
+         the Dock there and comes down when the Dock steps away. The marks
+         are a finger's size on a phone. */}
+      <style>{`
+        .section-dock { bottom: 16px; transition: bottom .2s ease; }
+        .section-dock-mark { width: 24px; height: 24px; }
+        @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
+          .section-dock { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px + 10px); }
+          .section-dock[data-dock-away] { bottom: max(14px, env(safe-area-inset-bottom)); }
+          .section-dock-mark { width: 34px; height: 34px; }
+        }
+      `}</style>
       <AnimatePresence initial={false}>
         {expanded && (
           <m.div
@@ -104,8 +132,9 @@ export function SectionDock({
               title={part.title || `Part ${i + 1}`}
               aria-label={`Jump to ${part.title || `part ${i + 1}`}`}
               aria-current={focused || undefined}
+              className="section-dock-mark"
               style={{
-                width: 24, height: 24, borderRadius: 999, padding: 0, border: 'none', cursor: 'pointer',
+                borderRadius: 999, padding: 0, border: 'none', cursor: 'pointer',
                 flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 ...canvasType.chip, fontSize: 11, color: tone,
                 background: focused || done ? alpha(tone, 0.16) : 'transparent',
@@ -125,8 +154,9 @@ export function SectionDock({
           aria-label={expanded ? 'Hide the other sections' : 'See every section'}
           aria-expanded={expanded}
           title={expanded ? 'Hide the other sections' : 'See every section'}
+          className="section-dock-mark"
           style={{
-            width: 24, height: 24, borderRadius: 999, padding: 0, border: 'none', cursor: 'pointer', flexShrink: 0,
+            borderRadius: 999, padding: 0, border: 'none', cursor: 'pointer', flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: expanded ? alpha(t.textPrimary, 0.1) : 'transparent', color: t.textMuted,
           }}

@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { useNoHover } from '@/lib/use-phone'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
@@ -49,6 +50,7 @@ export function PieceCard({
 }) {
   const { t } = useTheme()
   const [hover, setHover] = useState(false)
+  const noHover = useNoHover()
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(node.title)
   const field = useRef<HTMLInputElement | null>(null)
@@ -118,7 +120,10 @@ export function PieceCard({
           <div
             style={{
               display: 'flex', gap: 2, flexShrink: 0, marginTop: 4,
-              opacity: hover || renaming ? 1 : 0,
+              // Unseen, they must not be pressable either (a touch screen has no
+              // hover to bring them out, so there they are simply shown).
+              opacity: hover || renaming || noHover ? 1 : 0,
+              pointerEvents: hover || renaming || noHover ? 'auto' : 'none',
               transition: 'opacity 140ms ease',
             }}
           >

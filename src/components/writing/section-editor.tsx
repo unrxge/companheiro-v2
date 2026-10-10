@@ -78,9 +78,8 @@ function ToolbarButton({
       disabled={disabled}
       title={label}
       aria-label={label}
+      className="section-tool"
       style={{
-        minWidth: 26,
-        height: 26,
         padding: '0 6px',
         borderRadius: 6,
         border: 'none',
@@ -131,6 +130,17 @@ export function SectionToolbar({ editor, onHistory }: { editor: Editor | null; o
   }
   return (
     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 1 }}>
+      {/* On a phone the bar is wider than the screen and scrolls sideways.
+         The buttons are a finger's size there, and Document history, which
+         was last and so out of sight, comes first. */}
+      <style>{`
+        .section-tool { min-width: 26px; height: 26px; }
+        .section-tool-history { display: flex; align-items: center; gap: 1px; }
+        @media (max-width: 719px) {
+          .section-tool { min-width: 34px; height: 34px; }
+          .section-tool-history { order: -1; flex-direction: row-reverse; }
+        }
+      `}</style>
       <ToolbarButton label="Undo" disabled={disabled || !editor?.can().undo()} onClick={() => run((e) => e.chain().focus().undo().run())}>
         {icon(<path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />)}
       </ToolbarButton>
@@ -171,13 +181,13 @@ export function SectionToolbar({ editor, onHistory }: { editor: Editor | null; o
         {icon(<path d="M4 5v14M10 6l6 6-6 6" />)}
       </ToolbarButton>
       {onHistory && (
-        <>
+        <span className="section-tool-history">
           <ToolbarDivider />
           {/* Works with nothing focused: it's about the whole piece, not the caret. */}
           <ToolbarButton label="Document history" onClick={onHistory}>
             {icon(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>)}
           </ToolbarButton>
-        </>
+        </span>
       )}
     </div>
   )

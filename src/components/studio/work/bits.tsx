@@ -299,6 +299,19 @@ export function useStackedLayout(): boolean {
   return stacked
 }
 
+/** True where the Dock sits along the bottom of the screen (a phone, a narrow
+ *  window): under DOCK_DESKTOP_MIN in dock.tsx. False until measured. */
+export function useNarrow(max = 720): boolean {
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const check = () => setNarrow(window.innerWidth < max)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [max])
+  return narrow
+}
+
 /** True when the window is wide enough to hold the work and an open drawer
  *  side by side. Below it the drawer simply covers the page, which is the
  *  right answer on a narrow screen. */

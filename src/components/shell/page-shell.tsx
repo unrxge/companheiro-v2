@@ -134,8 +134,12 @@ export function PageHeader({
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: motion.enterMs / 1000, ease: 'easeOut' }}
-      style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 28, flexShrink: 0 }}
+      style={{ marginBottom: 28, flexShrink: 0 }}
     >
+      {/* The subtitle has a row of its own, under this one: beside the
+         buttons, a subtitle that wraps (any phone) pulled them down level
+         with its last line and was itself squeezed between them. */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, minWidth: 0, flex: 1 }}>
         {back && (
           <div style={{ paddingBottom: 6 }}>
@@ -153,13 +157,14 @@ export function PageHeader({
         <div style={{ minWidth: 0 }}>
           {eyebrow && <p style={{ ...typeRoles.eyebrow, color: shell.muted, marginBottom: 10 }}>{eyebrow}</p>}
           <h1 style={{ ...titleStyle, color: shell.text, textWrap: 'balance' as never }}>{title}</h1>
-          {subtitle && <p style={{ ...typeRoles.small, color: shell.muted, marginTop: 8, fontFamily: fonts.ui }}>{subtitle}</p>}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, paddingBottom: 4 }}>
         {actions}
         {themeToggle && <ThemeToggleButton theme={theme} onToggle={toggle} />}
       </div>
+      </div>
+      {subtitle && <p style={{ ...typeRoles.small, color: shell.muted, marginTop: 8, fontFamily: fonts.ui }}>{subtitle}</p>}
     </m.header>
   )
 }
@@ -195,11 +200,14 @@ export function Container({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: motion.enterMs / 1000, delay: 0.1, ease: 'easeOut' }}
+      // A plain number is narrowed on a phone by the rule in globals.css; a
+      // hand-written padding ("24px 20px") is the caller's and is left alone.
+      className={typeof padding === 'number' ? 'shell-container' : undefined}
       style={{
         backgroundColor: t.containerBg,
         boxShadow: t.containerShadow,
         borderRadius: flush ? `${radius.container}px ${radius.container}px 0 0` : radius.container,
-        padding,
+        ...(typeof padding === 'number' ? { ['--container-pad' as string]: `${padding}px` } : { padding }),
         transition: 'background-color 0.3s ease',
         display: fill ? 'flex' : undefined,
         flexDirection: fill ? 'column' : undefined,

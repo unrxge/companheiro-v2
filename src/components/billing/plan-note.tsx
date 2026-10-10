@@ -27,7 +27,8 @@ export function PlanNote({
       maxWidth="480px"
       footer={
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-          <GhostButton size="sm" onClick={onClose}>{action ? 'Not now' : 'Close'}</GhostButton>
+          {/* Without something to decline, the × at the top is the way out. */}
+          {action && <GhostButton size="sm" onClick={onClose}>Not now</GhostButton>}
           <GhostButton size="sm" onClick={() => { onClose(); openPlans() }}>{plansLabel}</GhostButton>
           {action && (
             <PrimaryButton size="sm" onClick={action.onClick} disabled={action.disabled} loading={action.busy} loadingLabel="Switching…">{action.label}</PrimaryButton>

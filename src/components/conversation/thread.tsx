@@ -118,7 +118,7 @@ export function Composer({
   const canSend = value.trim().length > 0 && !disabled
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+      <div className="composer-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
         <TextArea
           value={value}
           onChange={onChange}

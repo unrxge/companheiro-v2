@@ -36,7 +36,7 @@ import { LockModal } from '@/components/studio/work/lock-modal'
 import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { VisionRoom, type RoomOrigin } from '@/components/studio/work/vision-room'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
-import { Empty, InlineField, Label, TitleField, Trail, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
+import { Empty, InlineField, Label, TitleField, Trail, useNarrow, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
 import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
@@ -44,6 +44,7 @@ import { HistoryPanel } from '@/components/studio/work/history-panel'
 import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
 import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
+import { usePhone } from '@/lib/use-phone'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan } from '@/lib/billing/use-plan'
 import { noteOpened } from '@/lib/studio/opened'
@@ -109,6 +110,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
   const roomBeside = useRoomBeside()
+  // A phone-width window: an open panel covers the page, and the rail,
+  // the section marks and the storyline all share the one bottom corner.
+  const narrow = useNarrow()
+  const [storylineOpen, setStorylineOpen] = useState(false)
 
   // The write-lock: shared with the main app (same user_settings row), so a
   // lock started there holds here too. Refetched occasionally rather than
@@ -183,6 +188,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const canThread = access?.threads ?? true
   const canMedia = access?.media ?? true
   const canTalkVision = access?.visionTalk ?? true
+  // On a phone the board is for looking and for opening a piece (board.tsx
+  // says so in a banner): nothing waiting on an answer is offered there, and
+  // "Talk about the vision" is left to a tablet or a computer.
+  const phone = usePhone()
   const hasCompanion = access?.companion ?? true
 
   // A whole piece (not a part of one) carries the Write page's tools with it.
@@ -706,7 +715,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             tasks={board.tasks}
             tools={{ threads: canThread, media: canMedia, items: board.ready, companion: hasCompanion }}
             checks={openChecks}
-            notices={[...planBanner, ...carriedCards, ...threadIdeas.suggestions.map((sg) => (
+            notices={phone ? planBanner : [...planBanner, ...carriedCards, ...threadIdeas.suggestions.map((sg) => (
               <ThreadSuggestionCard
                 key={sg.id}
                 suggestion={sg}
@@ -724,7 +733,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           />
           {/* Bottom and centred, not a small icon in a corner pill — this is
              the invitation to talk the vision through, not an afterthought. */}
-          <CompanionLauncher
+          {!phone && <CompanionLauncher
             active={!!visionRoom}
             locked={!canTalkVision}
             onClick={(from) => {
@@ -733,11 +742,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               setRail(null)
               setVisionRoom({ origin: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null })
             }}
-          />
+          />}
         </CanvasStage>
         <Dock />
         {companionDrawer}
-        {visionRoom && (
+        {visionRoom && !phone && (
           <VisionRoom
             projectId={projectId}
             origin={visionRoom.origin}
@@ -800,7 +809,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Container
         padding={26}
         style={{
-          paddingRight: rail && roomBeside ? 478 : 70,
+          paddingRight: rail && roomBeside ? 478 : narrow ? 52 : 70,
           paddingBottom: sheeted ? 'calc(50vh + 96px)' : undefined,
           transition: 'padding-right 200ms ease',
         }}
@@ -867,7 +876,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               handle={studio}
               // Saved first, so the history compares against what's actually on the page.
               onHistory={() => void Promise.resolve(studio.current?.flush()).then(() => setHistoryOpen(true))}
-              dockHidden={sheeted}
+              // On a phone a panel fills the screen down to where the marks sit.
+              dockHidden={sheeted || (narrow && rail !== null)}
+              onStorylineOpen={setStorylineOpen}
               disabled={readOnly}
             />
           )}
@@ -908,7 +919,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Rail
         open={rail}
         onOpen={setRail}
-        hidden={focus.kind === 'thread' || sheeted}
+        hidden={focus.kind === 'thread' || sheeted || (narrow && storylineOpen)}
         tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
         counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />

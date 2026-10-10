@@ -49,6 +49,10 @@ export function StageRibbon({
           )
           const href = hrefFor?.(s) ?? null
           const interactive = !!href || !!onSelect
+          // The bar is a few pixels tall. With its name written underneath, the
+          // name is pressable too: an unseen area from just above the bar to
+          // the bottom of the label.
+          const press = compact ? undefined : "relative before:absolute before:inset-x-0 before:-top-2 before:-bottom-6 before:content-['']"
           const wrap: React.CSSProperties = { flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, cursor: interactive ? 'pointer' : undefined, padding: interactive ? '4px 0' : 0 }
           if (href) {
             return (
@@ -56,6 +60,7 @@ export function StageRibbon({
                 key={s}
                 href={href}
                 aria-label={`Go to ${JOURNEY_LABELS[s]}`}
+                className={press}
                 style={wrap}
                 onClick={beforeNavigate ? (e) => {
                   // Leave modified clicks (new tab, new window) to the browser.
@@ -70,7 +75,7 @@ export function StageRibbon({
           }
           if (onSelect) {
             return (
-              <button key={s} type="button" onClick={() => onSelect(s)} aria-label={`Go to ${JOURNEY_LABELS[s]}`} style={{ ...wrap, background: 'none', border: 'none' }}>
+              <button key={s} type="button" onClick={() => onSelect(s)} aria-label={`Go to ${JOURNEY_LABELS[s]}`} className={press} style={{ ...wrap, background: 'none', border: 'none' }}>
                 {bar}
               </button>
             )

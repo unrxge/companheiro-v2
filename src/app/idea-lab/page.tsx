@@ -76,6 +76,28 @@ export default function IdeaLabPage() {
   // The mask over the lens + stage: bring an idea you already have (straight
   // into the conversation), or summon one (the lens and question below).
   const [entry, setEntry] = useState<'choosing' | 'bring' | 'summon'>('choosing')
+  // On a phone the lens and stage under the mask are one tall column, far
+  // taller than what the mask says, and that left a long blurred stretch to
+  // scroll through for nothing. While the mask is up there, what is under it
+  // is held to the height the mask needs.
+  const maskBody = useRef<HTMLDivElement | null>(null)
+  const [maskFit, setMaskFit] = useState<number | null>(null)
+  useEffect(() => {
+    const body = maskBody.current
+    if (entry === 'summon' || !body) { setMaskFit(null); return }
+    const measure = () => {
+      const mask = body.parentElement
+      if (!mask || window.innerWidth > 800) { setMaskFit(null); return }
+      const pad = getComputedStyle(mask)
+      // The mask reaches 8px past what it covers on every side.
+      setMaskFit(Math.ceil(body.offsetHeight + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom) - 16))
+    }
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(body)
+    window.addEventListener('resize', measure)
+    return () => { watch.disconnect(); window.removeEventListener('resize', measure) }
+  }, [entry])
   const [bringText, setBringText] = useState('')
   const bringTextRef = useRef('')
   bringTextRef.current = bringText
@@ -330,7 +352,9 @@ export default function IdeaLabPage() {
 
 
   const textLink = (onClick: () => void, label: string, active = false) => (
-    <button onClick={onClick} style={{ background: 'none', border: 'none', padding: '3px 0', color: active ? t.textPrimary : t.textMuted, ...typeRoles.small, fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
+    // 11px words to look at; the `before` is unseen room above, below and
+    // 4px to each side, so they are a finger's height to press.
+    <button onClick={onClick} className="relative before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-['']" style={{ background: 'none', border: 'none', padding: '3px 0', color: active ? t.textPrimary : t.textMuted, ...typeRoles.small, fontSize: 11, fontWeight: active ? 600 : 400, cursor: 'pointer' }}>
       {label}
     </button>
   )
@@ -367,9 +391,10 @@ export default function IdeaLabPage() {
                 position: 'absolute', inset: -8, zIndex: 20, borderRadius: radius.card,
                 background: alpha(shell.ink, 0.62), backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: 'clamp(40px, 10vh, 96px) 16px 32px', gap: 28, textAlign: 'center',
+                padding: 'clamp(40px, 10vh, 96px) 16px 32px', textAlign: 'center',
               }}
             >
+              <div ref={maskBody} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, width: '100%' }}>
               {entry === 'choosing' ? (
                 <>
                   <div>
@@ -430,10 +455,11 @@ export default function IdeaLabPage() {
                   {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, textAlign: 'center' }}>{error}</p>}
                 </div>
               )}
+              </div>
             </m.div>
           )}
         </AnimatePresence>
-        <div className="idea-lab-grid" inert={entry !== 'summon'} aria-hidden={entry !== 'summon'}>
+        <div className="idea-lab-grid" inert={entry !== 'summon'} aria-hidden={entry !== 'summon'} style={maskFit ? { maxHeight: maskFit, overflow: 'hidden' } : undefined}>
           {/* ── The Lens ── */}
           <Card padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>

@@ -122,8 +122,11 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <Divider />
-          <div style={row}>
-            <div>
+          {/* Wraps: on a phone the list is nearly as wide as the card, and
+             beside the words it pushed past the edge and left them a column
+             one word wide. There it goes underneath. */}
+          <div style={{ ...row, flexWrap: 'wrap', gap: '10px 16px' }}>
+            <div style={{ flex: '1 1 180px', minWidth: 0 }}>
               <div style={label}>Dictation language</div>
               <div style={hint}>What the microphone listens for. The companion mirrors whatever you write.</div>
             </div>
@@ -135,7 +138,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                 save({ dictation_lang: v })
               }}
               aria-label="Dictation language"
-              style={{ backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '8px 10px', fontSize: 13, color: t.textPrimary, outline: 'none', maxWidth: 200 }}
+              style={{ backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '8px 10px', fontSize: 13, color: t.textPrimary, outline: 'none', maxWidth: '100%' }}
             >
               <option value="">Browser default</option>
               {DICTATION_LANGS.map((l) => (

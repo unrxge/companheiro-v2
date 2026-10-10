@@ -289,7 +289,7 @@ export function HomeView() {
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 12 }}>
                 <Eyebrow>Inner weather · 30 days</Eyebrow>
-                <UnderlineLink href="/check-in" color={t.textSecondary}>Check in →</UnderlineLink>
+                <UnderlineLink href="/check-in" color={t.textSecondary} style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>Check in →</UnderlineLink>
               </div>
               {hasWeather ? (
                 <WeatherStrip days={days} onSelect={() => router.push('/check-in#history')} />
@@ -304,19 +304,20 @@ export function HomeView() {
             <Card style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
               <Eyebrow>Capture what&apos;s alive</Eyebrow>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
-                <TextField type="url" value={captureUrl} onChange={setCaptureUrl} placeholder="Paste a link that inspired you…" ariaLabel="Link" style={{ fontSize: 13, padding: '10px 12px' }} />
+                {/* The same order and words as the Capture page. */}
                 <TextArea
                   oneParagraph
                   maxHeight={160}
                   value={captureNote}
                   onChange={setCaptureNote}
-                  placeholder="What caught your eye? (optional)"
+                  placeholder="What caught your eye?"
                   ariaLabel="Note"
                   style={{ fontSize: 13, padding: '10px 12px' }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !isCapturing) handleQuickCapture()
                   }}
                 />
+                <TextField type="url" value={captureUrl} onChange={setCaptureUrl} placeholder="Paste a link" ariaLabel="Link" style={{ fontSize: 13, padding: '10px 12px' }} />
                 {captureError && <p style={{ ...typeRoles.small, fontSize: 11, color: t.danger }}>{captureError}</p>}
                 <QuietButton onClick={handleQuickCapture} disabled={isCapturing || (!captureUrl.trim() && !captureNote.trim())} loading={isCapturing} loadingLabel="Capturing…" full style={justCaptured ? { backgroundColor: t.verdant, color: onColor(t.verdant) } : undefined}>
                   {justCaptured ? 'Captured ✓' : 'Capture'}

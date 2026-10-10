@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { arcHue, fonts, type Arc } from '@/lib/design-tokens'
 import type { CheckInRecord } from '@/lib/check-in-signals'
@@ -49,13 +49,36 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
   const [hover, setHover] = useState<number | null>(null)
   const active = hover !== null ? days[hover] : null
 
+  // A finger cannot rest on a bar the way a mouse does, and a bar is a few
+  // pixels wide. So a touch anywhere on the strip shows the day under it and
+  // follows the finger along; pressing a day that is already showing is what
+  // goes on to it, as a click does for a mouse.
+  const touched = useRef<{ i: number; was: number | null } | null>(null)
+  const dayAt = (e: React.PointerEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect()
+    return Math.max(0, Math.min(days.length - 1, Math.floor(((e.clientX - box.left) / box.width) * days.length)))
+  }
+  const pick = (d: WeatherDay) => {
+    const touch = touched.current
+    touched.current = null
+    if (!touch) { onSelect?.(d); return }
+    if (touch.was === touch.i) onSelect?.(days[touch.i])
+  }
+
   // Per-slot height for multi-check-in days (single-check-in days use full height)
   const multiSlotH = (height - BLOCK_GAP * (MAX_SLOTS - 1)) / MAX_SLOTS
 
   return (
     <div>
       <div
-        style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height, width: '100%' }}
+        style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height, width: '100%', touchAction: 'pan-y' }}
+        onPointerDown={(e) => {
+          if (e.pointerType !== 'touch') { touched.current = null; return }
+          const i = dayAt(e)
+          touched.current = { i, was: hover }
+          setHover(i)
+        }}
+        onPointerMove={(e) => { if (e.pointerType === 'touch' && touched.current) setHover(dayAt(e)) }}
         role="img"
         aria-label={`${days.length} days of check-in weather`}
       >
@@ -87,7 +110,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
                 onMouseLeave={() => setHover(null)}
                 onFocus={() => setHover(i)}
                 onBlur={() => setHover(null)}
-                onClick={() => onSelect?.(d)}
+                onClick={() => pick(d)}
                 aria-label={label}
                 style={{
                   flex: 1,
@@ -115,7 +138,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(i)}
               onBlur={() => setHover(null)}
-              onClick={() => onSelect?.(d)}
+              onClick={() => pick(d)}
               aria-label={label}
               style={{
                 flex: 1,

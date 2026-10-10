@@ -316,6 +316,7 @@ export function Companion({
 
       {!disabled && (
         <div
+          className="composer-row"
           style={{
             flexShrink: 0, display: 'flex', gap: 8, alignItems: 'flex-end',
             borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12,

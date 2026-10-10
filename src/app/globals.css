@@ -243,3 +243,42 @@ body {
   font-weight: 400;
   letter-spacing: 0;
 }
+
+/* Container (components/shell/page-shell.tsx). Its padding arrives as a
+   variable so a phone can narrow it: a container inside the page gutter with
+   cards inside it is three insets deep, and that left a card's words barely
+   two thirds of a phone's width. Inside a page column the container reaches
+   8px into the gutter there and keeps 12px of its own, so the layers stay
+   and the words get the room back. The page header keeps the full gutter. */
+.shell-container {
+  padding: var(--container-pad);
+}
+@media (max-width: 719px) {
+  .page-col .shell-container {
+    margin-left: -8px;
+    margin-right: -8px;
+    padding: min(var(--container-pad), 12px);
+  }
+}
+
+/* A keyboard shortcut said beside a field ("⌘↵ to add"). A touch screen has
+   no such keys: the hint keeps its place there, so what sits beside it does
+   not move, and one on a line of its own gives the line up. */
+@media (hover: none) and (pointer: coarse) {
+  .key-hint { visibility: hidden; }
+  .key-hint.key-hint-alone { display: none; }
+}
+
+/* A message box with the microphone and Send beside it. On a phone the two
+   buttons took a third of the row and left the box two or three words wide,
+   so there the box has the row to itself and the buttons sit under it. The
+   box is whatever comes first in the row. */
+@media (max-width: 719px) {
+  .composer-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .composer-row > :first-child {
+    flex: 1 1 100% !important;
+  }
+}

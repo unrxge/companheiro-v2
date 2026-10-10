@@ -68,6 +68,7 @@ export function Studio({
   handle,
   onHistory,
   dockHidden = false,
+  onStorylineOpen,
   disabled = false,
 }: {
   node: TreeNode
@@ -98,6 +99,8 @@ export function Studio({
   onHistory?: () => void
   /** Leaves the part dock out while something else is using the bottom of the screen. */
   dockHidden?: boolean
+  /** The storyline panel over the section marks opened or closed. */
+  onStorylineOpen?: (open: boolean) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -292,6 +295,24 @@ export function Studio({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
+      {/* A part's own controls are small text and marks, which a mouse can
+         hit. On a phone each is a finger's size, and deleting stands apart
+         from the tick beside it. The toolbar there scrolls sideways without
+         drawing a scrollbar across the first line of the page. */}
+      <style>{`
+        .part-action { padding: 2px 3px; }
+        /* Beside the name on a wide page, as if this wrapper were not there. */
+        .part-actions { display: contents; }
+        .part-toolbar { scrollbar-width: none; }
+        .part-toolbar::-webkit-scrollbar { display: none; }
+        @media (max-width: 719px) {
+          .part-action { min-width: 36px; min-height: 36px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; }
+          /* A row of their own under the name, deleting at the far end of it. */
+          .part-actions { display: flex; flex: 1 1 100%; align-items: center; gap: 4px; margin: -6px 0 0 -6px; }
+          .part-action-apart { margin-left: auto; }
+          .part-toolbar-row { margin-bottom: 8px; }
+        }
+      `}</style>
       {!disabled && (
         // Floating, not part of the page's own chrome: one shared pill that
         // stays in reach as the piece scrolls underneath it, the same glass
@@ -299,8 +320,9 @@ export function Studio({
         // rather than fixed — it starts in flow, right below the header, so
         // it can never land on top of it the way a hard-coded fixed offset
         // could on a page whose header height isn't this component's to know.
-        <div style={{ position: 'sticky', top: 12, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div className="part-toolbar-row" style={{ position: 'sticky', top: 12, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           <div
+            className="part-toolbar"
             style={{
               // Glass over the page's own card colour, not a colour of its
               // own — coal in dark mode, the same near-black as before, but
@@ -356,7 +378,7 @@ export function Studio({
                 )}
                 <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />
                 {!disabled && (
-                  <>
+                  <div className="part-actions">
                     {sectioned && onAddLine && (
                       <HeaderAction
                         label="The fragments placed in this part"
@@ -384,9 +406,9 @@ export function Studio({
                       </HeaderAction>
                     )}
                     {sectioned && (
-                      <HeaderAction label="Delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
+                      <HeaderAction label="Delete this part" apart onClick={() => onRemove(part)}>✕</HeaderAction>
                     )}
-                  </>
+                  </div>
                 )}
               </header>
             )}
@@ -461,6 +483,7 @@ export function Studio({
           onEditBeat={onEditBeat}
           onOpenThread={onOpenThread}
           onRemove={onRemove}
+          onExpanded={onStorylineOpen}
           disabled={disabled}
         />
       )}
@@ -482,12 +505,14 @@ function LockIcon() {
 }
 
 function HeaderAction({
-  label, onClick, children, tone,
+  label, onClick, children, tone, apart = false,
 }: {
   label: string
   onClick: () => void
   children: React.ReactNode
   tone?: string
+  /** Kept a little way from its neighbours on a phone (deleting, beside the tick). */
+  apart?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -496,9 +521,10 @@ function HeaderAction({
       aria-label={label}
       title={label}
       onClick={onClick}
+      className={apart ? 'part-action part-action-apart' : 'part-action'}
       style={{
         ...canvasType.chip, color: tone ?? t.textMuted, background: 'none',
-        border: 'none', cursor: 'pointer', padding: '2px 3px', flexShrink: 0,
+        border: 'none', cursor: 'pointer', flexShrink: 0,
       }}
     >
       {children}

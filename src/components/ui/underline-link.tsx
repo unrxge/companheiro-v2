@@ -17,7 +17,10 @@ export function UnderlineLink({
   style?: React.CSSProperties
 }) {
   const sharedProps = {
-    className: 'group relative inline-block',
+    // The words are 12px, which is too little to press. The `before` is an
+    // unseen 10px above and below them, so the link is a finger's height
+    // without taking any more room on the page.
+    className: "group relative inline-block before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']",
     style: {
       color,
       fontSize: '12px',

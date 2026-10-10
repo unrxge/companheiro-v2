@@ -76,6 +76,11 @@ export function Storyline({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Moving and deleting a part are 20px marks, which a finger misses. */}
+      <style>{`
+        .storyline-mini { width: 20px; height: 20px; }
+        @media (max-width: 719px) { .storyline-mini { width: 32px; height: 32px; } }
+      `}</style>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end' }}>
         <span style={{ ...canvasType.meta, color: t.textMuted }}>
           {parts.length} {parts.length === 1 ? 'part' : 'parts'} · {sumExtent(parts)} words
@@ -283,9 +288,10 @@ function MiniButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
+      className="storyline-mini"
       style={{
         ...canvasType.chip, lineHeight: '18px',
-        width: 20, height: 20, padding: 0,
+        padding: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         borderRadius: 6, border: `1px solid ${alpha(t.textPrimary, disabled ? 0.06 : 0.14)}`,
         background: 'transparent',

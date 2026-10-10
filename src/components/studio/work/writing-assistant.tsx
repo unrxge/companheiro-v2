@@ -292,7 +292,7 @@ export function AssistantPanel({
       </div>
 
       {!disabled && (
-        <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'flex-end', borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12 }}>
+        <div className="composer-row" style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'flex-end', borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12 }}>
           <textarea
             ref={box}
             aria-label="Ask about the words"

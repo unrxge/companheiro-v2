@@ -294,7 +294,7 @@ export function VisionTalk({
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <div className="composer-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea
               ref={box}
               aria-label="Say something about the vision of this project"

@@ -402,6 +402,8 @@ function Board() {
           onClick={() => setMenuFor(menuOpen ? null : p.id)}
           aria-label={`Rename, move or delete ${title}`}
           aria-expanded={menuOpen}
+          // 28px to look at, 40 to press: the `before` is unseen room around it.
+          className="before:absolute before:-inset-1.5 before:content-['']"
           style={{
             position: 'absolute',
             top: 6,
@@ -502,7 +504,7 @@ function Board() {
         <button
           onClick={() => void discardDraft(draft.id)}
           aria-label="Discard draft"
-          className="opacity-100 min-[1080px]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="opacity-100 min-[1080px]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity before:absolute before:-inset-2 before:content-['']"
           style={{
             position: 'absolute',
             top: '-7px',
