@@ -42,6 +42,8 @@ import {
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
+import { opensOn } from '@/lib/studio/opening-view'
+import { openedIn } from '@/lib/studio/opened'
 import { useDeferred } from '@/lib/studio/use-deferred'
 import { useUndo } from '@/lib/studio/use-undo'
 import type { AssetView } from '@/lib/studio/types'
@@ -100,6 +102,8 @@ const TIDY_MS = 450
 const BORN_MS = 320
 
 export interface BoardProject {
+  /** Which project this is, for the browser's note of where it was left. */
+  id: string
   title: string
   intent: string
   rules: Rule[]
@@ -722,7 +726,39 @@ export function Board({
       : { x: -LEFT_ROOM, y: HOME_GAP_Y }),
     [frame.w],
   )
-  const canvas = useCanvas(ref, frame, world, { home })
+
+  /**
+   * The card the board opens on, dead centre. A project with several pieces
+   * has no obvious front, and opening at the left edge means scrolling back
+   * to what you were doing before you can do anything — so it opens on the
+   * piece last engaged with, worked out in `opening-view.ts` from the marks
+   * the rows already carry.
+   *
+   * Worked out once, on the way in. It deliberately does not follow
+   * engagement afterwards: the view is the person's own from the moment they
+   * arrive, and a board that slid about as they worked would be unusable.
+   */
+  const openOn = useRef<string | null>(null)
+  if (openOn.current === null && pieces.length > 0) {
+    openOn.current = opensOn({
+      pieces: allPieces,
+      things: [
+        ...items.map((it) => ({ updated_at: it.updated_at, on: it.node_ids })),
+        ...threads.map((th) => ({ updated_at: th.updated_at, on: [...(presence.get(th.id)?.roots ?? [])] })),
+      ],
+      opened: openedIn(project.id),
+    })
+  }
+  const initialCentre = useMemo<Point | null>(() => {
+    const id = openOn.current
+    if (!id || !frame.w) return null
+    const i = pieces.findIndex((p) => p.id === id)
+    if (i === -1) return null
+    const spot = pieceSpot(pieces[i], i)
+    return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
+  }, [pieces, pieceSpot, cardW, cardH, frame.w])
+
+  const canvas = useCanvas(ref, frame, world, { home, initialCentre })
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {

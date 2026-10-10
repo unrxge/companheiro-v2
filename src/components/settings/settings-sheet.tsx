@@ -15,6 +15,7 @@ import { DICTATION_LANGS, setDictationLangCache, type UserSettings } from '@/lib
 import { radius, type as typeRoles } from '@/lib/design-tokens'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
+import { forgetOpened } from '@/lib/studio/opened'
 
 /** Gear button for a page header. Opens the sheet. */
 export function SettingsButton() {
@@ -68,6 +69,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     try {
       await createClient().auth.signOut()
       lastSeenProjects.clear()
+      forgetOpened()
       router.push('/login')
       router.refresh()
     } finally {
@@ -94,6 +96,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
       }
       await createClient().auth.signOut()
       lastSeenProjects.clear()
+      forgetOpened()
       router.push('/login')
     } finally {
       setBusy(null)

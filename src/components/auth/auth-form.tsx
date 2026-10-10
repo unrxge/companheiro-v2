@@ -27,6 +27,7 @@ import { LEGAL_VERSION } from '@/lib/legal'
 import { sendConfirmEmail } from '@/lib/confirm-email'
 import type { OAuthProvider } from '@/lib/auth-providers'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
+import { forgetOpened } from '@/lib/studio/opened'
 import { chosenPlanLine, chosenPlanQuery, readChosenPlan, type ChosenPlan } from '@/lib/billing/chosen-plan'
 import { usePrices } from '@/lib/billing/use-prices'
 
@@ -68,6 +69,7 @@ export function AuthForm({ providers }: { providers: OAuthProvider[] }) {
   useEffect(() => {
     // Nobody is signed in on this page: forget the last person's project list.
     lastSeenProjects.clear()
+    forgetOpened()
     setChosen(readChosenPlan(window.location.search))
     if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
       setError('That sign-in link didn’t work or has expired. Please try again.')

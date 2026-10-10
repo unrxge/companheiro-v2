@@ -64,6 +64,7 @@ export default function DevBoardPage() {
   const [tags, setTags] = useState<ThreadTag[]>([])
 
   const project: BoardProject = useMemo(() => ({
+    id: 'dev-board',
     title: "My father's kitchen",
     intent: 'An essay that is allowed to stay unresolved.',
     rules: [],

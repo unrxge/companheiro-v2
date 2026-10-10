@@ -45,6 +45,7 @@ import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan } from '@/lib/billing/use-plan'
+import { noteOpened } from '@/lib/studio/opened'
 import { useBoardItems } from '@/lib/studio/use-board-items'
 import type { PlusChoice } from '@/components/studio/work/board-items'
 
@@ -162,6 +163,15 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     focus.kind === 'thread' ? tree.threads.find((th) => th.id === focus.id) ?? null : null
   const trail = useMemo(() => (node ? pathTo(roots, node.id) : []), [roots, node])
   const parent = trail.length > 1 ? trail[trail.length - 2] : null
+
+  // Going into a piece is engagement with it, and the only kind that writes
+  // no row: someone can open a piece, read it and leave it exactly as it was.
+  // The browser keeps that note so the canvas opens there next time (see
+  // lib/studio/opened.ts). A part counts for the whole piece it belongs to.
+  const openedPiece = trail[0]?.id ?? null
+  useEffect(() => {
+    if (openedPiece) noteOpened(projectId, openedPiece)
+  }, [projectId, openedPiece])
   // Read, never changed: a project that is over, or one the plan is not
   // carrying right now (lib/studio/plan-access.ts). With no word from the
   // server about the plan, nothing is locked.
@@ -676,6 +686,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         >
           <Board
             project={{
+              id: projectId,
               title: project.title,
               intent: project.intent ?? '',
               rules: projectRules,
