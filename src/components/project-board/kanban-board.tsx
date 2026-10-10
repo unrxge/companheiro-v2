@@ -20,6 +20,7 @@ import { PageShell, PageHeader, Container } from '@/components/shell/page-shell'
 import { GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalDialog } from '@/components/ui/modal-dialog'
+import { TextField } from '@/components/ui/field'
 import { Level, useTravel } from '@/components/studio/surface/travel'
 import { StageRibbon } from '@/components/widgets'
 import { journeyStepFromStage, toneHue, type as typeRoles } from '@/lib/design-tokens'
@@ -105,6 +106,7 @@ function Board() {
   const [dragOver, setDragOver] = useState<Column | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [peek, setPeek] = useState<ShelfProject | null>(null)
+  const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null)
   const [showNewIdea, setShowNewIdea] = useState(false)
   const [bannerExpanded, setBannerExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -212,6 +214,17 @@ function Board() {
     if (stage === 'completed' && only) { router.push(`/read?node_id=${only}`); return }
     openCanvas(p.id, from)
   }, [openCanvas, router])
+
+  /** Optimistic, like a move: the card already shows its new name. */
+  const rename = useCallback(() => {
+    if (!renaming) return
+    const title = renaming.title.trim().slice(0, 120)
+    const { id } = renaming
+    setRenaming(null)
+    if (!title || projects.find((p) => p.id === id)?.title === title) return
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, title } : p)))
+    api.projects.patch(id, { title }).catch(() => { void load() })
+  }, [load, projects, renaming])
 
   /** Deleting is for good, so it always asks first. */
   const remove = useCallback(async (p: ShelfProject) => {
@@ -403,10 +416,10 @@ function Board() {
           )}
         </button>
 
-        {/* Moving and deleting live here so they work without a mouse to hover or drag with. */}
+        {/* Renaming, moving and deleting live here so they work without a mouse to hover or drag with. */}
         <button
           onClick={() => setMenuFor(menuOpen ? null : p.id)}
-          aria-label={`Move or delete ${title}`}
+          aria-label={`Rename, move or delete ${title}`}
           aria-expanded={menuOpen}
           style={{
             position: 'absolute',
@@ -445,6 +458,15 @@ function Board() {
                 Move to {name}
               </button>
             ))}
+            <button
+              onClick={() => { setMenuFor(null); setRenaming({ id: p.id, title: p.title.trim() }) }}
+              style={{
+                fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+                border: `1px solid ${c.divider}`, backgroundColor: c.cardBgInner, color: c.textSecondary,
+              }}
+            >
+              Rename
+            </button>
             <button
               onClick={() => void remove(p)}
               style={{
@@ -717,6 +739,29 @@ function Board() {
             Until then you can read and export it. On Direction, every project stays open at once.
           </p>
         </PlanNote>
+      )}
+
+      {renaming && (
+        <ModalDialog
+          onClose={() => setRenaming(null)}
+          title="Rename"
+          maxWidth="440px"
+          footer={
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+              <GhostButton onClick={() => setRenaming(null)}>Cancel</GhostButton>
+              <PrimaryButton onClick={rename} disabled={!renaming.title.trim()}>Save</PrimaryButton>
+            </div>
+          }
+        >
+          <TextField
+            value={renaming.title}
+            onChange={(title) => setRenaming((r) => (r ? { ...r, title: title.slice(0, 120) } : r))}
+            ariaLabel="Name"
+            placeholder="Untitled"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter') rename() }}
+          />
+        </ModalDialog>
       )}
 
       {showNewIdea && (
