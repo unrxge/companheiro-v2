@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { aiGate } from '@/lib/billing/fair-use'
 import { logUsage } from '@/lib/usage-log'
+import { recordOpsEvent } from '@/lib/ops/ai-calls'
 
 // The companion's speaking voice. Anthropic has no speech model, so this is
 // the one route that calls OpenAI; without OPENAI_API_KEY it answers 503 and
@@ -23,7 +24,12 @@ export async function POST(request: Request) {
     if (gated) return gated
 
     const key = process.env.OPENAI_API_KEY?.trim()
-    if (!key) return NextResponse.json({ error: 'Voice is not set up' }, { status: 503 })
+    if (!key) {
+      // Recorded so the cause can be read from /admin: the person only ever
+      // sees "the voice is unavailable".
+      await recordOpsEvent('ai_error', 'read-aloud', 'OPENAI_API_KEY is not set in this deployment')
+      return NextResponse.json({ error: 'Voice is not set up' }, { status: 503 })
+    }
 
     const { text } = await request.json()
     // Emphasis marks are for the eye; spoken, they are noise.
@@ -36,7 +42,11 @@ export async function POST(request: Request) {
       body: JSON.stringify({ model: MODEL, voice: VOICE, input, instructions: DELIVERY, response_format: 'mp3' }),
     })
     if (!res.ok || !res.body) {
-      console.error('read-aloud: speech request failed', res.status, (await res.text().catch(() => '')).slice(0, 300))
+      const body = (await res.text().catch(() => '')).slice(0, 300)
+      console.error('read-aloud: speech request failed', res.status, body)
+      // OpenAI's own explanation (wrong permission, no credit, unknown voice).
+      // It never contains the key in full.
+      await recordOpsEvent('ai_error', 'read-aloud', `OpenAI answered ${res.status}: ${body}`, { status: res.status })
       return NextResponse.json({ error: 'Voice failed' }, { status: 502 })
     }
 
