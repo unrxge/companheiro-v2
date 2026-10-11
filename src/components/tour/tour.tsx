@@ -330,7 +330,7 @@ function PracticeStep({ name, work, onWork, onBack, onNext }: { name: string; wo
             <BackArrow />
           </button>
           <div className="flex-1">
-            <PrimaryButton size="lg" full onClick={() => { setDraft(''); onNext(chosen) }} disabled={!ready}>Show me round</PrimaryButton>
+            <PrimaryButton size="lg" full onClick={() => { setDraft(''); onNext(chosen) }} disabled={!ready}>Show me around</PrimaryButton>
           </div>
         </div>
       }
