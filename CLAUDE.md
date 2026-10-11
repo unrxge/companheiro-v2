@@ -88,7 +88,7 @@ Two copies of the app, so work in progress never reaches the people using it.
 - **Day to day, once the lab is running:** commit and push to `lab`. Nothing goes to `main` directly.
 - **Promoting:** only when the user says so. `node scripts/promote.mjs` shows what is waiting and checks that the lab deployment is up, that live's database has everything the lab's has, and that `main` has not moved on its own; `--go` then moves `main` up to `lab` on GitHub. It never changes the working folder.
 - **Databases:** `node scripts/compare-schemas.mjs` compares the two (needs `.env.lab`). `node scripts/lab-schema.mjs` writes `supabase/lab-schema.sql`, the whole history in the right order for an empty project: main 001–022, then `studio/supabase/migrations`, then main 023 onwards.
-- **Your real data in the lab:** sign up in the lab with the same email, then `node scripts/copy-to-lab.mjs` replaces that lab account's contents with a copy of the live account (rows, plan, storage files). Re-run for a fresh copy. It only reads live.
+- **Your real data in the lab:** sign up in the lab with the same email, then `node scripts/copy-to-lab.mjs` carries over only what is new or changed on live since the lab last had it (rows, plan, storage files; nothing is deleted in the lab). `--full` wipes that lab account and copies everything again. It only reads live.
 - **Experiments that need real history** (portrait, recall) cannot be judged on the lab's empty database. Ship those to live behind `ADMIN_USER_IDS` instead.
 - **Not yet separated:** `.env.local` on this machine still points at the live database, and the maintenance scripts in `scripts/` rely on that. A local dev server reads and writes live data.
 

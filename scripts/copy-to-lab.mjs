@@ -3,11 +3,15 @@
 //
 //   node scripts/copy-to-lab.mjs                 every lab account whose email also exists on live
 //   node scripts/copy-to-lab.mjs you@example.com just that one
+//   node scripts/copy-to-lab.mjs --full          wipe the lab account and copy everything again
 //
-// The person signs up in the lab first (any password); this then replaces
-// everything that lab account holds with a copy of the live one: projects,
-// pieces, check-ins, portrait, conversations, settings, plan, and the images
-// and recordings in storage. Run it again whenever a fresh copy is wanted.
+// The person signs up in the lab first (any password). By default only what
+// changed on live since the lab last had it is carried over: rows that are
+// new or newer, and files the lab does not hold yet. Nothing is deleted in
+// the lab, and rows removed on live stay in the lab until a --full copy.
+// --full replaces everything that lab account holds with a copy of the live
+// one: projects, pieces, check-ins, portrait, conversations, settings, plan,
+// and the images and recordings in storage.
 // Ids are kept, except the account id, which becomes the lab account's.
 // Usage records, billing events and other ops logs are not copied.
 import { existsSync, readFileSync } from 'fs'
@@ -73,8 +77,8 @@ async function rowsOf(table, userId) {
 const insert = (table, rows) =>
   lab.call(`/rest/v1/${table}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal,resolution=merge-duplicates' }, body: JSON.stringify(rows) })
 
-async function copyAccount(liveId, labId, email) {
-  console.log(`\n${email}: live ${liveId.slice(0, 8)} → lab ${labId.slice(0, 8)}`)
+async function copyAccount(liveId, labId, email, incremental) {
+  console.log(`\n${email}: live ${liveId.slice(0, 8)} → lab ${labId.slice(0, 8)}${incremental ? ' (changes only)' : ' (full copy)'}`)
   // The lab's sign-up email may never have been opened; the sign-in page only
   // asks for a password once an address is confirmed.
   await lab.call(`/auth/v1/admin/users/${labId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email_confirm: true }) })
@@ -83,7 +87,8 @@ async function copyAccount(liveId, labId, email) {
   const swap = (v) => JSON.parse(JSON.stringify(v).replaceAll(liveId, labId))
 
   // 1. Empty the lab account. Children before parents, repeated until nothing is left.
-  for (let pass = 0; pass < 6; pass++) {
+  // Not done for a changes-only copy.
+  for (let pass = 0; !incremental && pass < 6; pass++) {
     let left = 0
     for (const t of names) {
       const r = await lab.call(`/rest/v1/${t}?user_id=eq.${labId}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
@@ -93,11 +98,31 @@ async function copyAccount(liveId, labId, email) {
   }
 
   // 2. Read live.
+  // A changes-only copy keeps the rows the lab lacks or holds an older version of.
+  const spec = incremental ? (await live.call('/rest/v1/')).body : null
+  const labStamps = async (t, stamp) => {
+    const seen = new Map()
+    for (let from = 0; ; from += 1000) {
+      const { ok, body } = await lab.call(`/rest/v1/${t}?user_id=eq.${labId}&select=${stamp ? `id,${stamp}` : 'id'}`, { headers: { Range: `${from}-${from + 999}` } })
+      if (!ok) return null
+      for (const r of body) seen.set(r.id, stamp ? r[stamp] : null)
+      if (body.length < 1000) return seen
+    }
+  }
   const pending = {}
   for (const t of names) {
-    const rows = swap(await rowsOf(t, liveId))
-    if (rows.length) pending[t] = rows
+    let rows = await rowsOf(t, liveId)
+    if (incremental && rows.length && spec.definitions[t].properties.id) {
+      const stamp = ['updated_at', 'created_at'].find((c) => spec.definitions[t].properties[c])
+      const have = await labStamps(t, stamp)
+      if (have) {
+        rows = rows.filter((r) => !have.has(r.id) || (stamp && r[stamp] && have.get(r.id) && new Date(r[stamp]) > new Date(have.get(r.id))))
+      }
+    }
+    rows = swap(rows)
+    if (rows.length) { pending[t] = rows; if (incremental) console.log(`  ${t}: ${rows.length} new or changed`) }
   }
+  if (incremental && !Object.keys(pending).length) console.log('  no rows to carry over')
 
   // 3. Write, parents first. A row that still points at something not yet
   // written waits for the next pass; columns the database fills itself are dropped.
@@ -108,11 +133,13 @@ async function copyAccount(liveId, labId, email) {
       const r = await insert(t, rows.map((row) => strip(t, row)))
       if (r.ok) return true
       const generated = String(r.body?.message ?? '').match(/non-DEFAULT value into column "([a-z_]+)"/)?.[1]
+      if (/of view "/.test(String(r.body?.message ?? ''))) return true // a view follows its tables; nothing to write
       if (!generated) return r
       ;(dropped[t] ??= []).push(generated)
     }
   }
   const deferred = [] // [table, id, column, value] put back once everything exists
+  let unlinked = false // the link-free pass is tried once; rows that still fail are reported below
   for (let pass = 0, progress = true; progress && Object.keys(pending).length; pass++) {
     progress = false
     for (const t of Object.keys(pending)) {
@@ -126,7 +153,8 @@ async function copyAccount(liveId, labId, email) {
     }
     // Stuck on a loop of references: write the remaining rows without their
     // optional links, and restore the links afterwards.
-    if (!progress && Object.keys(pending).length) {
+    if (!progress && Object.keys(pending).length && !unlinked) {
+      unlinked = true
       for (const t of Object.keys(pending)) {
         const { body: spec } = await live.call('/rest/v1/')
         const links = Object.entries(spec.definitions[t].properties).filter(([c, p]) => c !== 'user_id' && /Foreign Key/.test(p.description ?? '') && !spec.definitions[t].required?.includes(c)).map(([c]) => c)
@@ -149,15 +177,17 @@ async function copyAccount(liveId, labId, email) {
   }
 
   // 4. Images and recordings.
-  const files = []
-  const walk = async (prefix) => {
-    const { body } = await live.call(`/storage/v1/object/list/${BUCKET}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix, limit: 1000 }) })
+  const walk = async (s, prefix, into) => {
+    const { body } = await s.call(`/storage/v1/object/list/${BUCKET}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefix, limit: 1000 }) })
     for (const item of body ?? []) {
       const path = `${prefix}/${item.name}`
-      if (item.id) files.push(path); else await walk(path)
+      if (item.id) into.push(path); else await walk(s, path, into)
     }
+    return into
   }
-  await walk(liveId)
+  const liveFiles = await walk(live, liveId, [])
+  const labHas = new Set(incremental ? (await walk(lab, labId, [])) : [])
+  const files = liveFiles.filter((p) => !labHas.has(p.replaceAll(liveId, labId)))
   let copied = 0
   for (const path of files) {
     const res = await fetch(`${live.url}/storage/v1/object/${BUCKET}/${path}`, { headers: { apikey: liveEnv.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${liveEnv.SUPABASE_SERVICE_ROLE_KEY}` } })
@@ -179,7 +209,9 @@ async function copyAccount(liveId, labId, email) {
   console.log(`  files: ${copied} of ${files.length} copied`)
 }
 
-const only = process.argv[2]?.toLowerCase()
+const args = process.argv.slice(2)
+const full = args.includes('--full')
+const only = args.find((a) => !a.startsWith('--'))?.toLowerCase()
 const [liveUsers, labUsers] = await Promise.all([users(live), users(lab)])
 const pairs = labUsers
   .filter((u) => u.email && (!only || u.email.toLowerCase() === only))
@@ -189,4 +221,4 @@ if (!pairs.length) {
   console.log(only ? `No account with that email in both the lab and live. Sign up in the lab with it first.` : 'No lab account shares an email with a live one. Sign up in the lab first.')
   process.exit(1)
 }
-for (const [l, b] of pairs) await copyAccount(l.id, b.id, b.email)
+for (const [l, b] of pairs) await copyAccount(l.id, b.id, b.email, !full)
