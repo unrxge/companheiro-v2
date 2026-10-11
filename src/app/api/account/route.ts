@@ -21,6 +21,7 @@ const TABLES = [
   'conceptualise_drafts',
   'user_territory_config',
   'user_settings',
+  'profiles',
   'letters',
   // Studio (shelf, board, writing) — where current work lives.
   'studio_projects',

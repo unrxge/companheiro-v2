@@ -32,7 +32,10 @@ export async function GET() {
       supabase.from('captures').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
     ])
     const onboarded = !!settings?.onboarded_at || (territoryRows ?? 0) > 0 || (pieceCount ?? 0) > 0 || (captureCount ?? 0) > 0
-    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at, profile: user.user_metadata?.profile ?? null })
+    // The row in `profiles` when there is one with a name, otherwise what was kept in the account's metadata.
+    const { data: row } = await supabase.from('profiles').select('name, birthdate, practices, other').eq('user_id', user.id).maybeSingle()
+    const profile = row?.name ? { name: row.name, birthdate: row.birthdate ?? '', practices: row.practices ?? [], other: row.other ?? '' } : user.user_metadata?.profile ?? null
+    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at, profile })
   } catch (error) {
     console.error('onboarding GET error:', error)
     return NextResponse.json({ onboarded: true, toured: true }, { status: 500 })
@@ -154,6 +157,13 @@ export async function PUT(request: NextRequest) {
     if (who) {
       const { error: pErr } = await supabase.auth.updateUser({ data: { profile: who } })
       if (pErr) console.error('onboarding profile error:', pErr)
+      // The same, as a row in `profiles` (migration 034) where it can be read
+      // and counted. Until that migration is applied this is only logged.
+      const { error: rErr } = await supabase.from('profiles').upsert(
+        { user_id: user.id, email: user.email ?? null, name: who.name, birthdate: who.birthdate, practices: who.practices, other: who.other || null, updated_at: now },
+        { onConflict: 'user_id' }
+      )
+      if (rErr) console.error('onboarding profiles row error:', rErr)
     }
     return NextResponse.json({ success: true, slots: enriched })
   } catch (error) {
