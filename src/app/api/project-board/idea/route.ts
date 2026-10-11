@@ -25,7 +25,6 @@ interface IdeaDetail {
   conviction_statement?: string;
   emotional_journey?: string;
   core_truth?: string;
-  substack_goals?: string;
   short_form_goals?: string;
   open_threads?: string | string[];
   created_at?: string;
@@ -80,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
     // Check if idea has a linked piece
     const { data: pieceData } = await supabase
       .from("pieces")
-      .select("id, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads")
+      .select("id, conviction_statement, emotional_journey, core_truth, short_form_goals, open_threads")
       .eq("idea_id", ideaId)
       .eq("user_id", userId)
       .single();
@@ -106,7 +105,6 @@ export async function GET(request: NextRequest): Promise<NextResponse<IdeaDetail
         conviction_statement: pieceData?.conviction_statement,
         emotional_journey: pieceData?.emotional_journey,
         core_truth: pieceData?.core_truth,
-        substack_goals: pieceData?.substack_goals,
         short_form_goals: pieceData?.short_form_goals,
         open_threads: pieceData?.open_threads,
       },

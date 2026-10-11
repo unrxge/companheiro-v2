@@ -45,7 +45,6 @@ interface PieceDetail {
   conviction_statement: string;
   emotional_journey: string;
   core_truth: string;
-  substack_goals: string;
   short_form_goals: string;
   open_threads: string[];
   conceptualisation_log: ConversationMessage[];
@@ -86,7 +85,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PieceDetai
     const { data: pieceData, error: pieceError } = await supabase
       .from("pieces")
       .select(
-        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, idea_id, substack_draft, short_form_script, stage, posted_at, created_at"
+        "id, title, arc, thematic_territory, conviction_statement, emotional_journey, core_truth, short_form_goals, open_threads, idea_id, substack_draft, short_form_script, stage, posted_at, created_at"
       )
       .eq("id", pieceId)
       .eq("user_id", userId)
@@ -180,7 +179,6 @@ interface UpdateRequest {
   conviction_statement?: string;
   emotional_journey?: string;
   core_truth?: string;
-  substack_goals?: string;
   short_form_goals?: string;
   open_threads?: string;
 }
@@ -238,7 +236,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<UpdateRe
     if (body.conviction_statement !== undefined) pieceUpdate.conviction_statement = body.conviction_statement;
     if (body.emotional_journey !== undefined) pieceUpdate.emotional_journey = body.emotional_journey;
     if (body.core_truth !== undefined) pieceUpdate.core_truth = body.core_truth;
-    if (body.substack_goals !== undefined) pieceUpdate.substack_goals = body.substack_goals;
     if (body.short_form_goals !== undefined) pieceUpdate.short_form_goals = body.short_form_goals;
     if (body.open_threads !== undefined) pieceUpdate.open_threads = parseOpenThreads(body.open_threads);
     // Note: title is intentionally NOT synced from one_sentence here — title

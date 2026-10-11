@@ -130,15 +130,12 @@ Return as JSON:
 
       userPrompt = `Distil the core truth from this conviction statement: "${convictionStatement}"\n\nFull conversation for context:\n${conversationText}`;
     } else if (body.phase === 4) {
-      systemPrompt = `You are completing a core concept document by:
-1. Generating suggestions for how this piece could be made — direction for the work itself, whatever it turns out to be (an essay, a script, a song, something else). Suggestions, not orders.
-2. Identifying open threads from the full conversation that could be explored
+      systemPrompt = `You are completing a core concept document by identifying the open threads in the full conversation: what is still undecided, or could be explored.
 
-Format each of the two fields as bullet points: one item per line, each line starting with "- ". Be succinct and precise — no filler, no restating the same point twice. 2-4 bullets per field is usually enough.
+Format them as bullet points: one item per line, each line starting with "- ". Be succinct and precise — no filler, no restating the same point twice. 2-4 bullets is usually enough.
 
 Return as JSON:
 {
-  "writing_goals": "- ...\\n- ...",
   "open_threads": "- ...\\n- ..."
 }`;
 
@@ -147,13 +144,13 @@ Return as JSON:
         .join("\n\n");
       const convictionStatement = getConfirmedField(body.confirmed_sections, "phase2", "conviction_statement");
 
-      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, generate the writing suggestions and open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
+      userPrompt = `Based on this full conceptualisation conversation and confirmed conviction statement, identify the open threads:\n\nConversation:\n${conversationText}\n\nConviction: ${convictionStatement}`;
     }
 
     // Phases 1-3 distil the conversation down to a sentence or two of real
     // judgement (the core idea, the conviction, the underlying truth) —
-    // worth the deep model. Phase 4 is pure formatting: turning an already-
-    // confirmed conviction into bullet lists, extraction with no craft call
+    // worth the deep model. Phase 4 is extraction: the threads the
+    // conversation already left open, as a short list, with no craft call
     // to make, so it runs on the fast model like the rest of that tier.
     const phaseModel = pickModel(auth, body.phase === 4 ? MODELS.fast : MODELS.deep);
 

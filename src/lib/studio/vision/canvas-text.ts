@@ -86,7 +86,6 @@ export function canvasText(src: CanvasSource): CanvasRead {
       bits.push(`   the journey it takes the audience on:\n${(root.emotional_journey ?? '').split('\n').map((l) => one(l)).filter(Boolean).map((l) => `     - ${l}`).join('\n')}`)
     }
     line('how it should be made', root.writing_ethos)
-    line('what the long form is for', root.substack_goals)
     line('what the short form is for', root.short_form_goals)
     const open = (root.open_threads ?? []).map(one).filter(Boolean)
     if (open.length) bits.push(`   left open in its concept: ${open.join(' | ')}`)

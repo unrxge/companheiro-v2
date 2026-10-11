@@ -25,7 +25,7 @@ function piece(id: string, title: string, position: number): TreeNode {
     title, intent: '', beat: '', stands_whole: false, rules: [], body: '',
     extent: 0, status: 'open', board_x: null, board_y: null,
     writing_ethos: null, emotional_journey: null, core_truth: null,
-    substack_goals: null, short_form_goals: null, open_threads: null,
+    short_form_goals: null, open_threads: null,
     short_form_script: null, is_locked: false,
     created_at: NOW, updated_at: NOW,
     children: [], depth: 0, threads: [],

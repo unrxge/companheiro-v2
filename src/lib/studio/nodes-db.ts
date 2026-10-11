@@ -7,7 +7,7 @@ import { wordCount } from '@/lib/studio/tree'
 
 export const NODE_COLS =
   'id, user_id, project_id, parent_id, position, title, intent, beat, stands_whole, rules, body, extent, status, board_x, board_y, ' +
-  'writing_ethos, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, short_form_script, is_locked, ' +
+  'writing_ethos, emotional_journey, core_truth, short_form_goals, open_threads, short_form_script, is_locked, ' +
   'created_at, updated_at'
 export const THREAD_COLS =
   'id, user_id, project_id, position, name, intent, rules, hue, board_x, board_y, created_at, updated_at'

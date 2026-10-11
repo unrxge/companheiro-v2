@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     const { supabase, user } = auth
     const { data: root } = await supabase
       .from('studio_nodes')
-      .select('id, project_id, title, intent, core_truth, emotional_journey, substack_goals')
+      .select('id, project_id, title, intent, core_truth, emotional_journey')
       .eq('id', nodeId)
       .eq('user_id', user.id)
       .single()
@@ -189,7 +189,6 @@ Conviction: ${root.intent || '(not written)'}
 Core truth: ${root.core_truth || '(infer it from the draft)'}
 Emotional journey:
 ${root.emotional_journey || '(not written)'}
-${root.substack_goals ? `Their goals for how it's written: ${root.substack_goals}` : ''}
 
 HOW TO WRITE EACH TAKE:
 - Commit to the lens fully. Don't hedge, half-do it, or explain what you did.

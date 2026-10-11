@@ -18,7 +18,7 @@ interface MockNode {
   title: string; intent: string; beat: string; stands_whole: boolean; rules: unknown[]
   body: string; extent: number; status: string; board_x: number | null; board_y: number | null
   writing_ethos: string | null; emotional_journey: string | null; core_truth: string | null
-  substack_goals: string | null; short_form_goals: string | null; open_threads: string[] | null
+  short_form_goals: string | null; open_threads: string[] | null
   short_form_script: string | null; is_locked: boolean; created_at: string; updated_at: string
 }
 
@@ -45,7 +45,7 @@ function node(id: string, parent: string | null, position: number, title: string
   return {
     id, user_id: 'u', project_id: 'demo', parent_id: parent, position, title, intent: '', beat, stands_whole: true, rules: [],
     body, extent: words(body), status: 'open', board_x: null, board_y: null, writing_ethos: null, emotional_journey: null,
-    core_truth: null, substack_goals: null, short_form_goals: null, open_threads: [], short_form_script: null, is_locked: false,
+    core_truth: null, short_form_goals: null, open_threads: [], short_form_script: null, is_locked: false,
     created_at: NOW, updated_at: NOW, ...extra,
   }
 }
@@ -67,7 +67,6 @@ function installMock(o: Opts) {
         intent: 'Rest is not the absence of worth.',
         core_truth: 'Being needed is not the same as being alive.',
         emotional_journey: 'Arrival: the kettle before the day\nThe pull toward usefulness\nWhat the quiet holds\nSettling into it',
-        substack_goals: 'Keep it in the first person. Let the room be a character.',
         short_form_goals: 'Morning light, a kettle, an empty chair.',
         open_threads: ['Who is the “I” without the asking?'],
       }

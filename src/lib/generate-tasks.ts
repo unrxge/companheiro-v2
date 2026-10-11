@@ -8,7 +8,6 @@ export interface CoreConcept {
   conviction_statement: string
   emotional_journey: string
   core_truth: string
-  writing_goals: string
   open_threads?: string[]
 }
 
@@ -27,8 +26,6 @@ Conviction: ${concept.conviction_statement}
 Core truth: ${concept.core_truth}
 Emotional journey (one beat per line):
 ${concept.emotional_journey || '(none)'}
-Writing suggestions:
-${concept.writing_goals || '(none)'}
 Open threads:
 ${threads.length ? threads.map((x) => `- ${x}`).join('\n') : '(none)'}`
 }
@@ -46,7 +43,6 @@ Where tasks come from, in this order:
 - THE WAY IN. Exactly one: the smallest concrete first move, usually the moment the first beat opens on. This is always the first task.
 - BEATS THAT ARE STILL ABSTRACT. Go through the emotional journey beat by beat. A beat that names a feeling or a turn without a concrete moment, scene or image to carry it gets one task: find that moment. A beat that already carries its moment gets nothing. Never one task per beat by default.
 - OPEN THREADS THE DRAFT CANNOT BE WRITTEN AROUND. An open thread gets one task only if leaving it undecided would stall the draft (who is speaking, what actually happened, where it ends). A thread that can stay open while writing gets nothing.
-- A WRITING SUGGESTION THAT NEEDS ITS OWN PASS. Only when it asks for a separate read of the draft (for example, cutting every line that explains the feeling). A suggestion that is a habit to hold while writing gets nothing.
 
 Never write a task for:
 - anything that is not the writing: research, visuals, titles for publishing, formatting, scheduling, promotion, sharing

@@ -17,8 +17,6 @@ interface SaveRequest {
   conviction_statement: string;
   emotional_journey: string;
   core_truth: string;
-  /** Suggestions for how the piece is written. Stored in studio_nodes.substack_goals (a legacy column name). */
-  writing_goals: string;
   /** No longer generated; kept so older clients that still send it don't fail. */
   short_form_goals?: string;
   open_threads: string;
@@ -212,7 +210,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
           status: "open",
           emotional_journey: body.emotional_journey,
           core_truth: body.core_truth,
-          substack_goals: body.writing_goals,
           short_form_goals: body.short_form_goals,
           open_threads: openThreadsArray,
           writing_ethos: null, // left blank for Gather to fill later
@@ -253,7 +250,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
         conviction_statement: body.conviction_statement,
         emotional_journey: body.emotional_journey,
         core_truth: body.core_truth,
-        writing_goals: body.writing_goals,
         open_threads: openThreadsArray,
       }),
     ])
@@ -357,7 +353,6 @@ async function addPieceToProject(
         status: "open",
         emotional_journey: body.emotional_journey,
         core_truth: body.core_truth,
-        substack_goals: body.writing_goals,
         open_threads: openThreadsArray,
         writing_ethos: null,
         body: body.brought_idea?.trim() ?? "",
@@ -386,7 +381,6 @@ async function addPieceToProject(
       conviction_statement: body.conviction_statement,
       emotional_journey: body.emotional_journey,
       core_truth: body.core_truth,
-      writing_goals: body.writing_goals,
       open_threads: openThreadsArray,
     }),
   ]);
@@ -471,7 +465,6 @@ async function completeExistingProject(
       intent: body.conviction_statement,
       emotional_journey: body.emotional_journey,
       core_truth: body.core_truth,
-      substack_goals: body.writing_goals,
       ...(body.short_form_goals !== undefined ? { short_form_goals: body.short_form_goals } : {}),
       open_threads: toThreadArray(body.open_threads),
     })

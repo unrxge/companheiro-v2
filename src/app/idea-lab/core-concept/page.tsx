@@ -88,7 +88,7 @@ function CoreConceptContent() {
     phase1: { title: 'Idea Essence', status: 'pending', content: {} },
     phase2: { title: 'Conviction & Journey', status: 'pending', content: {} },
     phase3: { title: 'Core Truth', status: 'pending', content: {} },
-    phase4: { title: 'Format & Threads', status: 'pending', content: {} },
+    phase4: { title: 'Open threads', status: 'pending', content: {} },
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -192,7 +192,6 @@ function CoreConceptContent() {
         conviction_statement: sections.phase2.content.conviction_statement || '',
         emotional_journey: sections.phase2.content.emotional_journey || '',
         core_truth: sections.phase3.content.core_truth || '',
-        writing_goals: sections.phase4.content.writing_goals || '',
         open_threads: sections.phase4.content.open_threads || '',
         conversation_history: conversation,
         brought_idea: existingProjectId && !newPiece ? null : sessionStorage.getItem('brought_idea'),
@@ -400,21 +399,15 @@ function CoreConceptContent() {
             { padding: '36px 28px' }
           )}
 
-          {/* Phase 4 — Writing suggestions & open threads, side by side */}
+          {/* Phase 4 — Open threads */}
           {p4.status === 'pending' ? (
             phaseCard(p4, null)
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-                <Card>
-                  {sectionHead('Writing suggestions', p4, { lock: false })}
-                  {p4.status === 'confirmed' ? <DashedList text={p4.content.writing_goals || ''} /> : <TextArea bare value={p4.content.writing_goals || ''} onChange={(v) => handleEditContent('phase4', 'writing_goals', v)} placeholder={'- First suggestion\n- Second suggestion'} ariaLabel="Writing suggestions" style={bareStyle} />}
-                </Card>
-                <Card>
-                  {sectionHead('Open threads', p4)}
-                  {p4.status === 'confirmed' ? <DashedList text={p4.content.open_threads || ''} /> : <TextArea bare value={p4.content.open_threads || ''} onChange={(v) => handleEditContent('phase4', 'open_threads', v)} placeholder={'- Thread one\n- Thread two'} ariaLabel="Open threads" style={bareStyle} />}
-                </Card>
-              </div>
+              <Card>
+                {sectionHead('Open threads', p4)}
+                {p4.status === 'confirmed' ? <DashedList text={p4.content.open_threads || ''} /> : <TextArea bare value={p4.content.open_threads || ''} onChange={(v) => handleEditContent('phase4', 'open_threads', v)} placeholder={'- Thread one\n- Thread two'} ariaLabel="Open threads" style={bareStyle} />}
+              </Card>
               {p4.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase4')} full>Confirm</QuietButton>}
             </div>
           )}

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from('studio_nodes')
         .select(
-          'id, project_id, title, intent, emotional_journey, core_truth, substack_goals, short_form_goals, open_threads, body, short_form_script, writing_ethos'
+          'id, project_id, title, intent, emotional_journey, core_truth, short_form_goals, open_threads, body, short_form_script, writing_ethos'
         )
         .eq('id', nodeId)
         .eq('user_id', user.id)
@@ -85,7 +85,6 @@ export async function GET(request: NextRequest) {
         conviction_statement: node.intent || '',
         emotional_journey: node.emotional_journey || '',
         core_truth: node.core_truth || '',
-        substack_goals: node.substack_goals || '',
         short_form_goals: node.short_form_goals || '',
         open_threads: node.open_threads || [],
         substack_draft: node.body || '',

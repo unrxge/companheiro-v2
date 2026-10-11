@@ -46,7 +46,6 @@ export interface WorkNode {
   writing_ethos: string | null
   emotional_journey: string | null
   core_truth: string | null
-  substack_goals: string | null
   short_form_goals: string | null
   open_threads: string[] | null
   short_form_script: string | null
@@ -127,7 +126,6 @@ export interface PatchNodeRequest {
   writing_ethos?: string | null
   emotional_journey?: string | null
   core_truth?: string | null
-  substack_goals?: string | null
   short_form_goals?: string | null
   open_threads?: string[] | null
   short_form_script?: string | null
