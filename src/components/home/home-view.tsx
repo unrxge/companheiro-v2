@@ -15,7 +15,7 @@ import { ProportionBar, WeatherStrip } from '@/components/widgets'
 import { onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working } from '@/components/ui/working'
-import { cleanName, tourSeenLocally } from '@/lib/tour'
+import { cleanName } from '@/lib/tour'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 interface ActivePiece {
@@ -99,12 +99,12 @@ export function HomeView() {
   }, [])
 
   // First run: /tour asks who they are and what their work is about, then shows them round.
-  // /welcome is only the fallback for an account whose answers were never saved.
+  // Until those answers are saved this is where they are sent, however many times they come back.
   useEffect(() => {
     fetch('/api/onboarding')
       .then((r) => r.json())
       .then((d) => {
-        if (d && d.onboarded === false) router.replace(d.toured === false && !tourSeenLocally() ? '/tour' : '/welcome')
+        if (d && d.onboarded === false) router.replace('/tour')
         // The name they gave on their first screen, cleaned again here in case an older, longer one was stored.
         else setName(cleanName(d?.profile?.name))
       })

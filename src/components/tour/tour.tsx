@@ -51,6 +51,7 @@ export function Tour({
   firstRun,
   profile: saved,
   leaving = false,
+  error = null,
   questions = null,
   onAnswered,
   onLeave,
@@ -61,6 +62,8 @@ export function Tour({
   profile?: TourProfile | null
   /** Their answers are still being saved as they leave. */
   leaving?: boolean
+  /** Why leaving did not work, said above the buttons. */
+  error?: string | null
   /** Questions written for each of their themes; null while they are on their way. */
   questions?: Record<string, string[]> | null
   onAnswered?: (profile: TourProfile, themes: string[]) => void
@@ -137,6 +140,7 @@ export function Tour({
           themes={answered ? work.themes : []}
           questions={questions}
           leaving={leaving}
+          error={error}
           onMood={setSlideMood}
           onLeave={onLeave}
           onQuestions={firstRun ? () => setStage('practice') : undefined}
@@ -425,7 +429,7 @@ function AlsoInside({ rest, themes }: { rest: TourSlide[]; themes: string[] }) {
 }
 
 function Carousel({
-  firstRun, name, practices, themes, questions, leaving, onMood, onLeave, onQuestions,
+  firstRun, name, practices, themes, questions, leaving, error, onMood, onLeave, onQuestions,
 }: {
   firstRun: boolean
   name: string
@@ -433,6 +437,7 @@ function Carousel({
   themes: string[]
   questions: Record<string, string[]> | null
   leaving: boolean
+  error: string | null
   onMood: (m: Hue) => void
   onLeave: () => void
   /** Back from the first slide, to the questions before the tour. */
@@ -535,6 +540,12 @@ function Carousel({
           )
         })}
       </div>
+
+      {error && (
+        <p role="alert" className="relative z-[1] mx-auto w-full max-w-[520px] shrink-0 px-5 pb-1 lg:max-w-[1080px] lg:px-10" style={{ ...typeRoles.small, fontSize: 13, color: hues.danger }}>
+          {error}
+        </p>
+      )}
 
       {/* One row on a phone, so the slide keeps the height: progress on the left, Back and Next on the right. */}
       <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between gap-3 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:px-10 lg:pb-8 lg:pt-1">

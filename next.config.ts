@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
       // (utm_*, ref, via, landing) is carried over. Done here rather than in a
       // page so the hop is answered at the edge, without a server function.
       { source: "/signup", destination: "/login?mode=create", permanent: false },
+      // /welcome (three questions with the companion) is gone: /tour asks who
+      // they are and what their work is about, and cannot be skipped. An old
+      // link lands on Home, which sends anyone not yet through it to /tour.
+      { source: "/welcome", destination: "/home", permanent: false },
     ];
   },
 };

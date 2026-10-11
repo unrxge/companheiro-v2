@@ -1,29 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { MODELS } from '@/lib/models'
-import { COMPANION_TONE } from '@/lib/companion-tone'
-import { withLanguage } from '@/lib/language'
-import { streamClaudeText } from '@/lib/streaming'
 import { customKey, type CustomSlot } from '@/lib/territories'
 import { logUsage } from '@/lib/usage-log'
 import { ageFrom, cleanName, MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-
 /**
  * GET — has this person been through onboarding? True if user_settings says
  * so, or if they already have territories or work (existing accounts).
- * `toured` says whether they have seen (or skipped) the tour at /tour.
  */
 export async function GET() {
   try {
     const auth = await requireUser()
-    if (!auth) return NextResponse.json({ onboarded: true, toured: true }, { status: 401 })
+    if (!auth) return NextResponse.json({ onboarded: true }, { status: 401 })
     const { supabase, user } = auth
     const [{ data: settings }, { count: territoryRows }, { count: pieceCount }, { count: captureCount }] = await Promise.all([
       supabase.from('user_settings').select('onboarded_at').eq('user_id', user.id).maybeSingle(),
@@ -35,10 +25,10 @@ export async function GET() {
     // The row in `profiles` when there is one with a name, otherwise what was kept in the account's metadata.
     const { data: row } = await supabase.from('profiles').select('name, birthdate, practices, other').eq('user_id', user.id).maybeSingle()
     const profile = row?.name ? { name: row.name, birthdate: row.birthdate ?? '', practices: row.practices ?? [], other: row.other ?? '' } : user.user_metadata?.profile ?? null
-    return NextResponse.json({ onboarded, toured: !!user.user_metadata?.tour_seen_at, profile })
+    return NextResponse.json({ onboarded, profile })
   } catch (error) {
     console.error('onboarding GET error:', error)
-    return NextResponse.json({ onboarded: true, toured: true }, { status: 500 })
+    return NextResponse.json({ onboarded: true }, { status: 500 })
   }
 }
 
@@ -62,48 +52,6 @@ export async function PATCH() {
     console.error('onboarding PATCH error:', error)
     return NextResponse.json({ success: false }, { status: 500 })
   }
-}
-
-const OPENING = `You are Companheiro, meeting someone for the first time. Over three short turns you will find the four territories their life keeps circling — the themes their thinking, feeling and making return to — so that this app can be built around their world, not a generic one.
-
-Turn structure:
-- Turn 1: ask one question. Something like: what does your life keep circling back to, even when you try to think about something else? Keep it to two sentences at most.
-- Turn 2: reflect one thing you noticed in what they said, then ask one question that opens a second or third territory: what they make or want to make, what they are working through, what they refuse to give up.
-- Turn 3: name, in your own words, the four territories you now see. Say them as short evocative labels (two to five words each), one per line, prefixed with "· ". Then one sentence inviting them to change any of the labels. Nothing else after that.
-
-Never list more than four. Never use the word "territory" before turn 3. No preamble.`
-
-/** POST /api/onboarding — streams the companion's next turn. */
-export async function POST(request: NextRequest) {
-  try {
-    const auth = await requireUser()
-    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const gated = await aiGate(auth)
-    if (gated) return gated
-    const { messages } = (await request.json()) as { messages: Message[] }
-    const history: Message[] = Array.isArray(messages) && messages.length > 0 ? messages : [{ role: 'user', content: 'Hello.' }]
-    const userTurns = history.filter((m) => m.role === 'user').length
-    const turn = Math.min(3, Math.max(1, userTurns))
-    const system = `${OPENING}\n\n${COMPANION_TONE}\n\nYou are now on turn ${turn} of 3.`
-    return streamClaudeText(auth.user.id, 
-      'onboarding',
-      { model: pickModel(auth, MODELS.deep), max_tokens: 400, system: withLanguage(system), messages: history },
-      (full) => ({ turn, labels: turn === 3 ? extractLabels(full) : [] })
-    )
-  } catch (error) {
-    console.error('onboarding POST error:', error)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-  }
-}
-
-function extractLabels(text: string): string[] {
-  return text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => /^[·•\-*]\s+/.test(l))
-    .map((l) => l.replace(/^[·•\-*]\s+/, '').replace(/[.:]$/, '').trim())
-    .filter((l) => l.length >= 2 && l.length <= 60)
-    .slice(0, 4)
 }
 
 /**
