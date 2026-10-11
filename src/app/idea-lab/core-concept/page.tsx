@@ -12,10 +12,23 @@ import { JourneyCurve } from '@/components/widgets'
 import { TaskGroups, type GroupTask } from '@/components/studio/work/task-groups'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
+import { BRIEF_HANDOFF_KEY, briefStorageKey } from '@/lib/concept-brief'
 
 interface ConversationMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+// The conversation the previous page left in this tab, if it left one.
+function readStoredConversation(): ConversationMessage[] | null {
+  try {
+    const raw = sessionStorage.getItem(BRIEF_HANDOFF_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 interface DocumentSection {
@@ -59,6 +72,10 @@ function CoreConceptContent() {
   // address bar can update after this page's first effect has already run.
   const params = useSearchParams()
   const projectParam = params.get('project')
+  // ?from=brief: the short brief for a project started without a core concept
+  // has just been taken (idea-lab/conceptualise?mode=brief); what was said is
+  // waiting in this tab and the concept is drawn out of it.
+  const fromBrief = params.get('from') === 'brief'
   // ?piece=new: another piece for a project that already exists, worked out
   // on the way in from its canvas. The conversation is the one just had, not
   // the project's own — the project keeps its vision, this piece gets its own.
@@ -84,22 +101,33 @@ function CoreConceptContent() {
   const [nodeId, setNodeId] = useState<string | null>(null)
 
   // ?project=<id>: building the core concept later, for a project started
-  // via "Skip to writing". Seeded from what the project already holds.
+  // via "Skip to writing". It is drawn from the brief just taken for it, or
+  // from the conversation the project already kept.
   const [existingProjectId, setExistingProjectId] = useState<string | null>(null)
 
   useEffect(() => {
     const pid = projectParam
     if (pid) setExistingProjectId(pid)
     if (pid && !newPiece) {
+      if (fromBrief) {
+        const briefed = readStoredConversation()
+        if (briefed) { setConversation(briefed); initializePhase(briefed, 1); return }
+      }
       fetch(`/api/studio/projects/${pid}`)
         .then((res) => res.json())
         .then((data) => {
           const project = data.bundle?.project
           if (!project) { setError('Could not load this project'); return }
           const log = project.conceptualisation_log as ConversationMessage[] | null | undefined
-          const seeded: ConversationMessage[] = log && log.length > 0 ? log : [{ role: 'user', content: `${project.title}\n\n${project.intent ?? ''}`.trim() }]
-          setConversation(seeded)
-          initializePhase(seeded, 1)
+          if (!log || log.length === 0) {
+            // Nothing was ever said about this project: a title and a line of
+            // intent is not enough to write a core concept from, and guessing
+            // from it is what this page used to do. Take the brief first.
+            router.replace(`/idea-lab/conceptualise?mode=brief&project=${pid}`)
+            return
+          }
+          setConversation(log)
+          initializePhase(log, 1)
         })
         .catch(() => setError('Could not load this project'))
       return
@@ -179,6 +207,8 @@ function CoreConceptContent() {
         sessionStorage.removeItem('bring_idea_flow')
         sessionStorage.removeItem('brought_idea')
         sessionStorage.removeItem('conceptualisation_conversation')
+        // The brief for this project is spent once its concept is locked.
+        if (existingProjectId) sessionStorage.removeItem(briefStorageKey(existingProjectId))
         // Both branches route by project id, not a piece id — `?write=1` asks
         // work-page.tsx to take a single piece straight into its writing.
         // A new piece opens on its own writing page: `?write=1` only takes a

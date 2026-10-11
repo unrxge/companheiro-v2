@@ -705,8 +705,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               intent: project.intent ?? '',
               rules: projectRules,
               conceptualisation_log: project.conceptualisation_log,
-              // Started via "Skip straight to writing": offer the core concept later.
-              coreConceptHref: roots.length > 0 && !roots[0].core_truth ? `/idea-lab/core-concept?project=${projectId}` : null,
+              // Started via "Skip straight to writing": offer the core concept
+              // later, through a short brief (a few questions, not the full
+              // conversation: they already know the idea).
+              coreConceptHref: roots.length > 0 && !roots[0].core_truth ? `/idea-lab/conceptualise?mode=brief&project=${projectId}` : null,
             }}
             pieces={roots}
             threads={tree.threads}

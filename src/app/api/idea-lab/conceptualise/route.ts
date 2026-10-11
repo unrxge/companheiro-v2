@@ -4,9 +4,19 @@ import { aiGate, pickModel } from "@/lib/billing/fair-use";
 import { buildCompanionContext } from "@/lib/companion-context";
 import { COMPANION_TONE } from "@/lib/companion-tone";
 import { MODELS } from "@/lib/models";
-import { streamClaudeText } from "@/lib/streaming";
+import { META_DELIMITER, streamClaudeText } from "@/lib/streaming";
+import { anthropic } from "@/lib/anthropic";
+import { logUsage } from "@/lib/usage-log";
 import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
+import {
+  briefFloor,
+  briefStableBlock,
+  briefTool,
+  briefVolatileBlock,
+  parseBriefTurn,
+  personFirst,
+} from "@/lib/concept-brief";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
@@ -26,6 +36,10 @@ interface ConceptualiseRequest {
   /** This idea is becoming another piece of a project that already exists.
    *  The conversation is told what it is joining. */
   projectId?: string;
+  /** With `projectId`: not a new piece but the project's own core concept,
+   *  built late for a project started without one. A short brief taken from
+   *  someone who already knows the idea (lib/concept-brief.ts). */
+  brief?: boolean;
 }
 
 const PHASE_PROMPTS: Record<number, string> = {
@@ -116,6 +130,72 @@ Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is
 Hold this as the room the idea is walking into, not as a brief to satisfy. Do not ask how the piece will fit, sit alongside the others, or serve the project — a piece that pulls against the vision is worth having, and the rules are checked separately once it is written down. Use it only to avoid asking what is already settled, and to notice when this idea is really the same one as a piece that exists — if it is, say so plainly, once.`;
 }
 
+/**
+ * One turn of the short brief. The person already knows what the project is,
+ * so this is a different job from the conversation below: no companion
+ * context (the brief is about this project and nothing else, and it is read
+ * and answered fast), the fast model throughout, one plain question per stage,
+ * and a stage their words have already settled is skipped.
+ *
+ * The stage is not read out of the prose. The model is made to call
+ * `brief_turn`, naming the stage its line asks, and the page moves to that
+ * stage (never earlier than lib/concept-brief's floor). The reply goes back in
+ * the same shape a stream does (words, then the meta frame), so the page is
+ * the same page; a line this short is all there at once.
+ */
+async function briefTurn(
+  auth: AuthedContext,
+  messages: Message[],
+  phase: number,
+  projectId: string
+): Promise<Response> {
+  const answers = messages.filter((m) => m.role === "user").length;
+  const floor = briefFloor(phase, answers);
+
+  const { data: project } = await auth.supabase
+    .from("studio_projects")
+    .select("title, intent")
+    .eq("id", projectId)
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  const turns = personFirst(messages);
+  const claudeMessages: MessageParam[] = [
+    ...cacheLastMessage(turns.slice(0, -1) as MessageParam[]),
+    turns[turns.length - 1] as MessageParam,
+  ];
+
+  const tool = briefTool(floor);
+  const response = await anthropic.messages.create({
+    model: pickModel(auth, MODELS.fast),
+    max_tokens: 400,
+    system: [
+      {
+        type: "text",
+        text: withLanguage(briefStableBlock(COMPANION_TONE)),
+        cache_control: { type: "ephemeral", ttl: "1h" },
+      },
+      { type: "text", text: briefVolatileBlock({ phase, answers, project }) },
+    ],
+    tools: [tool],
+    tool_choice: { type: "tool", name: tool.name },
+    messages: claudeMessages,
+  });
+  logUsage(auth.user.id, "idea-lab/conceptualise", response.model, response.usage, { phase: floor, brief: true });
+
+  const call = response.content.find((block) => block.type === "tool_use");
+  const turn = parseBriefTurn(call && call.type === "tool_use" ? call.input : null, { phase, floor });
+  if (!turn) {
+    console.error("Brief turn came back with nothing to say:", response.stop_reason);
+    return NextResponse.json({ response: "", phase, readyToAdvance: false }, { status: 502 });
+  }
+
+  const meta = { phase: turn.phase, readyToAdvance: turn.readyToAdvance, phaseComplete: turn.phaseComplete };
+  return new Response(turn.say + META_DELIMITER + JSON.stringify(meta), {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser();
@@ -135,6 +215,12 @@ export async function POST(request: NextRequest) {
         { response: "", phase: 1, readyToAdvance: false },
         { status: 400 }
       );
+    }
+
+    // "Build the core concept" for a project started without one: a short
+    // brief, not the full conversation. Nothing else below applies to it.
+    if (body.brief && body.projectId) {
+      return await briefTurn(auth, body.messages, body.phase, body.projectId);
     }
 
     const currentPhase = body.phase;

@@ -174,9 +174,9 @@ export function ConceptPanel({ node, projectId, conversationLog }: {
         <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0 }}>This piece started without a core concept.</p>
         <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>
           The concept is what a piece is shaped into sections from, and what Test reads the draft against.
-          It can be built any time, from what you already have.
+          It can be built any time, from a few quick questions.
         </p>
-        <Link href={`/idea-lab/core-concept?project=${projectId}`} style={{ ...canvasType.small, color: t.ember, textDecoration: 'none' }}>
+        <Link href={`/idea-lab/conceptualise?mode=brief&project=${projectId}`} style={{ ...canvasType.small, color: t.ember, textDecoration: 'none' }}>
           Build the core concept →
         </Link>
         {hasLog && conversation}

@@ -12,6 +12,7 @@ import { Thread, Composer, type ThreadMessage } from '@/components/conversation/
 import { PhaseDots } from '@/components/widgets'
 import { shell, type as typeRoles, widths } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
+import { BRIEF_HANDOFF_KEY, BRIEF_OPENING, briefStorageKey } from '@/lib/concept-brief'
 
 interface Draft {
   id: string
@@ -27,6 +28,37 @@ interface Draft {
 const PHASE_LABELS = ['First Contact', 'Expansion', 'The Audience', 'The Principle', 'Declaration']
 const PHASE_MARKER = '<phase_complete/>'
 
+interface SavedBrief {
+  messages: ThreadMessage[]
+  phase: number
+  readyToAdvance: boolean
+}
+
+// A brief begun and left (the canvas, a refresh) picks up where it was, in
+// this tab. Anything that does not look like a brief is ignored.
+function readSavedBrief(projectId: string): SavedBrief | null {
+  try {
+    const raw = sessionStorage.getItem(briefStorageKey(projectId))
+    if (!raw) return null
+    const saved = JSON.parse(raw) as Partial<SavedBrief>
+    const ok = Array.isArray(saved.messages)
+      && saved.messages.length > 0
+      && saved.messages.every((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      && typeof saved.phase === 'number' && saved.phase >= 1 && saved.phase <= PHASE_LABELS.length
+    return ok ? { messages: saved.messages!, phase: saved.phase!, readyToAdvance: saved.readyToAdvance === true } : null
+  } catch {
+    return null
+  }
+}
+
+function writeSavedBrief(projectId: string, brief: SavedBrief) {
+  try {
+    sessionStorage.setItem(briefStorageKey(projectId), JSON.stringify(brief))
+  } catch {
+    /* private window or full storage: the brief just won't survive a refresh */
+  }
+}
+
 function ConceptualiseContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,15 +69,20 @@ function ConceptualiseContent() {
   const resumeId = searchParams.get('resume')
   const bringMode = searchParams.get('mode') === 'bring'
   const checkInMode = searchParams.get('mode') === 'checkin'
+  // "Build the core concept" for a project started without one: a short brief
+  // (lib/concept-brief.ts) rather than this conversation. The person already
+  // knows the idea, so the opening question is ours, nothing is fetched, and
+  // nothing is kept as a draft: it is a minute of answers, not an exploration.
+  const briefProject = searchParams.get('mode') === 'brief' ? searchParams.get('project') : null
   // Working out another piece for a project that already exists, started from
   // that project's canvas. The conversation knows what it is joining, the
   // way back is the canvas, and the piece is added to it at the end.
-  const joiningProject = searchParams.get('project')
+  const joiningProject = briefProject ? null : searchParams.get('project')
   const standsAt = searchParams.get('at')
-  const backTo = joiningProject ? `/p/${joiningProject}` : '/idea-lab'
+  const backTo = joiningProject || briefProject ? `/p/${joiningProject || briefProject}` : '/idea-lab'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
-  const [messages, setMessages] = useState<ThreadMessage[]>([])
+  const [messages, setMessages] = useState<ThreadMessage[]>(() => (briefProject ? [{ role: 'assistant', content: BRIEF_OPENING }] : []))
   const [inputText, setInputText] = useState('')
   const inputTextRef = useRef('')
   inputTextRef.current = inputText
@@ -75,6 +112,15 @@ function ConceptualiseContent() {
   const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    if (briefProject) {
+      const saved = readSavedBrief(briefProject)
+      if (saved) {
+        setMessages(saved.messages)
+        setPhase(saved.phase)
+        setReadyToAdvance(saved.readyToAdvance)
+      }
+      return
+    }
     if (seed) {
       const seedMessage: ThreadMessage = { role: 'user', content: seed }
       setMessages([seedMessage])
@@ -149,7 +195,7 @@ function ConceptualiseContent() {
     }
     checkDraft()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed, resumeId, bringMode, checkInMode])
+  }, [seed, resumeId, bringMode, checkInMode, briefProject])
 
   useEffect(() => {
     const container = threadRef.current
@@ -187,7 +233,7 @@ function ConceptualiseContent() {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
@@ -208,7 +254,8 @@ function ConceptualiseContent() {
       const stored = meta?.phaseComplete ? `${text}\n${PHASE_MARKER}` : text
       const finalMessages: ThreadMessage[] = [...conversationHistory, { role: 'assistant', content: stored }]
       setMessages(finalMessages)
-      saveDraft(finalMessages, finalPhase, finalReadyToAdvance)
+      if (briefProject) writeSavedBrief(briefProject, { messages: finalMessages, phase: finalPhase, readyToAdvance: finalReadyToAdvance })
+      else saveDraft(finalMessages, finalPhase, finalReadyToAdvance)
     } catch (err) {
       console.error('Conceptualise error:', err)
       setError('Failed to get response. Please try again.')
@@ -257,6 +304,16 @@ function ConceptualiseContent() {
   }
 
   const handleDeclare = () => {
+    // The brief goes to the project's own core concept, in this tab. There is
+    // no draft to clear, and the piece already has its writing: nothing is
+    // carried as a brought idea.
+    if (briefProject) {
+      sessionStorage.removeItem('brought_idea')
+      sessionStorage.removeItem('bring_idea_flow')
+      sessionStorage.setItem(BRIEF_HANDOFF_KEY, JSON.stringify(messages.map((x) => ({ role: x.role, content: x.content.split(PHASE_MARKER).join('').trim() }))))
+      router.push(`/idea-lab/core-concept?project=${briefProject}&from=brief`)
+      return
+    }
     // The idea as first brought becomes the piece's starting draft.
     const firstUser = messages.find((x) => x.role === 'user')
     if (brought && firstUser) sessionStorage.setItem('brought_idea', firstUser.content)
@@ -309,7 +366,7 @@ function ConceptualiseContent() {
   return (
     <PageShell mood="ember" maxWidth={widths.conversation + 160} fill>
       <PageHeader
-        eyebrow={joiningProject ? 'A new piece' : 'Idea Lab'}
+        eyebrow={briefProject ? 'A quick brief' : joiningProject ? 'A new piece' : 'Idea Lab'}
         title="Conceptualise"
         size="md"
         back={backTo}
@@ -347,7 +404,7 @@ function ConceptualiseContent() {
             </Thread>
             {readyToAdvance && phase === 5 && !isLoading && messages.length > 0 && (
               <div>
-                <PrimaryButton onClick={handleDeclare}>Declare this idea</PrimaryButton>
+                <PrimaryButton onClick={handleDeclare}>{briefProject ? 'Build the core concept' : 'Declare this idea'}</PrimaryButton>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -361,7 +418,7 @@ function ConceptualiseContent() {
               onChange={(v) => { clearInterim(); setInputText(v) }}
               onSend={handleSend}
               disabled={isLoading}
-              placeholder={brought && messages.length === 0 ? 'Describe your idea…' : 'Share your thought…'}
+              placeholder={briefProject ? 'A line or two is plenty…' : brought && messages.length === 0 ? 'Describe your idea…' : 'Share your thought…'}
               recording={isRecording}
               onToggleRecording={handleRecordToggle}
             />
