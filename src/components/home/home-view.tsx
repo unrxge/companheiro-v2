@@ -15,7 +15,7 @@ import { ProportionBar, WeatherStrip } from '@/components/widgets'
 import { onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working } from '@/components/ui/working'
-import { tourSeenLocally } from '@/lib/tour'
+import { cleanName, tourSeenLocally } from '@/lib/tour'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 interface ActivePiece {
@@ -76,6 +76,7 @@ export function HomeView() {
   const [activePieces, setActivePieces] = useState<ActivePiece[]>(seen?.activePieces ?? [])
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
+  const [name, setName] = useState('')
   const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(seen?.counts ?? null)
 
   const [checkIns, setCheckIns] = useState<StoredCheckIn[]>([])
@@ -104,6 +105,8 @@ export function HomeView() {
       .then((r) => r.json())
       .then((d) => {
         if (d && d.onboarded === false) router.replace(d.toured === false && !tourSeenLocally() ? '/tour' : '/welcome')
+        // The name they gave on their first screen, cleaned again here in case an older, longer one was stored.
+        else setName(cleanName(d?.profile?.name))
       })
       .catch(() => {})
   }, [router])
@@ -224,12 +227,18 @@ export function HomeView() {
     <PageShell mood={mood as Mood} intensity={intensity}>
       <PageHeader
         title={
-          <span style={{ display: 'inline-block', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'inline-block', overflow: 'hidden', maxWidth: '100%', verticalAlign: 'bottom' }}>
             {greetingWords.map((word, i) => (
-              <m.span key={i} style={{ display: 'inline-block', marginRight: '0.28em' }} initial={{ y: '110%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}>
-                {word}
+              <m.span key={i} style={{ display: 'inline-block', whiteSpace: 'nowrap', marginRight: '0.28em' }} initial={{ y: '110%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}>
+                {word}{name && i === greetingWords.length - 1 ? ',' : ''}
               </m.span>
             ))}
+            {/* Their name: it moves to a line of its own where the greeting leaves no room, and a very wide one ends in an ellipsis instead of pushing the page. */}
+            {name && (
+              <m.span key={name} title={name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }} initial={{ y: '110%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, delay: 0.1, ease: [0.33, 1, 0.68, 1] }}>
+                {name}
+              </m.span>
+            )}
           </span>
         }
         actions={<SettingsButton />}

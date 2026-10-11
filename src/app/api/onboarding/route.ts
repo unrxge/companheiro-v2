@@ -8,7 +8,7 @@ import { withLanguage } from '@/lib/language'
 import { streamClaudeText } from '@/lib/streaming'
 import { customKey, type CustomSlot } from '@/lib/territories'
 import { logUsage } from '@/lib/usage-log'
-import { ageFrom, MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
+import { ageFrom, cleanName, MAX_PRACTICES, MIN_AGE, PRACTICE_KEYS, type Practice, type TourProfile } from '@/lib/tour'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -165,7 +165,7 @@ export async function PUT(request: NextRequest) {
 function cleanProfile(raw: unknown): TourProfile | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
-  const name = typeof r.name === 'string' ? r.name.trim().slice(0, 60) : ''
+  const name = cleanName(r.name)
   const birthdate = typeof r.birthdate === 'string' ? r.birthdate : ''
   const age = ageFrom(birthdate)
   if (!name || !(age >= MIN_AGE && age <= 120)) return null

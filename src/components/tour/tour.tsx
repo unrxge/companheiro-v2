@@ -24,7 +24,7 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
-import { ageFrom, GENERAL_QUESTIONS, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
+import { ageFrom, cleanName, GENERAL_QUESTIONS, MAX_NAME, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
 import { tourCopy } from './copy'
 import { slidesFor, type TourSlide } from './slides'
 
@@ -88,7 +88,7 @@ export function Tour({
   const [slideMood, setSlideMood] = useState<Hue>('violet')
   const mood: Hue = stage === 'tour' ? slideMood : stage === 'practice' ? 'violet' : 'tide'
   const practices = answered ? work.practices : saved?.practices ?? []
-  const calledName = answered ? name.trim() : saved?.name ?? ''
+  const calledName = answered ? cleanName(name) : saved?.name ?? ''
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col overflow-hidden" style={{ background: shell.ink, fontFamily: fonts.ui }}>
@@ -116,7 +116,7 @@ export function Tour({
       {stage === 'who' && <WhoStep name={name} born={born} onName={setName} onBorn={setBorn} onNext={() => setStage('practice')} />}
       {stage === 'practice' && (
         <PracticeStep
-          name={name.trim()}
+          name={cleanName(name)}
           work={work}
           onWork={setWork}
           onBack={() => setStage('who')}
@@ -124,7 +124,7 @@ export function Tour({
             const next = { ...work, other: work.other.trim(), themes }
             setWork(next)
             setAnswered(true)
-            onAnswered?.({ name: name.trim(), birthdate: dateOf(born), practices: next.practices, other: next.other }, themes)
+            onAnswered?.({ name: cleanName(name), birthdate: dateOf(born), practices: next.practices, other: next.other }, themes)
             setStage('tour')
           }}
         />
@@ -247,7 +247,7 @@ function WhoStep({ name, born, onName, onBorn, onNext }: { name: string; born: B
   const age = date ? ageFrom(date) : NaN
   const unreal = !!date && Number.isNaN(age)
   const tooYoung = age < MIN_AGE
-  const ready = name.trim().length > 0 && age >= MIN_AGE && age <= 120
+  const ready = cleanName(name).length > 0 && age >= MIN_AGE && age <= 120
   const submit = () => { if (ready) onNext() }
   const fade = 'linear-gradient(to bottom, transparent 0%, #000 34%, #000 66%, transparent 100%)'
   return (
@@ -263,7 +263,7 @@ function WhoStep({ name, born, onName, onBorn, onNext }: { name: string; born: B
           <div className="flex flex-col gap-6">
             <div>
               <Eyebrow style={{ marginBottom: 8 }}>Your first name</Eyebrow>
-              <TextField value={name} onChange={(v) => onName(v.slice(0, 60))} ariaLabel="Your first name" autoComplete="given-name" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') submit() }} />
+              <TextField value={name} onChange={(v) => onName(Array.from(v.replace(/\s+/g, ' ').trimStart()).slice(0, MAX_NAME).join(''))} ariaLabel="Your first name" autoComplete="given-name" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') submit() }} />
             </div>
             <div>
               <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 8 }}>

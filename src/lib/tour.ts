@@ -68,6 +68,17 @@ export const GENERAL_QUESTIONS = [
   'Which piece have you been saving for the day you’re good enough, and what if that day was today?',
 ]
 
+/** As long as a first name is allowed to be: enough for a double name, short enough to sit in Home's greeting. */
+export const MAX_NAME = 24
+
+/** A name as it is kept and shown: one line, single spaces, nothing invisible, never longer than MAX_NAME. */
+export function cleanName(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const one = raw.replace(/[\u0000-\u001f\u007f\u200b-\u200f\u2028-\u202f\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()
+  // By whole characters, so an accent or an emoji is never cut in half.
+  return Array.from(one).slice(0, MAX_NAME).join('').trim()
+}
+
 export interface TourProfile {
   name: string
   /** YYYY-MM-DD. */
