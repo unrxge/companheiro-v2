@@ -5,6 +5,7 @@
 // looked at and laid out with nobody's data.
 import { PeopleView, type PeopleSource } from '@/components/admin/people-view'
 import { projectStories, summarise, writingByDay, type Rows } from '@/lib/ops/people'
+import { personMoney } from '@/lib/ops/money'
 
 const at = (daysAgo: number, hour = 10) => new Date(Date.now() - daysAgo * 86_400_000 + hour * 3_600_000).toISOString()
 const dateOf = (daysAgo: number) => at(daysAgo).slice(0, 10)
@@ -63,16 +64,26 @@ const TOMAS: Rows = {
   writing_activity: [],
 }
 
+const PRICES = { prices: { practice: { monthly: 9, yearly: 90 }, direction: { monthly: 29, yearly: 290 } }, netFactor: 0.75, eurPerUsd: 0.86 }
+const MONEY: Record<string, ReturnType<typeof personMoney>> = {
+  ana: personMoney(
+    [{ kind: 'subscribed', tier: 'direction', billing_interval: 'month', created_at: at(34) }],
+    Array.from({ length: 140 }, (_, i) => ({ created_at: at(i % 40), cost_micros: 30_000 + ((i * 37) % 9) * 14_000 })),
+    PRICES,
+  ),
+  tomas: personMoney([], Array.from({ length: 9 }, (_, i) => ({ created_at: at(i % 8), cost_micros: 21_000 })), PRICES),
+}
+
 const PEOPLE = [
   { account: { id: 'ana', email: 'ana@example.com', joined: at(41), name: 'Ana', practices: ['writer', 'director'], status: 'active', tier: 'direction' }, rows: ANA },
   { account: { id: 'tomas', email: 'tomas@example.com', joined: at(8), name: '', practices: ['songwriter'], status: 'trialing', tier: null }, rows: TOMAS },
 ]
 
 const source: PeopleSource = {
-  list: async () => ({ people: PEOPLE.map((p) => summarise(p.account, p.rows)), switchedOff: 1, notYetTold: 2 }),
+  list: async () => ({ people: PEOPLE.map((p) => ({ ...summarise(p.account, p.rows), money: MONEY[p.account.id] })), switchedOff: 1, notYetTold: 2 }),
   person: async (id) => {
     const p = PEOPLE.find((x) => x.account.id === id)!
-    return { person: summarise(p.account, p.rows), projects: projectStories(p.rows), writing: writingByDay(p.rows) }
+    return { person: { ...summarise(p.account, p.rows), money: MONEY[id] }, projects: projectStories(p.rows), writing: writingByDay(p.rows) }
   },
 }
 

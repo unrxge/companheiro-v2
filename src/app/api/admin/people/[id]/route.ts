@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '@/lib/supabase/admin'
-import { requireAdmin } from '@/lib/ops/admin'
+import { moneyConfig, requireAdmin } from '@/lib/ops/admin'
+import { currentEnv } from '@/lib/ops/ai-calls'
+import { personMoney } from '@/lib/ops/money'
 import { sharesAnalytics } from '@/lib/usage-analytics'
 import { projectStories, summarise, writingByDay } from '@/lib/ops/people'
-import { accountsFor, personRows } from '@/lib/ops/people-db'
+import { accountsFor, moneyRows, personRows } from '@/lib/ops/people-db'
 
 /**
  * GET /api/admin/people/[id] — one person's usage analytics: each of their
@@ -23,9 +25,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const { data } = await db.auth.admin.getUserById(id)
     if (!data?.user || !sharesAnalytics(data.user.user_metadata)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const [[account], rows] = await Promise.all([accountsFor(db, [data.user]), personRows(db, id)])
+    const [[account], rows, { calls, events }] = await Promise.all([accountsFor(db, [data.user]), personRows(db, id), moneyRows(db, [id], currentEnv())])
     return NextResponse.json({
-      person: summarise(account, rows),
+      person: { ...summarise(account, rows), money: personMoney(events.get(id) ?? [], calls.get(id) ?? [], moneyConfig()) },
       projects: projectStories(rows),
       writing: writingByDay(rows),
     })

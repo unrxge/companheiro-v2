@@ -2,6 +2,7 @@
 // columns from COLUMNS in ./people.ts, which holds no written words.
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { COLUMNS, type Account, type Rows, type Table } from './people'
+import type { BillingEvent, Call } from './money'
 
 const PAGE = 1000
 
@@ -66,4 +67,25 @@ export async function accountsFor(db: SupabaseClient, users: User[]): Promise<Ac
     status: sub.get(u.id)?.status ?? null,
     tier: sub.get(u.id)?.tier ?? null,
   }))
+}
+
+/**
+ * What each of these people's companion calls cost, and their plan changes:
+ * numbers and dates about the account, for lib/ops/money.ts. Only calls made
+ * in this environment count (the lab's database also holds none of live's).
+ */
+export async function moneyRows(db: SupabaseClient, userIds: string[], env: string): Promise<{ calls: Map<string, Call[]>; events: Map<string, BillingEvent[]> }> {
+  const calls = new Map<string, Call[]>()
+  const events = new Map<string, BillingEvent[]>()
+  if (!userIds.length) return { calls, events }
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db.from('ai_calls').select('user_id, cost_micros, created_at').in('user_id', userIds).eq('env', env).order('id').range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const r of data ?? []) calls.set(r.user_id, [...(calls.get(r.user_id) ?? []), { cost_micros: Number(r.cost_micros), created_at: r.created_at }])
+    if ((data ?? []).length < PAGE) break
+  }
+  const { data, error } = await db.from('billing_events').select('user_id, kind, tier, billing_interval, created_at').in('user_id', userIds).order('id')
+  if (error) throw error
+  for (const r of data ?? []) events.set(r.user_id, [...(events.get(r.user_id) ?? []), r])
+  return { calls, events }
 }

@@ -68,7 +68,7 @@ export default function PrivacyPage() {
         project finished), how many of each thing a project has (pieces, parts, threads, tasks, anchor lines, images, recordings, changes to its core
         concept, checks of its rules, reflections after posting), how many words its pieces hold, how many times you have talked with the companion about
         a project, and how many minutes you wrote on a given day. This is shown beside your name, email address, plan and the practices you chose when
-        you joined.
+        you joined, together with what the AI processing for your account has cost and roughly what your plan has paid (see Billing and usage below).
       </p>
       <p>
         It never includes anything you wrote: no title, no text of a concept, piece, thread, task or conversation, and no image or recording. It includes

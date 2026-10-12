@@ -28,6 +28,8 @@ const ago = (iso: string | null) => {
   const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000)
   return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days} days ago` : day(iso)
 }
+const usd = (v: number) => (v === 0 ? '$0' : v >= 100 ? `$${v.toFixed(0)}` : v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`)
+const eur = (v: number) => `${v < 0 ? '−' : ''}€${Math.abs(v) >= 100 ? Math.abs(v).toFixed(0) : Math.abs(v).toFixed(2)}`
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 const PRACTICE: Record<string, string> = { writer: 'Writer', songwriter: 'Songwriter', cinematographer: 'Cinematographer', creator: 'Content creator', client: 'Client projects', director: 'Creative director' }
 const SHELF = { queued: 'In the queue', active: 'Active', completed: 'Completed' } as const
@@ -119,6 +121,11 @@ export function PeopleView({ source }: { source: PeopleSource }) {
                       {p.projects.completed > 0 && ` · ${p.projects.completed} finished`}
                     </span>
                     <span className="block text-[11px]" style={muted}>Last at work {ago(p.lastActive)}</span>
+                    {p.money && (
+                      <span className="mt-1 block text-[11px] tabular-nums" style={muted}>
+                        Cost {usd(p.money.costUsd)} · worth {eur(p.money.valueEur)} so far
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -176,6 +183,23 @@ function Person({ data }: { data: PersonData }) {
           <Spark values={writing.map((w) => w.minutes)} width={150} />
         </Tile>
       </div>
+
+      {p.money && (
+        <section className="mt-6">
+          <h3 className="text-sm font-semibold">What they cost and bring in</h3>
+          <p className="mt-0.5 text-xs" style={muted}>
+            Cost is exact, in dollars as billed. Income is estimated from their plan at list price; net is after tax and Stripe’s fees.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Tile label="Companion cost" value={usd(p.money.costUsd)} sub={`${p.money.calls.toLocaleString()} calls · ${usd(p.money.cost30Usd)} in the last 30 days`}>
+              {p.money.costByMonth.length > 1 && <Spark values={p.money.costByMonth.map((c) => c.usd)} width={150} color="var(--s2)" />}
+            </Tile>
+            <Tile label="Cost per month" value={usd(p.money.costPerMonthUsd)} sub="on average, since their first call" />
+            <Tile label="Paid so far" value={`about ${eur(p.money.paidEur)}`} sub={p.money.paidEur > 0 ? `${eur(p.money.netEur)} net · ${plural(p.money.monthsPaying, 'month')} on a plan${p.money.paying ? '' : ' · not paying now'}` : 'never on a paid plan'} />
+            <Tile label="Lifetime value so far" value={eur(p.money.valueEur)} sub="net income less their cost" />
+          </div>
+        </section>
+      )}
 
       {projects.length > 0 && (
         <section className="mt-6">

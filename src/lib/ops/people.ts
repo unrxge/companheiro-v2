@@ -49,6 +49,8 @@ export interface PersonSummary {
   /** Days with writing in the last 30, and the minutes written on them. */
   writingDays: number
   writingMinutes: number
+  /** What they have cost and brought in (lib/ops/money.ts). Added by the routes. */
+  money?: import('./money').PersonMoney
 }
 
 export interface Account {

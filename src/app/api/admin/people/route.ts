@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '@/lib/supabase/admin'
-import { requireAdmin } from '@/lib/ops/admin'
+import { moneyConfig, requireAdmin } from '@/lib/ops/admin'
+import { currentEnv } from '@/lib/ops/ai-calls'
+import { personMoney } from '@/lib/ops/money'
 import { analyticsChoiceOf, sharesAnalytics } from '@/lib/usage-analytics'
 import { summarise } from '@/lib/ops/people'
-import { accountsFor, everyUser, listRows } from '@/lib/ops/people-db'
+import { accountsFor, everyUser, listRows, moneyRows } from '@/lib/ops/people-db'
 
 /**
  * GET /api/admin/people — usage analytics, one line per person who shares
  * them: their plan, how many projects sit where, when they were last at
- * work, how often they have written this month. Owner only. Someone who
+ * work, how often they have written this month, and what they have cost
+ * and brought in. Owner only. Someone who
  * has switched analytics off, or has not yet been told about them, is not in
  * the list; they are only counted, so the totals add up.
  */
@@ -27,8 +30,10 @@ export async function GET() {
       studio_projects: (rows.studio_projects ?? []).filter((r) => r.user_id === id),
       writing_activity: (rows.writing_activity ?? []).filter((r) => r.user_id === id),
     })
+    const { calls, events } = await moneyRows(db, sharing.map((u) => u.id), currentEnv())
+    const prices = moneyConfig()
     const people = accounts
-      .map((a) => summarise(a, of(a.id)))
+      .map((a) => ({ ...summarise(a, of(a.id)), money: personMoney(events.get(a.id) ?? [], calls.get(a.id) ?? [], prices) }))
       .sort((a, b) => (b.lastActive ?? b.joined).localeCompare(a.lastActive ?? a.joined))
     return NextResponse.json({
       people,
