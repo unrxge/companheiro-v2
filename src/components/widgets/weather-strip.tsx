@@ -21,15 +21,14 @@ export interface WeatherDay {
   checkIns?: CheckInRecord[]
 }
 
-/** Fallback energy ratios when durationProxy is absent (legacy data). */
-const ENERGY_H: Record<Energy, number> = { low: 0.32, medium: 0.62, high: 0.92 }
+/** Stand-in length (in messages) for a record with no conversation, by energy. Only the design page and legacy rows use it. */
+const ENERGY_WEIGHT: Record<Energy, number> = { low: 4, medium: 8, high: 12 }
 const WRITING_MIN_H = 0.2
 const WRITING_MAX_H = 0.58
 const WRITING_CAP_MIN = 90
-/** Max stacked slots — multi-check-in days divide available height by this. */
-const MAX_SLOTS = 3
 /** Gap in px between stacked blocks. */
 const BLOCK_GAP = 2
+const MIN_BLOCK_PX = 3
 
 function formatMinutes(min: number): string {
   if (min < 60) return `${min}m`
@@ -40,9 +39,10 @@ function formatMinutes(min: number): string {
 
 /**
  * Check-in signals over time.
- * Days with multiple check-ins render as stacked blocks that tower over
- * single-entry days. Height per block is driven by energy; colour by arc.
- * Hover reveals all entries for that day.
+ * Each check-in is one block. Height is how long the conversation ran, on one
+ * scale shared by every day (the tallest day fills the strip), so the same
+ * session is the same height whether it stood alone or shared a day; a day with
+ * several check-ins stacks them. Colour is the movement. Hover reveals them.
  */
 export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay[]; height?: number; onSelect?: (d: WeatherDay) => void }) {
   const { t } = useTheme()
@@ -65,8 +65,22 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
     if (touch.was === touch.i) onSelect?.(days[touch.i])
   }
 
-  // Per-slot height for multi-check-in days (single-check-in days use full height)
-  const multiSlotH = (height - BLOCK_GAP * (MAX_SLOTS - 1)) / MAX_SLOTS
+  // One scale for the whole strip: pixels per message, set by whichever day
+  // needs the most room (its blocks plus the gaps between them), so every
+  // other day is drawn on exactly the same ruler.
+  const recordsFor = (d: WeatherDay): CheckInRecord[] | undefined =>
+    d.checkIns ??
+    (d.energy && d.arc
+      ? [{ energy: d.energy, arc: d.arc, weather: d.weather ?? null, entry: d.entry ?? null, time: '', messages: 0, weight: ENERGY_WEIGHT[d.energy] }]
+      : undefined)
+  let pxPerWeight = Infinity
+  for (const d of days) {
+    const rs = recordsFor(d)
+    if (!rs || rs.length === 0) continue
+    const total = rs.reduce((sum, r) => sum + r.weight, 0)
+    pxPerWeight = Math.min(pxPerWeight, (height - BLOCK_GAP * (rs.length - 1)) / total)
+  }
+  if (!Number.isFinite(pxPerWeight)) pxPerWeight = 0
 
   return (
     <div>
@@ -83,12 +97,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
         aria-label={`${days.length} days of check-in weather`}
       >
         {days.map((d, i) => {
-          // Fall back: if checkIns not populated but energy/arc are set, synthesise a single record
-          const cis: CheckInRecord[] | undefined =
-            d.checkIns ??
-            (d.energy && d.arc
-              ? [{ energy: d.energy, arc: d.arc, weather: d.weather ?? null, entry: d.entry ?? null, time: '', durationProxy: ENERGY_H[d.energy] }]
-              : undefined)
+          const cis = recordsFor(d)
           const empty = !cis || cis.length === 0
           const minutes = d.writingMinutes ?? 0
           const wroteOnly = empty && minutes >= 1
@@ -156,10 +165,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
               }}
             >
               {cis.map((ci, j) => {
-                // Single check-in: full strip height available; multi: divided into slots
-                const availH = cis.length === 1 ? height : multiSlotH
-                const proxy = ci.durationProxy ?? ENERGY_H[ci.energy]
-                const blockH = Math.round(proxy * availH)
+                const blockH = Math.max(MIN_BLOCK_PX, Math.round(ci.weight * pxPerWeight))
                 const isTop = j === cis.length - 1
                 return (
                   <div
@@ -188,14 +194,14 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
               <span style={{ color: t.textMuted }}>{active.date}</span>
               <span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 14, color: t.textPrimary }}>{active.checkIns[0].weather || active.checkIns[0].arc}</span>
               <span style={{ color: t[arcHue[active.checkIns[0].arc]] }}>{active.checkIns[0].arc}</span>
-              <span style={{ color: t.textMuted }}>· {active.checkIns[0].energy} energy</span>
+              <span style={{ color: t.textMuted }}>· {active.checkIns[0].energy} energy{active.checkIns[0].messages > 0 ? ` · ${active.checkIns[0].messages} messages` : ''}</span>
             </>
           ) : (
             <>
               <span style={{ color: t.textMuted }}>{active.date}</span>
               <span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 14, color: t.textPrimary }}>{active.checkIns.length} check-ins</span>
               {active.checkIns.map((ci, j) => (
-                <span key={j} style={{ color: t[arcHue[ci.arc]] }}>{ci.time} · {ci.energy}</span>
+                <span key={j} style={{ color: t[arcHue[ci.arc]] }}>{ci.time} · {ci.energy}{ci.messages > 0 ? ` · ${ci.messages} messages` : ''}</span>
               ))}
             </>
           )
@@ -208,7 +214,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
         ) : active ? (
           <span style={{ color: t.textMuted }}>{active.date} · no check-in</span>
         ) : (
-          <span style={{ color: t.textMuted }}>Height is energy, colour is movement. Stacked blocks mean multiple check-ins that day.</span>
+          <span style={{ color: t.textMuted }}>Height is how long the check-in ran, colour is movement. Stacked blocks are separate check-ins that day.</span>
         )}
       </div>
     </div>
