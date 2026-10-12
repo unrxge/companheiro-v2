@@ -39,6 +39,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const confirm = useConfirm()
   const [settings, setSettings] = useState<UserSettings>({ dictation_lang: null, sunday_letter: false, onboarded_at: null })
   const [email, setEmail] = useState<string | null>(null)
+  // On unless they switch it off; null until the answer arrives, so the switch never shows a guess.
+  const [analytics, setAnalytics] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +51,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
       .then((d) => {
         if (d.settings) setSettings(d.settings)
         if (d.email) setEmail(d.email)
+        if (d.usage_analytics) setAnalytics(d.usage_analytics.on !== false)
       })
       .catch(() => {})
   }, [])
@@ -59,6 +62,16 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     setSaving(true)
     try {
       await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const shareAnalytics = async (on: boolean) => {
+    setAnalytics(on)
+    setSaving(true)
+    try {
+      await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usage_analytics: on }) })
     } finally {
       setSaving(false)
     }
@@ -175,6 +188,22 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               <div style={hint}>Everything you own, as one JSON file.</div>
             </div>
             <GhostButton href="/api/account" size="sm">Export</GhostButton>
+          </div>
+          <Divider />
+          {/* Wraps like the dictation row: the words need the width on a phone. */}
+          <div style={{ ...row, flexWrap: 'wrap', gap: '10px 16px' }}>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div style={label}>Share usage analytics</div>
+              <div style={hint}>
+                Which parts of your projects you use, and when: dates, counts and stages. Never what you write, and nothing from your check-ins.{' '}
+                <a href="/privacy#analytics" target="_blank" rel="noopener noreferrer" style={{ color: t.textSecondary, textDecoration: 'underline', textUnderlineOffset: 3 }}>What this covers</a>
+              </div>
+            </div>
+            {analytics !== null && (
+              <Pill hue={analytics ? 'verdant' : 'neutral'} selected={analytics} onClick={() => shareAnalytics(!analytics)} size="md">
+                {analytics ? 'On' : 'Off'}
+              </Pill>
+            )}
           </div>
           <Divider />
           <div style={row}>

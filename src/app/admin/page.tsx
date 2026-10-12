@@ -82,7 +82,9 @@ export default function AdminPage() {
               {data ? `Updated ${new Date(data.generated_at).toLocaleString()} · AI cost in dollars as billed · revenue is estimated, converted from euros at €${data.money.eurPerUsd} per $1` : 'Loading…'}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            {/* Usage analytics, a person at a time. */}
+            <a href="/admin/people" className="rounded-full px-3 py-1 text-xs" style={{ border: '1px solid var(--ops-line)', color: 'var(--ops-text-2)' }}>People →</a>
             <Toggle value={String(days)} options={['7', '30', '90']} suffix="d" onChange={(v) => setDays(Number(v))} />
             <Toggle value={env} options={['production', 'preview', 'development', 'script']} onChange={setEnv} />
           </div>

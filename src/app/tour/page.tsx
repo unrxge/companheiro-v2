@@ -65,6 +65,17 @@ export default function TourPage() {
     }
   }, [save])
 
+  // The last slide names usage analytics and carries their switch: `null` when it is
+  // first shown (they have been told, and it stays on), then whatever they choose.
+  const analytics = useCallback((on: boolean | null) => {
+    fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify(on === null ? { usage_analytics_told: true } : { usage_analytics: on }),
+    }).catch(() => {})
+  }, [])
+
   const leave = useCallback(async () => {
     markTourSeen()
     if (!saving.current) { router.replace('/home'); return }
@@ -82,5 +93,5 @@ export default function TourPage() {
     setError('Your answers could not be saved. Check your connection and try again.')
   }, [router, save])
 
-  return <Tour firstRun={firstRun} profile={profile} questions={questions} leaving={leaving} error={error} onAnswered={answered} onLeave={leave} />
+  return <Tour firstRun={firstRun} profile={profile} questions={questions} leaving={leaving} error={error} onAnswered={answered} onLeave={leave} onAnalytics={analytics} />
 }

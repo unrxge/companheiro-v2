@@ -55,6 +55,7 @@ export function Tour({
   questions = null,
   onAnswered,
   onLeave,
+  onAnalytics,
 }: {
   /** A new account: ask before showing round. Null while that is still unknown. */
   firstRun: boolean | null
@@ -68,6 +69,12 @@ export function Tour({
   questions?: Record<string, string[]> | null
   onAnswered?: (profile: TourProfile, themes: string[]) => void
   onLeave: () => void
+  /**
+   * A new account reached the last slide, where usage analytics are named and
+   * can be switched off: called with `null` when the slide is first shown,
+   * then with their choice each time they change it.
+   */
+  onAnalytics?: (on: boolean | null) => void
 }) {
   const [stage, setStage] = useState<Stage | null>(null)
   // Their answers live here, so going back to a question finds it as they left it.
@@ -143,6 +150,7 @@ export function Tour({
           error={error}
           onMood={setSlideMood}
           onLeave={onLeave}
+          onAnalytics={firstRun ? onAnalytics : undefined}
           onQuestions={firstRun ? () => setStage('practice') : undefined}
         />
       )}
@@ -406,7 +414,7 @@ function BackArrow() {
 // ── The tour: four parts chosen for them, then the rest by name ─────────────
 
 /** The last slide's visual: what else is inside, and the themes they gave. */
-function AlsoInside({ rest, themes }: { rest: TourSlide[]; themes: string[] }) {
+function AlsoInside({ rest, themes, analytics }: { rest: TourSlide[]; themes: string[]; analytics?: { on: boolean; set: (on: boolean) => void } }) {
   const { t } = useTheme()
   return (
     <Container padding={12}>
@@ -424,12 +432,24 @@ function AlsoInside({ rest, themes }: { rest: TourSlide[]; themes: string[] }) {
           {themes.map((th, i) => <Pill key={th} hue={THEME_HUES[i % THEME_HUES.length]}>{th}</Pill>)}
         </div>
       )}
+      {/* The one thing to know before beginning: usage analytics are on, what they are, and the switch. The same switch is in Settings. */}
+      {analytics && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1.5 pb-1.5 pt-3.5" style={{ borderTop: themes.length > 0 ? `1px solid ${t.divider}` : 'none', marginTop: themes.length > 0 ? 10 : 0 }}>
+          <p className="min-w-0 flex-[1_1_220px]" style={{ ...typeRoles.small, fontSize: 12, color: t.textSecondary }}>
+            <span style={{ color: t.textPrimary, fontWeight: 500 }}>Share usage analytics.</span>{' '}
+            Which parts of your projects you use, and when. Never what you write, and nothing from your check-ins.
+          </p>
+          <Pill hue={analytics.on ? 'verdant' : 'neutral'} selected={analytics.on} onClick={() => analytics.set(!analytics.on)} size="md">
+            {analytics.on ? 'On' : 'Off'}
+          </Pill>
+        </div>
+      )}
     </Container>
   )
 }
 
 function Carousel({
-  firstRun, name, practices, themes, questions, leaving, error, onMood, onLeave, onQuestions,
+  firstRun, name, practices, themes, questions, leaving, error, onMood, onLeave, onAnalytics, onQuestions,
 }: {
   firstRun: boolean
   name: string
@@ -440,6 +460,7 @@ function Carousel({
   error: string | null
   onMood: (m: Hue) => void
   onLeave: () => void
+  onAnalytics?: (on: boolean | null) => void
   /** Back from the first slide, to the questions before the tour. */
   onQuestions?: () => void
 }) {
@@ -450,6 +471,14 @@ function Carousel({
   // The parts chosen for them, then one more that names the rest.
   const count = shown.length + 1
   const last = index === count - 1
+  // Usage analytics: on unless they say otherwise here. Arriving at the slide counts as having been told.
+  const [share, setShare] = useState(true)
+  const toldOnce = useRef(false)
+  useEffect(() => {
+    if (!last || !onAnalytics || toldOnce.current) return
+    toldOnce.current = true
+    onAnalytics(null)
+  }, [last, onAnalytics])
   // How many times each slide has come up: its widget's key, so it plays from the start on every arrival.
   const [runs, setRuns] = useState(() => Array.from({ length: count }, () => 0))
   // Their themes, each with the questions written for it (null until they arrive).
@@ -533,7 +562,7 @@ function Carousel({
                   {!s && <p className={LEDE} style={{ ...LEDE_STYLE, color: shell.text }}>Ready to begin?</p>}
                 </div>
                 <div className="w-full">
-                  {s ? <s.Widget key={runs[i]} active={i === index} own={s.id === 'idea' ? own : undefined} /> : <AlsoInside rest={rest} themes={themes} />}
+                  {s ? <s.Widget key={runs[i]} active={i === index} own={s.id === 'idea' ? own : undefined} /> : <AlsoInside rest={rest} themes={themes} analytics={onAnalytics ? { on: share, set: (on) => { setShare(on); onAnalytics(on) } } : undefined} />}
                 </div>
               </div>
             </section>

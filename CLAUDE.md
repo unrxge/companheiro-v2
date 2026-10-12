@@ -97,6 +97,17 @@ Two copies of the app, so work in progress never reaches the people using it.
 
 ---
 
+## Usage analytics
+
+What the maker can see about how people use the app: `/admin/people` (owner only, linked from `/admin`). Decided with the person on 2026-10-12; the limits below are theirs and are also what the Privacy Policy (`#analytics`) tells users.
+
+- **What it is:** per person, which parts of the *project* side they use and how each project came to be: dates, counts, stages, words as a number. Projects are "Project 1, 2, 3", never their titles.
+- **What it never is:** anything a person wrote (no title, text, conversation, image or recording), and nothing at all from check-ins, captures, ideas, the Portrait or letters. Every column read is named in `COLUMNS` in `src/lib/ops/people.ts`; a test fails if a column that holds words is added, or a table outside the project side. Do not add a view that shows content here. Opening an account "as them" was considered and set aside: it would need each person's own plainly worded yes, never a default and never the word "analytics".
+- **Who is shown:** `sharesAnalytics()` in `src/lib/usage-analytics.ts`. On unless switched off (Settings → Share usage analytics), and never before the person has been told: they signed up under a Privacy Policy that describes it (`LEGAL_VERSION` ≥ `ANALYTICS_POLICY_VERSION`), reached the tour's last slide, or answered the one-time card on Home (`components/home/analytics-notice.tsx`). The choice lives in the auth user's metadata (`usage_analytics`), beside `consent`; no table.
+- **Preview without an account:** `/dev/people` (made-up people through the real code).
+
+---
+
 ## Code Structure
 
 ### Authentication & Authorization

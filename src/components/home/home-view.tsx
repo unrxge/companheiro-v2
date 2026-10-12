@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
+import { AnalyticsNotice } from '@/components/home/analytics-notice'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
 import { QuietButton, GhostButton, PrimaryButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
@@ -245,6 +246,8 @@ export function HomeView() {
       />
 
       <Container>
+        {/* Once, for accounts older than usage analytics: what they are, and the choice. */}
+        <AnalyticsNotice />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left column */}
           <div className="md:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

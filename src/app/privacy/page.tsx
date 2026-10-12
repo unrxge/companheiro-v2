@@ -61,6 +61,25 @@ export default function PrivacyPage() {
         concerned or your whole account, or simply by not writing about your health. Companheiro is not a medical or therapeutic
         service (see <A href="/terms#not-therapy">our Terms</A>).
       </p>
+      <H3 id="analytics">Usage analytics</H3>
+      <p>
+        Companheiro is made by one person. To learn how it is working for people, the maker can see how each account uses the project side of the app:
+        how many projects there are and where each one stands, the dates things happened (a project started, its core concept written, a piece added, a
+        project finished), how many of each thing a project has (pieces, parts, threads, tasks, anchor lines, images, recordings, changes to its core
+        concept, checks of its rules, reflections after posting), how many words its pieces hold, how many times you have talked with the companion about
+        a project, and how many minutes you wrote on a given day. This is shown beside your name, email address, plan and the practices you chose when
+        you joined.
+      </p>
+      <p>
+        It never includes anything you wrote: no title, no text of a concept, piece, thread, task or conversation, and no image or recording. It includes
+        nothing at all from your check-ins, captures, ideas, Portrait or letters. It is worked out on our own servers from what is already stored in your
+        account; no tracking script runs in your browser and nothing is sent to an analytics company.
+      </p>
+      <p>
+        Usage analytics are on unless you switch them off: Settings → Share usage analytics. Switch them off and your account is no longer shown to the
+        maker in this way, straight away. If your account is older than this section, nothing of yours is shown until you have seen a notice about it in
+        the app.
+      </p>
       <H3>Billing and usage</H3>
       <UL>
         <li>Your plan, trial dates and subscription status, and the Stripe customer reference that links your account to your payments.</li>
@@ -76,7 +95,8 @@ export default function PrivacyPage() {
       <H3>Technical data</H3>
       <p>
         Our hosting provider records standard server logs (IP address, browser type, the page requested, time, errors) to keep the service running and
-        secure. We run no analytics, advertising or tracking scripts.
+        secure. We run no analytics, advertising or tracking scripts in your browser; the usage analytics described above are worked out from your
+        account on our own servers.
       </p>
 
       <H2 id="why">Why we use it, and our legal basis</H2>
@@ -91,6 +111,10 @@ export default function PrivacyPage() {
         <li>
           <strong>To keep the service secure, fair and affordable</strong> (legitimate interests): preventing abuse and repeated free trials, fair-use limits,
           fixing faults, understanding which channels bring people here.
+        </li>
+        <li>
+          <strong>To understand how the app is used and improve it</strong> (legitimate interests): the <A href="#analytics">usage analytics</A> described
+          above, which hold no content and which you can switch off in Settings at any time.
         </li>
         <li>
           <strong>To meet legal obligations</strong>: for example keeping records, or responding to a lawful request.
@@ -175,7 +199,8 @@ export default function PrivacyPage() {
           <strong>Correct</strong> anything, by editing it in the app or asking us.
         </li>
         <li>
-          <strong>Withdraw consent</strong>, object to processing based on legitimate interests, or ask us to restrict processing.
+          <strong>Withdraw consent</strong>, object to processing based on legitimate interests, or ask us to restrict processing. For usage analytics
+          the switch in Settings does this by itself.
         </li>
         <li>
           <strong>Complain</strong> to a data protection authority. In the UK that is the{' '}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
+import { analyticsChoiceOf } from '@/lib/usage-analytics'
 
 interface Settings {
   dictation_lang: string | null
@@ -19,7 +20,8 @@ export async function GET() {
       .select('dictation_lang, sunday_letter, onboarded_at')
       .eq('user_id', user.id)
       .maybeSingle()
-    return NextResponse.json({ settings: { ...EMPTY, ...(data ?? {}) }, email: user.email ?? null })
+    // Usage analytics: on unless switched off, and whether they have been told it exists (lib/usage-analytics.ts).
+    return NextResponse.json({ settings: { ...EMPTY, ...(data ?? {}) }, email: user.email ?? null, usage_analytics: analyticsChoiceOf(user.user_metadata) })
   } catch (error) {
     console.error('settings GET error:', error)
     return NextResponse.json({ settings: EMPTY }, { status: 500 })
@@ -31,7 +33,28 @@ export async function PUT(request: NextRequest) {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ success: false }, { status: 401 })
     const { supabase, user } = auth
-    const body: Partial<Settings> = await request.json()
+    const body: Partial<Settings> & { usage_analytics?: boolean; usage_analytics_told?: boolean } = await request.json()
+
+    // The usage analytics choice lives on the account itself, beside the record
+    // of which Terms they agreed to. Choosing either way also means they have
+    // been told; `usage_analytics_told` alone records that they saw the notice
+    // and left it on.
+    const choice = analyticsChoiceOf(user.user_metadata)
+    if (typeof body.usage_analytics === 'boolean' || (body.usage_analytics_told === true && !choice.told)) {
+      const now = new Date().toISOString()
+      const kept = (user.user_metadata?.usage_analytics ?? {}) as Record<string, unknown>
+      const next = typeof body.usage_analytics === 'boolean'
+        ? { ...kept, on: body.usage_analytics, told_at: kept.told_at ?? now, changed_at: now }
+        : { ...kept, on: choice.on, told_at: now }
+      const { error } = await supabase.auth.updateUser({ data: { usage_analytics: next } })
+      if (error) {
+        console.error('settings usage analytics error:', error)
+        return NextResponse.json({ success: false }, { status: 500 })
+      }
+      if (!('dictation_lang' in body) && typeof body.sunday_letter !== 'boolean' && !('onboarded_at' in body)) {
+        return NextResponse.json({ success: true })
+      }
+    }
 
     const patch: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() }
     if ('dictation_lang' in body) patch.dictation_lang = body.dictation_lang || null

@@ -24,6 +24,7 @@ export function TourHarness() {
           .catch(() => setQuestions(general))
       }}
       onLeave={() => window.alert('Would go on to Home')}
+      onAnalytics={() => {}}
     />
   )
 }
