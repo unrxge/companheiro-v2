@@ -266,12 +266,25 @@ function CoreConceptContent() {
   // The section's own label with the lock beside it, on one line — the badge
   // belongs to the heading, not to the card's corner where it crowds the text
   // underneath. minHeight keeps the row from growing when a section locks.
-  const sectionHead = (label: string, s: DocumentSection, opts?: { center?: boolean; lock?: boolean }) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: opts?.center ? 'center' : 'space-between', gap: 12, minHeight: 24, marginBottom: opts?.center ? 0 : 10 }}>
-      <Eyebrow>{label}</Eyebrow>
-      {s.status === 'confirmed' && opts?.lock !== false && lockedBadge}
-    </div>
-  )
+  //
+  // `hint` is a line under it saying what can be changed here. First-time
+  // readers don't realise the text is theirs to edit before they lock it, so
+  // it is said outright, and only while it is still true: once a section is
+  // confirmed the words are read-only and the line goes.
+  const sectionHead = (label: string, s: DocumentSection, opts?: { center?: boolean; lock?: boolean; hint?: string }) => {
+    const hint = opts?.hint && s.status !== 'confirmed' ? opts.hint : null
+    return (
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: opts?.center ? 'center' : 'space-between', gap: 12, minHeight: 24, marginBottom: hint ? 4 : opts?.center ? 0 : 10 }}>
+          <Eyebrow>{label}</Eyebrow>
+          {s.status === 'confirmed' && opts?.lock !== false && lockedBadge}
+        </div>
+        {hint && (
+          <p style={{ ...typeRoles.small, fontSize: 12, lineHeight: 1.5, color: t.textMuted, margin: opts?.center ? '0 auto' : '0 0 14px', textAlign: opts?.center ? 'center' : undefined, maxWidth: opts?.center ? 460 : undefined }}>{hint}</p>
+        )}
+      </>
+    )
+  }
 
   // Phases generate in order, so the one being drawn out is the first still pending.
   const generating = isLoading ? Object.values(sections).find((x) => x.status === 'pending') : undefined
@@ -335,7 +348,7 @@ function CoreConceptContent() {
             p1,
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
-                {sectionHead('Idea in one sentence', p1)}
+                {sectionHead('Idea in one sentence', p1, { hint: 'Drafted from what you told us. Edit the sentence and the theme, or pick a different movement, before you confirm.' })}
                 {p1.status === 'confirmed' ? (
                   <p style={{ ...typeRoles.h2, fontSize: 22, color: t.textPrimary }}>{p1.content.one_sentence}</p>
                 ) : (
@@ -371,7 +384,7 @@ function CoreConceptContent() {
             p2,
             <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
               <div>
-                {sectionHead('Conviction statement', p2)}
+                {sectionHead('Conviction statement', p2, { hint: 'Drafted from the same conversation. Edit the conviction and any beat of the journey below before you confirm.' })}
                 <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
                   <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, minHeight: '2em', opacity: 0.6 }} />
                   <TextArea bare value={p2.content.conviction_statement || ''} onChange={(v) => handleEditContent('phase2', 'conviction_statement', v)} disabled={p2.status === 'confirmed'} placeholder="Your conviction about this work…" ariaLabel="Conviction" style={{ fontSize: 16, lineHeight: 1.65, fontWeight: 500 }} />
@@ -392,7 +405,7 @@ function CoreConceptContent() {
           {phaseCard(
             p3,
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center' }}>
-              {sectionHead('Core truth', p3, { center: true })}
+              {sectionHead('Core truth', p3, { center: true, hint: 'If this isn’t quite it, put it in your own words. You can edit it before you confirm.' })}
               <TextArea bare value={p3.content.core_truth || ''} onChange={(v) => handleEditContent('phase3', 'core_truth', v)} disabled={p3.status === 'confirmed'} placeholder="The core truth at the heart of this work…" ariaLabel="Core truth" style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.02em', textAlign: 'center', maxWidth: 560 }} />
               {p3.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase3')}>Confirm</QuietButton>}
             </div>,
@@ -405,7 +418,7 @@ function CoreConceptContent() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <Card>
-                {sectionHead('Open threads', p4)}
+                {sectionHead('Open threads', p4, { hint: 'Add, remove or rewrite any of these before you confirm.' })}
                 {p4.status === 'confirmed' ? <DashedList text={p4.content.open_threads || ''} /> : <TextArea bare value={p4.content.open_threads || ''} onChange={(v) => handleEditContent('phase4', 'open_threads', v)} placeholder={'- Thread one\n- Thread two'} ariaLabel="Open threads" style={bareStyle} />}
               </Card>
               {p4.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase4')} full>Confirm</QuietButton>}
