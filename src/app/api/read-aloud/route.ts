@@ -8,7 +8,7 @@ import { recordOpsEvent } from '@/lib/ops/ai-calls'
 // the one route that calls OpenAI; without OPENAI_API_KEY it answers 503 and
 // the page says the voice is unavailable.
 const MODEL = process.env.TTS_MODEL?.trim() || 'gpt-4o-mini-tts'
-const VOICE = process.env.TTS_VOICE?.trim() || 'ash'
+const VOICE = process.env.TTS_VOICE?.trim() || 'onyx'
 
 // A check-in reply is a few sentences. The cap keeps one press from ever
 // costing more than about a cent.
