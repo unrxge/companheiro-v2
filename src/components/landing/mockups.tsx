@@ -339,7 +339,7 @@ export function VisionFinder({ active = true, replay = 0, onDone }: LoopProps) {
 // Two projects take turns on it. On Direction, a launch film for a ceramics
 // studio: what it is meant to be, the pieces, the threads that run through
 // them, and what is kept beside the work (a reference image, a voice note, a
-// task list). On Practice, a book of letters (the one declared in the
+// task list). On Focus (the plan the code calls `practice`), a book of letters (the one declared in the
 // Conceptualise widget): its vision, its pieces and a task list, in words.
 // The loop winds one off the canvas, down to the vision card, and lays the
 // other out around it. Drawn in the design language of the real canvas items
@@ -441,7 +441,7 @@ const BOOK: Record<string, Content> = {
 const BOOK_SCENE: Scene = {
   id: 'book',
   title: 'Letters Ahead · a book',
-  plan: 'On Practice',
+  plan: 'On Focus',
   wide: lay(BOOK, 1080, 468, {
     vision: [24, 24, 252, 214],
     l1: [336, 48, 220, 104],
@@ -719,6 +719,10 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
   }, [])
+  // The loop taking the canvas back (after someone has been moving things about, too): everything goes home first.
+  useEffect(() => {
+    if (back === 1) rearrange()
+  }, [back, rearrange])
   const scene = compact ? FILM_SCENE : SCENES[which]
   const layout = compact ? FILM_FOLDED : phone ? scene.airy : scene.wide
   const { nodes, edges } = layout
@@ -807,144 +811,193 @@ export function CanvasMockup({ active = true, replay, onDone, compact = false }:
   )
 }
 
-// ── Vision: the whole project thought through, out loud ─────────────────────
-// The room that opens from a project's canvas (Direction), in small: the
-// vision on one page above, the talk under it. The documentary from the rule
-// below. Five beats: the question, something looked up, the answer (which
-// leans on what the page already says and on what it found), and an open
-// question heard in the talk and offered to the page. It asks; it does not
-// decide, and nothing reaches the page without being kept.
+// ── Vision: one question, asked of the whole project ────────────────────────
+// The room that opens from a project's canvas (Direction), in small. What it
+// is for is a change of plan: a deadline moves, and the person needs to know
+// what that touches. So the widget shows the two things only this can do. It
+// reads everything on the canvas before it answers (every part lights as it
+// is read), and it checks a fact outside the project. Then three short
+// findings, each lighting the parts it rests on, the last one a question: it
+// shows what depends on what, and leaves the decision where it belongs.
+// The Rule section below is about memory over time; this is about breadth.
 
-const ROOM_ASK = 'They want the last day moved to a Sunday. Does my ending still hold?'
-const ROOM_REPLY = 'Your ending is the six o’clock crossing. On Sundays the last boat leaves at 16:30. Which gives way: the day, or the ending?'
-const ROOM_OPEN = 'Sunday, or the six o’clock?'
-// Winding back: the answer is backspaced and the offer leaves, then what was
-// looked up. The page and the question stay, and it is answered again.
-const ROOM_BACK = [450, 800] as const
+const ROOM_READ: { id: string; label: string }[] = [
+  { id: 'vision', label: 'Vision' },
+  { id: 'rules', label: '3 rules' },
+  { id: 'opening', label: 'Opening' },
+  { id: 'booth', label: 'The booth' },
+  { id: 'vote', label: 'The council vote' },
+  { id: 'last', label: 'Last morning' },
+  { id: 'trailer', label: 'Trailer' },
+  { id: 'threads', label: '2 threads' },
+]
+const ROOM_ASK = 'The festival wants the film three weeks sooner. What does that put at risk?'
+const ROOM_FINDS: { on: string[]; text: string; asks?: boolean }[] = [
+  { on: ['last', 'vision'], text: 'Your ending rests on Last morning, and it is not shot yet.' },
+  { on: ['opening', 'booth', 'vote', 'last'], text: 'The festival caps films at 15 minutes. Your four parts are planned at 22.' },
+  { on: ['vote'], text: 'Nothing else leans on The council vote. Is it still Marta’s film without it?', asks: true },
+]
+// Winding back: the findings go, last first, then the parts go unread. The
+// question stays, and it is answered again.
+const ROOM_BACK = [450, 850] as const
 
 export function VisionRoomMockup({ active = true, replay, onDone }: LoopProps) {
   const { t } = useTheme()
   const reduce = useReducedMotion()
-  // 0 the page · 1 the question is asked · 2 looking something up · 3 found, and answering
+  // 0 nothing · 1 the question · 2 reading the canvas · 3 looking something up · 4, 5, 6 the findings, one at a time
   const [beat, setBeat] = useState(0)
-  const [kept, setKept] = useState(false)
-  const { back, cycle } = useRewind(replay, ROOM_BACK, () => setBeat(1))
+  // A finding someone is pointing at: its parts light instead of the latest one's.
+  const [pick, setPick] = useState<number | null>(null)
+  const { back, cycle } = useRewind(replay, ROOM_BACK, () => { setBeat(1); setPick(null) })
   useEffect(() => {
     if (!active) return
-    if (reduce) { setBeat(3); return }
-    const at: [number, number][] = cycle === 0 ? [[700, 1], [1700, 2], [3000, 3]] : [[500, 2], [1700, 3]]
+    if (reduce) { setBeat(6); return }
+    const at: [number, number][] = cycle === 0
+      ? [[600, 1], [1500, 2], [2900, 3], [4200, 4], [5700, 5], [7200, 6]]
+      : [[400, 2], [1800, 3], [3100, 4], [4600, 5], [6100, 6]]
     const ids = at.map(([ms, to]) => window.setTimeout(() => setBeat(to), ms))
     return () => ids.forEach((id) => window.clearTimeout(id))
   }, [active, cycle, reduce])
-  const reply = useTypewriter(ROOM_REPLY, beat >= 3, 20, back > 0)
-  const answered = beat >= 3 && reply.done && back === 0
   useEffect(() => {
-    if (!answered || !onDone) return
-    const id = window.setTimeout(() => onDone(), 900)
+    if (beat !== 6 || !onDone) return
+    const id = window.setTimeout(() => onDone(4500), 700)
     return () => window.clearTimeout(id)
-  }, [answered, onDone])
+  }, [beat, cycle, onDone])
 
-  const asked = beat >= 1
-  const looking = beat === 2 && back === 0
-  const found = beat >= 3 && back < 2
-  const row: React.CSSProperties = { display: 'grid', gridTemplateColumns: '92px 1fr', gap: 10, alignItems: 'baseline' }
-  const key: React.CSSProperties = { ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }
-  const val: React.CSSProperties = { ...typeRoles.small, fontSize: 13.5, color: t.textPrimary }
+  const read = beat >= 2 && back < 2
+  const found = beat >= 4 && back < 2
+  const shown = back > 0 ? 0 : Math.max(0, beat - 3)
+  const current = pick ?? (shown > 0 ? shown - 1 : null)
+  const lit = current !== null && back === 0 ? ROOM_FINDS[current].on : []
   return (
     <Container padding={12}>
       <Card padding={16}>
         <p style={{ ...typeRoles.h3, color: t.textPrimary }}>The Six O&rsquo;Clock Ferry <span style={{ fontWeight: 400, color: t.textMuted }}>· Documentary</span></p>
 
-        {/* The page: what the project is, as written on its canvas. */}
-        <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: radius.widget, ...accentWash(t.ember, t.cardBgInner) }}>
-          <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.ember }}>The vision, on one page</p>
-          <div className="flex flex-col gap-1.5" style={{ marginTop: 8 }}>
-            <div style={row}><span style={key}>Meant to be</span><span style={val}>Marta&rsquo;s film, told from the booth.</span></div>
-            <div style={row}><span style={key}>Never</span><span style={val}>Show or name her daughter.</span></div>
-            <div style={row}><span style={key}>Ends on</span><span style={val}><Marked on={found} color={t.ochre}>The six o&rsquo;clock crossing.</Marked></span></div>
-            {/* Heard in the talk, and offered: it is on the page only once it is kept. */}
-            <m.div initial={false} animate={{ opacity: answered ? 1 : 0, y: answered ? 0 : 6 }} transition={{ duration: 0.45, ease: EASE }} aria-hidden={!answered} style={{ ...row, alignItems: 'center', pointerEvents: answered ? 'auto' : 'none' }}>
-              <span style={{ ...key, color: t.ochre }}>Open question</span>
-              <span className="flex flex-wrap items-center justify-between gap-2">
-                <span style={{ ...val, fontWeight: 600 }}>{ROOM_OPEN}</span>
-                <button type="button" onClick={() => setKept(true)} disabled={kept} className={kept ? undefined : 'cursor-pointer'} style={{ ...typeRoles.small, fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999, border: 'none', backgroundColor: kept ? t.soft.verdant : t.inverseBg, color: kept ? t.verdant : t.inverseText, whiteSpace: 'nowrap' }}>
-                  {kept ? 'Kept' : 'Keep it'}
-                </button>
-              </span>
-            </m.div>
+        <m.div initial={false} animate={{ opacity: beat >= 1 || reduce ? 1 : 0, y: beat >= 1 || reduce ? 0 : 8 }} transition={{ duration: 0.5, ease: EASE }} style={{ marginTop: 12 }}>
+          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>You ask</p>
+          <p style={{ ...typeRoles.h3, fontSize: 17, lineHeight: 1.35, color: t.textPrimary, marginTop: 3 }}>{ROOM_ASK}</p>
+        </m.div>
+
+        {/* Everything on the canvas, read before a word is said. */}
+        <div style={{ marginTop: 14, padding: '11px 12px 12px', borderRadius: radius.widget, backgroundColor: t.cardBgInner }}>
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5" style={{ minHeight: 22 }}>
+            <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: read ? t.ochre : t.textMuted, whiteSpace: 'nowrap', transition: 'color 0.4s ease' }}>{found ? 'Read the whole canvas' : read ? 'Reading the whole canvas' : 'The whole canvas'}</p>
+            <m.span
+              initial={false}
+              animate={{ opacity: beat >= 3 && back < 2 ? 1 : 0, x: beat >= 3 && back < 2 ? 0 : 6 }}
+              transition={{ duration: 0.35, ease: EASE }}
+              className="inline-flex items-center gap-1.5"
+              style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, backgroundColor: t.soft.tide, color: t.tide, whiteSpace: 'nowrap' }}
+            >
+              <Search size={11} strokeWidth={2.6} aria-hidden />
+              {found ? 'Festival rules checked' : <>Checking the festival&rsquo;s rules <WorkingDots color={t.tide} /></>}
+            </m.span>
+          </div>
+          <div className="flex flex-wrap gap-1.5" style={{ marginTop: 9 }}>
+            {ROOM_READ.map((part, i) => {
+              const on = lit.includes(part.id)
+              return (
+                <span
+                  key={part.id}
+                  style={{
+                    ...typeRoles.small, fontSize: 12, fontWeight: 600, lineHeight: 1.2, padding: '5px 10px', borderRadius: 999, whiteSpace: 'nowrap',
+                    backgroundColor: on ? t.ochre : read ? t.cardBg : 'transparent',
+                    color: on ? onColor(t.ochre) : read ? t.textPrimary : t.textMuted,
+                    border: `1px solid ${on ? t.ochre : read ? alpha(t.ochre, 0.45) : t.divider}`,
+                    boxShadow: on ? `0 0 0 3px ${alpha(t.ochre, 0.2)}` : 'none',
+                    // Read one after another, left to right; lit all at once.
+                    transition: reduce ? 'none' : `background-color 0.3s ease ${read && !found ? i * 90 : 0}ms, color 0.3s ease ${read && !found ? i * 90 : 0}ms, border-color 0.3s ease ${read && !found ? i * 90 : 0}ms, box-shadow 0.3s ease`,
+                  }}
+                >
+                  {part.label}
+                </span>
+              )
+            })}
           </div>
         </div>
 
-        {/* The talk. */}
-        <m.div initial={false} animate={{ opacity: asked || reduce ? 1 : 0, y: asked || reduce ? 0 : 8 }} transition={{ duration: 0.5, ease: EASE }} style={{ marginTop: 14 }}>
-          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted }}>You</p>
-          <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary, marginTop: 2 }}>{ROOM_ASK}</p>
-        </m.div>
-        <div style={{ marginTop: 12, minHeight: 26 }}>
-          <m.span
-            initial={false}
-            animate={{ opacity: looking || found ? 1 : 0, scale: looking || found ? 1 : 0.96 }}
-            transition={{ duration: 0.3, ease: EASE }}
-            className="inline-flex items-center gap-1.5"
-            style={{ ...typeRoles.small, fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 999, backgroundColor: t.soft.tide, color: t.tide }}
-          >
-            <Search size={12} strokeWidth={2.4} aria-hidden />
-            {found ? 'Looked up: the Sunday timetable' : <>Looking it up <WorkingDots color={t.tide} /></>}
-          </m.span>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, opacity: beat >= 3 ? 1 : 0, transition: 'opacity 0.3s ease' }}>Companheiro</p>
-          <p aria-label={ROOM_REPLY} style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, marginTop: 2, display: 'grid' }}>
-            <span aria-hidden style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{ROOM_REPLY}</span>
-            <span aria-hidden style={{ gridArea: '1 / 1' }}>{reply.shown}{beat >= 3 && !reply.done && <span style={{ borderRight: `1.5px solid ${t.ember}`, marginLeft: 1 }}>&#8203;</span>}</span>
-          </p>
-        </div>
+        {/* What the change touches: each finding lights the parts it rests on. */}
+        <ol className="flex flex-col gap-1.5" style={{ marginTop: 12 }}>
+          {ROOM_FINDS.map((f, i) => {
+            const up = i < shown
+            const sel = current === i && back === 0
+            return (
+              <m.li key={i} initial={false} animate={{ opacity: up ? 1 : 0, y: up ? 0 : 8 }} transition={up ? { duration: 0.45, ease: EASE } : { duration: 0.22, delay: (ROOM_FINDS.length - 1 - i) * 0.07, ease: 'easeIn' }} aria-hidden={!up}>
+                <button
+                  type="button"
+                  onClick={() => setPick(i)}
+                  tabIndex={up ? 0 : -1}
+                  className="flex w-full cursor-pointer items-start gap-2.5 text-left"
+                  style={{
+                    padding: '9px 11px', borderRadius: radius.field, border: `1px solid ${sel ? alpha(t.ochre, 0.5) : 'transparent'}`,
+                    backgroundColor: sel ? alpha(t.ochre, 0.1) : 'transparent', pointerEvents: up ? 'auto' : 'none',
+                    transition: 'background-color 0.3s ease, border-color 0.3s ease',
+                  }}
+                >
+                  <span aria-hidden className="mt-[7px] shrink-0 rounded-full" style={{ width: 7, height: 7, backgroundColor: f.asks ? t.violet : t.ochre }} />
+                  <span style={{ ...typeRoles.ui, fontSize: 14.5, fontWeight: f.asks ? 600 : 400, color: t.textPrimary }}>{f.text}</span>
+                </button>
+              </m.li>
+            )
+          })}
+        </ol>
       </Card>
     </Container>
   )
 }
 
-// ── Closing: a rule set in passing, heard, offered back and kept ───────────
-// The documentary from the Writing section, talked through. The rule is the
-// kind that matters: a promise made to someone in the film, which a year of
-// editing could quietly break. Four beats, each one a single thing to look
-// at: a line said in passing, the phrase in it picked out, the offer to keep
-// it, and the rule kept. Few words on purpose: the heading beside it has
-// already said what happens.
+// ── Closing: a condition said once, and still there when it matters ─────────
+// The same documentary. The rule is the kind that ends careers when it is
+// forgotten, and that is forgotten precisely because it is small and was
+// agreed long ago: the terms a piece of archive footage was lent on. Said in
+// passing while the project was talked through, kept, and then, eleven weeks
+// and several pieces later, back as a question at the one moment it counts.
+// Few words on purpose: the heading beside it has already said what happens.
 
-const RULE_BEFORE = 'Marta said yes to the film on one condition. '
-const RULE_QUOTE = 'Her daughter is never shown or named.'
-const RULE_NAME = 'Never show or name Marta’s daughter'
+const RULE_BEFORE = 'The archive lent me the 1987 footage on one condition. '
+const RULE_QUOTE = 'Festivals only, never online.'
+const RULE_NAME = '1987 footage: festivals only, never online'
+const RULE_LATER = 'Eleven weeks later, writing the trailer'
 
-// Winding back: the rule is let go and its card leaves, then the marker comes
-// off the phrase. The line that was said stays, and it is heard again.
-const RULE_BACK = [380, 760] as const
+// Winding back: the later moment goes, then the rule is let go and its card
+// leaves, then the marker comes off the phrase. The line that was said stays,
+// and it is heard again.
+const RULE_BACK = [350, 720, 1080] as const
 
 export function RuleHeardMockup({ replay, onDone }: LoopProps) {
   const { t } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.5 })
+  const inView = useInView(ref, { once: true, amount: 0.4 })
   const reduce = useReducedMotion()
-  // 0 said · 1 the phrase is picked out · 2 the offer · 3 "Keep it" being pressed · 4 kept
+  // 0 said · 1 the phrase is picked out · 2 the offer · 3 "Keep it" being pressed · 4 kept · 5 weeks later, it comes back
   const [stage, setStage] = useState(0)
   const [theirs, setTheirs] = useState(false)
-  const { back, cycle } = useRewind(replay, RULE_BACK, () => setStage(0))
+  const { back, cycle } = useRewind(replay, RULE_BACK, () => { setStage(0); setTheirs(false) })
   useEffect(() => {
     if (!inView || theirs) return
-    if (reduce) { setStage(4); return }
-    const at: [number, number][] = [[cycle === 0 ? 900 : 350, 1], [cycle === 0 ? 1750 : 1150, 2], [cycle === 0 ? 3300 : 2600, 3], [cycle === 0 ? 3650 : 2950, 4]]
+    if (reduce) { setStage(5); return }
+    const lead = cycle === 0 ? 900 : 350
+    const at: [number, number][] = [[lead, 1], [lead + 850, 2], [lead + 2300, 3], [lead + 2650, 4], [lead + 4300, 5]]
     const ids = at.map(([ms, to]) => window.setTimeout(() => setStage(to), ms))
     return () => ids.forEach((id) => window.clearTimeout(id))
   }, [inView, cycle, reduce, theirs])
+  // Kept by their own hand: what follows from it still follows.
   useEffect(() => {
-    if (stage !== 4 || !onDone) return
-    const id = window.setTimeout(() => onDone(), 500)
+    if (!theirs || stage !== 4) return
+    const id = window.setTimeout(() => setStage(5), 1500)
+    return () => window.clearTimeout(id)
+  }, [theirs, stage])
+  useEffect(() => {
+    if (stage !== 5 || !onDone) return
+    const id = window.setTimeout(() => onDone(5000), 900)
     return () => window.clearTimeout(id)
   }, [stage, onDone])
 
-  const marked = stage >= 1 && back < 2
-  const offered = stage >= 2 && back === 0
-  const kept = stage >= 4 && back === 0
+  const marked = stage >= 1 && back < 3
+  const offered = stage >= 2 && back < 2
+  const kept = stage >= 4 && back < 2
+  const later = stage >= 5 && back === 0
   const tone = kept ? t.verdant : t.ochre
   const decide = (to: number) => { setTheirs(true); setStage(to) }
   return (
@@ -972,7 +1025,8 @@ export function RuleHeardMockup({ replay, onDone }: LoopProps) {
               {kept && <Check size={13} strokeWidth={3} aria-hidden />}
               {kept ? 'Kept as a rule' : 'Something this refuses?'}
             </p>
-            <p style={{ ...typeRoles.h2, fontSize: 20, lineHeight: 1.2, color: t.textPrimary, marginTop: 6 }}>{RULE_NAME}</p>
+            <p style={{ ...typeRoles.h2, fontSize: 19, lineHeight: 1.25, color: t.textPrimary, marginTop: 6 }}>{RULE_NAME}</p>
+            {/* One row either way, so the card and the page under it keep their height when it is kept. */}
             <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12, minHeight: 34 }}>
               {kept ? (
                 <p style={{ ...typeRoles.small, color: t.textSecondary }}>It will ask before new work breaks it.</p>
@@ -981,6 +1035,7 @@ export function RuleHeardMockup({ replay, onDone }: LoopProps) {
                   <m.button
                     type="button"
                     onClick={() => decide(4)}
+                    tabIndex={offered ? 0 : -1}
                     animate={{ scale: stage === 3 ? 0.93 : 1 }}
                     transition={{ duration: 0.18 }}
                     whileTap={{ scale: 0.95 }}
@@ -989,12 +1044,25 @@ export function RuleHeardMockup({ replay, onDone }: LoopProps) {
                   >
                     Keep it as a rule
                   </m.button>
-                  <button type="button" onClick={() => decide(1)} className="cursor-pointer" style={{ ...typeRoles.small, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: 'none', background: 'none', color: t.textSecondary }}>
+                  <button type="button" onClick={() => decide(1)} tabIndex={offered ? 0 : -1} className="cursor-pointer" style={{ ...typeRoles.small, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: 'none', background: 'none', color: t.textSecondary }}>
                     Not a rule
                   </button>
                 </>
               )}
             </div>
+          </m.div>
+
+          {/* The moment it was kept for. */}
+          <m.div initial={false} animate={{ opacity: later ? 1 : 0, y: later ? 0 : 12 }} transition={later ? { duration: 0.6, ease: EASE } : { duration: 0.25, ease: 'easeIn' }} aria-hidden={!later} style={{ marginTop: 18 }}>
+            <div className="flex items-center gap-3">
+              <span aria-hidden style={{ flex: 1, height: 1, backgroundColor: t.divider }} />
+              <span style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.textMuted, whiteSpace: 'nowrap' }}>{RULE_LATER}</span>
+              <span aria-hidden style={{ flex: 1, height: 1, backgroundColor: t.divider }} />
+            </div>
+            <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.violet, marginTop: 14 }}>Companheiro</p>
+            <p style={{ ...typeRoles.ui, fontSize: 16, fontWeight: 500, lineHeight: 1.5, color: t.textPrimary, marginTop: 3 }}>
+              This trailer is for YouTube, and it opens on <Marked on={later} color={t.ochre}>the 1987 footage</Marked>. Your rule says festivals only. Has the licence changed?
+            </p>
           </m.div>
         </Card>
       </Container>

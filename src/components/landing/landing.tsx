@@ -22,6 +22,7 @@ import { useAttributedHref } from '@/lib/attribution'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { formatMoney } from '@/lib/billing/price-format'
 import { usePrices } from '@/lib/billing/use-prices'
+import { PLAN_LABEL } from '@/lib/billing/chosen-plan'
 import { alpha, shell, tokensFor, type as typeRoles, type Hue, type Mood } from '@/lib/design-tokens'
 import { CanvasMockup, RuleHeardMockup, VisionFinder, VisionRoomMockup } from './mockups'
 import { SLIDES, type TourSlide } from '@/components/tour/slides'
@@ -104,13 +105,16 @@ function Reveal({ children, delay = 0, className = '' }: { children: React.React
  * a cursor resting on it, or not on it at all, lets it run out. Then `replay`
  * goes up and the widget does whatever comes next, which is its own business:
  * wind back in reverse and play again, or move on to its next step (see
- * useRewind in mockups.tsx). A press, a tap or a key ends it for good.
+ * useRewind in mockups.tsx). A press, a tap or a key hands it to the person;
+ * it picks its loop up again a few seconds after they leave it.
  *
  * Once it has scrolled right out of sight a fresh copy takes its place, so
  * coming back to it is a clean first play. A widget that does not loop only
  * gets `active`, and is never replaced.
  */
 const HOLD_MS = 4000
+/** How long a widget someone was using is left alone before its loop picks up again. */
+const RESUME_MS = 8000
 
 type Looping = { active: boolean; replay?: number; onDone?: (holdMs?: number) => void }
 
@@ -130,6 +134,7 @@ function Replay({ children, loops = false, className }: { children: (p: Looping)
   const [replay, setReplay] = useState(0)
   const [seen, setSeen] = useState(false)
   const [engaged, setEngaged] = useState(false)
+  const idle = useRef(0)
   // What the widget last finished, and how long to stay on it.
   const [hold, setHold] = useState<{ ms: number; n: number } | null>(null)
   const wasIn = useRef(false)
@@ -181,7 +186,25 @@ function Replay({ children, loops = false, className }: { children: (p: Looping)
   // start of a drag), or swiping its contents sideways. Not a finger that only
   // rests on it on the way down the page: on a phone that is how every widget
   // is passed, and it used to end the loop before it had begun.
-  const engage = () => setEngaged(true)
+  //
+  // It is theirs for as long as they are with it. Once they have left it alone
+  // for a while it winds back and the loop carries on, as if it had just
+  // finished: nobody scrolling back up should find a widget stopped where a
+  // stranger left it.
+  const engage = () => {
+    setEngaged(true)
+    window.clearTimeout(idle.current)
+    if (!loops || reduce) return
+    idle.current = window.setTimeout(() => {
+      idle.current = 0
+      setEngaged(false)
+      setHold(null)
+      setReplay((r) => r + 1)
+    }, RESUME_MS)
+  }
+  // A cursor still moving over it means they have not left.
+  const linger = () => { if (idle.current) engage() }
+  useEffect(() => () => window.clearTimeout(idle.current), [])
   return (
     <div
       ref={ref}
@@ -189,6 +212,7 @@ function Replay({ children, loops = false, className }: { children: (p: Looping)
       onClickCapture={engage}
       onKeyDownCapture={engage}
       onPointerDownCapture={(e) => { if (e.pointerType === 'mouse') engage() }}
+      onPointerMoveCapture={linger}
       onScrollCapture={engage}
     >
       <Fragment key={copy}>{children(loops ? { active: seen, replay, onDone } : { active: seen })}</Fragment>
@@ -247,15 +271,12 @@ function Hero() {
         <h1
           className={`${ENTER_TEXT} delay-[150ms] text-balance text-[40px] font-bold leading-[1.06] tracking-[-0.035em] text-[var(--bone)] md:text-[54px] xl:text-[64px]`}
         >
-          {/* Same pairing as the brand document: Geist headline, one word in Newsreader italic. The first sentence names what the person fears about themselves; the second takes it away. */}
-          <span className="block">You&rsquo;re not scattered.</span>
-          <span className="block">
-            You&rsquo;re circling one{' '}
-            <span className="font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">vision</span>.
-          </span>
+          {/* Same pairing as the brand document: Geist headline, the turn in Newsreader italic. The page's opening claim; the widget beside it shows it happen, and the manifesto under it gives the thing its name. */}
+          Everything you&rsquo;ve made is trying to say{' '}
+          <span className="whitespace-nowrap font-[family-name:var(--font-newsreader)] font-normal italic tracking-[-0.01em] text-[var(--ember)]">one thing</span>.
         </h1>
         <p className={`${ENTER_TEXT} delay-[270ms] mt-6 max-w-[44ch] text-[17px] leading-relaxed text-[var(--muted)] md:text-[18px]`}>
-          It runs through your notes, your drafts and every half-finished thing. Companheiro is where it all starts to make sense.
+          It is there in your notes, your drafts and every half-finished thing. Companheiro is where you hear it, hold it, and build from it.
         </p>
         <div className={`${ENTER_TEXT} delay-[390ms] mt-8 flex flex-wrap items-center gap-x-5 gap-y-3`}>
           <BeginButton />
@@ -272,10 +293,12 @@ function Hero() {
 
 // ── Manifesto: words come up as you read ─────────────────────────────────────
 
-// Short enough to take in without stopping: three plain beats and the turn.
-const MANIFESTO = 'A line you keep coming back to. An image you can\u2019t put down. You call them separate ideas. Often they are'
+// Carries on from the hero, which says everything you have made is trying to
+// say one thing: here are two of those things, then what the one thing is
+// called. Short enough to take in without stopping.
+const MANIFESTO = 'The line you keep coming back to. The image you can\u2019t put down. They were never separate ideas. That one thing has a name:'
 // The turn: the one phrase a skimmer should leave with.
-const MANIFESTO_TURN = 'one vision.'
+const MANIFESTO_TURN = 'your vision.'
 
 function Word({ word, progress, range, className }: { word: string; progress: MotionValue<number>; range: [number, number]; className?: string }) {
   const opacity = useTransform(progress, range, [0.16, 1])
@@ -335,8 +358,8 @@ const CONCEPT_BODY = 'You know there is something there, but not yet what it is.
 // shown here as its own part because it is what someone carrying a long
 // project most needs, and what someone on Practice is most likely to wonder about.
 const VISION_ROW = { where: 'Vision', mood: 'ochre' as const, Widget: VisionRoomMockup }
-const VISION_TITLE = 'Think the whole project through, out loud.'
-const VISION_BODY = 'When something shifts, you do not have to hold it all in your head. Everything you have written about the project is already there, and it can look things up while you think.'
+const VISION_TITLE = 'When the plan changes, see everything it touches.'
+const VISION_BODY = 'A deadline moves, a client changes their mind. You ask once, and the answer has read every piece, rule and thread you wrote, and checked the facts outside them.'
 
 function InsideRow({ slide, flip, title, body, loops, tag }: { slide: Pick<TourSlide, 'where' | 'mood' | 'Widget'> & { title?: string; body?: string }; flip: boolean; title?: string; body?: string; /** The widget keeps itself moving until it is touched (see Replay). */ loops?: boolean; /** Beside the name: the plan it belongs to, where that is not every plan. */ tag?: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -431,12 +454,12 @@ function Holding() {
 // link can land someone on their own case; the Begin link carries
 // `landing=for-…` into sign-up, where the admin page shows which case worked.
 
-/** A plan's name, linked to its card in the pricing section. With no words of its own it says "Practice, €9 a month", in the visitor's currency. */
+/** A plan's name, linked to its card in the pricing section. With no words of its own it says "Focus, €9 a month", in the visitor's currency. */
 function PlanLink({ plan, children }: { plan: 'practice' | 'direction'; children?: React.ReactNode }) {
   const prices = usePrices()
   return (
     <a href={`#plan-${plan}`} className="font-semibold text-[var(--bone)] underline decoration-[var(--line)] underline-offset-4 transition-colors hover:decoration-[var(--bone)]">
-      {children ?? `${plan === 'practice' ? 'Practice' : 'Direction'}, ${prices.money(plan, 'monthly')} a month`}
+      {children ?? `${PLAN_LABEL[plan]}, ${prices.money(plan, 'monthly')} a month`}
     </a>
   )
 }
@@ -500,7 +523,7 @@ const AUDIENCES: Audience[] = [
     name: 'Rekindling your passion for making',
     hue: 'ember',
     tier: 'practice',
-    plans: 'Practice',
+    plans: PLAN_LABEL.practice,
     who: 'You made things once and fell out of practice, but you still remember how it felt when making was part of your week.',
     here: [
       'Somewhere to start, even after months away.',
@@ -517,7 +540,7 @@ const AUDIENCES: Audience[] = [
     name: 'Writers with a vision',
     hue: 'tide',
     tier: 'practice',
-    plans: 'Practice',
+    plans: PLAN_LABEL.practice,
     who: 'You have imagination, a vision for the work, and the ambition to see it crafted and expressed to its fullest.',
     here: [
       'The draft you already have gets a home, and a purpose beside it.',
@@ -534,7 +557,7 @@ const AUDIENCES: Audience[] = [
     name: 'Cinematographers, photographers and creators',
     hue: 'verdant',
     tier: 'practice',
-    plans: 'Practice / Direction',
+    plans: `${PLAN_LABEL.practice} / Direction`,
     who: 'You think in frames, whether it is a film, a photo series or the next thing you post, and it starts as a feeling before it is a shot.',
     here: [
       'You know what the piece is about before the first frame.',
@@ -556,7 +579,7 @@ const AUDIENCES: Audience[] = [
     name: 'Songwriters',
     hue: 'violet',
     tier: 'practice',
-    plans: 'Practice / Direction',
+    plans: `${PLAN_LABEL.practice} / Direction`,
     who: 'You hum before you write, and the song usually knows what it is about before you do.',
     here: [
       'You talk the song through as easily as you type it.',
@@ -586,12 +609,17 @@ function AudienceBegin({ audience }: { audience: Audience }) {
   )
 }
 
-// Direction's tabs are a step brighter than Practice's; its panels are the
-// same glass, in the same family of colours, so no audience reads as the
-// one the page is really for.
-const PRACTICE_TAB = { rest: { backgroundColor: shell.fill, color: shell.muted }, on: { backgroundColor: shell.text, color: shell.ink } }
-const DIRECTION_TAB = { rest: { backgroundColor: alpha(shell.text, 0.14), color: alpha(shell.text, 0.82) }, on: { backgroundColor: shell.text, color: shell.ink } }
-const TIERS = ['direction', 'practice'] as const
+// Every audience's tab is the same size and shade on a phone, so neither plan
+// reads as the one the page is for. From a tablet up they are pills on one
+// line, Direction's a step brighter, with a divider between the two plans.
+const TAB_REST: Record<Audience['tier'], string> = {
+  practice: 'bg-[var(--fill)] text-[var(--muted)]',
+  direction: 'bg-[var(--fill)] text-[var(--muted)] md:bg-[color-mix(in_srgb,var(--bone)_14%,transparent)] md:text-[color-mix(in_srgb,var(--bone)_82%,transparent)]',
+}
+const TAB_ON = 'bg-[var(--bone)] text-[var(--ink)]'
+// Two rows of three on a phone, cut at different places so the seams do not
+// line up: thirty-two columns, shared out by how long each name is.
+const TAB_SPAN = [13, 10, 9, 10, 9, 13]
 
 function WhoFor() {
   const ref = useRef<HTMLElement>(null)
@@ -616,33 +644,25 @@ function WhoFor() {
       </Reveal>
 
       <Reveal delay={0.08} className="mt-9 md:mt-12">
-        {/* On a phone every audience is in sight at once, with nothing to swipe to: Direction's two as a pair of wide keys, Practice's four as a row of small ones under them, mark over name. From a tablet up they are pills on one line with a divider between the two plans. */}
-        <div role="tablist" aria-label="Who it is for" className="flex flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center">
-          {TIERS.map((tier, ti) => (
-            <Fragment key={tier}>
-              {ti > 0 && <span aria-hidden className="mx-2 hidden h-6 w-px shrink-0 bg-[var(--line)] md:block" />}
-              <div className={`grid gap-1.5 md:flex md:items-center ${tier === 'direction' ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                {AUDIENCES.map((a, i) => {
-                  if (a.tier !== tier) return null
-                  const look = tier === 'direction' ? DIRECTION_TAB : PRACTICE_TAB
-                  return (
-                    <button
-                      key={a.key}
-                      type="button"
-                      role="tab"
-                      id={`who-tab-${a.key}`}
-                      aria-selected={i === index}
-                      aria-controls="who-panel"
-                      onClick={() => setIndex(i)}
-                      className={`inline-flex cursor-pointer items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)] md:flex-row md:gap-2 md:rounded-full md:px-4 md:py-2.5 md:text-[14px] ${tier === 'direction' ? 'gap-2 rounded-[18px] px-3 py-4 text-[15px]' : 'flex-col gap-1.5 rounded-[18px] px-1 py-3 text-[12px]'}`}
-                      style={i === index ? look.on : look.rest}
-                    >
-                      <a.Icon size={15} strokeWidth={2} aria-hidden style={{ color: i === index ? undefined : alpha(hues[a.hue], 0.95) }} />
-                      {a.tab}
-                    </button>
-                  )
-                })}
-              </div>
+        {/* On a phone every audience is in sight at once, with nothing to swipe to and none set above another. */}
+        <div role="tablist" aria-label="Who it is for" className="grid grid-cols-[repeat(32,minmax(0,1fr))] gap-1.5 md:flex md:flex-wrap md:items-center">
+          {AUDIENCES.map((a, i) => (
+            <Fragment key={a.key}>
+              {/* Where Direction's makers end and the others begin. */}
+              {a.tier !== 'direction' && AUDIENCES[i - 1]?.tier === 'direction' && <span aria-hidden className="mx-2 hidden h-6 w-px shrink-0 bg-[var(--line)] md:block" />}
+              <button
+                type="button"
+                role="tab"
+                id={`who-tab-${a.key}`}
+                aria-selected={i === index}
+                aria-controls="who-panel"
+                onClick={() => setIndex(i)}
+                style={{ gridColumn: `span ${TAB_SPAN[i] ?? 10}` }}
+                className={`inline-flex cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-[18px] px-1 py-3 text-[12.5px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ember)] md:flex-row md:gap-2 md:rounded-full md:px-4 md:py-2.5 md:text-[14px] ${i === index ? TAB_ON : TAB_REST[a.tier]}`}
+              >
+                <a.Icon size={15} strokeWidth={2} aria-hidden style={{ color: i === index ? undefined : alpha(hues[a.hue], 0.95) }} />
+                {a.tab}
+              </button>
             </Fragment>
           ))}
         </div>
@@ -772,7 +792,7 @@ type Billing = 'month' | 'year'
 const PLANS = [
   {
     id: 'practice',
-    name: 'Practice',
+    name: PLAN_LABEL.practice,
     line: 'For one or two visions at a time, in words.',
     features: [
       'Two active projects at a time',
@@ -790,7 +810,7 @@ const PLANS = [
     name: 'Direction',
     line: 'For many visions at once, in any medium.',
     features: [
-      'Everything in Practice',
+      `Everything in ${PLAN_LABEL.practice}`,
       'Have access to unlimited active projects',
       'The full canvas: threads that run across your pieces',
       'Images and recordings beside your words',
@@ -879,7 +899,7 @@ function Pricing() {
       <Reveal>
         <h2 className={`max-w-[18ch] ${H2}`}>Two ways to hold a vision.</h2>
         <p className="mt-5 max-w-[48ch] text-[17px] leading-relaxed text-[var(--muted)]">
-          Practice for two projects in words. Direction for many, in any medium. Move between them whenever you like.
+          {PLAN_LABEL.practice} for two projects in words. Direction for many, in any medium. Move between them whenever you like.
         </p>
       </Reveal>
 
