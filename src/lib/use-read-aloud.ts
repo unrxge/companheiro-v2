@@ -39,7 +39,8 @@ export function useReadAloud() {
     }
   }, [])
 
-  const toggle = useCallback(async (text: string, key: Key) => {
+  // `context` is the check-in's current reading; it sets pace, nothing else.
+  const toggle = useCallback(async (text: string, key: Key, context?: { energy?: string | null; movement?: string | null; hour?: number }) => {
     const wasActive = state?.key === key && state.phase !== 'unavailable'
     stop()
     if (wasActive) return
@@ -59,7 +60,7 @@ export function useReadAloud() {
         const res = await fetch('/api/read-aloud', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, context }),
         })
         if (!res.ok) throw new Error(String(res.status))
         url = URL.createObjectURL(await res.blob())
