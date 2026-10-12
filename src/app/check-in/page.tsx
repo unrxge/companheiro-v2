@@ -607,7 +607,7 @@ export default function CheckInPage() {
         @media (max-width: 640px) { .check-in-mode-picker { gap: 32px; } }
       `}</style>
 
-      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" />
+      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" subtitle="Say how you are, out loud or in writing, and hear it reflected back." />
 
       {messages.length === 0 ? (
         /* Idle: the two circles, directly on the shell, exactly as minimal as before */
