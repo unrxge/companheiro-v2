@@ -7,7 +7,7 @@ import { PeopleView, type PeopleSource } from '@/components/admin/people-view'
 async function ask<T>(url: string): Promise<T> {
   const res = await fetch(url)
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(res.status === 404 ? 'This page is only for the owner (ADMIN_USER_IDS).' : body.error || 'Could not load.')
+  if (!res.ok) throw new Error(res.status === 404 ? 'This page is only for the owner (ADMIN_USER_IDS, or ADMIN_USER_IDS_LAB in the lab).' : body.error || 'Could not load.')
   return body as T
 }
 

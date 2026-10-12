@@ -1,12 +1,21 @@
 // Owner-only access and the numbers the /admin page and daily digest share.
 import { requireUser } from '@/lib/supabase/route'
+import { IS_LAB } from '@/lib/deploy-env'
 import { CAPS_USD } from '@/lib/billing/fair-use'
 
 // ADMIN_USER_IDS: comma-separated auth user ids allowed into /admin.
+// The lab has its own database, so the same person has a different id there:
+// a lab deployment reads ADMIN_USER_IDS_LAB instead (and falls back to
+// ADMIN_USER_IDS, which is what a local lab preview sets).
+export function adminIds(): string[] {
+  const raw = (IS_LAB && process.env.ADMIN_USER_IDS_LAB?.trim()) || process.env.ADMIN_USER_IDS || ''
+  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
 export async function requireAdmin() {
   const auth = await requireUser()
   if (!auth) return null
-  const allowed = (process.env.ADMIN_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  const allowed = adminIds()
   return allowed.includes(auth.user.id) ? auth : null
 }
 

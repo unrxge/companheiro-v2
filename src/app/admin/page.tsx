@@ -55,7 +55,7 @@ export default function AdminPage() {
       .then(async (r) => {
         const d = await r.json().catch(() => ({}))
         if (!live) return
-        if (!r.ok) setError(r.status === 404 ? 'This page is only for the owner (ADMIN_USER_IDS).' : d.error || 'Failed to load')
+        if (!r.ok) setError(r.status === 404 ? 'This page is only for the owner (ADMIN_USER_IDS, or ADMIN_USER_IDS_LAB in the lab).' : d.error || 'Failed to load')
         else setData(d)
       })
       .catch((e) => live && setError(String(e)))
