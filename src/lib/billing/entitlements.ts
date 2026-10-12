@@ -69,7 +69,7 @@ export function activeLimitWords(n: number = PRACTICE_ACTIVE_PROJECTS): string {
 export function activeLimitLine(plan: Plan): string {
   return plan === 'ended'
     ? `Without a plan, ${activeLimitWords()} stay open at a time.`
-    : `Practice carries ${activeLimitWords()} at a time.`
+    : `Focus carries ${activeLimitWords()} at a time.`
 }
 
 export function restEndsAt(from: Date | string | number = Date.now()): string {

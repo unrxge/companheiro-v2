@@ -171,7 +171,7 @@ function Body({ data, usd, days, env, route, setRoute }: { data: Data; usd: (m: 
           <Tile label="Monthly revenue (gross)" value={`$${mrrUsd.toFixed(0)}`} sub={`$${netUsd.toFixed(0)} net est. · €${mrr.toFixed(0)} at list price`} />
           <Tile label="AI cost, monthly pace" value={`$${aiMonthlyUsd.toFixed(2)}`} sub={`${usd(aiWindow)} over ${days} days`} />
           <Tile label="Margin, monthly pace" value={`$${(netUsd - aiMonthlyUsd).toFixed(0)}`} sub={netUsd > 0 ? `AI is ${Math.round((aiMonthlyUsd / netUsd) * 100)}% of net` : 'no paying users yet'} />
-          <Tile label="People" value={`${payingByTier.practice + payingByTier.direction} paying`} sub={`${payingByTier.practice} Practice · ${payingByTier.direction} Direction · ${count('trialing')} in trial · ${count('grandfathered')} free${cancelling ? ` · ${cancelling} cancelling` : ''}`} />
+          <Tile label="People" value={`${payingByTier.practice + payingByTier.direction} paying`} sub={`${payingByTier.practice} Focus · ${payingByTier.direction} Direction · ${count('trialing')} in trial · ${count('grandfathered')} free${cancelling ? ` · ${cancelling} cancelling` : ''}`} />
         </div>
         <div className={`${card} mt-3`} style={cardStyle}>
           <p className="mb-2 text-sm font-medium">AI cost per day <span className="text-xs font-normal" style={muted}>({env})</span></p>

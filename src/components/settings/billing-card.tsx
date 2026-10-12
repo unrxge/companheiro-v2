@@ -17,7 +17,7 @@ type Subscription = {
   cancel_at_period_end: boolean
 }
 
-const PLAN_LABEL: Record<Tier, string> = { practice: 'Practice', direction: 'Direction' }
+const PLAN_LABEL: Record<Tier, string> = { practice: 'Focus', direction: 'Direction' }
 
 function daysLeft(iso: string): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000))
@@ -128,7 +128,7 @@ export function BillingCard() {
             <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <div style={label}>{sub?.status === 'trialing' && sub.trial_ends_at ? `Trial — ${daysLeft(sub.trial_ends_at)} days left` : 'Choose a plan'}</div>
               <div style={hint}>
-                Practice for two active projects in words. Direction for many, in any medium, with threads, images and recordings on the canvas.
+                Focus for two active projects in words. Direction for many, in any medium, with threads, images and recordings on the canvas.
               </div>
             </div>
             <div role="radiogroup" aria-label="Billing period" style={{ display: 'inline-flex', gap: 6 }}>
@@ -138,7 +138,7 @@ export function BillingCard() {
           </div>
           <Divider />
           <div style={row}>
-            <div style={label}>Practice — {prices.money('practice', interval)}{interval === 'yearly' ? '/yr' : '/mo'}</div>
+            <div style={label}>Focus — {prices.money('practice', interval)}{interval === 'yearly' ? '/yr' : '/mo'}</div>
             <PrimaryButton size="sm" onClick={() => subscribe('practice')} loading={busy === 'practice'} loadingLabel="Starting…">Subscribe</PrimaryButton>
           </div>
           <Divider />

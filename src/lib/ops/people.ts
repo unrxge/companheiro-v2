@@ -67,7 +67,7 @@ export function planLabel(status?: string | null, tier?: string | null): string 
   if (status === 'grandfathered') return 'Everything, free'
   if (status === 'trialing') return 'Free month'
   if (status === 'canceled') return 'Ended'
-  if (status === 'active' || status === 'past_due') return tier === 'direction' ? 'Direction' : 'Practice'
+  if (status === 'active' || status === 'past_due') return tier === 'direction' ? 'Direction' : 'Focus'
   return '—'
 }
 

@@ -5,7 +5,12 @@
 
 export type ChosenPlan = { tier: 'practice' | 'direction'; interval: 'monthly' | 'yearly' }
 
-export const PLAN_LABEL: Record<ChosenPlan['tier'], string> = { practice: 'Practice', direction: 'Direction' }
+// What each plan is called where people read it. The first is `practice`
+// everywhere in the code, the database and Stripe's metadata, and was shown
+// as "Practice" until 2026-10-12: to an artist that read as rehearsal, as if
+// the work were not yet the real thing. "Focus" says what the plan is (two
+// projects at a time, on purpose) without ranking the person who chooses it.
+export const PLAN_LABEL: Record<ChosenPlan['tier'], string> = { practice: 'Focus', direction: 'Direction' }
 
 /** The plan named in a query string, or null when none (or nonsense) is there. */
 export function readChosenPlan(search: string | URLSearchParams): ChosenPlan | null {

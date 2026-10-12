@@ -312,7 +312,7 @@ export function TrialEndedNotice({ status, onClose, onPlans }: { status: Status 
         </p>
       )}
       <p style={s.body}>
-        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Practice is {prices.money('practice', 'monthly')} a month, for two active projects in words. Direction is {prices.money('direction', 'monthly')}, for
+        {cancelled ? 'To pick the companion back up, choose a plan.' : 'To keep working with the companion, choose a plan.'} Focus is {prices.money('practice', 'monthly')} a month, for two active projects in words. Direction is {prices.money('direction', 'monthly')}, for
         several projects in any medium.
       </p>
       {CONTACT_EMAIL && (

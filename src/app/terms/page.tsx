@@ -59,17 +59,17 @@ export default function TermsPage() {
           You can instead choose a paid plan straight away from our pricing section. Your plan then starts at once, in place of the free trial.
         </li>
         <li>
-          After the trial you can choose a paid plan: Practice or Direction, billed monthly or yearly. The current prices and what each plan includes are
+          After the trial you can choose a paid plan: Focus or Direction, billed monthly or yearly. The current prices and what each plan includes are
           shown on our <A href="/#pricing">pricing section</A> and at checkout; the price you see at checkout is the price you pay.
         </li>
         <li>
-          <strong>Practice carries two active projects at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
+          <strong>Focus carries two active projects at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
           When both places are taken, making another project active means choosing one of the two to rest: it returns to your Queue for 14 days
           before it can be made active again. Resting changes nothing inside a project; everything in it is kept as you left it. New threads, images and
           recordings on a project&rsquo;s canvas, and the conversation about a whole project from its canvas, are part of Direction.
         </li>
         <li>
-          If you move from Direction or the free trial to Practice, or your trial or plan ends, <strong>nothing is deleted</strong>. You choose which
+          If you move from Direction or the free trial to Focus, or your trial or plan ends, <strong>nothing is deleted</strong>. You choose which
           projects stay active, up to the number your plan carries; the others wait in your Queue. Threads, images and recordings you already made stay where they are, though new ones
           cannot be added.
         </li>
