@@ -294,11 +294,11 @@ function Hero() {
 // ── Manifesto: words come up as you read ─────────────────────────────────────
 
 // Carries on from the hero, which says everything you have made is trying to
-// say one thing: here are two of those things, then what the one thing is
-// called. Short enough to take in without stopping.
-const MANIFESTO = 'The line you keep coming back to. The image you can\u2019t put down. They were never separate ideas. That one thing has a name:'
+// say one thing: here are two of those things, what the person calls them,
+// and what they often are. Short enough to take in without stopping.
+const MANIFESTO = 'The line you keep coming back to. The image you can\u2019t put down. You call them scattered ideas. Often, they are'
 // The turn: the one phrase a skimmer should leave with.
-const MANIFESTO_TURN = 'your vision.'
+const MANIFESTO_TURN = 'one vision.'
 
 function Word({ word, progress, range, className }: { word: string; progress: MotionValue<number>; range: [number, number]; className?: string }) {
   const opacity = useTransform(progress, range, [0.16, 1])

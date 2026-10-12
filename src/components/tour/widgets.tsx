@@ -174,6 +174,15 @@ export function CheckInWidget({ active }: TourWidgetProps) {
 
 const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
   {
+    label: 'Slow living',
+    hue: 'verdant',
+    questions: [
+      'What did you stop rushing on the day your life started to feel like your own?',
+      'If nobody were keeping score, which ordinary hour of your week would you turn into a ritual?',
+      'What are you finally unhurried enough to notice, and who do you want to show it to?',
+    ],
+  },
+  {
     label: 'Creativity & devotion',
     // Not ember: the pages these sit on are already full of it.
     hue: 'violet',
@@ -192,18 +201,9 @@ const THEMES: { label: string; hue: Hue; questions: string[] }[] = [
       'Where in your life does strength look like staying, listening, or saying sorry first?',
     ],
   },
-  {
-    label: 'Slow living',
-    hue: 'verdant',
-    questions: [
-      'What did you stop rushing on the day your life started to feel like your own?',
-      'If nobody were keeping score, which ordinary hour of your week would you turn into a ritual?',
-      'What are you finally unhurried enough to notice, and who do you want to show it to?',
-    ],
-  },
 ]
 /** The question the Conceptualise slide answers. */
-const SEED = THEMES[0]
+const SEED = THEMES.find((th) => th.label === 'Creativity & devotion') ?? THEMES[0]
 
 /** The question, arriving a word at a time. `leaving` takes it back, last word first. */
 function Arriving({ text, leaving = false }: { text: string; leaving?: boolean }) {

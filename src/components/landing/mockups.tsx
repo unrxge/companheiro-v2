@@ -364,17 +364,18 @@ function lay(content: Record<string, Content>, w: number, h: number, boxes: Reco
 }
 
 // A thread is the thing a project is easiest to lose sight of once the work
-// is under way: who it is for, and the one thing it has to say. Each is named
-// as plainly as that, and runs through every piece that has to answer to it.
+// is under way. Each is written the way someone would jot it to themselves (a
+// date not to forget, what the whole thing is for) and runs through every
+// piece that has to answer to it.
 const FILM: Record<string, Content> = {
   vision: { kind: 'vision', title: 'Atlas Ceramics · launch film', line: 'Sixty seconds on hands, heat and patience.', rules: 'Keeps: natural light. Refuses: a voiceover, stock music.' },
   treatment: { kind: 'piece', title: 'Treatment', medium: 'For the client', step: 'test' },
   shots: { kind: 'piece', title: 'Shot list', medium: 'Film', step: 'write' },
   stills: { kind: 'piece', title: 'Stills for the site', medium: 'Photo series', step: 'concept' },
-  who: { kind: 'hub', label: 'for first-time buyers', hue: 'ochre' },
-  promise: { kind: 'hub', label: 'patience is the product', hue: 'tide' },
+  who: { kind: 'hub', label: 'don’t forget: due 3 March', hue: 'ochre' },
+  promise: { kind: 'hub', label: 'goal: convey patience', hue: 'tide' },
   frame: { kind: 'image', caption: 'Kiln at 6am. The light to match.' },
-  note: { kind: 'recording', title: 'Voice note after the recce', short: 'Recce voice note', length: '1:12' },
+  note: { kind: 'recording', title: 'Voice note after the recording', short: 'Note after the recording', length: '1:12' },
   tasks: { kind: 'tasks', title: 'Before the shoot', tasks: [
     { text: 'Confirm the kiln day with Ana', done: true },
     { text: 'Book the 50mm', done: false },
@@ -396,7 +397,7 @@ const FILM_SCENE: Scene = {
     treatment: [520, 24, 210, 104],
     shots: [520, 180, 210, 104],
     stills: [846, 40, 210, 104],
-    who: [300, 106, 198, 40],
+    who: [288, 106, 226, 40],
     promise: [300, 288, 204, 40],
     frame: [846, 204, 210, 224],
     note: [520, 340, 232, 104],
@@ -409,7 +410,7 @@ const FILM_SCENE: Scene = {
     vision: [16, 24, 196, 104],
     treatment: [252, 14, 164, 104],
     shots: [236, 178, 164, 104],
-    who: [22, 168, 196, 40],
+    who: [14, 170, 216, 38],
     note: [22, 262, 178, 86],
   }, FILM_EDGES),
 }
@@ -420,7 +421,7 @@ const FILM_FOLDED: Layout = lay(FILM, 610, 344, {
   treatment: [246, 14, 168, 104],
   shots: [246, 130, 168, 104],
   stills: [428, 14, 168, 104],
-  who: [14, 14, 186, 36],
+  who: [14, 14, 222, 36],
   promise: [14, 296, 200, 36],
   frame: [428, 130, 168, 202],
   note: [246, 246, 168, 86],
@@ -453,8 +454,9 @@ const BOOK_SCENE: Scene = {
   airy: lay(BOOK, 432, 372, {
     vision: [16, 24, 196, 104],
     l1: [252, 14, 164, 104],
-    l2: [32, 180, 164, 104],
-    l3: [238, 214, 164, 104],
+    l2: [236, 134, 164, 104],
+    l3: [254, 254, 164, 104],
+    week: [20, 152, 198, 204],
   }, []),
 }
 const SCENES = [FILM_SCENE, BOOK_SCENE]
@@ -978,7 +980,8 @@ export function RuleHeardMockup({ replay, onDone }: LoopProps) {
     if (!inView || theirs) return
     if (reduce) { setStage(5); return }
     const lead = cycle === 0 ? 900 : 350
-    const at: [number, number][] = [[lead, 1], [lead + 850, 2], [lead + 2300, 3], [lead + 2650, 4], [lead + 4300, 5]]
+    // The offer stays up long enough to be read (a label, a seven-word rule, two buttons) before one of them is pressed.
+    const at: [number, number][] = [[lead, 1], [lead + 850, 2], [lead + 4400, 3], [lead + 4750, 4], [lead + 6600, 5]]
     const ids = at.map(([ms, to]) => window.setTimeout(() => setStage(to), ms))
     return () => ids.forEach((id) => window.clearTimeout(id))
   }, [inView, cycle, reduce, theirs])
