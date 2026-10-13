@@ -629,7 +629,7 @@ export default function CheckInPage() {
                     const speaking = mine && !voiceDown
                     return (
                       <>
-                      <button onClick={() => void handleSpeak(lastAi.x.content, lastAi.i, { energy: signals?.energy, movement: signals?.arc_texture, hour: new Date().getHours() })} aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'} style={{ color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, ...typeRoles.small, fontSize: 12 }}>
+                      <button onClick={() => void handleSpeak(lastAi.x.content, lastAi.i, { energy: signals?.energy, movement: signals?.arc_texture, hour: new Date().getHours(), checkInId: savedAt ? checkInIdRef.current : null, replyIndex: messages.slice(0, lastAi.i).filter((x) => x.role === 'assistant').length })} aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'} style={{ color: t.textMuted, background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, ...typeRoles.small, fontSize: 12 }}>
                         {speaking ? (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>
                         ) : (

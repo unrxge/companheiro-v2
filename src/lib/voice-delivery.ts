@@ -50,7 +50,7 @@ const PACE: Record<Register, string> = {
   // Momentum is theirs. The voice keeps up without getting excited about it.
   lifted: `A slightly more forward pace than usual, still relaxed. No added brightness or enthusiasm.`,
   // The one register that slows: this is often the only reply they hear.
-  depleted: `Slower than conversation, with a full breath of silence between sentences. A little quieter. Nothing pressed.`,
+  depleted: `Slower than conversation, with a full breath between sentences. Nothing pressed. Still clearly audible.`,
 }
 
 export function deliveryFor(context: VoiceContext, text: string): string {
@@ -60,7 +60,7 @@ export function deliveryFor(context: VoiceContext, text: string): string {
   // Late evening and night: lower the volume of the whole thing a notch.
   const hour = context.hour
   if (typeof hour === 'number' && (hour >= 21 || hour < 6)) {
-    parts.push(`It is late where they are: keep it quiet.`)
+    parts.push(`It is late where they are: a slightly lower volume than usual, still clearly audible.`)
   }
 
   // Most replies end by offering a question; the rest come to rest.
@@ -95,4 +95,16 @@ export function parseVoiceContext(raw: unknown): VoiceContext {
     movement: MOVEMENTS.includes(r.movement as Movement) ? (r.movement as Movement) : null,
     hour,
   }
+}
+
+// The nth thing the companion said in a stored check-in ("You: …\n\nCompanheiro: …"),
+// counting from 0. Lets the server read the words itself, so they never have
+// to travel in an address.
+export function nthCompanionReply(fullConversation: string | null | undefined, n: number): string | null {
+  if (!fullConversation) return null
+  const replies = fullConversation
+    .split(/\n\n(?=(?:You|Companheiro): )/)
+    .filter((chunk) => chunk.startsWith('Companheiro: '))
+    .map((chunk) => chunk.slice('Companheiro: '.length).trim())
+  return replies[n] ?? null
 }
