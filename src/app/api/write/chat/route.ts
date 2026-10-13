@@ -9,6 +9,7 @@ import { recallEchoes } from "@/lib/recall";
 import { streamClaudeText } from "@/lib/streaming";
 import { withLanguage } from "@/lib/language";
 import { cacheLastMessage } from "@/lib/prompt-cache";
+import { ASSISTANT_INTRO, assistantRules } from "@/lib/writing-assistant-rules";
 import { normaliseRules } from "@/lib/studio/nodes-db";
 import { proposeRules, type RuleProposal } from "@/lib/studio/rule-proposals";
 import { nodeGate } from "@/lib/studio/plan-access";
@@ -35,7 +36,6 @@ interface ChatRequest {
   active_section?: ActiveSection | null;
   preceding_sections?: PrecedingSection[];
   selected_text?: string | null;
-  assistant_mode?: "write" | "coach";
 }
 
 // A long session used to resend every exchange on every reply, so turn 40
@@ -110,14 +110,14 @@ export async function POST(request: NextRequest) {
     ]);
 
     const section = body.active_section;
-    // The write-lock is re-checked here, not trusted from the client — the
-    // whole point of the lock is that switching back to write mode early
-    // isn't possible, including by calling this endpoint directly.
+    // There are no modes any more: the assistant guides, and writes only on a
+    // direct order (lib/writing-assistant-rules.ts). The lock can no longer be
+    // set, but one a person put on themselves is kept until it runs out.
     const lockedUntil = settingsData?.assistant_write_locked_until ?? null;
     const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now();
-    const assistantMode = isLocked ? "coach" : body.assistant_mode || "write";
     const selectedText = body.selected_text || null;
-    const canEdit = !!section && !section.is_locked && assistantMode === "write";
+    // A change to the text can be offered as a pending edit only into an open, focused section.
+    const canEdit = !!section && !section.is_locked && !isLocked;
 
     const precedingSections = (body.preceding_sections || []).filter(
       (s) => s.content?.trim() || (s.anchor_lines && s.anchor_lines.length > 0)
@@ -157,41 +157,14 @@ ${selectedText}
       }`
       : "They aren't focused on a specific section right now — keep it general.";
 
-    const editInstructions =
-      assistantMode === "coach"
-        ? `SUGGEST MODE — HARD RULE, NO EXCEPTIONS: you never write for them here, full stop. This is not a preference to weigh against how stuck they seem — it holds exactly as much when they're breezing through as when they're visibly struggling to land a line. No <proposed_edit>, ever, in this mode.
-What you CAN do: a brief, cautious illustrative example — a fragment, half a sentence, just enough to point at a technique or a direction — never a usable drop-in line, never something that reads as "here, take this." If you catch yourself writing something they could paste in whole, cut it down until it can't be. The example exists to convey a point, not to solve their sentence for them.
-The more they express difficulty ("I don't know how to say this," "I can't find the words"), the more this matters, not less — that's the exact moment it would be easiest to just hand them a line, and the exact moment it would do them the least good. Instead: take a different angle each time. Ask what they actually mean underneath the words they're reaching for. Ask what it would sound like if they said it to one specific person instead of an audience. Name the shape of the sentence without filling it in. Point at a comparison from somewhere else entirely. Vary the approach — don't reach for the same move twice in a session.
-${selectedText ? `They've highlighted a specific passage — start there.` : ""}
-One question maximum per response, and only when it genuinely opens something up. Sometimes a well-placed observation lands better than a question. Never stack questions; if you have several, pick the one that matters most now and let the conversation find the others. The prose stays entirely theirs.`
-      : canEdit
-        ? `WRITE MODE — you're allowed to write for them here, but don't rush to it.
-Before you ever get to "want to try it yourself, or should I write it" — when you've understood what they're reaching for, weave in a brief, concrete example of their own explanation put into practice, seamlessly, as part of the natural back-and-forth (not as a separate announced step). Show, in a compact way, what their idea could sound like — this is about keeping their own creative reflexes alive even in write mode, not about jumping straight to a full solve.
-Only once that's happened, and only when it's genuinely the moment for it, offer the choice: try it themselves first, or have you show a version. This offer must be phrased freshly every time — read the actual conversation and phrase it in a way specific to what's actually being discussed right now. Never reuse the same template question twice in a session ("want to try landing that yourself first, or shall I show you a version?" is exactly the kind of line that must never repeat) — if you notice yourself about to say something close to a phrasing you've already used, find a different way in.
-When — and only when — they clearly want you to write or rewrite prose (not when they're just asking what you think), produce the revision and append it at the very end wrapped exactly like this:
-<proposed_edit>
-the revised text
-</proposed_edit>
-Rules:
-${
-  selectedText
-    ? `- They highlighted a specific sentence or passage — that is the ENTIRE scope of this edit. Return ONLY the rewritten version of that highlighted passage, not the surrounding text and not the rest of the section. It gets spliced back into exactly where the highlight was; anything outside it must stay untouched, so don't include it.`
-    : `- No specific passage was highlighted, so this is a full-section edit — return the section's complete revised text, not a fragment. It replaces the section wholesale on approval.`
-}
-- Every proposal answers to THE CORE CONCEPT: it carries the journey beat this section is for, keeps their rules, and serves the conviction and core truth. Preserve the ethos of their voice; weave in their intent and adapt their wording to fit into the standard of phenomenal storytelling. If anchor lines are allocated to this section, work them in naturally — they're precious to the writer and must not be dropped or ignored.
-- Consistency is non-negotiable: the tone, style, and storyline must read as a continuation of THE PIECE SO FAR, not a fresh take on the topic in isolation. If your proposed text would contradict or ignore something already established above, don't propose it — raise the tension in chat instead.
-- When the ask is a localized tweak, don't just splice the new fragment into untouched surroundings without checking it still reads clean — a transition that no longer connects, a reference to phrasing you just changed, a beat that now repeats or contradicts. But do not rewrite anything beyond what was actually asked for, especially when a specific passage was highlighted.
-- Let the length be whatever the moment needs — a tightened sentence or a full redraft.
-- Your chat message should briefly say what you changed and why; the person approves or rejects the proposed text before anything lands.
-- Never propose an edit speculatively or on the first exchange about a section — earn it through the back-and-forth.`
-        : section?.is_locked
-          ? "This section is LOCKED. Discuss it if asked, but do not propose any changes to it."
-          : "No section is focused, so do not propose edits — talk through the piece.";
+    const editInstructions = assistantRules({
+      canPlace: canEdit,
+      whyNot: !section ? "no-section" : section.is_locked ? "locked-section" : undefined,
+      selectedText,
+      lockedUntil: isLocked ? lockedUntil : null,
+    });
 
-    const modeIntro =
-      assistantMode === "coach"
-        ? "In this session they have chosen coach mode — your role is to help them find their own words through questions and reflection, never by writing prose for them."
-        : "You help them think, unstick sections, sharpen angles, challenge ideas, and give concrete examples. You are a companion, not a ghostwriter — the prose stays theirs.";
+    const modeIntro = ASSISTANT_INTRO;
 
     // Stable across an entire writing session — this string is usually
     // byte-identical from one chat turn to the next, since it only changes
@@ -318,7 +291,7 @@ ${editInstructions}`;
         messages,
       },
       async (fullText) => {
-        const meta: Record<string, unknown> = { lockedMode: isLocked ? "coach" : null };
+        const meta: Record<string, unknown> = {};
         meta.proposals = await Promise.race([
           proposalPromise,
           new Promise<RuleProposal[]>((resolve) => setTimeout(() => resolve([]), 10_000)),
@@ -340,7 +313,7 @@ ${editInstructions}`;
       }
 ,
       {
-        mode: assistantMode,
+        mode: isLocked ? "locked" : "guide",
         trimmed: history.trimmed,
         parts: {
           companion_context: companionContext?.length ?? 0,

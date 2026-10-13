@@ -2,15 +2,17 @@
 
 // The Write page's assistant, on the writing page. "Talk it through" sees the
 // shape of the work and never its prose; this one reads the part being
-// written and what comes before it, and coaches the words: questions in
-// Reflect, a proposed rewrite in Suggest that lands as a pending edit to
-// approve or reject. It uses the same route the Write page did.
+// written and what comes before it, and helps with the words. It has no
+// modes: it guides with questions and other ways of seeing the passage, and
+// writes only when told to (an example in the talk, or, when asked to change
+// the text itself, a pending edit to accept or reject). The rules are in
+// lib/writing-assistant-rules.ts.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { Label } from '@/components/studio/work/bits'
-import { ModeSwitch, ProposalCard, type CompanionMode, type ProposedEdit } from '@/components/studio/work/companion'
+import { ProposalCard, type ProposedEdit } from '@/components/studio/work/companion'
 import type { RuleProposal } from '@/lib/studio/rule-proposals'
 import type { AnchorLine } from '@/components/studio/work/write-tools'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -29,7 +31,6 @@ const DISTILL_HIDDEN_MIN = 4
 
 interface ChatMeta {
   proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
-  lockedMode?: 'coach' | null
   truncated?: boolean
   proposals?: RuleProposal[]
 }
@@ -38,7 +39,7 @@ export type WritingChat = ReturnType<typeof useWritingAssistant>
 
 /** The conversation lives above the panel, so it survives switching tools and parts. */
 export function useWritingAssistant({
-  projectId, nodeId, parts, activePartId, selection, lines, lockedUntil, onProposedEdit, onClearSelection,
+  projectId, nodeId, parts, activePartId, selection, lines, onProposedEdit, onClearSelection,
 }: {
   projectId: string
   nodeId: string | null
@@ -47,23 +48,17 @@ export function useWritingAssistant({
   activePartId: string | null
   selection: { nodeId: string; text: string } | null
   lines: AnchorLine[]
-  lockedUntil: string | null
   onProposedEdit: (edit: ProposedEdit) => void
   onClearSelection: () => void
 }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  // Never carried over from a past session: a conversation opens reflecting.
-  const [mode, setMode] = useState<CompanionMode>('coach')
   // Rules heard in what they said, waiting for them to keep or decline.
   const [proposals, setProposals] = useState<RuleProposal[]>([])
   const messagesRef = useRef<Message[]>([])
   messagesRef.current = messages
   const distilledUpTo = useRef(0)
-
-  const locked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now()
-  useEffect(() => { if (locked && mode === 'write') setMode('coach') }, [locked, mode])
 
   const active = useMemo(
     () => parts.find((p) => p.id === activePartId) ?? (parts.length === 1 ? parts[0] : null),
@@ -84,7 +79,6 @@ export function useWritingAssistant({
   useEffect(() => {
     setMessages([])
     setInput('')
-    setMode('coach')
     setProposals([])
     distilledUpTo.current = 0
     let alive = true
@@ -137,7 +131,7 @@ export function useWritingAssistant({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text, node_id: nodeId, conversation_history: prior,
-          active_section: activeSection, preceding_sections: preceding, selected_text: selected, assistant_mode: mode,
+          active_section: activeSection, preceding_sections: preceding, selected_text: selected,
         }),
       })
       if (!res.ok) { say("Something went wrong on my end and that didn't send. Try again?"); return }
@@ -157,8 +151,6 @@ export function useWritingAssistant({
         })
         return
       }
-      // The lock is enforced on the server whatever this client sent.
-      if (result.meta?.lockedMode === 'coach') setMode('coach')
       const heard = result.meta?.proposals ?? []
       if (heard.length) setProposals((prev) => [...prev.filter((p) => !heard.some((h) => h.id === p.id)), ...heard])
       if (result.meta?.truncated) {
@@ -184,27 +176,25 @@ export function useWritingAssistant({
     } finally {
       setBusy(false)
     }
-  }, [active, busy, flushDistillation, input, lines, mode, nodeId, onClearSelection, onProposedEdit, parts, selection])
+  }, [active, busy, flushDistillation, input, lines, nodeId, onClearSelection, onProposedEdit, parts, selection])
 
   const dropProposal = useCallback((id: string) => setProposals((prev) => prev.filter((p) => p.id !== id)), [])
 
-  return { messages, input, setInput, busy, mode, setMode, locked, active, send, proposals, dropProposal }
+  return { messages, input, setInput, busy, active, send, proposals, dropProposal }
 }
 
 export function AssistantPanel({
-  chat, selection, onClearSelection, lockedUntil, onRequestLock, onRulesChanged, disabled = false,
+  chat, selection, onClearSelection, onRulesChanged, disabled = false,
 }: {
   chat: WritingChat
   /** A rule heard in talk was kept, so the rules on screen are stale. */
   onRulesChanged?: () => void
   selection: { nodeId: string; text: string } | null
   onClearSelection: () => void
-  lockedUntil: string | null
-  onRequestLock: () => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
-  const { messages, input, setInput, busy, mode, setMode, locked, active, send, proposals, dropProposal } = chat
+  const { messages, input, setInput, busy, active, send, proposals, dropProposal } = chat
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   const inputRef = useRef('')
@@ -254,9 +244,7 @@ export function AssistantPanel({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Label>about the words</Label>
             <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
-              {mode === 'write'
-                ? "Click into a part, then ask for a suggestion when you want one. Select a specific sentence first and it will focus there; approved suggestions land in the part for you to accept."
-                : "It won't write for you here. It asks questions and reflects things back until the words come from you. Select a sentence to talk about it specifically, or ask about the piece as a whole."}
+              It asks, and shows you the passage from other sides, until the words come from you. If you want to see an example, say so and it will show one. Select a sentence to talk about that one, or ask about the piece as a whole.
             </p>
           </div>
         )}
@@ -298,7 +286,7 @@ export function AssistantPanel({
             aria-label="Ask about the words"
             value={input + (dictation.interimText ? ` ${dictation.interimText}` : '')}
             rows={1}
-            placeholder={mode === 'coach' ? 'What are you trying to say here?' : 'Ask something…'}
+            placeholder="What are you trying to say here?"
             onChange={(e) => { dictation.clearInterim(); setInput(e.target.value) }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNow() } }}
             style={{ flex: 1, resize: 'none', ...canvasType.body, color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '8px 10px', outline: 'none', boxSizing: 'border-box', overflowY: 'hidden' }}
@@ -321,7 +309,6 @@ export function AssistantPanel({
         </div>
       )}
 
-      {!disabled && <ModeSwitch mode={mode} onChange={setMode} locked={locked} lockedUntil={lockedUntil} onRequestLock={onRequestLock} />}
     </div>
   )
 }

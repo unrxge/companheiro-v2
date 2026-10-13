@@ -1,25 +1,18 @@
 // GET/POST /api/studio/projects/:id/companion — the companion, at whatever
 // altitude you are standing.
 //
-// Reflect mode is given the shape of the work, not the prose: what the thing
-// is for, the rules in force, the parts and what each is meant to do, the
-// threads and where they appear and where they go quiet. That is enough to
-// talk about strategy and shape, and it is deliberately not enough to write
-// anything — this is the companion's default, and its behavior everywhere
-// except the two exceptions below.
+// It is given the shape of the work, not the prose: what the thing is for,
+// the rules in force, the parts and what each is meant to do, the threads and
+// where they appear and where they go quiet. That is enough to talk about
+// strategy and shape, and it is deliberately not enough to write anything.
+// There is no mode in which it writes (until 2026-10-13 a "write mode" could
+// be switched on for one part; words on request now belong to the writing
+// assistant alone, /api/write/chat, and only on a direct order).
 //
-// The first exception: a passage highlighted in the editor travels along in
-// either mode, because handing it over is the person's own act, the same as
-// pasting it into the message would be — reflect can discuss it, but that one
-// passage is all it gets; the rest of the part stays unseen.
-//
-// Write mode is the second, bigger exception: opened deliberately, one part
-// at a time, it is handed that part's actual prose and permitted to propose a
-// rewrite — never speculatively, and never anywhere else in the same
-// conversation. A write-lock (user_settings.assistant_write_locked_until,
-// shared with the main app) can hold the companion to reflect-only regardless
-// of what the client asks for, for anyone who wants no AI prose at all while
-// they write.
+// The one exception to "never the prose": a passage highlighted in the editor
+// travels along, because handing it over is the person's own act, the same as
+// pasting it into the message would be. It can discuss that passage, and that
+// one passage is all it gets; the rest of the part stays unseen.
 //
 // At the project altitude it can see every piece and every thread. Inside a
 // part it sees that part, what it owes the thing above it, and its siblings.
@@ -31,7 +24,7 @@
 //
 // The vision is more than the shape, too: who this actually reaches, what it
 // takes for that to happen, what it is really handing someone, why any of it
-// is worth their time or the person's own — that lives in reflect mode as
+// is worth their time or the person's own — that lives here as
 // well, since none of it needs the prose either. It only comes up when asked
 // for, the same restraint that governs everything else here.
 
@@ -42,7 +35,6 @@ import { COMPANION_TONE } from '@/lib/companion-tone'
 import { withLanguage } from '@/lib/language'
 import { MODELS } from '@/lib/models'
 import { cacheLastMessage } from '@/lib/prompt-cache'
-import { htmlToPlainText } from '@/lib/rich-text'
 import { streamClaudeText } from '@/lib/streaming'
 import {
   badRequest, fromDbError, isRecord, isString, isUuid, readJson, requireProject, withAuth,
@@ -94,35 +86,6 @@ THEIR OWN RULES: when what they say now settles something that runs against one 
 
 Short replies. Match the weight of what they brought.`
 
-/** Only ever appended in write mode, with a real part to write into. */
-function writeAddendum(selectedText: string | null): string {
-  return `
-
-You are now in WRITE MODE for this one part only — permission to see and propose its actual prose is granted here, and only here; the rule above about never seeing the writing still holds everywhere else in this conversation.
-
-Before you ever offer a rewrite, once you've understood what they're reaching for, weave in a brief, concrete example of their own idea put into practice, seamlessly, as part of the natural back-and-forth — keep their own creative reflexes alive, don't jump straight to a full solve.
-
-Only once that's happened, and only when it's genuinely the moment for it, offer the choice: try it themselves first, or have you show a version — phrased freshly each time, specific to what's actually being discussed, never a repeated template.
-
-When — and only when — they clearly want you to write or rewrite prose, produce the revision and append it at the very end wrapped exactly like this:
-<proposed_edit>
-the revised text
-</proposed_edit>
-
-Rules:
-${selectedText
-    ? `- They highlighted a specific passage — that is the ENTIRE scope of this edit. Return ONLY the rewritten version of that highlighted passage, not the surrounding text. It gets spliced back exactly where the highlight was.`
-    : `- No passage was highlighted, so this is a whole-part edit — return the part's complete revised text. It replaces the part wholesale on approval.`}
-- Preserve their voice and intent. Consistency with what comes before this part, in reading order, is non-negotiable — if your proposal would contradict or ignore something already established, don't propose it; raise the tension in chat instead.
-- Let the length be whatever the moment needs — a tightened line or a full redraft.
-- Say briefly what you changed and why in your chat message; they approve or reject the proposed text before anything lands.
-- Never propose an edit speculatively or on the first exchange about this part — earn it through the back-and-forth.`
-}
-
-const WRITE_NO_TARGET = `
-
-They have asked for write mode, but there is nothing here with actual prose to rewrite — either no part is focused, or this one is already marked done. Stay conversational; do not propose an edit.`
-
 function outline(node: TreeNode, depth: number, threadNames: Map<string, string>): string {
   const pad = '  '.repeat(depth)
   const bits: string[] = []
@@ -166,7 +129,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!isString(body.message) || !body.message.trim()) throw badRequest('say something')
     const message = body.message.trim().slice(0, MAX_MESSAGE)
     const nodeId = isUuid(body.node_id) ? body.node_id : null
-    const wantsWrite = body.mode === 'write'
     const selectedText = isString(body.selected_text) && body.selected_text.trim()
       ? body.selected_text.trim().slice(0, MAX_MESSAGE)
       : null
@@ -179,21 +141,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const roots = buildTree(tree.nodes, tree.tags, tree.threads.map((x) => x.id))
     const threadNames = new Map(tree.threads.map((x) => [x.id, x.name || 'an unnamed thread']))
 
-    // The write-lock is re-checked here, not trusted from the client — the
-    // whole point of the lock is that switching back to write mode early
-    // isn't possible, including by calling this endpoint directly.
-    const { data: settings } = await auth.supabase
-      .from('user_settings')
-      .select('assistant_write_locked_until')
-      .eq('user_id', auth.user.id)
-      .maybeSingle()
-    const lockedUntil = settings?.assistant_write_locked_until ?? null
-    const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now()
-    const assistantMode: 'coach' | 'write' = isLocked ? 'coach' : wantsWrite ? 'write' : 'coach'
-
     // ── what the companion is standing in front of ─────────────────────────
     const here = nodeId ? findNode(roots, nodeId) : null
-    const canEdit = assistantMode === 'write' && !!here && here.status !== 'done'
     const lines: string[] = []
 
     if (here) {
@@ -212,27 +161,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       // A highlighted passage is the person bringing it, not you going and
       // reading the part — the same as pasting it into the message would be,
-      // so this travels in either mode, unlike everything in canEdit below.
+      // so it travels with the message.
       if (selectedText) {
         lines.push(`SELECTED PASSAGE (they highlighted this — it is the exact focus; this is the verbatim current text, never ask them to paste it again):\n"""\n${selectedText}\n"""`)
       }
 
-      // ── the one exception: actual prose, only here, only in write mode ───
-      if (canEdit) {
-        const precedingText = above
-          ? above.children
-            .filter((s) => s.position < here.position)
-            .sort((a, b) => a.position - b.position)
-            .map((s) => `[${s.title || 'untitled'}]\n${htmlToPlainText(s.body).trim() || '(not written yet)'}`)
-            .join('\n\n')
-          : ''
-        lines.push(
-          precedingText
-            ? `THE PIECE SO FAR (read before proposing anything; match its established tone and voice):\n\n${precedingText}`
-            : 'Nothing has been written before this part yet — it is the opening.',
-        )
-        lines.push(`THE ACTUAL TEXT OF THIS PART, RIGHT NOW:\n"""\n${htmlToPlainText(here.body).trim() || '(empty)'}\n"""`)
-      }
     } else {
       lines.push(`WHERE WE ARE: the whole of ${project.title}.`)
       if (project.intent) lines.push(`WHAT THE WHOLE THING IS FOR: ${project.intent}`)
@@ -322,41 +255,32 @@ export async function POST(req: NextRequest, { params }: Params) {
       { role: 'user', content: message },
     ]
 
-    const addendum = assistantMode === 'write' ? (canEdit ? writeAddendum(selectedText) : WRITE_NO_TARGET) : ''
-
     return streamClaudeText(auth.user.id, 
       ROUTE,
       {
         model: pickModel(auth, MODELS.deep),
-        // A whole-part rewrite needs real room; a reflect-mode reply is
-        // meant to stay short, so only write mode gets the bigger cap.
-        max_tokens: assistantMode === 'write' ? 4096 : 1200,
-        system: withLanguage(`${COMPANION_TONE}\n\n${ROLE}${addendum}`),
+        // This conversation is about shape and direction and never writes
+        // the work (ROLE), so replies are meant to stay short.
+        max_tokens: 1200,
+        system: withLanguage(`${COMPANION_TONE}\n\n${ROLE}`),
         messages: cacheLastMessage(messages),
       },
       async (fullText) => {
-        // The <proposed_edit> block is shown to the person inline, in the
-        // document itself, once approved — it does not belong in the chat
-        // transcript twice, so only the conversational half is persisted.
-        const clean = fullText.replace(/<proposed_edit>[\s\S]*?<\/proposed_edit>/, '').trim()
+        const clean = fullText.trim()
         if (clean) {
           await auth.supabase.from('studio_vision_messages').insert({
             user_id: auth.user.id, project_id: project.id, node_id: nodeId,
             role: 'companion', text: clean,
           })
         }
-        const meta: Record<string, unknown> = { lockedMode: isLocked ? 'coach' : null }
+        const meta: Record<string, unknown> = {}
         meta.proposals = await Promise.race([
           proposalPromise,
           new Promise<RuleProposal[]>((resolve) => setTimeout(() => resolve([]), 10_000)),
         ])
-        if (canEdit) {
-          const match = fullText.match(/<proposed_edit>\s*([\s\S]*?)\s*<\/proposed_edit>/)
-          if (match) meta.proposedEdit = { node_id: nodeId, content: match[1], anchor_text: selectedText }
-        }
         return meta
       },
-      { mode: assistantMode },
+      { mode: 'guide' },
     )
   })
 }

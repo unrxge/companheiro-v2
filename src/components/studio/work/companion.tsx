@@ -2,14 +2,9 @@
 
 // studio/src/components/work/companion.tsx — talking the work through.
 //
-// Reflect is the default and, at the whole-project altitude, the only mode:
-// it is given the shape and never the prose, so it cannot quietly start
-// writing for you. Suggest exists only inside one part at a time — it is
-// handed that part's actual text and may propose a rewrite, materialised
-// into the document as a pending edit for you to approve or reject. A
-// write-lock (shared with the main app, extend-only) can hold it to Reflect
-// regardless of what the toggle says, for anyone who wants no AI prose at
-// all while they write.
+// It is given the shape and never the prose, so it cannot start writing for
+// you: there is no mode in which it does. (Words on request belong to the
+// writing assistant, writing-assistant.tsx, and only on a direct order.)
 //
 // One conversation per altitude: the whole project has its own, and so does
 // every part.
@@ -32,8 +27,6 @@ interface Line {
   text: string
 }
 
-export type CompanionMode = 'coach' | 'write'
-
 export interface ProposedEdit {
   node_id: string
   content: string
@@ -46,13 +39,10 @@ export function Companion({
   nodeId,
   /** What this conversation is about, shown once when it is empty. */
   scope,
-  /** Suggest mode only makes sense with a real part to write into. */
+  /** Inside one part: a passage highlighted there can be brought into the talk. */
   canSuggest = false,
   selection,
   onClearSelection,
-  lockedUntil,
-  onRequestLock,
-  onProposedEdit,
   onRulesChanged,
   disabled = false,
 }: {
@@ -63,10 +53,6 @@ export function Companion({
   /** The passage currently highlighted in this part's editor, if any. */
   selection?: { text: string } | null
   onClearSelection?: () => void
-  /** From /api/studio/assistant-lock — null when not locked. */
-  lockedUntil?: string | null
-  onRequestLock?: () => void
-  onProposedEdit?: (edit: ProposedEdit) => void
   /** A rule heard in talk was kept, so the rules on screen are stale. */
   onRulesChanged?: () => void
   disabled?: boolean
@@ -78,9 +64,6 @@ export function Companion({
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [proposals, setProposals] = useState<RuleProposal[]>([])
-  // Never persisted, and never carried from one altitude to the next — a
-  // fresh conversation always opens reflecting, the same as the main app.
-  const [mode, setMode] = useState<CompanionMode>('coach')
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   // The dictation hook wants the tail of what is already there for punctuation,
@@ -100,15 +83,12 @@ export function Companion({
     getContext: () => draftRef.current.slice(-200),
   })
 
-  const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now()
-
   // One conversation per altitude, so the key is the pair.
   useEffect(() => {
     let alive = true
     setLoaded(false)
     setLines([])
     setProposals([])
-    setMode('coach')
     distilledUpToRef.current = 0
     const url = `/api/studio/projects/${projectId}/companion${nodeId ? `?node_id=${nodeId}` : ''}`
     fetch(`/api/studio/projects/${projectId}/proposals${nodeId ? `?node_id=${nodeId}` : ''}`, { credentials: 'same-origin' })
@@ -125,13 +105,6 @@ export function Companion({
       .catch(() => { if (alive) setLoaded(true) })
     return () => { alive = false }
   }, [projectId, nodeId])
-
-  // The lock is server-enforced regardless of what the toggle says — if it
-  // becomes active mid-session (started in another tab, or the main app),
-  // reflect that back here rather than leaving Suggest selected but inert.
-  useEffect(() => {
-    if (isLocked && mode === 'write') setMode('coach')
-  }, [isLocked, mode])
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' })
@@ -200,9 +173,8 @@ export function Companion({
     const mine: Line = { id: `me-${Date.now()}`, role: 'person', text }
     const replyId = `it-${Date.now()}`
     setLines((prev) => [...prev, mine, { id: replyId, role: 'companion', text: '' }])
-    // Reflect still never reads a part on its own — but a passage highlighted
-    // and handed over is the person bringing it, the same as pasting it into
-    // the message would be, so it travels in either mode.
+    // It never reads a part on its own, but a passage highlighted and handed
+    // over is the person bringing it, the same as pasting it into the message.
     const activeSelection = canSuggest ? selection?.text ?? null : null
 
     try {
@@ -210,26 +182,18 @@ export function Companion({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ message: text, node_id: nodeId, mode, selected_text: activeSelection }),
+        body: JSON.stringify({ message: text, node_id: nodeId, selected_text: activeSelection }),
       })
       if (!res.ok) throw new Error('it did not answer')
-      const result = await readTextStream<{ lockedMode?: 'coach' | null; proposedEdit?: ProposedEdit; proposals?: RuleProposal[] }>(
+      const result = await readTextStream<{ proposals?: RuleProposal[] }>(
         res,
         // The visible reply so far, whole, on every chunk (not a delta).
         (visible) => {
           setLines((prev) => prev.map((l) => (l.id === replyId ? { ...l, text: visible } : l)))
         },
-        // The proposal is shown inline in the document once approved, not
-        // as raw markup in the transcript — cut it from the visible stream.
-        ['<proposed_edit>'],
       )
-      if (result.meta?.lockedMode === 'coach') setMode('coach')
       const heard = result.meta?.proposals ?? []
       if (heard.length) setProposals((prev) => [...prev.filter((p) => !heard.some((h) => h.id === p.id)), ...heard])
-      if (result.meta?.proposedEdit) {
-        onProposedEdit?.(result.meta.proposedEdit)
-        onClearSelection?.()
-      }
       if (result.text) {
         flushChatDistillation([...priorLines, mine, { id: replyId, role: 'companion', text: result.text }])
       }
@@ -239,7 +203,7 @@ export function Companion({
     } finally {
       setBusy(false)
     }
-  }, [busy, canSuggest, dictation, draft, flushChatDistillation, mode, nodeId, onClearSelection, onProposedEdit, projectId, selection])
+  }, [busy, canSuggest, dictation, draft, flushChatDistillation, nodeId, projectId, selection])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
@@ -272,9 +236,7 @@ export function Companion({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Label>about {scope}</Label>
             <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>
-              {mode === 'write'
-                ? "It can see this part's actual text here, and may propose a rewrite — select a passage first and it'll focus there. Nothing lands until you approve it."
-                : nodeId
+              {nodeId
                   ? 'It can see the shape of this — what this part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing beyond a passage you hand it by highlighting one, and it will not write anything for you.'
                   : 'It can see the shape of the whole thing — what each part is for, the rules, the order, the threads and where they go quiet. It cannot see the writing, and it will not write anything for you. It is also there for who this is actually for, and why it is worth making at all, whenever you want to go there.'}
             </p>
@@ -327,7 +289,7 @@ export function Companion({
             aria-label="Say something about the shape of this"
             value={draft + (dictation.interimText ? ` ${dictation.interimText}` : '')}
             rows={1}
-            placeholder={mode === 'write' ? 'Ask for a suggestion…' : 'What are you turning over?'}
+            placeholder="What are you turning over?"
             onChange={(e) => { dictation.clearInterim(); setDraft(e.target.value) }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
@@ -360,105 +322,6 @@ export function Companion({
         </div>
       )}
 
-      {!disabled && canSuggest && (
-        <ModeSwitch
-          mode={mode}
-          onChange={setMode}
-          locked={isLocked}
-          lockedUntil={lockedUntil ?? null}
-          onRequestLock={onRequestLock}
-        />
-      )}
-    </div>
-  )
-}
-
-/** Reflect / Suggest, with the lock as its own small button beside it — an
- *  active lock parks the knob at that button rather than on either segment,
- *  so the motion still reads as "toward" it even though it's visually
- *  separate. Ported from the main app's write assistant, minus the duration
- *  picker itself (that lives in the modal onRequestLock opens). */
-export function ModeSwitch({
-  mode, onChange, locked, lockedUntil, onRequestLock,
-}: {
-  mode: CompanionMode
-  onChange: (mode: CompanionMode) => void
-  locked: boolean
-  lockedUntil: string | null
-  onRequestLock?: () => void
-}) {
-  const { t } = useTheme()
-  const position = locked ? 0 : mode === 'write' ? 2 : 1
-  const trackBg = position === 0 ? t.violet : position === 2 ? t.tide : t.cardBgInner
-  const segmentW = 40
-  const trackW = segmentW * 3
-  const knobD = 18
-  const knobLeft = position * segmentW + (segmentW - knobD) / 2
-  const segments: { key: CompanionMode; label: string; pos: number; activeColor: string }[] = [
-    { key: 'coach', label: 'Reflect', pos: 1, activeColor: t.textPrimary },
-    { key: 'write', label: 'Suggest', pos: 2, activeColor: t.tide },
-  ]
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexShrink: 0, paddingTop: 4 }}>
-      <button
-        type="button"
-        onClick={() => { if (!locked) onRequestLock?.() }}
-        disabled={locked}
-        aria-label={locked ? 'Reflect-only lock active' : 'Lock to reflect-only for a while'}
-        title={locked && lockedUntil ? `Locked until ${new Date(lockedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Lock to reflect-only for a while'}
-        style={{
-          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-          border: `1px solid ${locked ? t.violet : alpha(t.textPrimary, 0.16)}`,
-          background: locked ? alpha(t.violet, 0.16) : t.cardBgInner,
-          color: locked ? t.violet : t.textMuted,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: locked ? 'default' : 'pointer', transition: 'all 160ms ease',
-        }}
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="5" y="11" width="14" height="10" rx="2" />
-          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-      </button>
-      <div>
-        <div style={{ position: 'relative', display: 'flex', width: trackW, height: 22, borderRadius: 14, background: trackBg, transition: 'background-color 160ms ease' }}>
-          <div
-            style={{
-              position: 'absolute', top: (22 - knobD) / 2, left: knobLeft, width: knobD, height: knobD, borderRadius: '50%',
-              background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 160ms ease',
-            }}
-          />
-          <div style={{ width: segmentW, flexShrink: 0 }} aria-hidden />
-          {segments.map((seg) => (
-            <button
-              key={seg.key}
-              type="button"
-              onClick={() => { if (!locked) onChange(seg.key) }}
-              disabled={locked}
-              aria-label={seg.label}
-              aria-pressed={mode === seg.key}
-              style={{ position: 'relative', zIndex: 1, width: segmentW, flexShrink: 0, height: '100%', border: 'none', background: 'none', cursor: locked ? 'default' : 'pointer' }}
-            />
-          ))}
-        </div>
-        <div style={{ display: 'flex', width: trackW, marginTop: 4, gap: 3 }}>
-          <div style={{ width: segmentW - 3, flexShrink: 0 }} aria-hidden />
-          {segments.map((seg) => (
-            <span
-              key={seg.key}
-              style={{
-                flex: 1, textAlign: 'center', fontSize: 9, letterSpacing: '0.01em', whiteSpace: 'nowrap',
-                fontWeight: position === seg.pos ? 700 : 500,
-                color: position === seg.pos ? seg.activeColor : t.textMuted,
-                transition: 'color 160ms ease',
-              }}
-            >
-              {seg.label}
-            </span>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

@@ -32,7 +32,6 @@ import { Board, type BoardActions } from '@/components/studio/work/board'
 import { Studio, type StudioHandle } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
-import { LockModal } from '@/components/studio/work/lock-modal'
 import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { VisionRoom, type RoomOrigin } from '@/components/studio/work/vision-room'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
@@ -115,46 +114,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const narrow = useNarrow()
   const [storylineOpen, setStorylineOpen] = useState(false)
 
-  // The write-lock: shared with the main app (same user_settings row), so a
-  // lock started there holds here too. Refetched occasionally rather than
-  // trusted for the whole session, since it can change from outside this tab.
-  const [lockedUntil, setLockedUntil] = useState<string | null>(null)
-  const [lockModalOpen, setLockModalOpen] = useState(false)
-  const [locking, setLocking] = useState(false)
-  const refreshLock = useCallback(() => {
-    fetch('/api/studio/assistant-lock', { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : { lockedUntil: null }))
-      .then((d: { lockedUntil: string | null }) => setLockedUntil(d.lockedUntil))
-      .catch(() => {})
-  }, [])
-  useEffect(() => {
-    refreshLock()
-    const id = setInterval(refreshLock, 60_000)
-    return () => clearInterval(id)
-  }, [refreshLock])
-  const confirmLock = useCallback(async (minutes: number) => {
-    if (minutes <= 0) return
-    setLocking(true)
-    try {
-      const res = await fetch('/api/studio/assistant-lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ minutes }),
-      })
-      const data: { success: boolean; lockedUntil?: string } = await res.json()
-      if (data.success && data.lockedUntil) {
-        setLockedUntil(data.lockedUntil)
-        setLockModalOpen(false)
-      }
-    } finally {
-      setLocking(false)
-    }
-  }, [])
-
-  // What's highlighted right now in the piece being written, and any
-  // rewrite the companion has proposed for it — the thread connecting
-  // Studio (which owns the editors) and Companion (which owns the request).
+  // What's highlighted right now in the piece being written, and any change
+  // to the text the writing assistant was asked for — the thread connecting
+  // Studio (which owns the editors) and the assistant (which owns the request).
   const [selection, setSelection] = useState<{ nodeId: string; text: string } | null>(null)
   const [proposal, setProposal] = useState<ProposedEdit | null>(null)
 
@@ -226,7 +188,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     activePartId,
     selection,
     lines: tools.lines,
-    lockedUntil,
     onProposedEdit: setProposal,
     onClearSelection: () => setSelection(null),
   })
@@ -653,8 +614,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           chat={chat}
           selection={selection}
           onClearSelection={() => setSelection(null)}
-          lockedUntil={lockedUntil}
-          onRequestLock={() => setLockModalOpen(true)}
           onRulesChanged={() => void api.refresh()}
           disabled={readOnly}
         />
@@ -668,20 +627,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           canSuggest={!!scopeNode}
           selection={scopeNode && selection?.nodeId === scopeNode.id ? selection : null}
           onClearSelection={() => setSelection(null)}
-          lockedUntil={lockedUntil}
-          onRequestLock={() => setLockModalOpen(true)}
-          onProposedEdit={setProposal}
           onRulesChanged={() => void api.refresh()}
           disabled={readOnly}
         />
       )}
     </Drawer>
-    <LockModal
-      open={lockModalOpen}
-      busy={locking}
-      onClose={() => setLockModalOpen(false)}
-      onConfirm={(minutes) => void confirmLock(minutes)}
-    />
     </>
   )
 

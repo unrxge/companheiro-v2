@@ -425,16 +425,20 @@ function installMock(o: Opts) {
     if (path === '/api/write/chat' && method === 'POST') {
       ;(window as unknown as { __lastChat?: unknown }).__lastChat = body
       const asked = String(body.message || '')
-      const proposes = body.assistant_mode === 'write' && /rewrite/i.test(asked) && body.active_section
+      // No modes: it guides unless told to. An order for an example answers in the talk; an order to rewrite proposes a change.
+      const proposes = /rewrite/i.test(asked) && body.active_section
+      const example = !proposes && /example|show me/i.test(asked)
       const saw = `(saw: ${body.active_section?.label ?? 'no part'}; ${body.preceding_sections?.length ?? 0} before; ${body.active_section?.anchor_lines?.length ?? 0} lines${body.selected_text ? '; a selection' : ''})`
       const reply = proposes
         ? `Here is a tighter version. ${saw}\n<proposed_edit>\nThe kettle took its time, and I let it.\n</proposed_edit>`
-        : `What is that sentence trying to say underneath the words? ${saw}`
+        : example
+          ? `Here is one way, as an example:\n\n“The kettle took its time, and I let it.”\n\nIt lets the waiting do the feeling. ${saw}`
+          : `What is that sentence trying to say underneath the words? ${saw}`
       // A boundary said in passing becomes a proposal, quoted.
       const said = asked.match(/[^.!?]*\b(won['’]t|never|has to|no )[^.!?]*[.!?]?/i)?.[0]?.trim()
       const heard = said ? [{ id: `pr-${++seq}`, project_id: 'demo', node_id: body.node_id, kind: 'refusal', statement: said.replace(/[.!?]$/, ''), quote: said, source: 'talk', created_at: NOW }] : []
       proposals.push(...heard)
-      const meta = { lockedMode: null, proposals: heard, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
+      const meta = { proposals: heard, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
       const enc = new TextEncoder()
       const chunks = reply.match(/[\s\S]{1,24}/g) ?? [reply]
       return new Response(new ReadableStream({
