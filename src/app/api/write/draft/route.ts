@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
+import { nodeGate } from "@/lib/studio/plan-access";
 
 interface DraftRequest {
   node_id: string;
@@ -42,6 +43,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<DraftRes
     }
 
     const userId = userData.user.id;
+
+    // The piece's words and title: only in a project the plan is carrying.
+    const notActive = await nodeGate({ supabase, user: userData.user }, body.node_id);
+    if (notActive) return notActive;
 
     const updateData: Record<string, string> = {};
     if (body.title !== undefined) {

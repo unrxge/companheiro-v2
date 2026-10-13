@@ -124,10 +124,13 @@ export function CompanionLauncher({
   active: boolean
   /** Handed the button itself, so what it opens can open out of it. */
   onClick: (from: HTMLElement | null) => void
-  /** The plan does not carry it: shown quietly, and pressing it says so. */
+  /** The plan does not carry it: greyed out, still there, and pressing it says which plan does. */
   locked?: boolean
 }) {
   const { t } = useTheme()
+  // Greyed, not hidden: the colour goes, the words and the place stay.
+  const ink = locked ? alpha(shell.text, 0.5) : t.violet
+  const edge = locked ? alpha(shell.text, 0.16) : active ? t.violet : alpha(t.violet, 0.4)
   return (
     <>
       {/* Below DOCK_DESKTOP_MIN, Dock claims bottom-centre too (44px seats +
@@ -137,25 +140,28 @@ export function CompanionLauncher({
       <style>{`
         .companion-launcher { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .companion-launcher { bottom: 22px; } }
+        /* A menu opened from a card low on the screen drops to where this
+           stands, and its last rows were underneath it. It steps aside. */
+        body:has([data-canvas-menu]) .companion-launcher { opacity: 0; pointer-events: none; }
       `}</style>
       <button
         type="button"
-        aria-label="Talk through the vision"
+        aria-label={locked ? 'Talk through the vision: part of Direction' : 'Talk through the vision'}
         aria-pressed={active}
-        title="Talk about the vision"
+        title={locked ? 'Talk about the vision is part of Direction' : 'Talk about the vision'}
+        data-locked={locked || undefined}
         onClick={(e) => onClick(e.currentTarget)}
         className="companion-launcher"
         style={{
           position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
           display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer',
           padding: '13px 24px', borderRadius: 999,
-          border: `1px solid ${active ? t.violet : alpha(t.violet, 0.4)}`,
-          background: active ? t.violet : 'rgba(13,12,11,0.78)',
+          border: `1px solid ${edge}`,
+          background: active && !locked ? t.violet : 'rgba(13,12,11,0.78)',
           backdropFilter: 'blur(18px) saturate(1.1)',
-          color: active ? shell.ink : t.violet,
-          opacity: locked ? 0.78 : 1,
-          boxShadow: `0 10px 30px ${alpha(t.violet, active ? 0.4 : locked ? 0.08 : 0.2)}`,
-          transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
+          color: active && !locked ? shell.ink : ink,
+          boxShadow: locked ? 'none' : `0 10px 30px ${alpha(t.violet, active ? 0.4 : 0.2)}`,
+          transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease, opacity 160ms ease',
         }}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden>
@@ -165,7 +171,7 @@ export function CompanionLauncher({
           Talk about the vision
         </span>
         {locked && (
-          <span style={{ ...canvasType.chip, padding: '2px 8px', borderRadius: 999, border: `1px solid ${alpha(t.violet, 0.4)}`, color: alpha(t.violet, 0.9) }}>
+          <span style={{ ...canvasType.chip, padding: '2px 8px', borderRadius: 999, border: `1px solid ${alpha(shell.text, 0.22)}`, color: alpha(shell.text, 0.7) }}>
             Direction
           </span>
         )}

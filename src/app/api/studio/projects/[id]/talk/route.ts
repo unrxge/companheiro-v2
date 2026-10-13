@@ -21,6 +21,7 @@ import { ASK_BLOCK, DIRECTION_ROLE, TALK_ROLE } from '@/lib/studio/talk/prompts'
 import { sortDirection, sortTalk } from '@/lib/studio/talk/sort'
 import { applySort, EMPTY_APPLIED } from '@/lib/studio/talk/apply'
 import { maybeCatch } from '@/lib/studio/talk/catch'
+import { assertFeature, assertProjectIdWorkable } from '@/lib/studio/plan-access'
 
 export const maxDuration = 60
 
@@ -104,6 +105,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     const body = parseTalkRequest(await readJson(req))
     if (!isUuid(id)) throw notFound()
     const project = await requireProject(auth, id)
+    // A conversation about the whole project, like the vision room that
+    // replaced it: the same two checks, so this is not a way round them.
+    await assertProjectIdWorkable(auth, project.id)
+    await assertFeature(auth, 'visionTalk')
 
     const ctx = await buildTalkContext(auth, project, body.kind)
     const personId = await insertPersonEntry(auth, project, body)

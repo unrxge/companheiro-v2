@@ -46,7 +46,7 @@ import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
 import { usePhone } from '@/lib/use-phone'
 import { PlanNote } from '@/components/billing/plan-note'
-import { loadPlan } from '@/lib/billing/use-plan'
+import { loadPlan, usePlan } from '@/lib/billing/use-plan'
 import { noteOpened } from '@/lib/studio/opened'
 import { useBoardItems } from '@/lib/studio/use-board-items'
 import type { PlusChoice } from '@/components/studio/work/board-items'
@@ -193,6 +193,21 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // "Talk about the vision" is left to a tablet or a computer.
   const phone = usePhone()
   const hasCompanion = access?.companion ?? true
+
+  // The plan changed while this project was open (a free month ran out, a
+  // move up or down): what it allows here is read again, once per change,
+  // so the tools close or open without the page being reloaded.
+  const livePlan = usePlan().plan?.plan
+  const reReadFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!livePlan || !access || livePlan === access.plan || reReadFor.current === livePlan) return
+    reReadFor.current = livePlan
+    void api.refresh()
+  }, [access, api, livePlan])
+  // And a room the plan no longer opens does not stay open over it.
+  useEffect(() => {
+    if (!canTalkVision) setVisionRoom(null)
+  }, [canTalkVision])
 
   // A whole piece (not a part of one) carries the Write page's tools with it.
   const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
@@ -717,7 +732,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             tasks={board.tasks}
             tools={{ threads: canThread, media: canMedia, items: board.ready, companion: hasCompanion }}
             checks={openChecks}
-            notices={phone ? planBanner : [...planBanner, ...carriedCards, ...threadIdeas.suggestions.map((sg) => (
+            notices={phone ? planBanner : [...planBanner, ...carriedCards, ...(canThread ? threadIdeas.suggestions : []).map((sg) => (
               <ThreadSuggestionCard
                 key={sg.id}
                 suggestion={sg}

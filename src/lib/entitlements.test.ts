@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { entitlementsFor, isResting, restEndsAt, REST_DAYS } from './billing/entitlements'
+import { entitlementsFor, isResting, restEndsAt, REST_DAYS, type Entitlements } from './billing/entitlements'
+import { planIsStale, type PlanStatus } from './billing/use-plan'
 import type { Subscription } from './billing/access'
 
 const sub = (over: Partial<Subscription>): Subscription => ({
@@ -58,4 +59,32 @@ test('a rest lasts REST_DAYS from when the place was given up', () => {
   assert.equal(isResting(soon), true)
   assert.equal(isResting(past), false)
   assert.equal(isResting(null), false)
+})
+
+// ── a plan that changes while a tab is open (billing/use-plan.ts) ───────────
+
+const held = (over: Partial<PlanStatus['subscription'] & object>, plan: Entitlements['plan']): PlanStatus => ({
+  subscription: { status: 'trialing', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, ...over },
+  access: 'capped',
+  usage: null,
+  entitlements: { ...entitlementsFor(null), plan },
+})
+
+test('a tab asks again once the free month it read has run out', () => {
+  const now = Date.parse('2026-10-13T12:00:00.000Z')
+  const read = now - 30_000
+  assert.equal(planIsStale(held({ trial_ends_at: '2026-10-13T11:59:50.000Z' }, 'trial'), read, now), true)
+  assert.equal(planIsStale(held({ trial_ends_at: '2026-10-20T00:00:00.000Z' }, 'trial'), read, now), false)
+  // Already read as ended: nothing more to learn from asking.
+  assert.equal(planIsStale(held({ trial_ends_at: '2026-10-13T11:59:50.000Z' }, 'ended'), read, now), false)
+})
+
+test('and once a cancelled plan’s paid time is up, or the tab has been left a while', () => {
+  const now = Date.parse('2026-10-13T12:00:00.000Z')
+  const paid = { status: 'active', tier: 'direction' as const }
+  assert.equal(planIsStale(held({ ...paid, cancel_at_period_end: true, current_period_end: '2026-10-13T11:00:00.000Z' }, 'direction'), now - 30_000, now), true)
+  assert.equal(planIsStale(held({ ...paid, cancel_at_period_end: true, current_period_end: '2026-11-13T11:00:00.000Z' }, 'direction'), now - 30_000, now), false)
+  assert.equal(planIsStale(held(paid, 'direction'), now - 30_000, now), false)
+  assert.equal(planIsStale(held(paid, 'direction'), now - 6 * 60_000, now), true)
+  assert.equal(planIsStale(null, 0, now), false)
 })

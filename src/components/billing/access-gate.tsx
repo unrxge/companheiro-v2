@@ -1,7 +1,7 @@
 'use client'
 
 import { usePrices } from '@/lib/billing/use-prices'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -11,7 +11,7 @@ import { type as typeRoles } from '@/lib/design-tokens'
 import { CONTACT_EMAIL } from '@/lib/site'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { activeLimitLine, activeLimitWords } from '@/lib/billing/entitlements'
-import { PLAN_EVENTS, primePlan, type PlanStatus } from '@/lib/billing/use-plan'
+import { PLAN_EVENTS, loadPlan, subscribePlan, type PlanStatus } from '@/lib/billing/use-plan'
 
 // Loaded only when "See plans" is pressed. This gate sits in the root layout,
 // so a plain import would ship the settings sheet (and the Supabase client it
@@ -92,64 +92,83 @@ export function AccessGate() {
     }
   }, [isPublic])
 
+  // The plan as this tab last knew it, to tell a change from a re-read.
+  const known = useRef<Status | null>(null)
+
+  // The first time the plan is known is arriving: each notice is said once
+  // per session. After that, a plan that changes while the app is open (a
+  // free month running out, a move between plans made in Stripe's portal) is
+  // answered the same way: the ended notice once, and the choice of which
+  // projects stay when there are now more in Active than the plan carries.
+  // Moving up asks nothing; the screens reading the plan open what was closed.
   useEffect(() => {
     if (isPublic) return
-    fetch('/api/billing/status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: Status | null) => {
-        if (!d) return
-        setStatus(d)
-        primePlan(d)
-        // A free month whose address is still to be confirmed: one quiet
-        // line per session, never something that follows them around.
-        if (d.email_verified === false) {
-          let told = false
-          try {
-            told = sessionStorage.getItem(CONFIRM_KEY) === '1'
-            sessionStorage.setItem(CONFIRM_KEY, '1')
-          } catch {
-            // storage blocked: say it
-          }
-          if (!told) setUnconfirmed(true)
-        }
-        // More projects in Active than the plan carries: asked once per
-        // session on arrival, and again whenever a screen asks for it.
-        if (d.over_limit?.length) {
-          let asked = false
-          try {
-            asked = sessionStorage.getItem(CHOICE_KEY) === '1'
-            sessionStorage.setItem(CHOICE_KEY, '1')
-          } catch {
-            // storage blocked: ask
-          }
-          if (!asked) setChoosing(true)
-        }
-        if (d.usage && d.usage.used_micros >= d.usage.cap_micros * NEAR_SHARE && d.usage.used_micros < d.usage.cap_micros) {
-          // Once per browser session and per period: a heads-up when someone
-          // arrives, never a fixture that follows them from page to page.
-          const key = `${NEAR_KEY}:${d.usage.period}`
-          let shown = false
-          try {
-            shown = sessionStorage.getItem(key) === '1'
-            sessionStorage.setItem(key, '1')
-          } catch {
-            // storage blocked: fall through and show it
-          }
-          if (!shown) setNear(true)
-        }
-        // A missing row (or a lookup that failed) is not evidence the trial
-        // ended; only a real, expired subscription earns the arrival screen.
-        if (d.access !== 'no_access' || !d.subscription) return
-        let seen = false
+    const arrive = (d: Status) => {
+      // A free month whose address is still to be confirmed: one quiet
+      // line per session, never something that follows them around.
+      if (d.email_verified === false) {
+        let told = false
         try {
-          seen = sessionStorage.getItem(SEEN_KEY) === '1'
-          sessionStorage.setItem(SEEN_KEY, '1')
+          told = sessionStorage.getItem(CONFIRM_KEY) === '1'
+          sessionStorage.setItem(CONFIRM_KEY, '1')
         } catch {
-          // private mode: show it, it's only once per page load then
+          // storage blocked: say it
         }
-        if (!seen) setReason('trial_ended')
-      })
-      .catch(() => {})
+        if (!told) setUnconfirmed(true)
+      }
+      // More projects in Active than the plan carries: asked once per
+      // session on arrival, and again whenever a screen asks for it.
+      if (d.over_limit?.length) {
+        let asked = false
+        try {
+          asked = sessionStorage.getItem(CHOICE_KEY) === '1'
+          sessionStorage.setItem(CHOICE_KEY, '1')
+        } catch {
+          // storage blocked: ask
+        }
+        if (!asked) setChoosing(true)
+      }
+      if (d.usage && d.usage.used_micros >= d.usage.cap_micros * NEAR_SHARE && d.usage.used_micros < d.usage.cap_micros) {
+        // Once per browser session and per period: a heads-up when someone
+        // arrives, never a fixture that follows them from page to page.
+        const key = `${NEAR_KEY}:${d.usage.period}`
+        let shown = false
+        try {
+          shown = sessionStorage.getItem(key) === '1'
+          sessionStorage.setItem(key, '1')
+        } catch {
+          // storage blocked: fall through and show it
+        }
+        if (!shown) setNear(true)
+      }
+      // A missing row (or a lookup that failed) is not evidence the trial
+      // ended; only a real, expired subscription earns the arrival screen.
+      if (d.access !== 'no_access' || !d.subscription) return
+      let seen = false
+      try {
+        seen = sessionStorage.getItem(SEEN_KEY) === '1'
+        sessionStorage.setItem(SEEN_KEY, '1')
+      } catch {
+        // private mode: show it, it's only once per page load then
+      }
+      if (!seen) setReason('trial_ended')
+    }
+    const hear = (d: Status | null) => {
+      if (!d) return
+      const was = known.current
+      known.current = d
+      setStatus(d)
+      if (!was) { arrive(d); return }
+      if (was.entitlements?.plan === d.entitlements?.plan) return
+      if (d.access === 'no_access' && d.subscription && was.access !== 'no_access') setReason('trial_ended')
+      if (d.over_limit?.length && !was.over_limit?.length) setChoosing(true)
+    }
+    const stop = subscribePlan(hear)
+    // Coming back in from a public page (signing in again, perhaps as someone
+    // else) reads the plan afresh. Read already by another screen, nothing is
+    // announced, so it is heard here.
+    void loadPlan(known.current !== null).then((d) => { if (d && known.current !== d) hear(d) })
+    return stop
   }, [isPublic])
 
   if (plansOpen) return <SettingsSheet onClose={() => setPlansOpen(false)} />

@@ -54,6 +54,7 @@ function MenuShell({ label, children }: { label: string; children: ReactNode }) 
   return (
     <div
       data-hold
+      data-canvas-menu
       role="menu"
       aria-label={label}
       onPointerDown={(e) => e.stopPropagation()}
@@ -84,14 +85,18 @@ function MenuRow({ icon, label, hint, locked, onClick }: {
       role="menuitem"
       onClick={onClick}
       className="plus-menu-row"
+      data-locked={locked || undefined}
+      title={locked ? `${label} is part of Direction` : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '9px 10px',
         background: 'none', border: 'none', borderRadius: radius.field, cursor: 'pointer', textAlign: 'left',
         color: locked ? t.textMuted : t.textPrimary,
       }}
     >
-      <span style={{ flexShrink: 0, display: 'flex', color: locked ? t.textMuted : t.textSecondary }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
+      {/* Greyed, not hidden: the row keeps its place and its words, dimmed,
+         and the plan that carries it is named at full strength beside it. */}
+      <span style={{ flexShrink: 0, display: 'flex', color: locked ? t.textMuted : t.textSecondary, opacity: locked ? 0.55 : 1 }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, opacity: locked ? 0.55 : 1 }}>
         <span style={{ ...canvasType.small, fontSize: 13.5, fontWeight: 600, display: 'block', color: 'inherit' }}>{label}</span>
         <span style={{ ...canvasType.small, fontSize: 12, lineHeight: 1.35, display: 'block', color: t.textMuted }}>{hint}</span>
       </span>

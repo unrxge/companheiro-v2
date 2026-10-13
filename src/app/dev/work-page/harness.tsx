@@ -6,7 +6,7 @@ import { WorkPage } from '@/components/studio/work/work-page'
 import { ProjectBoard } from '@/components/project-board/kanban-board'
 import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-shell'
 import { SettingsButton } from '@/components/settings/settings-sheet'
-import { AccessGate } from '@/components/billing/access-gate'
+import { loadPlan } from '@/lib/billing/use-plan'
 import { activeLimitLine, entitlementsFor, isResting, restEndsAt } from '@/lib/billing/entitlements'
 
 const NOW = '2026-09-25T10:00:00.000Z'
@@ -89,16 +89,30 @@ function installMock(o: Opts) {
   // starts with Active full (two projects). ?over=1 leaves three in Active,
   // the state a downgrade leaves behind. ?reading=1
   // makes "demo" the project that is NOT being worked on.
-  const subscription = o.plan === null
+  const subFor = (plan: Opts['plan']) => plan === null
     ? { status: 'grandfathered', tier: null, trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
-    : o.plan === 'ended'
+    : plan === 'ended'
       ? { status: 'trialing', tier: null, trial_ends_at: '2026-09-01T00:00:00.000Z', current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
-      : o.plan === 'cancelled'
+      : plan === 'cancelled'
         ? { status: 'canceled', tier: 'practice', trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, repeat_trial: false }
-        : { status: 'active', tier: o.plan, trial_ends_at: null, current_period_end: '2026-11-01T00:00:00.000Z', cancel_at_period_end: false, repeat_trial: false }
-  const ent = entitlementsFor(subscription as Parameters<typeof entitlementsFor>[0])
-  const limited = ent.maxActiveProjects !== null
-  const max = ent.maxActiveProjects ?? Infinity
+        : { status: 'active', tier: plan, trial_ends_at: null, current_period_end: '2026-11-01T00:00:00.000Z', cancel_at_period_end: false, repeat_trial: false }
+  let subscription = subFor(o.plan)
+  let ent = entitlementsFor(subscription as Parameters<typeof entitlementsFor>[0])
+  let limited = ent.maxActiveProjects !== null
+  let max = ent.maxActiveProjects ?? Infinity
+  // The plan changing under an open tab (a free month running out, a move up
+  // or down in Stripe's portal): from the console, __changePlan('practice').
+  // It takes the road a return to the tab takes: the plan is read again.
+  ;(window as unknown as { __changePlan?: (plan: Opts['plan']) => void }).__changePlan = (plan) => {
+    subscription = subFor(plan)
+    ent = entitlementsFor(subscription as Parameters<typeof entitlementsFor>[0])
+    limited = ent.maxActiveProjects !== null
+    max = ent.maxActiveProjects ?? Infinity
+    void loadPlan(true)
+  }
+  // The root layout's gate asked for the real plan before this mock was in
+  // place and was refused (nobody is signed in here). Asked again, mocked.
+  window.setTimeout(() => void loadPlan(true), 0)
   const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
   const card = (id: string, title: string, shelf_stage: string, extra: Record<string, unknown> = {}) => ({
     ...project('', false), id, title, shelf_stage, arc: 'Beginning', concept_body: 'What the quiet holds when nobody is asking.',
@@ -212,7 +226,7 @@ function installMock(o: Opts) {
       const active = shelf.filter((x) => x.shelf_stage === 'active').map((x) => ({ id: x.id, title: String(x.title) }))
       const mine = shelf.find((x) => x.id === 'demo')
       const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > max ? 'over_limit' : null
-      const access = { plan: ent.plan, limit: ent.maxActiveProjects, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk }
+      const access = { plan: ent.plan, limit: ent.maxActiveProjects, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk, companion: ent.companion }
       return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
     }
     if (path === '/api/studio/projects/demo/items') {
@@ -509,14 +523,12 @@ function Inner() {
       </PageShell>
     )
   }
-  // The root layout's gate asked for the real plan before this mock was in
-  // place (and was refused: nobody is signed in here). A second one, mounted
-  // after it, is the one that sees the mocked plan.
-  const gate = plan ? <AccessGate /> : null
-  if (params.get('view') === 'kanban') return <>{gate}<ProjectBoard /></>
+  // The notices come from the root layout's gate, which hears the mocked
+  // plan once installMock has asked for it again.
+  if (params.get('view') === 'kanban') return <ProjectBoard />
   // ?board=1 is the canvas a single piece opens onto from the Project Board.
-  if (on('board') || on('pieces')) return <>{gate}<WorkPage projectId="demo" focus={{ kind: 'project' }} /></>
-  return <>{gate}<WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} /></>
+  if (on('board') || on('pieces')) return <WorkPage projectId="demo" focus={{ kind: 'project' }} />
+  return <WorkPage projectId="demo" focus={{ kind: 'node', id: 'node-1' }} />
 }
 
 export function WorkPageHarness() {
