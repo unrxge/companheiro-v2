@@ -201,7 +201,7 @@ export function ConceptPanel({ node, projectId, conversationLog, vision = EMPTY_
         node={{ id: node.id, core_truth: node.core_truth, intent: node.intent, emotional_journey: node.emotional_journey, open_threads: node.open_threads }}
         changes={vision.changes}
         decided={kept.filter((k) => k.kind === 'decision' && (k.node_id === node.id || !k.node_id)).slice().reverse()}
-        projectOpen={kept.filter((k) => k.kind === 'open' && !k.node_id)}
+        raised={kept.filter((k) => k.kind === 'open' && (k.node_id === node.id || !k.node_id))}
         disabled={disabled}
         onChange={async (action) => {
           const ok = await changeConcept(projectId, action, 'concept')

@@ -155,7 +155,8 @@ export function VisionRoom({
       .catch(() => setLoaded(true))
   }, [projectId])
 
-  useEffect(() => { void open() }, [open])
+  // Every visit begins on a new conversation; the ones before are a button away.
+  useEffect(() => { void open('new') }, [open])
 
   const showPast = useCallback(() => {
     setPastOpen(true)
@@ -418,13 +419,25 @@ export function VisionRoom({
           <div className="vision-rise" style={{ ...sheet, display: showTalk ? 'flex' : 'none', animationDelay: '520ms' }}>
             <div style={{ flex: 1, minHeight: 0, padding: wide ? '26px 26px 22px' : '20px 18px 16px', display: 'flex', flexDirection: 'column' }}>
               {canList && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`, flexShrink: 0 }}>
-                  <span style={{ ...canvasType.label, color: t.textMuted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pastOpen ? 'Past conversations' : conversationId ? 'This conversation' : 'A new conversation'}
-                  </span>
-                  <button type="button" onClick={pastOpen ? () => setPastOpen(false) : showPast} aria-expanded={pastOpen} style={talkLink(t.textSecondary)}>
-                    {pastOpen ? 'Back to this one' : 'Past conversations'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={pastOpen ? () => setPastOpen(false) : showPast}
+                    aria-expanded={pastOpen}
+                    style={{
+                      ...canvasType.small, fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 13px', borderRadius: 999, cursor: 'pointer',
+                      background: pastOpen ? alpha(t.violet, 0.14) : 'transparent', border: `1px solid ${alpha(pastOpen ? t.violet : t.textPrimary, pastOpen ? 0.4 : 0.18)}`, color: t.textPrimary,
+                    }}
+                  >
+                    {pastOpen ? (
+                      <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>Back to the conversation</>
+                    ) : (
+                      <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>Past conversations</>
+                    )}
                   </button>
+                  <span style={{ ...canvasType.label, color: t.textMuted, flex: 1, minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pastOpen ? 'Pick one up where it stopped' : conversationId ? (messages.length ? 'Picked up again' : 'This conversation') : 'A new conversation'}
+                  </span>
                   {conversationId && !pastOpen && (
                     <button type="button" onClick={() => { void open('new') }} style={talkLink(t.textSecondary)}>
                       Start a new one

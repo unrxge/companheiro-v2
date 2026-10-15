@@ -42,6 +42,24 @@ const day = (iso: string) => {
 }
 const WHERE: Record<ConceptChange['source'], string> = { talk: 'from talk', room: 'in the vision room', concept: '' }
 
+/** "changed 14 Oct · from talk": the last change to one part of one piece, or null. */
+export function changedNote(changes: ConceptChange[], nodeId: string, field: ConceptChange['field']): string | null {
+  const c = [...changes].reverse().find((x) => x.node_id === nodeId && x.field === field)
+  return c ? `changed ${day(c.at)}${WHERE[c.source] ? ` · ${WHERE[c.source]}` : ''}` : null
+}
+
+/** Which parts to show: the vision room shows the truth and the open threads in places of their own. */
+export type ConceptPart = 'core_truth' | 'intent' | 'emotional_journey' | 'open_threads' | 'decided'
+const ALL_PARTS: ConceptPart[] = ['core_truth', 'intent', 'emotional_journey', 'open_threads', 'decided']
+
+/**
+ * How it is drawn. 'panel', the writing page's rail: each part its own card.
+ * 'room', inside a piece on the vision page: parts as plain blocks divided by
+ * a hairline, in the page's own type, so the concept reads as part of the
+ * page rather than a document dropped into it.
+ */
+export type ConceptLook = 'panel' | 'room'
+
 /** Sends one change to the concept, and says whether it landed. */
 export async function changeConcept(projectId: string, body: ConceptAction, from: 'room' | 'concept'): Promise<boolean> {
   try {
@@ -61,7 +79,9 @@ export function ConceptMirror({
   node,
   changes,
   decided,
-  projectOpen = [],
+  raised = [],
+  parts = ALL_PARTS,
+  look = 'panel',
   disabled = false,
   onChange,
 }: {
@@ -70,8 +90,10 @@ export function ConceptMirror({
   changes: ConceptChange[]
   /** Decided since it was locked: this piece's, and the whole project's. */
   decided: KeptLine[]
-  /** Open questions about the whole project rather than this piece, shown for context. */
-  projectOpen?: KeptLine[]
+  /** Questions raised in the vision room (in talk or by hand), kept apart from the concept's own open threads. */
+  raised?: KeptLine[]
+  parts?: ConceptPart[]
+  look?: ConceptLook
   disabled?: boolean
   /** Makes the change; true when it landed. */
   onChange: (action: ConceptAction) => Promise<boolean>
@@ -81,54 +103,55 @@ export function ConceptMirror({
   const conviction = (node.intent ?? '').trim()
   const journey = (node.emotional_journey ?? '').trim()
   const threads = (node.open_threads ?? []).map((x) => x.trim()).filter(Boolean)
-  const mine = changes.filter((c) => c.node_id === node.id)
-  const lastChange = (field: ConceptChange['field']) => [...mine].reverse().find((c) => c.field === field)
-  const changedNote = (field: ConceptChange['field']) => {
-    const c = lastChange(field)
-    if (!c) return null
-    return `changed ${day(c.at)}${WHERE[c.source] ? ` · ${WHERE[c.source]}` : ''}`
-  }
+  const note = (field: ConceptChange['field']) => changedNote(changes, node.id, field)
+  const show = (p: ConceptPart) => parts.includes(p)
+  const room = look === 'room'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Part
+    <div style={{ display: 'flex', flexDirection: 'column', gap: room ? 0 : 12 }}>
+      {show('core_truth') && <ConceptPartBlock
+        look={look}
         label="Core truth"
         field="core_truth"
         value={truth}
-        note={changedNote('core_truth')}
+        note={note('core_truth')}
         disabled={disabled}
-        centred
+        centred={!room}
         onSave={(text) => onChange({ action: 'edit', node_id: node.id, field: 'core_truth', text })}
         render={(v) => <p style={{ ...typeRoles.ui, fontSize: 18, fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.02em', color: t.textPrimary, margin: 0 }}>{v}</p>}
-      />
-      <Part
+      />}
+      {show('intent') && <ConceptPartBlock
+        look={look}
         label="Conviction"
         field="intent"
         value={conviction}
-        note={changedNote('intent')}
+        note={note('intent')}
         disabled={disabled}
         onSave={(text) => onChange({ action: 'edit', node_id: node.id, field: 'intent', text })}
-        render={(v) => (
+        render={(v) => room
+          ? <p style={{ ...canvasType.body, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{v}</p>
+          : (
           <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
             <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, opacity: 0.6 }} />
             <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.65, fontWeight: 500, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{v}</p>
           </div>
         )}
-      />
-      <Part
+      />}
+      {show('emotional_journey') && <ConceptPartBlock
+        look={look}
         label="Emotional journey"
         field="emotional_journey"
         value={journey}
-        note={changedNote('emotional_journey')}
+        note={note('emotional_journey')}
         disabled={disabled}
         multiline
         hint="One step a line: a few words, a dash, then the sentence."
         onSave={(text) => onChange({ action: 'edit', node_id: node.id, field: 'emotional_journey', text })}
         render={(v) => <JourneyCurve text={v} />}
-      />
+      />}
 
-      <Card inner padding={18}>
-        <Head label="Open threads" note={changedNote('open_threads')} />
+      {show('open_threads') && <Card inner padding={18}>
+        <Head label="Open threads" note={note('open_threads')} />
         {threads.length === 0 && <p style={{ ...canvasType.small, color: t.textMuted, margin: '6px 0 0' }}>Nothing left open in this piece.</p>}
         {threads.map((line, i) => (
           <div key={line}>
@@ -138,17 +161,19 @@ export function ConceptMirror({
           </div>
         ))}
         {!disabled && <AddThread onAdd={(text) => onChange({ action: 'add_thread', node_id: node.id, text })} />}
-        {projectOpen.length > 0 && (
+        {raised.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${alpha(t.textPrimary, 0.12)}` }}>
-            <span style={{ ...canvasType.chip, color: t.textMuted }}>Open for the whole project</span>
-            {projectOpen.map((k) => (
-              <p key={k.id} style={{ ...canvasType.small, color: t.textSecondary, margin: '6px 0 0' }}>— {k.text}</p>
+            <span style={{ ...canvasType.chip, color: t.textMuted }}>Raised in the vision room</span>
+            {raised.map((k) => (
+              <p key={k.id} style={{ ...canvasType.small, color: t.textSecondary, margin: '6px 0 0' }}>
+                — {k.text}{k.node_id ? '' : <span style={{ color: t.textMuted }}> · for the whole project</span>}
+              </p>
             ))}
           </div>
         )}
-      </Card>
+      </Card>}
 
-      {decided.length > 0 && (
+      {show('decided') && decided.length > 0 && (
         <Card inner padding={18}>
           <Head label="Decided since it was locked" />
           {decided.map((k, i) => (
@@ -182,10 +207,17 @@ const linkStyle = (color: string) => ({
   color, textDecoration: 'underline', textUnderlineOffset: 3,
 } as const)
 
-/** One part of the concept, read, or rewritten where it stands. */
-function Part({
-  label, field, value, note, disabled, centred = false, multiline = false, hint, onSave, render,
+/**
+ * One part of the concept, read, or rewritten where it stands. `look` 'bare'
+ * draws no frame and no label, for a caller that frames it itself (the core
+ * truth at the top of the vision page).
+ */
+export function ConceptPartBlock({
+  look = 'panel', label, field, value, note, disabled, centred = false, multiline = false, hint, linkAlign, onSave, render,
 }: {
+  look?: ConceptLook | 'bare'
+  /** Where "Rewrite it" sits under the words; follows `centred` by default. */
+  linkAlign?: 'center' | 'flex-start'
   label: string
   field: ConceptField
   value: string
@@ -225,13 +257,14 @@ function Part({
     )
   }
 
-  return (
-    <Card inner padding={centred && !editing ? '22px 20px' : 18}>
+  const inner = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, ...(centred && !editing ? { alignItems: 'center', textAlign: 'center' } : {}) }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, width: '100%', justifyContent: centred && !editing ? 'center' : 'space-between', flexWrap: 'wrap' }}>
-          <Eyebrow>{label}</Eyebrow>
-          {note && <span style={{ ...canvasType.meta, color: t.textMuted }}>{note}</span>}
-        </div>
+        {look !== 'bare' && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, width: '100%', justifyContent: centred && !editing ? 'center' : 'space-between', flexWrap: 'wrap' }}>
+            {look === 'room' ? <span style={{ ...canvasType.label, color: t.textMuted }}>{label}</span> : <Eyebrow>{label}</Eyebrow>}
+            {note && <span style={{ ...canvasType.meta, color: t.textMuted }}>{note}</span>}
+          </div>
+        )}
         {editing ? (
           <>
             <TextArea
@@ -266,19 +299,21 @@ function Part({
           <>
             <div style={{ width: '100%' }}>{render(value)}</div>
             {!disabled && (
-              <button type="button" onClick={() => { setDraft(value); setEditing(true) }} style={{ ...linkStyle(t.textMuted), alignSelf: centred ? 'center' : 'flex-start' }}>
+              <button type="button" onClick={() => { setDraft(value); setEditing(true) }} style={{ ...linkStyle(t.textMuted), alignSelf: linkAlign ?? (centred ? 'center' : 'flex-start') }}>
                 Rewrite it
               </button>
             )}
           </>
         )}
       </div>
-    </Card>
   )
+  if (look === 'bare') return inner
+  if (look === 'room') return <div style={{ paddingTop: 14, marginTop: 14, borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}` }}>{inner}</div>
+  return <Card inner padding={centred && !editing ? '22px 20px' : 18}>{inner}</Card>
 }
 
 /** An open thread: answered (it becomes a decision) or let go. */
-function Thread({ line, disabled, onRemove, onSettle }: {
+export function Thread({ line, disabled, onRemove, onSettle }: {
   line: string
   disabled: boolean
   onRemove: () => Promise<boolean>
@@ -334,7 +369,7 @@ function Thread({ line, disabled, onRemove, onSettle }: {
   )
 }
 
-function AddThread({ onAdd }: { onAdd: (text: string) => Promise<boolean> }) {
+export function AddThread({ onAdd }: { onAdd: (text: string) => Promise<boolean> }) {
   const { t } = useTheme()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -346,7 +381,7 @@ function AddThread({ onAdd }: { onAdd: (text: string) => Promise<boolean> }) {
     setBusy(false)
     if (ok) { setText(''); setOpen(false) }
   }
-  if (!open) return <button type="button" onClick={() => setOpen(true)} style={{ ...linkStyle(t.textMuted), marginTop: 8 }}>Add an open thread</button>
+  if (!open) return <button type="button" onClick={() => setOpen(true)} style={{ ...linkStyle(t.textMuted), marginTop: 8, alignSelf: 'flex-start' }}>Add an open thread</button>
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 10 }}>
       <TextArea bare oneParagraph autoFocus maxHeight={120} ariaLabel="A question this piece has not settled" placeholder="What has this piece not settled yet?" value={text} onChange={setText}

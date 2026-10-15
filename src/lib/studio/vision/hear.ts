@@ -10,8 +10,9 @@
 //
 // This is what keeps the core concept from freezing at the moment it was
 // locked. A decision lands on the vision page and in the concept on the
-// writing page; an open question about one piece becomes one of its open
-// threads; a change, once accepted, rewrites the concept itself.
+// writing page; an open question is kept beside the concept's own open
+// threads, marked as raised in talk; a change, once accepted, rewrites the
+// concept itself.
 //
 // The same lifecycle as a rule heard in talk (lib/studio/rule-proposals.ts),
 // which keeps listening for refusals and must-keeps beside this. Every quote
@@ -60,6 +61,7 @@ You are looking for three kinds of thing, in their own words.
 - core_truth: the truth the piece rests on.
 - conviction: what the piece holds or argues.
 - journey: the emotional journey it takes its audience on.
+Who the work is for belongs to the concept: the journey is those people's journey, and the conviction often names who it stands with. A change in who it is for is a change to the journey (and to the conviction when they are part of what it stands for).
 "to" is the whole part as it would read after the change: keep everything in the current text that still holds, change only what their words changed, and use their words wherever you can, in the same length, register and language as the current text. A journey keeps its one-step-per-line shape ("Label — sentence"). Never offer a change for a passing thought, a doubt, a wish, or anything the current text already says. Something that is a change to a concept goes under changes and not also under heard. At most one change.
 
 Not any of these:

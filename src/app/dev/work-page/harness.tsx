@@ -496,14 +496,6 @@ function installMock(o: Opts) {
       if (body.action === 'add') { visionKept.push({ id: `vk-${++seq}`, kind: body.kind === 'open' ? 'open' : 'decision', node_id: body.node_id ?? null, text: body.text, why: body.why ?? '', quote: '', at: new Date().toISOString(), state: 'kept' }); return json({ kept: visionKept }) }
       const i = visionKept.findIndex((k) => k.id === body.id)
       if (i < 0) return json({ error: 'already answered' }, 409)
-      const line = visionKept[i]
-      if (body.action === 'keep' && line.kind === 'open' && line.node_id) {
-        const n = conceptPiece(line.node_id)
-        if (n) n.open_threads = [...(n.open_threads ?? []), body.text || line.text]
-        visionChanges.push({ id: `cc-${++seq}`, node_id: line.node_id, field: 'open_threads', from: '', to: body.text || line.text, at: new Date().toISOString(), source: 'talk' })
-        visionKept.splice(i, 1)
-        return json({ kept: visionKept, changes: visionChanges, thread_added: true })
-      }
       if (body.action === 'keep') Object.assign(visionKept[i], { text: body.text || visionKept[i].text, why: body.why ?? visionKept[i].why, state: 'kept' })
       else if (body.action === 'settle') Object.assign(visionKept[i], { kind: 'decision', text: body.text, why: body.why ?? '', state: 'kept', at: new Date().toISOString() })
       else visionKept.splice(i, 1)

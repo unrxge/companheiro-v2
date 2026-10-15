@@ -498,7 +498,7 @@ function KeptCard({
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, fontStyle: 'italic' }}>You said: “{line.quote}”</p>
       )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {chip(decision ? 'Keep it as decided' : piece ? 'Add it to its open threads' : 'Keep it as open', () => void answer('keep'), true, busy === 'keep')}
+        {chip(decision ? 'Keep it as decided' : 'Keep it as open', () => void answer('keep'), true, busy === 'keep')}
         {chip('Not this', () => void answer('decline'), false, busy === 'decline')}
         {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}
       </div>

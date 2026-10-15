@@ -36,6 +36,8 @@ For each piece the conversation actually changed, give the parts that no longer 
 - core_truth: the truth the piece rests on. One or two sentences.
 - conviction: what the piece holds or argues. A short paragraph at most.
 - journey: the emotional journey it takes its audience on, one step per line, "Label — sentence", three to six steps.
+Who the work is for is part of the concept, as it was when the concept was drawn: the journey is the journey of those people, what they feel and go through, and the conviction often names who it stands with. When the conversation changes or sharpens who it is for, rewrite the journey for those people and, where they are part of what the piece stands for, the conviction.
+
 - open_threads: the questions the piece has not settled, one per line, as the full list after the conversation: drop the ones the conversation answered, keep the ones still open, add the ones it raised. An empty list is allowed.
 
 How to rewrite:
