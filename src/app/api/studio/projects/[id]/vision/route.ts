@@ -195,6 +195,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       text: message,
       intent: project.intent || '',
       vision,
+      // The last three exchanges, so a realisation built over them is heard.
+      before: recent.slice(-6).map((m: { role: string; text: string }) => ({ role: m.role === 'companion' ? 'companion' as const : 'person' as const, text: splitSources(m.text).text })),
       pieces: canvas.roots.map((r) => ({
         id: r.id, title: r.title || 'untitled', core_truth: r.core_truth ?? '', intent: r.intent ?? '',
         emotional_journey: r.emotional_journey ?? '', open_threads: (r.open_threads ?? []).filter((x) => x && x.trim()),

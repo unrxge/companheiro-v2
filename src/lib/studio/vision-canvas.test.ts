@@ -126,7 +126,7 @@ test('a kept line remembers the piece it is about, and older lines read as about
   assert.equal(v.kept[1].node_id, null)
 })
 
-test('only real changes to a core concept are read back: a known part, a piece, and for an offer, words', () => {
+test('only real changes to a core concept are read back: a known part, a piece, and for an offer, words (or an emptied thread list)', () => {
   const v = visionOf({ vision: {
     changes: [
       { id: 'c1', node_id: 'n', field: 'core_truth', from: 'old', to: 'new', at: NOW, source: 'talk' },
@@ -136,10 +136,13 @@ test('only real changes to a core concept are read back: a known part, a piece, 
     ],
     pending_changes: [
       { id: 'p1', node_id: 'n', field: 'intent', to: 'It holds this now', quote: 'holds this', at: NOW },
-      { id: 'p2', node_id: 'n', field: 'open_threads', to: 'not a field that is offered' },
+      { id: 'p2', node_id: 'n', field: 'open_threads', to: '', reason: 'every thread was answered' },
+      { id: 'p4', node_id: 'n', field: 'title', to: 'not a part that is offered' },
       { id: 'p3', node_id: 'n', field: 'core_truth', to: '' },
     ],
   } })
   assert.deepEqual(v.changes.map((c) => [c.id, c.source]), [['c1', 'talk'], ['c2', 'room']])
-  assert.deepEqual(v.pending_changes.map((c) => c.id), ['p1'])
+  // The open threads may be offered as an empty list: everything was answered.
+  assert.deepEqual(v.pending_changes.map((c) => c.id), ['p1', 'p2'])
+  assert.equal(v.pending_changes[1].reason, 'every thread was answered')
 })

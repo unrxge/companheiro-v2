@@ -420,6 +420,22 @@ function installMock(o: Opts) {
         },
       }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
+    if (path === '/api/studio/projects/demo/vision/rethink' && method === 'POST') {
+      await new Promise((r) => setTimeout(r, 2200))
+      const conv = visionConvs.find((c) => c.id === body.conversation_id)
+      const theirs = (conv?.msgs ?? []).filter((m) => m.role === 'person').map((m) => m.text)
+      if (theirs.length < 2) return json({ pending_changes: visionPending, nothing: true })
+      const n = nodes.find((x) => x.id === 'node-1')
+      const quote = theirs[theirs.length - 1].split(/[.!?]/)[0]
+      const offered = [
+        { id: `pc-${++seq}`, node_id: 'node-1', field: 'core_truth', to: 'Being needed was how I hid from being seen.', reason: 'You arrived at this when asked who the “I” is without the asking.', quote, at: NOW },
+        { id: `pc-${++seq}`, node_id: 'node-1', field: 'intent', to: `${n?.intent ?? ''} It is for the person I was before that morning.`.trim(), reason: 'The conversation settled who this is for.', quote, at: NOW },
+        { id: `pc-${++seq}`, node_id: 'node-1', field: 'open_threads', to: 'What does the window ask of me, if anything?', reason: 'Who the “I” is was answered; a new question took its place.', quote, at: NOW },
+      ]
+      for (const o of offered) { const i = visionPending.findIndex((p) => p.node_id === o.node_id && p.field === o.field); if (i >= 0) visionPending.splice(i, 1) }
+      visionPending.push(...offered)
+      return json({ pending_changes: visionPending, nothing: false })
+    }
     if (path === '/api/studio/projects/demo/vision/conversations') {
       return json({ ready: true, conversations: [...visionConvs].filter((c) => c.msgs.length).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map(({ msgs, ...c }) => ({ ...c, messages: msgs.length })) })
     }
@@ -428,16 +444,22 @@ function installMock(o: Opts) {
         visionChanges.push({ id: `cc-${++seq}`, node_id, field, from, to, at: new Date().toISOString(), source })
       let nodeId: string | null = body.node_id ?? null
       const from = body.from === 'room' ? 'room' : 'concept'
-      if (body.action === 'apply' || body.action === 'decline') {
-        const i = visionPending.findIndex((c) => c.id === body.id)
-        if (i < 0) return json({ error: 'already answered' }, 409)
-        const [c] = visionPending.splice(i, 1)
-        nodeId = c.node_id
-        if (body.action === 'apply') {
-          const n = conceptPiece(c.node_id) as unknown as Record<string, string>
-          const to = String(body.text || c.to)
-          logChange(c.node_id, c.field, n[c.field] ?? '', to, 'talk')
-          n[c.field] = to
+      if (body.action === 'apply' || body.action === 'decline' || body.action === 'apply_all') {
+        const chosen = body.action === 'apply_all' ? [...visionPending] : visionPending.filter((c) => c.id === body.id)
+        if (!chosen.length) return json({ error: 'already answered' }, 409)
+        for (const c of chosen) {
+          visionPending.splice(visionPending.indexOf(c), 1)
+          nodeId = c.node_id
+          if (body.action === 'decline') continue
+          const n = conceptPiece(c.node_id) as unknown as Record<string, unknown>
+          const to = String((body.action === 'apply' && body.text) || c.to)
+          if (c.field === 'open_threads') {
+            logChange(c.node_id, 'open_threads', ((n.open_threads as string[]) ?? []).join('\n'), to, 'talk')
+            n.open_threads = to.split('\n').map((l) => l.trim()).filter(Boolean)
+          } else {
+            logChange(c.node_id, c.field, String(n[c.field] ?? ''), to, 'talk')
+            n[c.field] = to
+          }
         }
       } else {
         const n = nodeId ? conceptPiece(nodeId) : undefined

@@ -55,8 +55,8 @@ function cleanPending(raw: unknown): PendingChange[] {
   if (!Array.isArray(raw)) return []
   return raw
     .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
-    .filter((r) => str(r.id) && str(r.node_id) && isConceptField(r.field) && str(r.to))
-    .map((r) => ({ id: str(r.id), node_id: str(r.node_id), field: r.field as PendingChange['field'], to: str(r.to), quote: str(r.quote), at: str(r.at) }))
+    .filter((r) => str(r.id) && str(r.node_id) && (isConceptField(r.field) || r.field === 'open_threads') && (str(r.to) || r.field === 'open_threads'))
+    .map((r) => ({ id: str(r.id), node_id: str(r.node_id), field: r.field as PendingChange['field'], to: str(r.to), reason: str(r.reason), quote: str(r.quote), at: str(r.at) }))
 }
 
 /** The vision part of a project's settings, whatever state the row is in. */

@@ -28,6 +28,9 @@ import { isVerbatim, normalise } from '@/lib/studio/talk/verbatim'
 import { changeVision } from './store'
 import type { ConceptField, KeptLine, PendingChange, VisionState } from './types'
 
+/** Changes waiting at once, the same ceiling a rethink uses (rethink.ts). */
+const RETHINK_MAX = 8
+
 /** Lines waiting for an answer at once; the oldest beyond this quietly lapse. */
 export const PENDING_MAX = 3
 const MIN_WORDS = 5
@@ -53,7 +56,7 @@ You are looking for three kinds of thing, in their own words.
 - an open question: something the project or a piece turns on that they have named as not settled yet. "I still don't know who is telling this." "Ainda não sei se é para os pais ou para os filhos."
 "piece" is the title of the piece it is about, exactly as listed under THE PIECES, or "" when it is about the whole project. With only one piece, it is that piece unless they plainly mean the project as a whole.
 
-2. "changes", a change to a piece's core concept. Only when what they just said has moved a piece past what its concept now says, so that the concept as written is no longer true to them:
+2. "changes", a change to a piece's core concept. Only when what they just said, read with what came just before it, has moved a piece past what its concept now says, so that the concept as written is no longer true to them. A realisation that builds over the last few exchanges and lands in THE WORDS counts, including when THE WORDS agree to something they worked out together with the companion just before:
 - core_truth: the truth the piece rests on.
 - conviction: what the piece holds or argues.
 - journey: the emotional journey it takes its audience on.
@@ -96,7 +99,11 @@ export interface Heard {
  */
 export async function hearVision(
   auth: AuthedContext,
-  args: { projectId: string; text: string; intent: string; vision: VisionState; pieces: PieceForHearing[] },
+  args: {
+    projectId: string; text: string; intent: string; vision: VisionState; pieces: PieceForHearing[]
+    /** The exchanges just before this one, oldest first: a realisation often builds over several. */
+    before?: Array<{ role: 'person' | 'companion'; text: string }>
+  },
 ): Promise<Heard> {
   const text = args.text.trim()
   if (text.split(/\s+/).length < MIN_WORDS) return { lines: [], changes: [] }
@@ -123,8 +130,11 @@ export async function hearVision(
         `ALREADY KEPT:\n${list(kept)}`,
         `WAITING FOR THEM:\n${list(waiting)}`,
         `TURNED DOWN:\n${list(args.vision.declined)}`,
+        args.before?.length
+          ? `JUST BEFORE, FOR CONTEXT (what THE WORDS answer or agree to; quote only from THE WORDS or from what THEY said here):\n${args.before.map((m) => `${m.role === 'person' ? 'THEM' : 'COMPANION'}: ${m.text.slice(0, 1500)}`).join('\n\n')}`
+          : '',
         `THE WORDS:\n${text}`,
-      ].join('\n\n'),
+      ].filter(Boolean).join('\n\n'),
     }],
   })
   logUsage(auth.user.id, 'studio/vision-hear', res.model, res.usage)
@@ -137,6 +147,9 @@ export async function hearVision(
     return args.pieces.find((p) => normalise(p.title) === n)?.id ?? null
   }
   const onlyPiece = args.pieces.length === 1 ? args.pieces[0].id : null
+  // Their own words: this message, and what they said just before it.
+  const theirs = [text, ...(args.before ?? []).filter((m) => m.role === 'person').map((m) => m.text)]
+  const said = (span: string) => theirs.some((t) => isVerbatim(span, t))
 
   const openAlready = args.pieces.flatMap((p) => p.open_threads)
   const known = new Set([...kept, ...waiting, ...openAlready, ...args.vision.declined].map(normalise))
@@ -175,7 +188,7 @@ export async function hearVision(
     const node = pieceId(c.piece) ?? onlyPiece
     const to = typeof c.to === 'string' ? c.to.trim() : ''
     const quote = typeof c.quote === 'string' ? c.quote.trim() : ''
-    if (!field || !node || !to || to.length > 4000 || !quote || !isVerbatim(quote, text)) continue
+    if (!field || !node || !to || to.length > 4000 || !quote || !said(quote)) continue
     const piece = args.pieces.find((p) => p.id === node)
     const now = (piece?.[field] ?? '').trim()
     if (normalise(now) === normalise(to) || known.has(normalise(to))) continue
@@ -189,7 +202,7 @@ export async function hearVision(
     return {
       ...now,
       kept: [...now.kept.filter((k) => k.state === 'kept'), ...pending],
-      pending_changes: [...now.pending_changes, ...changes].slice(-PENDING_MAX),
+      pending_changes: [...now.pending_changes.filter((p) => !changes.some((c) => c.node_id === p.node_id && c.field === p.field)), ...changes].slice(-RETHINK_MAX),
     }
   })
   return { lines, changes }

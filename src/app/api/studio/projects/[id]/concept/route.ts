@@ -7,6 +7,7 @@
 //   { action: 'settle_thread', node_id, text, answer, why?, from }  answered: it leaves the open threads and is kept as decided
 //   { action: 'apply', id, text? }                           a change heard in the vision room's talk, accepted (Direction)
 //   { action: 'decline', id }                                not this; never offered again (Direction)
+//   { action: 'apply_all' }                                  every change waiting, accepted as offered (Direction)
 // `from` is 'room' or 'concept': which side it was made on, kept with the date.
 //
 // Editing a concept is open on every plan, like the writing page it sits on;
@@ -17,9 +18,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { badRequest, conflict, isRecord, isString, isUuid, nowIso, readJson, requireProject, withAuth } from '@/lib/studio/db'
 import { assertFeature, assertProjectIdWorkable } from '@/lib/studio/plan-access'
 import { normalise } from '@/lib/studio/talk/verbatim'
-import { addOpenThread, editConcept, removeOpenThread, requirePiece } from '@/lib/studio/vision/concept'
+import { addOpenThread, editConcept, removeOpenThread, requirePiece, setOpenThreads } from '@/lib/studio/vision/concept'
 import { changeVision, visionOf } from '@/lib/studio/vision/store'
-import { isConceptField, type KeptLine } from '@/lib/studio/vision/types'
+import { isConceptField, type KeptLine, type VisionState } from '@/lib/studio/vision/types'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -61,15 +62,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         })
         break
       }
-      case 'apply': {
+      case 'apply':
+      case 'apply_all': {
         await assertFeature(auth, 'visionTalk')
-        const pending = visionOf(project.settings).pending_changes.find((c) => c.id === body.id)
-        if (!pending) throw conflict('already answered')
-        nodeId = pending.node_id
-        await editConcept(auth, project.id, {
-          nodeId, field: pending.field, text: text.trim() || pending.to, source: 'talk',
-          also: (now) => ({ ...now, pending_changes: now.pending_changes.filter((c) => c.id !== pending.id) }),
-        })
+        const waiting = visionOf(project.settings).pending_changes
+        const chosen = body.action === 'apply_all' ? waiting : waiting.filter((c) => c.id === body.id)
+        if (chosen.length === 0) throw conflict('already answered')
+        for (const pending of chosen) {
+          nodeId = pending.node_id
+          const words = body.action === 'apply' && text.trim() ? text : pending.to
+          const done = (now: VisionState) => ({ ...now, pending_changes: now.pending_changes.filter((c) => c.id !== pending.id) })
+          if (pending.field === 'open_threads') await setOpenThreads(auth, project.id, { nodeId, text: words, source: 'talk', also: done })
+          else await editConcept(auth, project.id, { nodeId, field: pending.field, text: words, source: 'talk', also: done })
+        }
         break
       }
       case 'decline': {

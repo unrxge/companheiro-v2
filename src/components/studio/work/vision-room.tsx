@@ -269,11 +269,11 @@ export function VisionRoom({
 
   const pieceOf = useCallback((id: string) => {
     const p = pieces.find((x) => x.id === id)
-    return p ? { title: p.title || 'untitled', core_truth: p.core_truth ?? '', intent: p.intent ?? '', emotional_journey: p.emotional_journey ?? '' } : null
+    return p ? { title: p.title || 'untitled', core_truth: p.core_truth ?? '', intent: p.intent ?? '', emotional_journey: p.emotional_journey ?? '', open_threads: (p.open_threads ?? []).filter((x) => x && x.trim()).join('\n') } : null
   }, [pieces])
 
   const heard = useCallback((lines: KeptLine[], offered: PendingChange[] = []) => {
-    if (offered.length) setPendingChanges((prev) => [...prev.filter((c) => !offered.some((o) => o.id === c.id)), ...offered].slice(-3))
+    if (offered.length) setPendingChanges((prev) => [...prev.filter((c) => !offered.some((o) => o.id === c.id || (o.node_id === c.node_id && o.field === c.field))), ...offered].slice(-8))
     setKept((prev) => {
       const pending = [...prev.filter((k) => k.state === 'pending' && !lines.some((l) => l.id === k.id)), ...lines].slice(-3)
       return [...prev.filter((k) => k.state === 'kept'), ...pending]

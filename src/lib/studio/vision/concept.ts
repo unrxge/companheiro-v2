@@ -66,10 +66,51 @@ export async function editConcept(
   if (was !== next) {
     const { error } = await auth.supabase.from('studio_nodes').update({ [args.field]: next }).eq('id', piece.id).eq('user_id', auth.user.id)
     if (error) throw fromDbError(error)
+    if (args.field === 'intent') await followConviction(auth, projectId, was, next)
   }
   await changeVision(auth, projectId, (now) => {
     const after = args.also ? args.also(now) : now
     return was === next ? after : logged(after, { node_id: piece.id, field: args.field, from: was, to: next, source: args.source })
+  })
+  return next
+}
+
+/**
+ * A project of one piece was born from one idea: what the whole thing is for
+ * and that piece's conviction are the same sentence (the core concept's save
+ * writes it to both). When the conviction moves, so does the project's, unless
+ * someone has since written the project's own words there.
+ */
+async function followConviction(auth: AuthedContext, projectId: string, was: string, next: string): Promise<void> {
+  const [{ count }, { data: project }] = await Promise.all([
+    auth.supabase.from('studio_nodes').select('id', { count: 'exact', head: true }).eq('project_id', projectId).eq('user_id', auth.user.id).is('parent_id', null),
+    auth.supabase.from('studio_projects').select('intent').eq('id', projectId).eq('user_id', auth.user.id).maybeSingle(),
+  ])
+  if (count !== 1 || !project) return
+  const theirs = ((project as { intent: string | null }).intent ?? '').trim()
+  if (theirs && theirs !== was) return
+  const { error } = await auth.supabase.from('studio_projects').update({ intent: next }).eq('id', projectId).eq('user_id', auth.user.id)
+  if (error) throw fromDbError(error)
+}
+
+/** Replaces a piece's open threads as a whole: one per line. Returns them as they now read. */
+export async function setOpenThreads(
+  auth: AuthedContext,
+  projectId: string,
+  args: { nodeId: string; text: string; source: ConceptChange['source']; also?: (now: VisionState) => VisionState },
+): Promise<string[]> {
+  const piece = await requirePiece(auth, projectId, args.nodeId)
+  const next = args.text.split('\n').map((l) => clean(l.replace(/^[\-\*•—]\s*/, ''), LIMIT.open_thread, false)).filter(Boolean)
+    .filter((l, i, all) => all.findIndex((x) => same(x, l)) === i).slice(0, 20)
+  const was = threadsOf(piece)
+  const moved = was.join('\n') !== next.join('\n')
+  if (moved) {
+    const { error } = await auth.supabase.from('studio_nodes').update({ open_threads: next }).eq('id', piece.id).eq('user_id', auth.user.id)
+    if (error) throw fromDbError(error)
+  }
+  await changeVision(auth, projectId, (now) => {
+    const after = args.also ? args.also(now) : now
+    return moved ? logged(after, { node_id: piece.id, field: 'open_threads', from: was.join('\n'), to: next.join('\n'), source: args.source }) : after
   })
   return next
 }

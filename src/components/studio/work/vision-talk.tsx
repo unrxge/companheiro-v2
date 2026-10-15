@@ -24,7 +24,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { readTextStream } from '@/lib/stream-client'
 import { useDictation } from '@/lib/use-dictation'
 import type { RuleProposal } from '@/lib/studio/rule-proposals'
-import { conceptLabel, hostOf, LENSES, type KeptLine, type Lens, type PendingChange, type Source, type VisionMessage, type VisionUpdate } from '@/lib/studio/vision/types'
+import { hostOf, offeredLabel, LENSES, type KeptLine, type Lens, type PendingChange, type Source, type VisionMessage, type VisionUpdate } from '@/lib/studio/vision/types'
 
 interface Line {
   id: string
@@ -32,6 +32,9 @@ interface Line {
   text: string
   sources: Source[]
 }
+
+/** A piece as the talk shows it beside a change: its title and its concept as it reads now. */
+export interface PieceView { title: string; core_truth: string; intent: string; emotional_journey: string; open_threads: string }
 
 interface ReplyMeta {
   sources?: Source[]
@@ -77,7 +80,7 @@ export function VisionTalk({
   /** Changes to a piece's core concept heard in talk, waiting for an answer. */
   pendingChanges: PendingChange[]
   /** A piece by id: its title and its concept as it reads now. */
-  pieceOf: (id: string) => { title: string; core_truth: string; intent: string; emotional_journey: string } | null
+  pieceOf: (id: string) => PieceView | null
   onHeard: (lines: KeptLine[], changes: PendingChange[]) => void
   /** An answer was given; this is everything that moved. */
   onUpdate: (update: VisionUpdate) => void
@@ -93,6 +96,8 @@ export function VisionTalk({
   const [slow, setSlow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [proposals, setProposals] = useState<RuleProposal[]>([])
+  // Bringing the conversation into the core concept: reading, or what it found.
+  const [rethink, setRethink] = useState<'idle' | 'reading' | 'nothing' | 'failed'>('idle')
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   const draftRef = useRef('')
@@ -218,6 +223,26 @@ export function VisionTalk({
   }, [say])
 
   const quiet = loaded && lines.length === 0
+  const theirLines = lines.filter((l) => l.role === 'person').length
+
+  const bringIn = useCallback(async () => {
+    if (rethink === 'reading' || busy) return
+    setRethink('reading')
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/vision/rethink`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ conversation_id: conversationId }),
+      })
+      if (!res.ok) throw new Error('failed')
+      const d = (await res.json()) as { pending_changes: PendingChange[]; nothing: boolean }
+      onUpdate({ pending_changes: d.pending_changes })
+      setRethink(d.nothing ? 'nothing' : 'idle')
+    } catch {
+      setRethink('failed')
+    }
+  }, [busy, conversationId, onUpdate, projectId, rethink])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
@@ -270,6 +295,10 @@ export function VisionTalk({
           <KeptCard key={k.id} projectId={projectId} line={k} piece={k.node_id ? pieceOf(k.node_id)?.title ?? null : null} disabled={disabled} onAnswered={onUpdate} />
         ))}
 
+        {!busy && pendingChanges.length > 1 && (
+          <AcceptAll projectId={projectId} count={pendingChanges.length} disabled={disabled} onAnswered={onUpdate} />
+        )}
+
         {!busy && pendingChanges.map((c) => {
           const piece = pieceOf(c.node_id)
           return piece ? <ChangeCard key={c.id} projectId={projectId} change={c} piece={piece} disabled={disabled} onAnswered={onUpdate} /> : null
@@ -288,6 +317,30 @@ export function VisionTalk({
         ))}
 
         {error && <p style={{ ...canvasType.small, color: t.ember, margin: 0 }}>{error}</p>}
+
+        {/* Once the conversation has some substance, it can be brought into
+           the core concept: the concept catches up with where it got to. */}
+        {!disabled && !busy && theirLines >= 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start', paddingTop: 4 }}>
+            <button
+              type="button"
+              onClick={() => void bringIn()}
+              disabled={rethink === 'reading'}
+              style={{
+                ...canvasType.small, fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
+                cursor: rethink === 'reading' ? 'default' : 'pointer', background: alpha(t.violet, 0.12), border: `1px solid ${alpha(t.violet, 0.4)}`, color: t.textPrimary,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ color: t.violet }}><path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" /></svg>
+              {rethink === 'reading' ? <>Reading this conversation against the core concept <WorkingDots color={t.violet} /></> : 'Bring this into the core concept'}
+            </button>
+            {rethink === 'idle' && (
+              <span style={{ ...canvasType.small, color: t.textMuted }}>Reads the whole conversation and offers the concept as it now stands, part by part. Nothing changes until you say so.</span>
+            )}
+            {rethink === 'nothing' && <span style={{ ...canvasType.small, color: t.textMuted }}>Nothing in this conversation changes the core concept yet.</span>}
+            {rethink === 'failed' && <span style={{ ...canvasType.small, color: t.ember }}>That reading did not come back. Try again in a moment.</span>}
+          </div>
+        )}
         <div ref={bottom} />
       </div>
 
@@ -464,7 +517,7 @@ function ChangeCard({
 }: {
   projectId: string
   change: PendingChange
-  piece: { title: string; core_truth: string; intent: string; emotional_journey: string }
+  piece: PieceView
   disabled: boolean
   onAnswered: (update: VisionUpdate) => void
 }) {
@@ -473,7 +526,7 @@ function ChangeCard({
   const [busy, setBusy] = useState<'apply' | 'decline' | null>(null)
   const [failed, setFailed] = useState(false)
   const now = (piece[change.field] ?? '').trim()
-  const journey = change.field === 'emotional_journey'
+  const journey = change.field === 'emotional_journey' || change.field === 'open_threads'
 
   const answer = async (action: 'apply' | 'decline') => {
     if (busy) return
@@ -499,7 +552,7 @@ function ChangeCard({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || !!busy || (strong && !text.trim())}
+      disabled={disabled || !!busy || (strong && !text.trim() && change.field !== 'open_threads')}
       style={{
         ...canvasType.chip, fontSize: 11, padding: '7px 12px', borderRadius: radius.field, border: 'none',
         cursor: disabled || busy ? 'default' : 'pointer',
@@ -514,7 +567,7 @@ function ChangeCard({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: radius.widget, background: alpha(t.violet, 0.08), border: `1px solid ${alpha(t.violet, 0.3)}` }}>
       <span style={{ ...canvasType.chip, color: t.violet }}>
-        Change the core concept? <span style={{ color: t.textMuted }}>· {piece.title} · {conceptLabel(change.field)}</span>
+        Change the core concept? <span style={{ color: t.textMuted }}>· {piece.title} · {offeredLabel(change.field)}</span>
       </span>
       {now && (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, whiteSpace: 'pre-line', textDecoration: 'line-through', textDecorationColor: alpha(t.textPrimary, 0.25) }}>
@@ -526,18 +579,59 @@ function ChangeCard({
         oneParagraph={!journey}
         minRows={journey ? 3 : 1}
         maxHeight={260}
-        ariaLabel={`The ${conceptLabel(change.field).toLowerCase()}, as it would read`}
+        ariaLabel={`The ${offeredLabel(change.field).toLowerCase()}, as it would read`}
+        placeholder={change.field === 'open_threads' ? 'Nothing left open' : undefined}
         value={text}
         disabled={disabled || !!busy}
         onChange={setText}
         style={{ ...canvasType.body, borderBottom: `1px dashed ${alpha(t.textPrimary, 0.2)}`, padding: '2px 0' }}
       />
+      {change.reason && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{change.reason}</p>}
       {change.quote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, fontStyle: 'italic' }}>You said: “{change.quote}”</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {chip('Change it', () => void answer('apply'), true, busy === 'apply')}
         {chip('Not this', () => void answer('decline'), false, busy === 'decline')}
         {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}
       </div>
+    </div>
+  )
+}
+
+/** Every change waiting, accepted as offered, in one go. */
+function AcceptAll({ projectId, count, disabled, onAnswered }: {
+  projectId: string
+  count: number
+  disabled: boolean
+  onAnswered: (update: VisionUpdate) => void
+}) {
+  const { t } = useTheme()
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const go = async () => {
+    if (busy) return
+    setBusy(true)
+    setFailed(false)
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/concept`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ action: 'apply_all' }),
+      })
+      if (!res.ok && res.status !== 409) throw new Error('failed')
+      onAnswered(res.ok ? ((await res.json()) as VisionUpdate) : {})
+    } catch {
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <span style={{ ...canvasType.small, color: t.textSecondary }}>{count} changes to the core concept are waiting.</span>
+      <button type="button" onClick={() => void go()} disabled={disabled || busy}
+        style={{ ...canvasType.chip, fontSize: 11, padding: '7px 12px', borderRadius: radius.field, border: 'none', cursor: busy ? 'default' : 'pointer', background: t.inverseBg, color: t.inverseText }}>
+        {busy ? <WorkingDots /> : 'Change them all'}
+      </button>
+      {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}
     </div>
   )
 }

@@ -73,13 +73,19 @@ export interface ConceptChange {
   source: 'talk' | 'room' | 'concept'
 }
 
+/** What an offered change can rewrite: one part, or the whole list of open threads. */
+export type OfferedField = ConceptField | 'open_threads'
+export const offeredLabel = (f: OfferedField) => (f === 'open_threads' ? 'Open threads' : conceptLabel(f))
+
 /** A change to the core concept heard in talk, waiting for their answer. */
 export interface PendingChange {
   id: string
   node_id: string
-  field: ConceptField
-  /** The field as it would read after the change. */
+  field: OfferedField
+  /** The field as it would read after the change. Open threads: one per line. */
   to: string
+  /** What in the conversation moved it, in a sentence; '' when heard in one message. */
+  reason?: string
   /** What they said, word for word. */
   quote: string
   at: string
