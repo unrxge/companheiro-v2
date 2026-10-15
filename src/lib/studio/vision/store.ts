@@ -16,54 +16,10 @@ import { buildTree } from '@/lib/studio/tree'
 import type { TreeNode } from '@/lib/studio/node-types'
 import type { Project } from '@/lib/studio/types'
 import { canvasSignature, canvasText, type CanvasRead } from './canvas-text'
-import { EMPTY_VISION, type Gap, type KeptLine, type Reading, type VisionState } from './types'
+import { visionOf } from './state'
+import type { KeptLine, VisionState } from './types'
 
-const str = (v: unknown) => (typeof v === 'string' ? v : '')
-const strs = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(-max) : [])
-
-function cleanKept(raw: unknown): KeptLine[] {
-  if (!Array.isArray(raw)) return []
-  const out: KeptLine[] = []
-  for (const r of raw) {
-    if (!r || typeof r !== 'object') continue
-    const k = r as Record<string, unknown>
-    if (!str(k.id) || !str(k.text)) continue
-    out.push({
-      id: str(k.id),
-      kind: k.kind === 'open' ? 'open' : 'decision',
-      text: str(k.text),
-      why: str(k.why),
-      quote: str(k.quote),
-      at: str(k.at),
-      state: k.state === 'kept' ? 'kept' : 'pending',
-    })
-  }
-  return out
-}
-
-function cleanReading(raw: unknown): Reading | null {
-  if (!raw || typeof raw !== 'object') return null
-  const r = raw as Record<string, unknown>
-  if (!str(r.at)) return null
-  const gaps: Gap[] = (Array.isArray(r.gaps) ? r.gaps : [])
-    .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
-    .map((g) => ({ id: str(g.id), text: str(g.text), where: strs(g.where, 6) }))
-    .filter((g) => g.id && g.text)
-  return { at: str(r.at), statement: str(r.statement), gaps, signature: str(r.signature) }
-}
-
-/** The vision part of a project's settings, whatever state the row is in. */
-export function visionOf(settings: unknown): VisionState {
-  const v = settings && typeof settings === 'object' ? (settings as { vision?: unknown }).vision : null
-  if (!v || typeof v !== 'object') return { ...EMPTY_VISION }
-  const s = v as Record<string, unknown>
-  return {
-    kept: cleanKept(s.kept),
-    declined: strs(s.declined, 60),
-    reading: cleanReading(s.reading),
-    gaps_dismissed: strs(s.gaps_dismissed, 60),
-  }
-}
+export { visionOf } from './state'
 
 /** Changes the vision part of the settings against a fresh read of the row. */
 export async function changeVision(
@@ -119,13 +75,18 @@ export async function loadCanvas(auth: AuthedContext, project: Project): Promise
 }
 
 /** What they have kept, as the companion is told it. */
-export function keptText(vision: VisionState): string {
+export function keptText(vision: VisionState, pieceName: (id: string) => string | null = () => null): string {
   const kept = vision.kept.filter((k) => k.state === 'kept')
   const decided = kept.filter((k) => k.kind === 'decision')
   const open = kept.filter((k) => k.kind === 'open')
   const day = (iso: string) => iso.slice(0, 10)
+  const about = (k: KeptLine) => (k.node_id && pieceName(k.node_id) ? ` [about “${pieceName(k.node_id)}”]` : '')
+  const changed = vision.changes.slice(-12)
   return [
-    decided.length ? `DECIDED, IN THEIR WORDS:\n${decided.map((k) => `- ${k.text}${k.why ? ` (because: ${k.why})` : ''} [${day(k.at)}]`).join('\n')}` : 'DECIDED: (nothing kept yet)',
-    open.length ? `STILL OPEN, IN THEIR WORDS:\n${open.map((k) => `- ${k.text} [${day(k.at)}]`).join('\n')}` : 'STILL OPEN: (nothing kept yet)',
-  ].join('\n\n')
+    decided.length ? `DECIDED, IN THEIR WORDS:\n${decided.map((k) => `- ${k.text}${k.why ? ` (because: ${k.why})` : ''}${about(k)} [${day(k.at)}]`).join('\n')}` : 'DECIDED: (nothing kept yet)',
+    open.length ? `STILL OPEN FOR THE WHOLE PROJECT, IN THEIR WORDS:\n${open.map((k) => `- ${k.text} [${day(k.at)}]`).join('\n')}` : 'STILL OPEN FOR THE WHOLE PROJECT: (nothing kept yet; open questions about one piece are its open threads, on the canvas above)',
+    changed.length
+      ? `CHANGED IN A CORE CONCEPT SINCE IT WAS LOCKED (the canvas above already reads the new version):\n${changed.map((c) => `- ${pieceName(c.node_id) ?? 'a piece'}, ${c.field === 'open_threads' ? 'open threads' : c.field === 'intent' ? 'conviction' : c.field === 'core_truth' ? 'core truth' : 'emotional journey'}: ${c.from ? `“${c.from.slice(0, 160)}” became ` : ''}“${c.to.slice(0, 200)}” [${day(c.at)}]`).join('\n')}`
+      : '',
+  ].filter(Boolean).join('\n\n')
 }

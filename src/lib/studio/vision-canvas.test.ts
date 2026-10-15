@@ -109,10 +109,37 @@ test('only web addresses are shown as sources, each once', () => {
 
 test('a project with nothing kept about its vision reads as empty, whatever is in its settings', () => {
   for (const settings of [null, {}, { vision: 'x' }, { vision: { kept: 'x', reading: 3 } }]) {
-    assert.deepEqual(visionOf(settings), { kept: [], declined: [], reading: null, gaps_dismissed: [] })
+    assert.deepEqual(visionOf(settings), { kept: [], declined: [], reading: null, gaps_dismissed: [], changes: [], pending_changes: [] })
   }
   const v = visionOf({ vision: { kept: [{ id: 'a', kind: 'open', text: 'Who tells it', state: 'kept' }, { id: '', text: 'dropped' }], reading: { at: NOW, statement: 'S', gaps: [{ id: 'g', text: 'G', where: ['Room', 3] }], signature: 'x' } } })
   assert.equal(v.kept.length, 1)
   assert.equal(v.kept[0].kind, 'open')
   assert.deepEqual(v.reading?.gaps, [{ id: 'g', text: 'G', where: ['Room'] }])
+})
+
+test('a kept line remembers the piece it is about, and older lines read as about the whole project', () => {
+  const v = visionOf({ vision: { kept: [
+    { id: 'a', kind: 'decision', node_id: 'piece-1', text: 'Cut the song', state: 'kept' },
+    { id: 'b', kind: 'open', text: 'Who tells it', state: 'kept' },
+  ] } })
+  assert.equal(v.kept[0].node_id, 'piece-1')
+  assert.equal(v.kept[1].node_id, null)
+})
+
+test('only real changes to a core concept are read back: a known part, a piece, and for an offer, words', () => {
+  const v = visionOf({ vision: {
+    changes: [
+      { id: 'c1', node_id: 'n', field: 'core_truth', from: 'old', to: 'new', at: NOW, source: 'talk' },
+      { id: 'c2', node_id: 'n', field: 'open_threads', from: '', to: 'a question', at: NOW, source: 'room' },
+      { id: 'c3', node_id: 'n', field: 'title', from: '', to: 'x', at: NOW },
+      { id: 'c4', field: 'intent', to: 'no piece' },
+    ],
+    pending_changes: [
+      { id: 'p1', node_id: 'n', field: 'intent', to: 'It holds this now', quote: 'holds this', at: NOW },
+      { id: 'p2', node_id: 'n', field: 'open_threads', to: 'not a field that is offered' },
+      { id: 'p3', node_id: 'n', field: 'core_truth', to: '' },
+    ],
+  } })
+  assert.deepEqual(v.changes.map((c) => [c.id, c.source]), [['c1', 'talk'], ['c2', 'room']])
+  assert.deepEqual(v.pending_changes.map((c) => c.id), ['p1'])
 })

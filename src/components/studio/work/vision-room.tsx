@@ -25,7 +25,25 @@ import { VisionTalk } from '@/components/studio/work/vision-talk'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, motion, radius, shell } from '@/lib/design-tokens'
 import type { Appearance, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
-import type { KeptLine, Reading, VisionMessage, VisionPayload } from '@/lib/studio/vision/types'
+import type { ConceptChange, KeptLine, PendingChange, Reading, VisionConversation, VisionMessage, VisionPayload, VisionUpdate } from '@/lib/studio/vision/types'
+import type { ConceptAction } from '@/components/studio/work/concept-mirror'
+import { WorkingDots } from '@/components/ui/working'
+
+const talkLink = (color: string) => ({
+  ...canvasType.small, fontSize: 12, flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  color, textDecoration: 'underline', textUnderlineOffset: 3,
+} as const)
+
+/** "Today, 14:20", "Yesterday", "3 Oct": when a conversation was last carried on. */
+function when(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const today = new Date()
+  const days = Math.round((new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86_400_000)
+  if (days === 0) return `Today, ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+  if (days === 1) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' })
+}
 
 /** Where the room opens from: the centre of the button, in window pixels. */
 export interface RoomOrigin { x: number; y: number }
@@ -47,6 +65,7 @@ export function VisionRoom({
   onClose,
   onOpenPiece,
   onRulesChanged,
+  onConceptChanged,
   disabled = false,
 }: {
   projectId: string
@@ -59,6 +78,8 @@ export function VisionRoom({
   onClose: () => void
   onOpenPiece: (id: string) => void
   onRulesChanged: () => void
+  /** A piece's core concept changed here, so the pieces should be read again (the writing page shows the same). */
+  onConceptChanged: () => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -77,6 +98,16 @@ export function VisionRoom({
   const [loaded, setLoaded] = useState(false)
   const [messages, setMessages] = useState<VisionMessage[]>([])
   const [kept, setKept] = useState<KeptLine[]>([])
+  const [changes, setChanges] = useState<ConceptChange[]>([])
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([])
+  // Which conversation the talk is carrying on, and whether past ones can be
+  // listed and returned to (migration 035). `talkKey` changes only when a
+  // different conversation is opened, so the talk starts over on its words.
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [canList, setCanList] = useState(false)
+  const [talkKey, setTalkKey] = useState(0)
+  const [pastOpen, setPastOpen] = useState(false)
+  const [past, setPast] = useState<VisionConversation[] | null>(null)
   const [reading, setReading] = useState<Reading | null>(null)
   const [stale, setStale] = useState(false)
   const [unread, setUnread] = useState({ images: 0, recordings: 0 })
@@ -99,24 +130,51 @@ export function VisionRoom({
   }, [])
 
   // ── what the room knows ───────────────────────────────────────────────────
-  useEffect(() => {
-    let alive = true
-    fetch(`/api/studio/projects/${projectId}/vision`, { credentials: 'same-origin' })
+  // Opens where it was left: the conversation touched last. `which` opens a
+  // past one, or 'new' none at all.
+  const open = useCallback((which?: string) => {
+    setLoaded(false)
+    const q = which ? `?conversation=${encodeURIComponent(which)}` : ''
+    return fetch(`/api/studio/projects/${projectId}/vision${q}`, { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: VisionPayload | null) => {
-        if (!alive) return
         if (d) {
           setMessages(d.messages ?? [])
+          setConversationId(d.conversation_id ?? null)
+          setCanList(!!d.conversations)
           setKept(d.kept ?? [])
+          setChanges(d.changes ?? [])
+          setPendingChanges(d.pending_changes ?? [])
           setReading(d.reading ?? null)
           setStale(!!d.stale)
           setUnread(d.unread ?? { images: 0, recordings: 0 })
         }
+        setTalkKey((k) => k + 1)
         setLoaded(true)
       })
-      .catch(() => { if (alive) setLoaded(true) })
-    return () => { alive = false }
+      .catch(() => setLoaded(true))
   }, [projectId])
+
+  useEffect(() => { void open() }, [open])
+
+  const showPast = useCallback(() => {
+    setPastOpen(true)
+    setPast(null)
+    fetch(`/api/studio/projects/${projectId}/vision/conversations`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { conversations: [] }))
+      .then((d: { conversations?: VisionConversation[] }) => setPast(d.conversations ?? []))
+      .catch(() => setPast([]))
+  }, [projectId])
+
+  const update = useCallback((u: VisionUpdate) => {
+    if (u.kept) setKept(u.kept)
+    if (u.changes) {
+      // A concept that changed reads differently on the canvas too.
+      if (u.changes.length !== changes.length || u.thread_added || u.node) onConceptChanged()
+      setChanges(u.changes)
+    }
+    if (u.pending_changes) setPendingChanges(u.pending_changes)
+  }, [changes.length, onConceptChanged])
 
   // ── the canvas behind, pushed forward ─────────────────────────────────────
   useEffect(() => {
@@ -190,15 +248,32 @@ export function VisionRoom({
     try {
       const res = await fetch(`/api/studio/projects/${projectId}/vision/kept`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(action) })
       if (!res.ok) return false
-      const d = (await res.json()) as { kept: KeptLine[] }
-      setKept(d.kept)
+      update((await res.json()) as VisionUpdate)
       return true
     } catch {
       return false
     }
-  }, [projectId])
+  }, [projectId, update])
 
-  const heard = useCallback((lines: KeptLine[]) => {
+  const conceptAction = useCallback(async (action: ConceptAction): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/concept`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ ...action, from: 'room' }) })
+      if (!res.ok) return false
+      update((await res.json()) as VisionUpdate)
+      onConceptChanged()
+      return true
+    } catch {
+      return false
+    }
+  }, [onConceptChanged, projectId, update])
+
+  const pieceOf = useCallback((id: string) => {
+    const p = pieces.find((x) => x.id === id)
+    return p ? { title: p.title || 'untitled', core_truth: p.core_truth ?? '', intent: p.intent ?? '', emotional_journey: p.emotional_journey ?? '' } : null
+  }, [pieces])
+
+  const heard = useCallback((lines: KeptLine[], offered: PendingChange[] = []) => {
+    if (offered.length) setPendingChanges((prev) => [...prev.filter((c) => !offered.some((o) => o.id === c.id)), ...offered].slice(-3))
     setKept((prev) => {
       const pending = [...prev.filter((k) => k.state === 'pending' && !lines.some((l) => l.id === k.id)), ...lines].slice(-3)
       return [...prev.filter((k) => k.state === 'kept'), ...pending]
@@ -333,6 +408,8 @@ export function VisionRoom({
                 onRead={() => void read()}
                 onDismissGap={dismissGap}
                 onKept={keptAction}
+                changes={changes}
+                onConcept={conceptAction}
                 onOpenPiece={onOpenPiece}
                 disabled={disabled}
               />
@@ -340,17 +417,69 @@ export function VisionRoom({
           </div>
           <div className="vision-rise" style={{ ...sheet, display: showTalk ? 'flex' : 'none', animationDelay: '520ms' }}>
             <div style={{ flex: 1, minHeight: 0, padding: wide ? '26px 26px 22px' : '20px 18px 16px', display: 'flex', flexDirection: 'column' }}>
-              <VisionTalk
-                projectId={projectId}
-                loaded={loaded}
-                messages={messages}
-                pending={pending}
-                onHeard={heard}
-                onKept={setKept}
-                onRulesChanged={onRulesChanged}
-                disabled={disabled}
-                autoFocus={wide}
-              />
+              {canList && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`, flexShrink: 0 }}>
+                  <span style={{ ...canvasType.label, color: t.textMuted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pastOpen ? 'Past conversations' : conversationId ? 'This conversation' : 'A new conversation'}
+                  </span>
+                  <button type="button" onClick={pastOpen ? () => setPastOpen(false) : showPast} aria-expanded={pastOpen} style={talkLink(t.textSecondary)}>
+                    {pastOpen ? 'Back to this one' : 'Past conversations'}
+                  </button>
+                  {conversationId && !pastOpen && (
+                    <button type="button" onClick={() => { void open('new') }} style={talkLink(t.textSecondary)}>
+                      Start a new one
+                    </button>
+                  )}
+                </div>
+              )}
+              {pastOpen && (
+                <div className="vision-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {past === null && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}><WorkingDots color={t.violet} /></p>}
+                  {past?.length === 0 && (
+                    <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>Nothing said here yet. Each conversation you start is kept, named once it gets going, and can be picked up again from here.</p>
+                  )}
+                  {past?.map((c) => {
+                    const here = c.id === conversationId
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => { setPastOpen(false); if (!here) void open(c.id) }}
+                        className="vision-piece"
+                        style={{
+                          display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'left', padding: '12px', margin: 0,
+                          borderRadius: radius.field, border: 'none', cursor: 'pointer',
+                          background: here ? alpha(t.violet, 0.1) : 'transparent',
+                        }}
+                      >
+                        <span style={{ ...canvasType.words, fontSize: 15, color: t.textPrimary }}>{c.title || 'A conversation not yet named'}</span>
+                        {c.summary && <span style={{ ...canvasType.small, color: t.textSecondary }}>{c.summary}</span>}
+                        <span style={{ ...canvasType.meta, color: t.textMuted }}>
+                          {when(c.updated_at)} · {c.messages} {c.messages === 1 ? 'message' : 'messages'}{here ? ' · open now' : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <div style={{ flex: 1, minHeight: 0, display: pastOpen ? 'none' : 'flex', flexDirection: 'column' }}>
+                <VisionTalk
+                  key={talkKey}
+                  projectId={projectId}
+                  loaded={loaded}
+                  messages={messages}
+                  conversationId={conversationId}
+                  onConversation={setConversationId}
+                  pending={pending}
+                  pendingChanges={pendingChanges}
+                  pieceOf={pieceOf}
+                  onHeard={heard}
+                  onUpdate={update}
+                  onRulesChanged={onRulesChanged}
+                  disabled={disabled}
+                  autoFocus={wide}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -19,7 +19,7 @@
 // whole project (node_id null), so what was said before the room existed is
 // still here.
 
-import { NextResponse, type NextRequest } from 'next/server'
+import { after, NextResponse, type NextRequest } from 'next/server'
 import type { Message, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
 import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { COMPANION_TONE } from '@/lib/companion-tone'
@@ -27,16 +27,17 @@ import { withLanguage } from '@/lib/language'
 import { MODELS } from '@/lib/models'
 import { cacheLastMessage } from '@/lib/prompt-cache'
 import { streamClaudeText } from '@/lib/streaming'
-import { badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth } from '@/lib/studio/db'
+import { badRequest, fromDbError, isRecord, isString, isUuid, readJson, requireProject, withAuth } from '@/lib/studio/db'
 import type { Rule } from '@/lib/studio/node-types'
 import { assertFeature, assertProjectIdWorkable } from '@/lib/studio/plan-access'
 import { proposeRules, type RuleProposal } from '@/lib/studio/rule-proposals'
-import { hearVision } from '@/lib/studio/vision/hear'
+import { conversationsReady, findConversation, latestConversation, maybeTitle, startConversation, touchConversation } from '@/lib/studio/vision/conversations'
+import { hearVision, type Heard } from '@/lib/studio/vision/hear'
 import { LENS_NOTE, VISION_ROLE } from '@/lib/studio/vision/prompts'
 import { keptText, loadCanvas, visionOf } from '@/lib/studio/vision/store'
 import {
   cleanSources, isLens, splitSources, withSources,
-  type KeptLine, type VisionMessage, type VisionPayload,
+  type VisionMessage, type VisionPayload,
 } from '@/lib/studio/vision/types'
 
 // Thinking, and up to three searches, before the first word: longer than a
@@ -55,21 +56,31 @@ const HISTORY_FETCH = HISTORY_KEEP + HISTORY_STEP - 1
 const MAX_MESSAGE = 6000
 const SIDE_TIMEOUT_MS = 10_000
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
+  // ?conversation=<id> opens that one, =new opens none; without it the room
+  // opens where it was left, in the conversation touched last.
+  const asked = req.nextUrl.searchParams.get('conversation')
   return withAuth(async (auth) => {
     const project = await requireProject(auth, id)
-    const [canvas, history] = await Promise.all([
-      loadCanvas(auth, project),
-      auth.supabase
-        .from('studio_vision_messages')
-        .select('id, role, text, created_at')
-        .eq('project_id', project.id)
-        .eq('user_id', auth.user.id)
-        .is('node_id', null)
-        .order('created_at', { ascending: false })
-        .limit(200),
-    ])
+    const ready = await conversationsReady(auth)
+    let conversationId: string | null = null
+    if (ready && asked !== 'new') {
+      conversationId = asked && isUuid(asked)
+        ? (await findConversation(auth, project.id, asked))?.id ?? null
+        : await latestConversation(auth, project.id)
+    }
+
+    let q = auth.supabase
+      .from('studio_vision_messages')
+      .select('id, role, text, created_at')
+      .eq('project_id', project.id)
+      .eq('user_id', auth.user.id)
+      .is('node_id', null)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (ready) q = conversationId ? q.eq('conversation_id', conversationId) : q.eq('id', '00000000-0000-0000-0000-000000000000')
+    const [canvas, history] = await Promise.all([loadCanvas(auth, project), q])
     if (history.error) throw fromDbError(history.error)
     const vision = visionOf(project.settings)
     const messages: VisionMessage[] = ((history.data as Array<{ id: string; role: string; text: string; created_at: string }> | null) ?? [])
@@ -81,7 +92,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       })
     return NextResponse.json({
       messages,
+      conversation_id: conversationId,
+      conversations: ready,
       kept: vision.kept,
+      changes: vision.changes,
+      pending_changes: vision.pending_changes,
       reading: vision.reading,
       stale: !!vision.reading && vision.reading.signature !== canvas.signature,
       unread: canvas.unread,
@@ -99,6 +114,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!isString(body.message) || !body.message.trim()) throw badRequest('say something')
     const message = body.message.trim().slice(0, MAX_MESSAGE)
     const lens = isLens(body.lens) ? body.lens : null
+    const askedConversation = isUuid(body.conversation_id) ? body.conversation_id : null
 
     const project = await requireProject(auth, id)
     await assertProjectIdWorkable(auth, project.id)
@@ -106,9 +122,20 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const canvas = await loadCanvas(auth, project)
     const vision = visionOf(project.settings)
+    const pieceName = (nodeId: string) => canvas.roots.find((r) => r.id === nodeId)?.title || null
+
+    // ── which conversation ─────────────────────────────────────────────────
+    // A message with no conversation, or one that is not this project's,
+    // starts a new one. Before migration 035 there is only ever the one.
+    const ready = await conversationsReady(auth)
+    let conversationId: string | null = null
+    if (ready) {
+      conversationId = askedConversation ? (await findConversation(auth, project.id, askedConversation))?.id ?? null : null
+      if (!conversationId) conversationId = await startConversation(auth, project.id)
+    }
 
     // ── history ────────────────────────────────────────────────────────────
-    const { data: history, count, error: histErr } = await auth.supabase
+    let hq = auth.supabase
       .from('studio_vision_messages')
       .select('role, text, created_at', { count: 'exact' })
       .eq('project_id', project.id)
@@ -116,6 +143,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       .is('node_id', null)
       .order('created_at', { ascending: false })
       .limit(HISTORY_FETCH)
+    if (conversationId) hq = hq.eq('conversation_id', conversationId)
+    const { data: history, count, error: histErr } = await hq
     if (histErr) throw fromDbError(histErr)
 
     const recent = (history ?? []).slice().reverse()
@@ -140,15 +169,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { data: inserted, error: insErr } = await auth.supabase.from('studio_vision_messages').insert({
       user_id: auth.user.id, project_id: project.id, node_id: null, role: 'person', text: message,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
     }).select('id').single()
     if (insErr) throw fromDbError(insErr)
+    if (conversationId) await touchConversation(auth, conversationId)
 
     // ── listening beside the reply ─────────────────────────────────────────
     const liveRules = ((project.rules ?? []) as Rule[]).filter((r) => r && !r.retired_at).map((r) => r.text)
-    const quiet = <T,>(what: string, p: Promise<T[]>): Promise<T[]> =>
+    const quiet = <T,>(what: string, p: Promise<T>, empty: T): Promise<T> =>
       Promise.race([
-        p.catch((e) => { console.error(`[studio] ${what} failed:`, e); return [] as T[] }),
-        new Promise<T[]>((resolve) => setTimeout(() => resolve([]), SIDE_TIMEOUT_MS)),
+        p.catch((e) => { console.error(`[studio] ${what} failed:`, e); return empty }),
+        new Promise<T>((resolve) => setTimeout(() => resolve(empty), SIDE_TIMEOUT_MS)),
       ])
     const rulesHeard = proposeRules(auth, {
       projectId: project.id,
@@ -159,7 +190,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       messageId: (inserted as { id: string } | null)?.id ?? null,
       source: 'talk',
     })
-    const linesHeard = hearVision(auth, { projectId: project.id, text: message, intent: project.intent || '', vision })
+    const linesHeard: Promise<Heard> = hearVision(auth, {
+      projectId: project.id,
+      text: message,
+      intent: project.intent || '',
+      vision,
+      pieces: canvas.roots.map((r) => ({
+        id: r.id, title: r.title || 'untitled', core_truth: r.core_truth ?? '', intent: r.intent ?? '',
+        emotional_journey: r.emotional_journey ?? '', open_threads: (r.open_threads ?? []).filter((x) => x && x.trim()),
+      })),
+    })
 
     // ── the request ────────────────────────────────────────────────────────
     const model = pickModel(auth, MODELS.vision)
@@ -175,7 +215,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         type: 'text',
         text: [
           `[For this turn only. TODAY: ${new Date().toISOString().slice(0, 10)}.`,
-          keptText(vision),
+          keptText(vision, pieceName),
           full ? '' : 'You cannot search the web in this turn. If the present state of the field matters to the answer, say that you could not look it up.',
           lens ? LENS_NOTE[lens] : '',
         ].filter(Boolean).join('\n\n') + ']',
@@ -216,13 +256,22 @@ export async function POST(req: NextRequest, { params }: Params) {
           await auth.supabase.from('studio_vision_messages').insert({
             user_id: auth.user.id, project_id: project.id, node_id: null,
             role: 'companion', text: withSources(clean, sources),
+            ...(conversationId ? { conversation_id: conversationId } : {}),
           })
+          // Named once there is something to name, after the reply has gone.
+          if (conversationId) {
+            const named = conversationId
+            const name = () => maybeTitle(auth, named).catch((e) => console.error('[studio] vision title failed:', e))
+            // after() keeps the function alive past the response; where it
+            // cannot be reached from inside the stream, the naming just runs.
+            try { after(name) } catch { void name() }
+          }
         }
         const [proposals, heard] = await Promise.all([
-          quiet<RuleProposal>('rule proposals', rulesHeard),
-          quiet<KeptLine>('vision lines', linesHeard),
+          quiet<RuleProposal[]>('rule proposals', rulesHeard, []),
+          quiet<Heard>('vision lines', linesHeard, { lines: [], changes: [] }),
         ])
-        return { sources, proposals, heard }
+        return { sources, proposals, heard: heard.lines, changes: heard.changes, conversation_id: conversationId }
       },
       { lens: lens ?? 'none', canvas: canvas.text.length },
       // The newest model declines some subjects the one before it will

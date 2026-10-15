@@ -144,11 +144,26 @@ function installMock(o: Opts) {
   const openChecks: unknown[] = []
   let suggestions = [{ id: 'sg-1', name: 'Kept for later', intent: 'Things saved for a day that never comes.', piece_ids: ['node-1', 'node-2'], why: 'A room “kept for a guest who never came” and a morning when nobody needed you.' }]
 
-  const visionTalk: Array<{ id: string; role: string; text: string; sources: Array<{ url: string; title: string }>; created_at: string }> = []
-  const visionKept: Array<{ id: string; kind: string; text: string; why: string; quote: string; at: string; state: string }> = o.pieces ? [
-    { id: 'vk-1', kind: 'decision', text: 'It is three pieces, not one long one', why: 'each of them has to be able to stand without the others', quote: '', at: '2026-09-18T10:00:00.000Z', state: 'kept' },
-    { id: 'vk-2', kind: 'open', text: 'Whether the song is sung or only printed', why: '', quote: '', at: '2026-09-21T10:00:00.000Z', state: 'kept' },
+  // The vision room's conversations (migration 035), what it keeps, and the
+  // dated changes made to a core concept since it was locked.
+  type VMsg = { id: string; role: string; text: string; sources: Array<{ url: string; title: string }>; created_at: string }
+  const visionConvs: Array<{ id: string; title: string; summary: string; created_at: string; updated_at: string; msgs: VMsg[] }> = o.pieces ? [{
+    id: 'vc-1', title: 'Whether it is one form or three', summary: 'Settled on three pieces that can each stand alone; whether the song is sung is still open.',
+    created_at: '2026-09-21T10:00:00.000Z', updated_at: '2026-09-21T10:20:00.000Z',
+    msgs: [
+      { id: 'vm-1', role: 'person', text: 'I keep wondering if this is one long piece or three.', sources: [], created_at: '2026-09-21T10:00:00.000Z' },
+      { id: 'vm-2', role: 'companion', text: 'The canvas already answers part of it: each piece says what it is for on its own. What would be lost if they were one?', sources: [], created_at: '2026-09-21T10:01:00.000Z' },
+      { id: 'vm-3', role: 'person', text: 'Nothing, I think. They have to stand without each other.', sources: [], created_at: '2026-09-21T10:05:00.000Z' },
+      { id: 'vm-4', role: 'companion', text: 'Then three it is, and the thread is what holds them. Is the song sung, or only printed?', sources: [], created_at: '2026-09-21T10:06:00.000Z' },
+    ],
+  }] : []
+  const visionKept: Array<{ id: string; kind: string; node_id: string | null; text: string; why: string; quote: string; at: string; state: string }> = o.pieces ? [
+    { id: 'vk-1', kind: 'decision', node_id: null, text: 'It is three pieces, not one long one', why: 'each of them has to be able to stand without the others', quote: '', at: '2026-09-18T10:00:00.000Z', state: 'kept' },
+    { id: 'vk-2', kind: 'open', node_id: null, text: 'Whether the song is sung or only printed', why: '', quote: '', at: '2026-09-21T10:00:00.000Z', state: 'kept' },
   ] : []
+  const visionChanges: Array<{ id: string; node_id: string; field: string; from: string; to: string; at: string; source: string }> = []
+  const visionPending: Array<{ id: string; node_id: string; field: string; to: string; quote: string; at: string }> = []
+  const conceptPiece = (id: string) => nodes.find((n) => n.id === id && !n.parent_id)
   let visionReading: { at: string; statement: string; gaps: Array<{ id: string; text: string; where: string[] }>; signature: string } | null = null
 
   const resync = (parentId: string | null) => {
@@ -227,7 +242,7 @@ function installMock(o: Opts) {
       const mine = shelf.find((x) => x.id === 'demo')
       const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > max ? 'over_limit' : null
       const access = { plan: ent.plan, limit: ent.maxActiveProjects, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk, companion: ent.companion }
-      return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
+      return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried, vision: { kept: visionKept, changes: visionChanges, pending_changes: visionPending } } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
     }
     if (path === '/api/studio/projects/demo/items') {
       if (method === 'GET') return json({ ready: true, items, assets: [], tasks })
@@ -350,29 +365,49 @@ function installMock(o: Opts) {
     // The vision room (components/studio/work/vision-room.tsx): the page, the
     // talk, a reading of the canvas, and what is kept from talk.
     if (path === '/api/studio/projects/demo/vision') {
-      if (method === 'GET') return json({ messages: visionTalk, kept: visionKept, reading: visionReading, stale: false, unread: { images: 0, recordings: 0 } })
+      const page = (conv: (typeof visionConvs)[number] | null) => json({
+        messages: conv?.msgs ?? [], conversation_id: conv?.id ?? null, conversations: true,
+        kept: visionKept, changes: visionChanges, pending_changes: visionPending,
+        reading: visionReading, stale: false, unread: { images: 0, recordings: 0 },
+      })
+      if (method === 'GET') {
+        const asked = new URL(url, location.origin).searchParams.get('conversation')
+        if (asked === 'new') return page(null)
+        const latest = [...visionConvs].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null
+        return page(asked ? visionConvs.find((c) => c.id === asked) ?? null : latest)
+      }
       const said = String(body.message || '')
-      visionTalk.push({ id: `vm-${++seq}`, role: 'person', text: said, sources: [], created_at: NOW })
+      let conv = visionConvs.find((c) => c.id === body.conversation_id)
+      if (!conv) { conv = { id: `vc-${++seq}`, title: '', summary: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), msgs: [] }; visionConvs.push(conv) }
+      conv.updated_at = new Date().toISOString()
+      conv.msgs.push({ id: `vm-${++seq}`, role: 'person', text: said, sources: [], created_at: conv.updated_at })
       const looked = body.lens === 'field'
       const sources = looked ? [
         { url: 'https://example.com/short-documentary-distribution-2026', title: 'Where short documentaries are being shown this year' },
         { url: 'https://example.org/commissioners-survey', title: 'What commissioners say they are buying' },
       ] : []
-      const reply = body.lens === 'audience'
-        ? 'Three kinds of people are on this canvas, and only one of them is being made for.\n\n- People who are needed all day and have stopped noticing it. They have to meet the empty morning first, before any idea about rest.\n- People who already write about rest. They have heard the argument; they would stay for the room, not the claim.\n- The person you were before that morning. This is who the pieces are actually addressed to.\n\nThe canvas as written serves the third. Is that the one you mean it to reach?'
-        : body.lens === 'weakest'
-          ? 'The case against it: what the whole thing is for says rest is not the absence of worth, and every piece arrives there by the same door, a quiet room. Someone who is not already persuaded gets the same proof three times.\n\nWhat would a piece look like that reaches it from somewhere loud?'
+      const tops = nodes.filter((n) => !n.parent_id)
+      const named = tops.find((n) => n.title && said.toLowerCase().includes(n.title.toLowerCase()))
+      const truth = said.match(/the truth (?:is|of it is) ([^.!?]+)/i)
+      const reply = truth
+        ? `Then the core truth of “${(named ?? tops[0]).title}” has moved: it no longer rests where the concept says it does.`
+        : body.lens === 'audience'
+          ? 'Three kinds of people are on this canvas, and only one of them is being made for.\n\n- People who are needed all day and have stopped noticing it.\n- People who already write about rest.\n- The person you were before that morning.\n\nThe canvas as written serves the third. Is that the one you mean it to reach?'
           : looked
-            ? 'What I found, both from the last few weeks: short documentaries are being bought in packages for free streaming channels more than one at a time, and commissioners say they are asking for a series shape even from single films.\n\nThat is what I found. What I am inferring: three pieces with one thread across them is closer to what is being bought than one long piece would be.'
+            ? 'What I found, both from the last few weeks: short documentaries are being bought in packages. What I am inferring: three pieces with one thread across them is closer to what is being bought.'
             : 'Then the question is which of the three carries that, and which two are there to earn it. Which one could you least afford to lose?'
-      const decided = said.match(/[^.!?]*\b(we are|we're|I am|I'm|it will|it goes|decided)\b[^.!?]*[.!?]?/i)?.[0]?.trim()
+      const decided = truth ? undefined : said.match(/[^.!?]*\b(we are|we're|I am|I'm|it will|it goes|decided)\b[^.!?]*[.!?]?/i)?.[0]?.trim()
       const unsure = said.match(/[^.!?]*\b(don['’]t know|not sure|still deciding)\b[^.!?]*[.!?]?/i)?.[0]?.trim()
       const heard = [
-        ...(decided ? [{ id: `vk-${++seq}`, kind: 'decision', text: decided.replace(/[.!?]$/, ''), why: '', quote: decided, at: NOW, state: 'pending' }] : []),
-        ...(unsure && unsure !== decided ? [{ id: `vk-${++seq}`, kind: 'open', text: unsure.replace(/[.!?]$/, ''), why: '', quote: unsure, at: NOW, state: 'pending' }] : []),
+        ...(decided ? [{ id: `vk-${++seq}`, kind: 'decision', node_id: named?.id ?? null, text: decided.replace(/[.!?]$/, ''), why: '', quote: decided, at: NOW, state: 'pending' }] : []),
+        ...(unsure && unsure !== decided ? [{ id: `vk-${++seq}`, kind: 'open', node_id: named?.id ?? null, text: unsure.replace(/[.!?]$/, ''), why: '', quote: unsure, at: NOW, state: 'pending' }] : []),
       ]
+      const changes = truth ? [{ id: `pc-${++seq}`, node_id: (named ?? tops[0]).id, field: 'core_truth', to: `${truth[1].trim().replace(/^./, (c) => c.toUpperCase())}.`, quote: truth[0], at: NOW }] : []
       visionKept.push(...heard)
-      visionTalk.push({ id: `vm-${++seq}`, role: 'companion', text: reply, sources, created_at: NOW })
+      visionPending.push(...changes)
+      conv.msgs.push({ id: `vm-${++seq}`, role: 'companion', text: reply, sources, created_at: new Date().toISOString() })
+      if (conv.msgs.length >= 4 && !conv.title) { conv.title = 'Who the morning is for'; conv.summary = 'Narrowed the audience to the person before that morning; the narrator is still open.' }
+      const convId = conv.id
       const enc = new TextEncoder()
       const parts = reply.match(/\S+\s*/g) ?? [reply]
       return new Response(new ReadableStream({
@@ -380,11 +415,44 @@ function installMock(o: Opts) {
           // A lookup is slow to start, the way the real one is.
           await new Promise((r) => setTimeout(r, looked ? 5200 : 700))
           for (const piece of parts) { c.enqueue(enc.encode(piece)); await new Promise((r) => setTimeout(r, 18)) }
-          c.enqueue(enc.encode(`\u001e${JSON.stringify({ sources, proposals: [], heard })}`))
+          c.enqueue(enc.encode(`\u001e${JSON.stringify({ sources, proposals: [], heard, changes, conversation_id: convId })}`))
           c.close()
         },
       }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
+    if (path === '/api/studio/projects/demo/vision/conversations') {
+      return json({ ready: true, conversations: [...visionConvs].filter((c) => c.msgs.length).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map(({ msgs, ...c }) => ({ ...c, messages: msgs.length })) })
+    }
+    if (path === '/api/studio/projects/demo/concept' && method === 'POST') return write(() => {
+      const logChange = (node_id: string, field: string, from: string, to: string, source: string) =>
+        visionChanges.push({ id: `cc-${++seq}`, node_id, field, from, to, at: new Date().toISOString(), source })
+      let nodeId: string | null = body.node_id ?? null
+      const from = body.from === 'room' ? 'room' : 'concept'
+      if (body.action === 'apply' || body.action === 'decline') {
+        const i = visionPending.findIndex((c) => c.id === body.id)
+        if (i < 0) return json({ error: 'already answered' }, 409)
+        const [c] = visionPending.splice(i, 1)
+        nodeId = c.node_id
+        if (body.action === 'apply') {
+          const n = conceptPiece(c.node_id) as unknown as Record<string, string>
+          const to = String(body.text || c.to)
+          logChange(c.node_id, c.field, n[c.field] ?? '', to, 'talk')
+          n[c.field] = to
+        }
+      } else {
+        const n = nodeId ? conceptPiece(nodeId) : undefined
+        if (!n) return json({ error: 'not found' }, 404)
+        const threads = (n.open_threads ?? []).filter(Boolean)
+        if (body.action === 'edit') { logChange(n.id, body.field, String((n as unknown as Record<string, string>)[body.field] ?? ''), body.text, from); (n as unknown as Record<string, string>)[body.field] = body.text }
+        if (body.action === 'add_thread') { n.open_threads = [...threads, body.text]; logChange(n.id, 'open_threads', '', body.text, from) }
+        if (body.action === 'remove_thread' || body.action === 'settle_thread') {
+          n.open_threads = threads.filter((x) => x !== body.text)
+          logChange(n.id, 'open_threads', body.text, body.answer ? `answered: ${body.answer}` : '', from)
+          if (body.action === 'settle_thread') visionKept.push({ id: `vk-${++seq}`, kind: 'decision', node_id: n.id, text: body.answer, why: body.why ?? '', quote: '', at: new Date().toISOString(), state: 'kept' })
+        }
+      }
+      return json({ node: nodeId ? { id: nodeId } : null, kept: visionKept, changes: visionChanges, pending_changes: visionPending })
+    })
     if (path === '/api/studio/projects/demo/vision/reading' && method === 'POST') {
       if (body?.dismiss) { if (visionReading) visionReading.gaps = visionReading.gaps.filter((g) => g.id !== body.dismiss); return json({ reading: visionReading, stale: false }) }
       await new Promise((r) => setTimeout(r, 1800))
@@ -403,9 +471,17 @@ function installMock(o: Opts) {
       return json({ reading: visionReading, stale: false })
     }
     if (path === '/api/studio/projects/demo/vision/kept' && method === 'POST') return write(() => {
-      if (body.action === 'add') { visionKept.push({ id: `vk-${++seq}`, kind: body.kind === 'open' ? 'open' : 'decision', text: body.text, why: body.why ?? '', quote: '', at: new Date().toISOString(), state: 'kept' }); return json({ kept: visionKept }) }
+      if (body.action === 'add') { visionKept.push({ id: `vk-${++seq}`, kind: body.kind === 'open' ? 'open' : 'decision', node_id: body.node_id ?? null, text: body.text, why: body.why ?? '', quote: '', at: new Date().toISOString(), state: 'kept' }); return json({ kept: visionKept }) }
       const i = visionKept.findIndex((k) => k.id === body.id)
       if (i < 0) return json({ error: 'already answered' }, 409)
+      const line = visionKept[i]
+      if (body.action === 'keep' && line.kind === 'open' && line.node_id) {
+        const n = conceptPiece(line.node_id)
+        if (n) n.open_threads = [...(n.open_threads ?? []), body.text || line.text]
+        visionChanges.push({ id: `cc-${++seq}`, node_id: line.node_id, field: 'open_threads', from: '', to: body.text || line.text, at: new Date().toISOString(), source: 'talk' })
+        visionKept.splice(i, 1)
+        return json({ kept: visionKept, changes: visionChanges, thread_added: true })
+      }
       if (body.action === 'keep') Object.assign(visionKept[i], { text: body.text || visionKept[i].text, why: body.why ?? visionKept[i].why, state: 'kept' })
       else if (body.action === 'settle') Object.assign(visionKept[i], { kind: 'decision', text: body.text, why: body.why ?? '', state: 'kept', at: new Date().toISOString() })
       else visionKept.splice(i, 1)

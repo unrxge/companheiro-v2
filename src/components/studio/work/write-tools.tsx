@@ -17,6 +17,8 @@ import type { TreeNode } from '@/lib/studio/node-types'
 import { TaskGroups } from '@/components/studio/work/task-groups'
 import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
+import { changeConcept, ConceptMirror } from '@/components/studio/work/concept-mirror'
+import { EMPTY_VISION, type VisionState } from '@/lib/studio/vision/types'
 
 export interface AnchorLine { id: string; section_id: string | null; text: string }
 export interface PieceTask {
@@ -128,11 +130,16 @@ function useFieldStyle(): React.CSSProperties {
 
 // ── the core concept ─────────────────────────────────────────────────────────
 
-export function ConceptPanel({ node, projectId, conversationLog }: {
+export function ConceptPanel({ node, projectId, conversationLog, vision = EMPTY_VISION, onChanged, disabled = false }: {
   node: TreeNode
   projectId: string
   /** The Idea Lab back-and-forth the concept came out of, kept on the project. */
   conversationLog?: ConversationLogMessage[] | null
+  /** What the project's vision room keeps: what was decided since, and every dated change. */
+  vision?: VisionState
+  /** A change landed; the piece on screen should be read again. */
+  onChanged?: () => void
+  disabled?: boolean
 }) {
   const { t } = useTheme()
   const [showLog, setShowLog] = useState(false)
@@ -184,46 +191,24 @@ export function ConceptPanel({ node, projectId, conversationLog }: {
     )
   }
 
-  const body: React.CSSProperties = { ...typeRoles.ui, fontSize: 14, lineHeight: 1.65, color: t.textSecondary, margin: 0 }
-
-  // The locked core concept, read-only: the truth first, then the conviction,
-  // then the journey as its curve (hover or tap a step for its sentence).
+  // The concept as it stands now: locked when the piece began, still allowed
+  // to move. The vision room shows this same component for this same piece,
+  // so a change made on either side is already on the other.
+  const kept = vision.kept.filter((k) => k.state === 'kept')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {truth && (
-        <Card inner padding="26px 20px">
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-            <Eyebrow>Core truth</Eyebrow>
-            <p style={{ ...typeRoles.ui, fontSize: 18, fontWeight: 500, lineHeight: 1.5, letterSpacing: '-0.02em', color: t.textPrimary, margin: 0 }}>{truth}</p>
-          </div>
-        </Card>
-      )}
-
-      {conviction && (
-        <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 10 }}>Conviction</Eyebrow>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
-            <div style={{ width: 3, borderRadius: 2, background: t.ember, flexShrink: 0, opacity: 0.6 }} />
-            <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.65, fontWeight: 500, color: t.textPrimary, margin: 0, whiteSpace: 'pre-line' }}>{conviction}</p>
-          </div>
-        </Card>
-      )}
-
-      {journey && (
-        <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 10 }}>Emotional journey</Eyebrow>
-          <JourneyCurve text={journey} />
-        </Card>
-      )}
-
-      {stillOpen.length > 0 && (
-        <Card inner padding={18}>
-          <Eyebrow style={{ marginBottom: 4 }}>Open threads</Eyebrow>
-          <DashedList lines={stillOpen} />
-        </Card>
-      )}
-
-
+      <ConceptMirror
+        node={{ id: node.id, core_truth: node.core_truth, intent: node.intent, emotional_journey: node.emotional_journey, open_threads: node.open_threads }}
+        changes={vision.changes}
+        decided={kept.filter((k) => k.kind === 'decision' && (k.node_id === node.id || !k.node_id)).slice().reverse()}
+        projectOpen={kept.filter((k) => k.kind === 'open' && !k.node_id)}
+        disabled={disabled}
+        onChange={async (action) => {
+          const ok = await changeConcept(projectId, action, 'concept')
+          if (ok) onChanged?.()
+          return ok
+        }}
+      />
       <div style={{ paddingTop: 8 }}>{conversation}</div>
     </div>
   )

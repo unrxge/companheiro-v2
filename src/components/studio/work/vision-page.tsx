@@ -21,7 +21,8 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, type as typeRole } from '@/lib/design-tokens'
 import type { Appearance, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { extentOf } from '@/lib/studio/tree'
-import type { KeptLine, Reading } from '@/lib/studio/vision/types'
+import type { ConceptChange, KeptLine, Reading } from '@/lib/studio/vision/types'
+import { ConceptMirror, type ConceptAction } from '@/components/studio/work/concept-mirror'
 
 const STATUS: Record<string, string> = { open: 'not started', drafted: 'in draft', done: 'done' }
 
@@ -33,7 +34,7 @@ const day = (iso: string) => {
 export type KeptAction =
   | { action: 'remove'; id: string }
   | { action: 'settle'; id: string; text: string; why: string }
-  | { action: 'add'; kind: 'decision' | 'open'; text: string; why: string }
+  | { action: 'add'; kind: 'decision' | 'open'; text: string; why: string; node_id?: string | null }
 
 export function VisionPage({
   project,
@@ -50,6 +51,8 @@ export function VisionPage({
   onRead,
   onDismissGap,
   onKept,
+  changes,
+  onConcept,
   onOpenPiece,
   disabled = false,
 }: {
@@ -67,13 +70,21 @@ export function VisionPage({
   onRead: () => void
   onDismissGap: (gapId: string) => void
   onKept: (action: KeptAction) => Promise<boolean>
+  /** Every change made to a core concept since it was locked. */
+  changes: ConceptChange[]
+  /** Changes a piece's core concept: the same change the writing page makes. */
+  onConcept: (action: ConceptAction) => Promise<boolean>
   onOpenPiece: (id: string) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
   const rules = project.rules.filter((r) => !r.retired_at)
   const decided = kept.filter((k) => k.state === 'kept' && k.kind === 'decision').slice().reverse()
-  const open = kept.filter((k) => k.state === 'kept' && k.kind === 'open').slice().reverse()
+  const open = kept.filter((k) => k.state === 'kept' && k.kind === 'open' && !k.node_id).slice().reverse()
+  const pieceTitle = (id: string | null) => (id ? pieces.find((p) => p.id === id)?.title || 'untitled' : null)
+  // An open question about one piece is one of its open threads, in its core concept.
+  const pieceThreads = pieces.flatMap((p) => (p.open_threads ?? []).map((x) => x.trim()).filter(Boolean).map((text) => ({ node: p, text })))
+  const [openPiece, setOpenPiece] = useState<string | null>(pieces.length === 1 ? pieces[0]?.id ?? null : null)
   const gaps = reading?.gaps ?? []
 
   const quietButton = (label: ReactNode, onClick: () => void, busy = false) => (
@@ -139,34 +150,59 @@ export function VisionPage({
         ) : <Muted>No rules over the whole project yet. One said in passing here is offered back to you to keep.</Muted>}
       </Section>
 
-      <Section label={pieces.length === 1 ? 'The piece' : 'The pieces'}>
+      <Section label={pieces.length === 1 ? 'The piece, and its core concept' : 'The pieces, and their core concepts'}>
         {pieces.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {pieces.map((p, i) => {
               const about = p.intent.trim() || (p.core_truth ?? '').trim()
+              const shown = openPiece === p.id
+              const hasConcept = !!((p.core_truth ?? '').trim() || (p.emotional_journey ?? '').trim() || (p.open_threads ?? []).some((x) => x.trim()))
               return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => onOpenPiece(p.id)}
-                  title="Open this piece"
-                  className="vision-piece"
-                  style={{
-                    display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'baseline', textAlign: 'left',
-                    padding: '10px 12px', margin: '0 -12px', borderRadius: radius.field, border: 'none', background: 'transparent', cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ ...canvasType.meta, color: t.textMuted }}>{i + 1}</span>
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                    <span style={{ ...canvasType.words, color: t.textPrimary }}>{p.title || 'untitled'}</span>
-                    <span style={{ ...canvasType.small, color: about ? t.textSecondary : t.textMuted }}>
-                      {about || 'Nothing says what this one is for yet.'}
+                <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenPiece(shown ? null : p.id)}
+                    aria-expanded={shown}
+                    title={shown ? 'Fold its core concept away' : 'Show its core concept'}
+                    className="vision-piece"
+                    style={{
+                      display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'baseline', textAlign: 'left',
+                      padding: '10px 12px', margin: '0 -12px', borderRadius: radius.field, border: 'none', background: 'transparent', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ ...canvasType.meta, color: t.textMuted }}>{i + 1}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                      <span style={{ ...canvasType.words, color: t.textPrimary }}>{p.title || 'untitled'}</span>
+                      <span style={{ ...canvasType.small, color: about ? t.textSecondary : t.textMuted }}>
+                        {about || 'Nothing says what this one is for yet.'}
+                      </span>
                     </span>
-                  </span>
-                  <span style={{ ...canvasType.meta, color: t.textMuted, whiteSpace: 'nowrap' }}>
-                    {STATUS[p.status] ?? p.status}{extentOf(p) ? ` · ${extentOf(p).toLocaleString()} words` : ''}
-                  </span>
-                </button>
+                    <span style={{ ...canvasType.meta, color: t.textMuted, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      {STATUS[p.status] ?? p.status}{extentOf(p) ? ` · ${extentOf(p).toLocaleString()} words` : ''}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden
+                        style={{ transform: shown ? 'rotate(180deg)' : undefined, transition: 'transform 160ms ease' }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                  </button>
+                  {shown && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 32, paddingBottom: 8 }}>
+                      {hasConcept ? (
+                        <ConceptMirror
+                          node={{ id: p.id, core_truth: p.core_truth, intent: p.intent, emotional_journey: p.emotional_journey, open_threads: p.open_threads }}
+                          changes={changes}
+                          decided={kept.filter((k) => k.state === 'kept' && k.kind === 'decision' && k.node_id === p.id).slice().reverse()}
+                          disabled={disabled}
+                          onChange={onConcept}
+                        />
+                      ) : <Muted>This piece has no core concept yet. It can be built from the piece itself, from a few quick questions.</Muted>}
+                      <button type="button" onClick={() => onOpenPiece(p.id)}
+                        style={{ ...canvasType.small, fontSize: 12, alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: t.ember }}>
+                        Open the piece →
+                      </button>
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -202,7 +238,7 @@ export function VisionPage({
         {decided.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {decided.map((k) => (
-              <KeptRow key={k.id} line={k} disabled={disabled} onRemove={() => onKept({ action: 'remove', id: k.id })} />
+              <KeptRow key={k.id} line={k} about={pieceTitle(k.node_id)} disabled={disabled} onRemove={() => onKept({ action: 'remove', id: k.id })} />
             ))}
           </div>
         ) : <Muted>Nothing kept yet. When you settle something while talking, it is offered back to you to keep here, with your reason if you gave one.</Muted>}
@@ -210,7 +246,7 @@ export function VisionPage({
       </Section>
 
       <Section label="Still open">
-        {open.length + gaps.length ? (
+        {open.length + pieceThreads.length + gaps.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {open.map((k) => (
               <KeptRow
@@ -219,6 +255,17 @@ export function VisionPage({
                 disabled={disabled}
                 onRemove={() => onKept({ action: 'remove', id: k.id })}
                 onSettle={(text, why) => onKept({ action: 'settle', id: k.id, text, why })}
+              />
+            ))}
+            {pieceThreads.map(({ node, text }) => (
+              <KeptRow
+                key={`${node.id}:${text}`}
+                line={{ id: `${node.id}:${text}`, kind: 'open', node_id: node.id, text, why: '', quote: '', at: '', state: 'kept' }}
+                about={node.title || 'untitled'}
+                note="an open thread in its core concept"
+                disabled={disabled}
+                onRemove={() => onConcept({ action: 'remove_thread', node_id: node.id, text })}
+                onSettle={(answer, why) => onConcept({ action: 'settle_thread', node_id: node.id, text, answer, why })}
               />
             ))}
             {gaps.map((g) => (
@@ -242,7 +289,7 @@ export function VisionPage({
               </div>
             ))}
           </div>
-        ) : <Muted>Nothing open is kept here. A question you name as unsettled is offered back to you, and a reading of the canvas adds anything on it that pulls two ways.</Muted>}
+        ) : <Muted>Nothing is open. A question you name as unsettled is offered back to you: about one piece, it joins that piece's open threads; about the whole project, it stays here. A reading of the canvas adds anything on it that pulls two ways.</Muted>}
         {!disabled && <AddLine kind="open" onAdd={(text) => onKept({ action: 'add', kind: 'open', text, why: '' })} />}
       </Section>
 
@@ -272,9 +319,13 @@ function Muted({ children }: { children: ReactNode }) {
 
 /** One kept line. A question can be answered where it sits, which turns it into a decision. */
 function KeptRow({
-  line, disabled, onRemove, onSettle,
+  line, about = null, note, disabled, onRemove, onSettle,
 }: {
   line: KeptLine
+  /** The piece it is about, when it is about one. */
+  about?: string | null
+  /** Said under it instead of its date. */
+  note?: string
   disabled: boolean
   onRemove: () => Promise<boolean>
   onSettle?: (text: string, why: string) => Promise<boolean>
@@ -299,7 +350,7 @@ function KeptRow({
       <p style={{ ...canvasType.words, color: t.textPrimary, margin: 0 }}>{line.text}</p>
       {line.why && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>Because {line.why.replace(/^because\s+/i, '')}</p>}
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ ...canvasType.meta, color: t.textMuted }}>{day(line.at)}</span>
+        <span style={{ ...canvasType.meta, color: t.textMuted }}>{[about ? `about “${about}”` : '', note ?? day(line.at)].filter(Boolean).join(' · ')}</span>
         {!disabled && onSettle && !settling && <button type="button" style={link} onClick={() => setSettling(true)}>It is settled</button>}
         {!disabled && <button type="button" style={link} disabled={busy} onClick={() => { setBusy(true); void onRemove().finally(() => setBusy(false)) }}>Take it off</button>}
       </div>

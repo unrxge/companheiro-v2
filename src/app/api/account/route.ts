@@ -38,6 +38,7 @@ const TABLES = [
   'studio_draft_sections',
   'studio_draft_messages',
   'studio_vision_messages',
+  'studio_vision_conversations',
   'studio_talk_entries',
   'studio_compass_entries',
   'studio_catches',

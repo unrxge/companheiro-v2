@@ -34,6 +34,7 @@ import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
 import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { VisionRoom, type RoomOrigin } from '@/components/studio/work/vision-room'
+import { visionOf } from '@/lib/studio/vision/state'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
 import { Empty, InlineField, Label, TitleField, Trail, useNarrow, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
 import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
@@ -593,7 +594,14 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       )}
 
       {rail === 'concept' && scopeNode && (
-        <ConceptPanel node={scopeNode} projectId={projectId} conversationLog={project?.conceptualisation_log} />
+        <ConceptPanel
+          node={scopeNode}
+          projectId={projectId}
+          conversationLog={project?.conceptualisation_log}
+          vision={visionOf(project?.settings)}
+          onChanged={() => void api.refresh()}
+          disabled={readOnly}
+        />
       )}
 
       {rail === 'anchors' && scopeNode && (
@@ -724,6 +732,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             onClose={() => setVisionRoom(null)}
             onOpenPiece={(id) => { setVisionRoom(null); goNode(id) }}
             onRulesChanged={() => void api.refresh()}
+            onConceptChanged={() => void api.refresh()}
             disabled={readOnly}
           />
         )}
