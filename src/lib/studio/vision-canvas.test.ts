@@ -146,3 +146,27 @@ test('only real changes to a core concept are read back: a known part, a piece, 
   assert.deepEqual(v.pending_changes.map((c) => c.id), ['p1', 'p2'])
   assert.equal(v.pending_changes[1].reason, 'every thread was answered')
 })
+
+import { borrowedRuns, borrowedShare, isNewToThePage } from './vision/together'
+
+test('a statement about the pieces together is kept only when it says something the page does not', () => {
+  const existing = [
+    'Being needed is not the same as being alive.',
+    'Rest is not the absence of worth, and the quiet is where you find out who is left.',
+    'A song about rooms kept for later.',
+  ]
+  // a reword of a core truth and a conviction
+  const reworded = 'Rest is not the absence of worth, and being needed is not the same as being alive.'
+  assert.equal(isNewToThePage(reworded, existing), false)
+  assert.ok(borrowedShare(reworded, existing) > 0.4)
+  assert.ok(borrowedRuns(reworded, existing).length > 0)
+  // what shows only when they are side by side
+  const together = 'Each piece ends in a room someone has left, and the order they run in moves from the doorway to the window.'
+  assert.equal(isNewToThePage(together, existing), true)
+  assert.equal(borrowedShare(together, existing), 0)
+  // nothing to compare with, or nothing said
+  assert.equal(isNewToThePage(together, []), true)
+  assert.equal(borrowedShare('', existing), 0)
+  // a sentence too short to share a four-word run is never "borrowed"
+  assert.equal(borrowedShare('Short one.', existing), 0)
+})

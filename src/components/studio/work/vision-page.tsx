@@ -12,7 +12,9 @@
 // Most of it is not made by anyone: it is the canvas and the core concept read
 // out, so it is always true. Three things are added on top, each only because
 // the person asked or agreed: a reading of the canvas, made when asked for and
-// dated; what was decided; and what was raised as still open. What was raised
+// dated (where it does not hold together, and for several pieces what they say
+// together that none says alone); what was decided; and what was raised as
+// still open. What was raised
 // here is kept apart from the open threads the core concept was locked with,
 // so it is always clear which is which.
 //
@@ -126,6 +128,46 @@ function Chip({ children, tone }: { children: ReactNode; tone?: string }) {
   )
 }
 
+/**
+ * "Read the canvas": the one action that reads every word on it for what does
+ * not hold together, and for several pieces what they say together. Says when
+ * it was last done and whether the canvas has changed since.
+ */
+function ReadControl({ reading, stale, busy, failed, ready, onRead }: {
+  reading: Reading | null
+  stale: boolean
+  busy: boolean
+  failed: boolean
+  ready: boolean
+  onRead: () => void
+}) {
+  const { t } = useTheme()
+  if (!ready) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        onClick={onRead}
+        disabled={busy}
+        style={{
+          ...canvasType.small, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 999, cursor: busy ? 'default' : 'pointer',
+          background: alpha(t.violet, 0.1), border: `1px solid ${alpha(t.violet, 0.32)}`, color: t.textPrimary,
+        }}
+      >
+        <span style={{ color: t.violet, display: 'inline-flex' }}>{MARK.eye}</span>
+        {busy ? <WorkingDots color={t.violet} /> : reading ? 'Read the canvas again' : 'Read the canvas'}
+      </button>
+      {reading && !busy && (
+        <span style={{ ...canvasType.meta, color: stale ? t.ochre : t.textMuted }}>
+          {stale ? `Read ${day(reading.at)} · the canvas has changed since` : `Read ${day(reading.at)}`}
+        </span>
+      )}
+      {busy && <span style={{ ...canvasType.small, color: t.textMuted }}>Reading every word on the canvas.</span>}
+      {failed && !busy && <span style={{ ...canvasType.small, color: t.ember }}>That reading did not come back. Try again in a moment.</span>}
+    </div>
+  )
+}
+
 // ── the page ────────────────────────────────────────────────────────────────
 
 export function VisionPage({
@@ -180,6 +222,8 @@ export function VisionPage({
   const conceptThreads = withConcept.map((p) => ({ piece: p, lines: (p.open_threads ?? []).map((x) => x.trim()).filter(Boolean) }))
   const threadCount = conceptThreads.reduce((n, g) => n + g.lines.length, 0)
 
+  const together = pieces.length >= 2 ? reading?.statement ?? '' : ''
+  const readProps = { reading, stale, busy: readingBusy, failed: readingFailed, ready: loaded && !disabled, onRead }
   const [openPiece, setOpenPiece] = useState<string | null>(pieces.length === 1 ? pieces[0]?.id ?? null : null)
   const [threadsOpen, setThreadsOpen] = useState(threadCount > 0 && threadCount <= 3)
 
@@ -207,43 +251,6 @@ export function VisionPage({
       ) : (
         <Muted>No core truth yet. Once a piece has a core concept, its core truth opens this page.</Muted>
       )}
-
-      {/* ── the vision, said back ─────────────────────────────────────────── */}
-      <Section tone="violet" mark={MARK.eye} label="As it stands">
-        <Tile edge={reading?.statement ? t.violet : undefined}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {reading?.statement ? (
-              <p style={{ ...typeRole.quote, fontSize: 18, color: t.textPrimary, textWrap: 'pretty' }}>{reading.statement}</p>
-            ) : reading ? (
-              <Muted>There is not enough written on the canvas yet to say a vision back. What the whole thing is for is the place to start.</Muted>
-            ) : (
-              <Muted>Nothing has read the canvas yet. When you ask, it reads every word on it, says the vision back in a few sentences, and points at anything that does not hold together.</Muted>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {loaded && !disabled && (
-                <button
-                  type="button"
-                  onClick={onRead}
-                  disabled={readingBusy}
-                  style={{
-                    ...canvasType.small, fontSize: 12, padding: '6px 12px', borderRadius: 999, cursor: readingBusy ? 'default' : 'pointer',
-                    background: alpha(t.violet, 0.1), border: `1px solid ${alpha(t.violet, 0.32)}`, color: t.textPrimary,
-                  }}
-                >
-                  {readingBusy ? <WorkingDots color={t.violet} /> : reading ? 'Read the canvas again' : 'Read the canvas'}
-                </button>
-              )}
-              {reading && !readingBusy && (
-                <span style={{ ...canvasType.meta, color: stale ? t.ochre : t.textMuted }}>
-                  {stale ? `Read ${day(reading.at)} · the canvas has changed since` : `Read ${day(reading.at)}`}
-                </span>
-              )}
-              {readingBusy && <span style={{ ...canvasType.small, color: t.textMuted }}>Reading every word on the canvas.</span>}
-              {readingFailed && !readingBusy && <span style={{ ...canvasType.small, color: t.ember }}>That reading did not come back. Try again in a moment.</span>}
-            </div>
-          </div>
-        </Tile>
-      </Section>
 
       {/* ── straight from the canvas ──────────────────────────────────────── */}
       <Section tone="ember" mark={MARK.target} label="What it is for">
@@ -323,6 +330,22 @@ export function VisionPage({
             })}
           </div>
         ) : <Muted>No pieces on the canvas yet.</Muted>}
+
+        {/* what the pieces are, held side by side: only for several, and only
+           ever something none of them already says */}
+        {pieces.length >= 2 && (
+          <Tile edge={together ? t.violet : undefined} style={together ? undefined : { background: 'transparent', border: `1px dashed ${t.divider}` }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <span style={{ ...canvasType.label, color: together ? t.violet : t.textMuted }}>The pieces together</span>
+              {together
+                ? <p style={{ ...typeRole.quote, fontSize: 17, color: t.textPrimary, textWrap: 'pretty' }}>{together}</p>
+                : reading
+                  ? <Muted>Held side by side, the pieces say nothing the page does not already say.</Muted>
+                  : <Muted>What these pieces say together, that none of them says alone. Read the canvas to find out.</Muted>}
+              {!reading && <ReadControl {...readProps} />}
+            </div>
+          </Tile>
+        )}
       </Section>
 
       {threads.length > 0 && (
@@ -364,8 +387,9 @@ export function VisionPage({
       {/* ── still open ───────────────────────────────────────────────────── */}
       <Section tone="tide" mark={MARK.question} label="Still open" count={raised.length + gaps.length + threadCount}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ReadControl {...readProps} />
           {raised.length + gaps.length === 0 && (
-            <Muted>Nothing raised here yet. A question you name in talk as unsettled is offered back to you, and a reading of the canvas adds anything on it that pulls two ways.</Muted>
+            <Muted>Nothing raised here yet. A question you name in talk as unsettled is offered back to you, and reading the canvas adds anything on it that pulls two ways.</Muted>
           )}
           {raised.map((k) => (
             <Question

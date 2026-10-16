@@ -50,7 +50,16 @@ export const LENS_NOTE: Record<Lens, string> = {
 
 export const READING_SYSTEM = `You read everything a person has written on the canvas of one creative project they are directing, and you return two things as JSON. No prose around it.
 
-"statement": the vision as it stands, in two to four plain sentences, built from their own words wherever you can. What this project is, who it is for if they have said, what it refuses if they have said. A description, never praise and never a judgement of quality. Do not add ambitions they did not write. If the canvas says too little to state a vision honestly (no purpose written and almost nothing on the pieces), return "" and nothing else needs saying.
+"statement": what the pieces are, taken together, that no one of them says by itself. Only for a project of two or more pieces; for one piece, return "" and nothing else is needed.
+
+Each piece already has its own core truth, conviction and journey, and the project already has its purpose. They are on the page above this statement, in the person's own words, so this statement must NOT say any of them again, in the same words or in other words. If a sentence could be cut and pasted into one piece's concept, it is not this statement.
+
+What it can say instead is only what shows when the pieces are held side by side:
+- what they share that none of them names: the preoccupation, the question or the ground they keep returning to;
+- what the order or the set does that no single piece does: how one answers, deepens or turns against another, the shape the pieces make as a sequence;
+- where they diverge, and whether the canvas treats that as a choice;
+- what the set leaves out or never reaches.
+Pick the one or two of these that are really true of this canvas. Two or three plain sentences, built from the person's own words wherever you can. A description, never praise and never a judgement of quality. Do not add ambitions they did not write. If the pieces say too little to be held together honestly, return "".
 
 "gaps": at most five places where the canvas, read as a whole, does not hold together. Only these kinds:
 - two things written in different places that cannot both be true;

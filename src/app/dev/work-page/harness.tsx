@@ -481,9 +481,10 @@ function installMock(o: Opts) {
       const tops = nodes.filter((n) => !n.parent_id)
       visionReading = {
         at: new Date().toISOString(),
+        // Only for several pieces, and only what none of them says alone.
         statement: tops.length > 1
-          ? 'Three pieces about things kept for a later that does not come: a morning, a room, a stack of chairs. Each one stays with the waiting itself and refuses to resolve it. It is for someone who has mistaken being useful for being alive.'
-          : 'One piece about a morning when nothing was asked, and what is left of a person when the asking stops.',
+          ? 'None of the three ends in a person: each ends on an object left in place, and they run from the kitchen to the street, so the set moves outwards from the house. What the set never reaches is anyone else in the room.'
+          : '',
         gaps: tops.length > 1 ? [
           { id: `g-${++seq}`, text: 'What the whole thing is for speaks of rest, while “Before Opening” is written as photographs of things waiting to be used; nothing on the canvas says how waiting and rest are the same thing here.', where: ['Before Opening'] },
           { id: `g-${++seq}`, text: '“The Room I Never Used” is called a song and the other two are not; the canvas does not say whether this is one form or three.', where: ['The Room I Never Used'] },

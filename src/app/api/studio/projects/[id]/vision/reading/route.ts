@@ -1,5 +1,5 @@
 // POST /api/studio/projects/:id/vision/reading — read the canvas now.
-//   { }                          a fresh reading: the vision as it stands, and where it does not hold together
+//   { }                          a fresh reading: where the canvas does not hold together and, for several pieces, what they say together
 //   { dismiss: gapId }           "that is not a gap": it leaves, and a later reading does not raise it again
 //
 // Asked for, never automatic: nothing reads the canvas until the person says
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const gated = await aiGate(auth)
     if (gated) return gated
     const canvas = await loadCanvas(auth, project)
-    const reading = await readCanvas(auth, canvas, visionOf(project.settings))
+    const reading = await readCanvas(auth, canvas, visionOf(project.settings), project.intent || '')
     await changeVision(auth, project.id, (now) => ({ ...now, reading }))
     return NextResponse.json({ reading, stale: false })
   })
