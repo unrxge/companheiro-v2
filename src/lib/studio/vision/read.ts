@@ -33,7 +33,10 @@ function alreadySaid(canvas: Canvas, intent: string): string[] {
 
 export async function readCanvas(auth: AuthedContext, canvas: Canvas, vision: VisionState, intent = ''): Promise<Reading> {
   const dismissed = vision.gaps_dismissed.length ? vision.gaps_dismissed.map((g) => `- ${g}`).join('\n') : '(none)'
-  const model = pickModel(auth, MODELS.vision)
+  // Sonnet, not the strongest model: this is a reading of what is written, not
+  // a conversation, and the person asked for it to be the Sonnet. Past the
+  // soft cap the fast model stands in, as everywhere.
+  const model = pickModel(auth, MODELS.deep)
   const several = canvas.roots.length >= 2
   const existing = alreadySaid(canvas, intent)
   const base = `THE CANVAS\n\n${canvas.text}\n\n${keptText(vision)}\n\nNOT A GAP, THEY SAID:\n${dismissed}`
@@ -41,11 +44,7 @@ export async function readCanvas(auth: AuthedContext, canvas: Canvas, vision: Vi
   const ask = async (extra: string) => {
     const stream = anthropic.messages.stream({
       model,
-      // Thinking is always on with this model and is counted here too.
-      max_tokens: 6000,
-      // Only the strongest model takes an effort level this way; past the soft
-      // cap the fast one stands in and the field is left off.
-      ...(model === MODELS.vision ? { output_config: { effort: 'high' as const } } : {}),
+      max_tokens: 4000,
       system: READING_SYSTEM,
       messages: [{ role: 'user', content: extra ? `${base}\n\n${extra}` : base }],
     })

@@ -11,8 +11,8 @@ import { normalise } from '@/lib/studio/talk/verbatim'
 
 /** How many words in a row make a borrowed phrase. */
 const RUN = 4
-/** More than this share of the statement's runs found in what already exists, and it is a paraphrase. */
-export const BORROWED_SHARE = 0.2
+/** More than this share of the statement's runs found in what already exists, and it is a paraphrase. Some borrowing is natural: it names the pieces and uses their words. */
+export const BORROWED_SHARE = 0.3
 
 function runs(text: string): string[] {
   const words = normalise(text).split(' ').filter(Boolean)
