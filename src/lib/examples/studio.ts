@@ -1,11 +1,11 @@
 // A one-person design studio two months into a client identity. Shown to people
-// who said they take on client projects or work as creative directors.
+// who said they take on client projects.
 
 import type { ExampleSource } from './types'
 
 export const studio: ExampleSource = {
   key: 'studio',
-  practices: ['client', 'director'],
+  practices: ['client'],
   label: 'One-person studio',
   who: 'a one-person design studio, two months into a client’s identity',
   teaser: 'A brand for a sixty-year-old bakery opening its second shop. Round two with the client.',

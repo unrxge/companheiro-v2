@@ -203,6 +203,7 @@ export function Board({
   appearancesFor,
   actions,
   disabled: lockedForPlan = false,
+  arrangeable = false,
 }: {
   project: BoardProject
   pieces: TreeNode[]
@@ -225,6 +226,9 @@ export function Board({
   appearancesFor: (threadId: string) => Appearance[]
   actions: BoardActions
   disabled?: boolean
+  /** With `disabled`: things can still be moved around, and nothing else
+   *  changed. The example projects (lib/examples) are read this way. */
+  arrangeable?: boolean
 }) {
   const { t } = useTheme()
   // A phone looks at the board and opens pieces from it; arranging it (moving,
@@ -233,6 +237,8 @@ export function Board({
   // switched off here too, and the ground can be moved from anywhere.
   const phone = usePhone()
   const disabled = lockedForPlan || phone
+  // Moving things about: everywhere it is not disabled, and on an example.
+  const canMove = !phone && (!lockedForPlan || arrangeable)
   const ref = useRef<HTMLDivElement | null>(null)
   const frame = useFrame(ref)
   const visionRef = useRef<HTMLDivElement | null>(null)
@@ -694,7 +700,7 @@ export function Board({
   // ⌘Z, the way everyone already asks for this. Held off anything being typed
   // in, where the browser's own undo is the one that is wanted.
   useEffect(() => {
-    if (disabled) return
+    if (!canMove) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'z' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
       const on = e.target as HTMLElement | null
@@ -704,7 +710,7 @@ export function Board({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [disabled, history])
+  }, [canMove, history])
 
   const laneEnd = pieces.length
     ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
@@ -810,7 +816,7 @@ export function Board({
   const beginDrag = useCallback((
     kind: Drag['kind'], id: string, committed: Point, onDrop: (at: Point) => void,
   ) => (e: React.PointerEvent) => {
-    if (disabled) return
+    if (!canMove) return
     const el = ref.current
     if (!el || e.button !== 0) return
     // user-select:none on the wrapper stops the drag's own text from
@@ -853,7 +859,7 @@ export function Board({
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [canvas.pan, canvas.zoom, cardTop, disabled])
+  }, [canvas.pan, canvas.zoom, cardTop, canMove])
 
   /** The corner of an image or a task list, dragged to make it wider or
    *  narrower. Each kind has its own limits (lib/studio/board-items.ts). */
@@ -1039,7 +1045,7 @@ export function Board({
             <ZoomPill
               canvas={canvas}
               onHome={canvas.resetView}
-              after={disabled ? undefined : <UndoButton next={history.next} onUndo={history.undo} />}
+              after={canMove ? <UndoButton next={history.next} onUndo={history.undo} /> : undefined}
             />
             {phone && <PhoneBanner />}
             {arming && armedThread && (
@@ -1202,7 +1208,7 @@ export function Board({
               onPointerDown={beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
-                cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                cursor: canMove ? 'grab' : 'default', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
                 transition: drag?.kind === 'piece' && drag.id === piece.id
                   ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
@@ -1269,7 +1275,7 @@ export function Board({
               key={th.id}
               onPointerDown={beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))}
               style={{
-                position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                position: 'absolute', left: at.x, top: at.y, cursor: canMove ? 'grab' : 'default', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
                 transition: drag?.kind === 'hub' && drag.id === th.id
                   ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
@@ -1302,7 +1308,7 @@ export function Board({
                 act.patchItem(it.id, { board_x: k.x, board_y: k.y })
               })}
               style={{
-                position: 'absolute', left: at.x, top: at.y, cursor: disabled ? 'default' : 'grab', touchAction: 'none',
+                position: 'absolute', left: at.x, top: at.y, cursor: canMove ? 'grab' : 'default', touchAction: 'none',
                 userSelect: 'none', WebkitUserSelect: 'none',
                 transition: drag?.kind === 'item' && drag.id === it.id
                   ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,

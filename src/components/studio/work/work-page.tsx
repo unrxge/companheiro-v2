@@ -45,6 +45,7 @@ import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/
 import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
 import { ExampleBanner } from '@/components/studio/work/example-banner'
+import { forgetLayout } from '@/lib/examples/layout'
 import { usePhone } from '@/lib/use-phone'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan, usePlan } from '@/lib/billing/use-plan'
@@ -374,6 +375,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     await studio.current?.flush()
   }, [])
 
+  const isExampleProject = access?.reason === 'example'
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
     addPiece: (x) => void api.addNode(null).then((made) => {
@@ -413,7 +415,18 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     reorderTasks: (ids) => void board.api.reorderTasks(ids),
     refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
     onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
-  }), [api, board.api, board.items, goNode, goThread, makeConstraint, projectId, removeItem, removeNode, roots, router, setProjectField, tree.threads])
+    // An example (lib/examples) can be rearranged and nothing else: a move is
+    // kept in this browser instead of being sent, and any other change is never made.
+    ...(isExampleProject ? {
+      movePiece: (id: string, at: { x: number; y: number } | null) => api.placeLocal('node', id, at),
+      moveThread: (id: string, at: { x: number; y: number } | null) => api.placeLocal('thread', id, at),
+      patchItem: (id: string, patch: { board_x?: number | null; board_y?: number | null }) => {
+        if ('board_x' in patch || 'board_y' in patch) {
+          board.api.placeLocal(id, patch.board_x === null || patch.board_x === undefined || patch.board_y === null || patch.board_y === undefined ? null : { x: patch.board_x, y: patch.board_y })
+        }
+      },
+    } : {}),
+  }), [isExampleProject, api, board.api, board.items, goNode, goThread, makeConstraint, projectId, removeItem, removeNode, roots, router, setProjectField, tree.threads])
 
   // Every project has a canvas, a single piece of writing included: threads
   // go under it and more pieces beside it. The Project Board always opens that
@@ -447,7 +460,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // vision room the page is left to speak for itself.
   const example = access?.reason === 'example' ? project?.settings?.example ?? null : null
   const planBanner = example
-    ? (focus.kind === 'project' ? [<ExampleBanner key="example" who={example.who} />] : [])
+    ? (focus.kind === 'project' ? [<ExampleBanner key="example" who={example.who} note={example.note} onPutBack={() => { forgetLayout(projectId); void api.refresh(); void board.api.reload() }} />] : [])
     : access && !access.workable && project
     ? [
       <PlanBanner
@@ -736,6 +749,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             appearancesFor={appearancesFor}
             actions={boardActions}
             disabled={readOnly}
+            arrangeable={isExampleProject}
           />
           {/* Bottom and centred, not a small icon in a corner pill — this is
              the invitation to talk the vision through, not an afterthought. */}

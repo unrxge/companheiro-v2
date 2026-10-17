@@ -8,7 +8,7 @@
 // recognised as being about an example (see serve.ts and next.config.ts).
 
 import type { Rule, Thread, ThreadTag, TreePayload, WorkNode } from '@/lib/studio/node-types'
-import type { Project, ProjectSettings } from '@/lib/studio/types'
+import type { AssetView, Project, ProjectSettings } from '@/lib/studio/types'
 import type { BoardItem } from '@/lib/studio/board-items'
 import type { TaskRow } from '@/lib/studio/tasks-db'
 import type { VisionConversation, VisionMessage, VisionState } from '@/lib/studio/vision/types'
@@ -23,12 +23,14 @@ export const exampleProjectId = (key: string) => `${EXAMPLE_PREFIX}${key}`
 export const isExampleId = (id: string | null | undefined): boolean => typeof id === 'string' && id.startsWith(EXAMPLE_PREFIX)
 
 /** What an example carries in its project settings, for the banner and the board. */
-export interface ExampleMark { key: string; who: string }
+export interface ExampleMark { key: string; who: string; note?: string }
 
 export interface BuiltExample {
   project: Project
   tree: TreePayload
   items: BoardItem[]
+  /** The images and recordings the items show, as the canvas reads them (served from public/examples). */
+  assets: AssetView[]
   tasks: TaskRow[]
   /** Fragments, by the node they were kept for. */
   lines: Array<{ id: string; node_id: string; text: string }>
@@ -132,14 +134,31 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     id: id(`line-${++lineN}`), node_id: nodeId(f.part ?? piece.key), text: f.text,
   })))
 
-  const items: BoardItem[] = src.items.map((item, n) => ({
-    id: id(`item-${n + 1}`), user_id: '', project_id: pid, kind: item.kind, asset_id: null,
-    node_ids: item.pieces.map(nodeId), ...spot(item.at), w: item.at?.y === 'beside' ? BESIDE_W : null,
-    content: item.kind === 'palette'
+  const assets: AssetView[] = []
+  const items: BoardItem[] = src.items.map((item, n) => {
+    let asset_id: string | null = null
+    if (item.file && (item.kind === 'image' || item.kind === 'recording')) {
+      const f = item.file
+      asset_id = id(`asset-${n + 1}`)
+      const url = `/examples/${f.name}`
+      assets.push({
+        id: asset_id, project_id: pid, kind: item.kind === 'image' ? 'image' : 'audio', mime: f.mime, bytes: f.bytes,
+        width: f.width ?? null, height: f.height ?? null, duration_s: f.seconds ?? null, envelope: f.envelope ?? null,
+        own_voice: !!f.ownVoice, transcript: f.transcript ?? null, created_at: ago(src.startedDaysAgo - 12 - n),
+        url, thumb_url: item.kind === 'image' ? url : null,
+      })
+    }
+    const content = item.kind === 'palette'
       ? { swatches: (item.swatches ?? []).map((s, m) => ({ id: id(`swatch-${n + 1}-${m + 1}`), hex: s.hex, name: s.name })) }
-      : { tasks: (item.tasks ?? []).map((t, m) => ({ id: id(`list-${n + 1}-${m + 1}`), title: t.title, done: !!t.done })) },
-    created_at: ago(src.startedDaysAgo - 12 - n), updated_at: ago(Math.max(0, 4 - n)),
-  }))
+      : item.kind === 'image' ? { caption: item.caption ?? '' }
+      : item.kind === 'recording' ? { title: item.caption ?? '' }
+      : { tasks: (item.tasks ?? []).map((t, m) => ({ id: id(`list-${n + 1}-${m + 1}`), title: t.title, done: !!t.done })) }
+    return {
+      id: id(`item-${n + 1}`), user_id: '', project_id: pid, kind: item.kind, asset_id,
+      node_ids: item.pieces.map(nodeId), ...spot(item.at), w: item.at?.y === 'beside' ? BESIDE_W : null,
+      content, created_at: ago(src.startedDaysAgo - 12 - n), updated_at: ago(Math.max(0, 4 - n)),
+    }
+  })
 
   const vision: VisionState = {
     kept: src.kept.map((k, n) => ({
@@ -162,7 +181,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
 
   const settings = {
     snap: true, grid: false, sizes: true, board: true,
-    example: { key: src.key, who: src.who } satisfies ExampleMark,
+    example: { key: src.key, who: src.who, ...(src.note ? { note: src.note } : {}) } satisfies ExampleMark,
     vision,
   } as ProjectSettings
 
@@ -185,7 +204,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     messages: list.length, list,
   }
 
-  return { project, tree: { nodes, threads, tags, open_checks: [] }, items, tasks, lines, conversation }
+  return { project, tree: { nodes, threads, tags, open_checks: [] }, items, assets, tasks, lines, conversation }
 }
 
 function node(n: Partial<WorkNode> & Pick<WorkNode, 'id' | 'parent_id' | 'position' | 'title' | 'created_at' | 'updated_at'>): WorkNode {

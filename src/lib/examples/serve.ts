@@ -67,7 +67,7 @@ export function answerExample(method: string, segments: string[], query: URLSear
     const [, what, more] = rest
     if (!what) return ok({ project: built.project })
     if (what === 'tree') return ok({ project: built.project, tree: built.tree, access: EXAMPLE_ACCESS })
-    if (what === 'items') return ok({ ready: true, items: built.items, assets: [], tasks: built.tasks })
+    if (what === 'items') return ok({ ready: true, items: built.items, assets: built.assets, tasks: built.tasks })
     if (what === 'tasks') return ok({ success: true, tasks: built.tasks })
     if (what === 'proposals') return ok({ proposals: [] })
     if (what === 'companion') return ok({ messages: [] })
@@ -80,6 +80,7 @@ export function answerExample(method: string, segments: string[], query: URLSear
       // example has nothing new to say, so it opens on the one it keeps.
       const asked = query.get('conversation')
       const theOne = !asked || asked === 'new' || asked === built.conversation.id
+      const unread = { images: built.assets.filter((a) => a.kind === 'image').length, recordings: built.assets.filter((a) => a.kind === 'audio').length }
       const vision = (built.project.settings as unknown as { vision: { kept: VisionPayload['kept']; changes: VisionPayload['changes']; reading: VisionPayload['reading'] } }).vision
       const payload: VisionPayload = {
         messages: theOne ? built.conversation.list : [],
@@ -90,7 +91,7 @@ export function answerExample(method: string, segments: string[], query: URLSear
         pending_changes: [],
         reading: vision.reading,
         stale: false,
-        unread: { images: 0, recordings: 0 },
+        unread,
       }
       return ok(payload)
     }

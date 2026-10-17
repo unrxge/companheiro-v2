@@ -5,6 +5,8 @@ import { buildExample, isExampleId, toHtml } from './build'
 import { answerExample, EXAMPLE_REFUSAL } from './serve'
 import { buildTree, appearancesOf } from '../studio/tree'
 import { PRACTICE_KEYS } from '../tour'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 const NOW = Date.parse('2026-10-17T15:00:00.000Z')
 const q = (s = '') => new URLSearchParams(s)
@@ -88,10 +90,11 @@ test('which examples a person sees follows what they said at sign-up', () => {
   const keys = (p: string[]) => examplesFor(p).filter((x) => x.matched).map((x) => x.example.key)
   assert.deepEqual(keys(['writer']), ['writer'])
   assert.deepEqual(keys(['songwriter', 'client']), ['songwriter', 'studio'])
-  assert.deepEqual(keys(['director', 'client']), ['studio'], 'one card for two practices it covers')
+  assert.deepEqual(keys(['director', 'client']), ['director', 'studio'])
+  assert.deepEqual(keys(['creator', 'cinematographer']), ['series'], 'one card for two practices it covers')
   assert.deepEqual(keys(['cinematographer', 'creator']), ['series'])
-  assert.deepEqual(keys([]), ['writer', 'songwriter', 'series', 'studio'], 'nothing chosen: all of them')
-  assert.deepEqual(keys(['something-else']), ['writer', 'songwriter', 'series', 'studio'])
+  assert.deepEqual(keys([]), ['writer', 'songwriter', 'series', 'studio', 'director'], 'nothing chosen: all of them')
+  assert.deepEqual(keys(['something-else']), ['writer', 'songwriter', 'series', 'studio', 'director'])
   // The rest are still there, unmatched, for "Show the others".
   assert.equal(examplesFor(['writer']).length, EXAMPLES.length)
 })
@@ -163,6 +166,17 @@ test('the same day gives the same dates, so a reload never reshuffles anything',
   const b = buildExample(EXAMPLES[0], NOW + 3_600_000)
   assert.equal(a.project.created_at, b.project.created_at)
   assert.ok(new Date(a.project.created_at).getTime() < NOW)
+})
+
+test('every image and recording an example shows is in public/examples', () => {
+  for (const src of EXAMPLES) {
+    for (const asset of buildExample(src, NOW).assets) {
+      assert.ok(existsSync(join(process.cwd(), 'public', asset.url)), `${asset.url} is missing`)
+      assert.ok(asset.url.startsWith('/examples/'))
+    }
+  }
+  assert.ok(buildExample(EXAMPLES.find((e) => e.key === 'songwriter')!, NOW).assets.some((a) => a.kind === 'audio'))
+  assert.ok(buildExample(EXAMPLES.find((e) => e.key === 'director')!, NOW).assets.filter((a) => a.kind === 'image').length >= 2)
 })
 
 test('words become the editor’s HTML, escaped', () => {

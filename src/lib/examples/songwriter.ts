@@ -279,6 +279,13 @@ export const songwriter: ExampleSource = {
       ],
     },
     {
+      kind: 'recording',
+      pieces: ['thirty-four'],
+      at: { x: 2.35, y: 40 },
+      caption: 'Thirty-Four, the chorus in open D (phone on the stairs, 1am)',
+      file: { name: 'songwriter-thirty-four-chords.m4a', mime: 'audio/mp4', bytes: 385371, seconds: 30.9, envelope: [1.0, 0.693, 0.799, 0.791, 0.861, 0.597, 0.839, 0.839, 0.744, 0.598, 0.823, 0.793, 0.795, 0.827, 0.737, 0.971, 0.882, 0.726, 0.542, 0.783, 0.743, 0.739, 0.414, 0.116] },
+    },
+    {
       kind: 'palette',
       pieces: ['kitchen-radio'],
       at: { x: 0.05, y: 44 },

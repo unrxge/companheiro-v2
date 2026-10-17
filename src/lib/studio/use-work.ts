@@ -12,6 +12,10 @@ import type {
 import type { Project, ProjectSettings } from '@/lib/studio/types'
 import { buildTree, wordCount } from '@/lib/studio/tree'
 import type { ProjectAccess } from '@/lib/studio/plan-access'
+import { keepSpot, readLayout, withLayout, type Spot } from '@/lib/examples/layout'
+
+/** An example project (lib/examples): read-only, except that its things can be moved, kept in this browser. */
+const isExample = (projectId: string) => projectId.startsWith('example-')
 
 export type WorkState =
   | { status: 'loading' }
@@ -19,6 +23,13 @@ export type WorkState =
   | { status: 'ready' }
 
 const EMPTY: TreePayload = { nodes: [], threads: [], tags: [], open_checks: [] }
+
+/** An example's tree with whatever this browser moved laid over it. */
+function arranged(projectId: string, tree: TreePayload): TreePayload {
+  if (!isExample(projectId)) return tree
+  const layout = readLayout(projectId)
+  return { ...tree, nodes: withLayout(tree.nodes, layout), threads: withLayout(tree.threads, layout) }
+}
 
 export function useWork(projectId: string) {
   const [state, setState] = useState<WorkState>({ status: 'loading' })
@@ -43,7 +54,7 @@ export function useWork(projectId: string) {
       const res = await work.tree(projectId)
       if (!alive.current) return
       setProject(res.project)
-      setTree(res.tree)
+      setTree(arranged(projectId, res.tree))
       setAccess(res.access ?? null)
       setState({ status: 'ready' })
       // Opening a project is what the Project Board sorts by ("last accessed").
@@ -97,7 +108,7 @@ export function useWork(projectId: string) {
         const res = await work.tree(projectId)
         if (!alive.current) return
         setProject(res.project)
-        setTree(res.tree)
+        setTree(arranged(projectId, res.tree))
         setAccess(res.access ?? null)
       } catch {
         // what is on screen stays
@@ -189,6 +200,15 @@ export function useWork(projectId: string) {
         name: patch.name, intent: patch.intent, hue: patch.hue as ThreadHue, rules: patch.rules as Rule[],
         board_x: patch.board_x, board_y: patch.board_y,
       }))
+    },
+
+    /** An example's piece or thread put somewhere by hand: shown at once and
+     *  kept in this browser, never sent as a change (lib/examples/layout.ts). */
+    placeLocal: (kind: 'node' | 'thread', id: string, at: Spot) => {
+      const patch = { board_x: at?.x ?? null, board_y: at?.y ?? null }
+      if (kind === 'node') patchLocal(id, patch)
+      else setTree((prev) => ({ ...prev, threads: prev.threads.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
+      keepSpot(projectId, id, at)
     },
 
     removeThread: async (id: string) => {

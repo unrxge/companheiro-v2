@@ -15,9 +15,10 @@ import { writer } from './writer'
 import { songwriter } from './songwriter'
 import { series } from './series'
 import { studio } from './studio'
+import { director } from './director'
 
 /** In the order PRACTICES lists them, so a person's examples come in a familiar order. */
-export const EXAMPLES: readonly ExampleSource[] = [writer, songwriter, series, studio]
+export const EXAMPLES: readonly ExampleSource[] = [writer, songwriter, series, studio, director]
 
 export const exampleByKey = (key: string): ExampleSource | null => EXAMPLES.find((e) => e.key === key) ?? null
 

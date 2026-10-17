@@ -9,7 +9,7 @@
 import type { NodeStatus, ThreadHue } from '@/lib/studio/node-types'
 import type { Practice } from '@/lib/tour'
 
-export type ExampleKey = 'songwriter' | 'writer' | 'studio' | 'series'
+export type ExampleKey = 'songwriter' | 'writer' | 'studio' | 'series' | 'director'
 
 /** A part of a piece: a verse, a section, a scene. */
 export interface ExamplePart {
@@ -70,8 +70,27 @@ export interface ExampleThread {
   on: Array<{ at: string; note?: string }>
 }
 
+/** A file the example shows: an image or a recording, served from public/examples (scripts/make-example-media.py). */
+export interface ExampleFile {
+  /** The file's name in public/examples. */
+  name: string
+  mime: string
+  bytes: number
+  width?: number
+  height?: number
+  seconds?: number
+  /** Loudness in 24 slices, for the little waveform. */
+  envelope?: number[]
+  /** The person's own voice: its words are kept (the transcript) and read. */
+  ownVoice?: boolean
+  transcript?: string
+}
+
 export interface ExampleItem {
-  kind: 'tasks' | 'palette'
+  kind: 'tasks' | 'palette' | 'image' | 'recording'
+  /** An image's caption, a recording's name. */
+  caption?: string
+  file?: ExampleFile
   /** Where it sits. `y: 'beside'` stands it level with the cards, to the left of the first. */
   at?: ExampleSpot | { x: number; y: 'beside' }
   /** The pieces it sits beside, by key. Empty: it stands on its own. */
@@ -108,6 +127,8 @@ export interface ExampleSource {
   label: string
   /** Who made it, in a few words, for the banner: "a songwriter halfway through an album". */
   who: string
+  /** Anything the banner should add about this example (a generated voice). */
+  note?: string
   /** The line under the card on the Project Board. */
   teaser: string
   title: string

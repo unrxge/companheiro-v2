@@ -50,8 +50,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimisation)
      * - favicon.ico, manifest.json, sitemap.xml, robots.txt, opengraph-image (link previews)
-     * - public image assets
+     * - public image and audio files (the example projects' are in public/examples)
      */
-    '/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|sitemap\\.xml|robots\\.txt|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|sitemap\\.xml|robots\\.txt|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|m4a|mp3)$).*)',
   ],
 }
