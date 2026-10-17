@@ -74,6 +74,10 @@ const BASE_CARD_TOP = 108
 // they travel with the pieces when the top grows.
 const REST_TOP = Math.max(BASE_CARD_TOP, MARGIN + VISION_COLLAPSED_H + GAP)
 const WEB_GAP = 46      // space between the cards and the web below them
+// A board of more than this many pieces opens zoomed out to WIDE_OPEN_ZOOM,
+// centred on its first two, rather than at 100% on the last one worked on.
+const WIDE_OPEN_AFTER = 3
+const WIDE_OPEN_ZOOM = 0.69
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
@@ -739,7 +743,10 @@ export function Board({
    * has no obvious front, and opening at the left edge means scrolling back
    * to what you were doing before you can do anything — so it opens on the
    * piece last engaged with, worked out in `opening-view.ts` from the marks
-   * the rows already carry.
+   * the rows already carry. More than three pieces open zoomed out instead
+   * (WIDE_OPEN_ZOOM), with the first two at the centre of the window, so the
+   * shape of the whole thing and what hangs under it is in view on arrival
+   * (the person's decision, 2026-10-17).
    *
    * Worked out once, on the way in. It deliberately does not follow
    * engagement afterwards: the view is the person's own from the moment they
@@ -756,16 +763,23 @@ export function Board({
       opened: openedIn(project.id),
     })
   }
+  const opensWide = pieces.length > WIDE_OPEN_AFTER
   const initialCentre = useMemo<Point | null>(() => {
+    if (!frame.w) return null
+    if (opensWide) {
+      const a = pieceSpot(pieces[0], 0)
+      const b = pieceSpot(pieces[1], 1)
+      return { x: (a.x + b.x + cardW) / 2, y: (a.y + b.y + cardH) / 2 }
+    }
     const id = openOn.current
-    if (!id || !frame.w) return null
+    if (!id) return null
     const i = pieces.findIndex((p) => p.id === id)
     if (i === -1) return null
     const spot = pieceSpot(pieces[i], i)
     return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
-  }, [pieces, pieceSpot, cardW, cardH, frame.w])
+  }, [pieces, pieceSpot, cardW, cardH, frame.w, opensWide])
 
-  const canvas = useCanvas(ref, frame, world, { home, initialCentre, lookOnly: phone })
+  const canvas = useCanvas(ref, frame, world, { home, initialCentre, initialZoom: opensWide ? WIDE_OPEN_ZOOM : undefined, lookOnly: phone })
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {

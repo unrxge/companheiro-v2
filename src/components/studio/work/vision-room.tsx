@@ -8,9 +8,10 @@
 // The way in is the point of the button: the room opens out of the star that
 // was pressed, as a circle of the button's own violet that clears into the
 // room while the canvas behind rushes forward and blurs, so it reads as going
-// into the canvas rather than a panel sliding over it. Leaving runs it
-// backwards, into the same star. With reduced motion asked for, both are a
-// plain fade.
+// into the canvas rather than a panel sliding over it. Leaving plays the same
+// thing backwards, at the same pace: the room sinks, the violet floods back,
+// the circle closes into the star and the canvas settles back into focus
+// behind it. With reduced motion asked for, both are a plain fade.
 //
 // Everything here is one project's. The room is given a project id and asks
 // only that project's routes; nothing from any other project is shown.
@@ -49,7 +50,8 @@ function when(iso: string): string {
 export interface RoomOrigin { x: number; y: number }
 
 const IN_MS = 820
-const OUT_MS = 420
+/** The way out is the way in played backwards, a little quicker. */
+const OUT_MS = 720
 /** Below this the two halves take turns instead of standing side by side. */
 const SIDE_BY_SIDE_MIN = 980
 /** The canvas behind (stage.tsx) is pushed forward while the room is open. */
@@ -208,6 +210,15 @@ export function VisionRoom({
     if (closed.current) return
     closed.current = true
     setLeaving(true)
+    // The canvas comes back into focus while the circle closes, as it went out
+    // of focus while it opened, not after the room has gone.
+    if (!reduce) {
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>(STAGE))) {
+        el.style.transition = `transform ${OUT_MS}ms cubic-bezier(0.85, 0, 0.5, 1), filter ${OUT_MS}ms cubic-bezier(0.85, 0, 0.5, 1)`
+        el.style.transform = ''
+        el.style.filter = ''
+      }
+    }
     window.setTimeout(onClose, reduce ? 140 : OUT_MS)
   }, [onClose, reduce])
 
@@ -295,21 +306,25 @@ export function VisionRoom({
     <Portal>
       <style>{`
         @keyframes visionIris { from { clip-path: circle(26px at var(--vx) var(--vy)); } to { clip-path: circle(var(--vr) at var(--vx) var(--vy)); } }
-        @keyframes visionIrisOut { from { clip-path: circle(var(--vr) at var(--vx) var(--vy)); } to { clip-path: circle(0px at var(--vx) var(--vy)); } }
+        @keyframes visionIrisOut { from { clip-path: circle(var(--vr) at var(--vx) var(--vy)); } to { clip-path: circle(26px at var(--vx) var(--vy)); } }
         @keyframes visionWash { 0% { opacity: 1; } 45% { opacity: 0.9; } 100% { opacity: 0; } }
+        @keyframes visionWashBack { 0% { opacity: 0; } 55% { opacity: 0.9; } 100% { opacity: 1; } }
         @keyframes visionRise { from { opacity: 0; transform: translateY(34px) scale(0.975); } to { opacity: 1; transform: none; } }
+        @keyframes visionSink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(34px) scale(0.975); } }
         @keyframes visionFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes visionFadeOut { from { opacity: 1; } to { opacity: 0; } }
         .vision-room { animation: visionIris ${IN_MS}ms cubic-bezier(0.5, 0, 0.15, 1) both; }
         .vision-room[data-settled] { animation: none; }
-        .vision-room[data-leaving] { animation: visionIrisOut ${OUT_MS}ms cubic-bezier(0.6, 0, 0.8, 0.4) both; }
+        .vision-room[data-leaving] { animation: visionIrisOut ${OUT_MS}ms cubic-bezier(0.85, 0, 0.5, 1) both; }
         .vision-wash { animation: visionWash ${IN_MS + 320}ms ease-in-out both; }
+        .vision-room[data-leaving] .vision-wash { animation: visionWashBack ${OUT_MS}ms ease-in-out both; }
         .vision-rise { animation: visionRise 620ms ${motion.enter} both; }
+        .vision-room[data-leaving] .vision-rise { animation: visionSink ${Math.round(OUT_MS * 0.5)}ms cubic-bezier(0.7, 0, 0.84, 0) both; animation-delay: 0ms !important; }
         @media (prefers-reduced-motion: reduce) {
           .vision-room { animation: visionFade 160ms ease both; }
           .vision-room[data-leaving] { animation: visionFadeOut 140ms ease both; }
-          .vision-wash { display: none; }
-          .vision-rise { animation: none; }
+          .vision-wash, .vision-room[data-leaving] .vision-wash { display: none; }
+          .vision-rise, .vision-room[data-leaving] .vision-rise { animation: none; }
         }
         .vision-scroll { scrollbar-width: thin; scrollbar-color: ${alpha(t.textPrimary, 0.18)} transparent; }
         .vision-body { padding: 0 16px max(16px, env(safe-area-inset-bottom)); }

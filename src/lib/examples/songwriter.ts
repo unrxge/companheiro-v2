@@ -20,17 +20,17 @@ export const songwriter: ExampleSource = {
   startedDaysAgo: 58,
 
   log: [
-    { role: 'assistant', content: 'What keeps coming back when you sit down to write, even when you try to write about something else?' },
+    { role: 'assistant', content: 'What keeps coming back to you lately, even when you try to think about something else?' },
     { role: 'user', content: 'My dad. Nothing dramatic. He’s alive, he’s fine. I turned 34 in March and he was 34 when I was born, and I keep catching myself doing his things. The way he clears his throat before he says something hard. I did it on the phone last week and had to hang up.' },
-    { role: 'assistant', content: 'So the songs aren’t about him, exactly. They’re about the moment you find him in yourself. What do you feel in that moment, before you decide what to feel?' },
-    { role: 'user', content: 'Caught. Like being caught shoplifting something that was already mine.' },
-    { role: 'assistant', content: 'Who is this record for? Not who would like it. Who needs it?' },
+    { role: 'assistant', content: 'What do you feel in that moment, before you decide what to feel?' },
+    { role: 'user', content: 'Caught. Like being caught shoplifting something that was already mine. I’ve written three songs about it in a month without meaning to. I think it’s turning into an album.' },
+    { role: 'assistant', content: 'If it is an album, who is it for? Not who would like it. Who needs it?' },
     { role: 'user', content: 'People my age who are starting to see their parents as people. Who are realising their parents were guessing too. And honestly, him. Even if he never hears it.' },
-    { role: 'assistant', content: 'If the record could leave one thing behind in that person, what would it be?' },
+    { role: 'assistant', content: 'If the album could leave one thing behind in that person, what would it be?' },
     { role: 'user', content: 'Permission to forgive the guessing. Theirs and their own.' },
     { role: 'assistant', content: 'Then let’s say it plainly: at thirty-four you can finally see your father as a man who was also guessing, and that is where forgiving starts. Does that hold, or is it too neat?' },
     { role: 'user', content: 'It holds. But no song is allowed to say “forgive”. The second I say it, it’s a greeting card.' },
-    { role: 'assistant', content: 'Then that’s your first rule, and it has teeth: the record never tells anyone what to feel about him. It just leaves the radio on.' },
+    { role: 'assistant', content: 'Then that’s your first rule, and it has teeth: no song tells the listener what to feel about him.' },
   ],
 
   pieces: [
@@ -226,6 +226,7 @@ export const songwriter: ExampleSource = {
   threads: [
     {
       key: 'radio',
+      at: { x: 1.9, y: 30 },
       name: 'The kitchen radio',
       intent: 'A station half-tuned somewhere in the house: what was said instead of saying.',
       hue: 'tide',
@@ -238,6 +239,7 @@ export const songwriter: ExampleSource = {
     },
     {
       key: 'hands',
+      at: { x: 1.25, y: 76 },
       name: 'Hands',
       intent: 'His hands, found in mine: what the body inherits before the mind agrees to.',
       hue: 'ember',
@@ -250,6 +252,7 @@ export const songwriter: ExampleSource = {
     },
     {
       key: 'tuning',
+      at: { x: 3.3, y: 112 },
       name: 'His tuning',
       intent: 'Open D, the tuning he played in. Only the songs about him go into it.',
       hue: 'verdant',
@@ -266,6 +269,7 @@ export const songwriter: ExampleSource = {
     {
       kind: 'tasks',
       pieces: [],
+      at: { x: 0.6, y: 20 },
       tasks: [
         { title: 'The stair that creaks (third from the top)', done: true },
         { title: 'Kettle clicking off', done: true },
@@ -277,6 +281,7 @@ export const songwriter: ExampleSource = {
     {
       kind: 'palette',
       pieces: ['kitchen-radio'],
+      at: { x: 0.05, y: 44 },
       swatches: [
         { hex: '#8B5E3C', name: 'Workbench oak' },
         { hex: '#E8A33D', name: 'Radio dial' },

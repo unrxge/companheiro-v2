@@ -48,7 +48,7 @@ export function changedNote(changes: ConceptChange[], nodeId: string, field: Con
   return c ? `changed ${day(c.at)}${WHERE[c.source] ? ` · ${WHERE[c.source]}` : ''}` : null
 }
 
-/** Which parts to show: the vision room shows the truth and the open threads in places of their own. */
+/** Which parts to show: inside a piece the vision room shows the truth and the journey, and the open threads in a place of their own. */
 export type ConceptPart = 'core_truth' | 'intent' | 'emotional_journey' | 'open_threads' | 'decided'
 const ALL_PARTS: ConceptPart[] = ['core_truth', 'intent', 'emotional_journey', 'open_threads', 'decided']
 

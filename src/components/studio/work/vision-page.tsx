@@ -3,11 +3,12 @@
 // The page half of the vision room (vision-room.tsx): the state of one
 // project's vision, in a single place.
 //
-// It opens on the core truth, the sentence the work rests on, because that is
-// what the rest of the page is measured against and what is worth looking at
-// first. Then what the whole thing is for, what it holds to, the pieces with
-// their core concepts, what runs across them, what has been decided, and what
-// is still open.
+// It opens on what the whole thing is for, then what it holds to, then the
+// pieces, each led by its core truth (the sentence that piece rests on) and
+// folding open to the rest of its core concept, then what runs across them,
+// what has been decided, and what is still open. The core truths used to open
+// the page on their own; they sit with their pieces since 2026-10-17, by the
+// person's decision, so each truth is read beside the thing it is true of.
 //
 // Most of it is not made by anyone: it is the canvas and the core concept read
 // out, so it is always true. Three things are added on top, each only because
@@ -21,8 +22,7 @@
 // One way of drawing things for the whole column: a section is a small tinted
 // mark, a label and a count; a thing in it is a tile on the page's card colour
 // with, where it means something, a coloured edge. Each kind of thing has its
-// own colour and mark so they never blend: the core truth violet, what it is
-// for ember, rules ochre, decisions verdant ticks on a line through time,
+// own colour and mark so they never blend: what it is for ember, rules ochre, decisions verdant ticks on a line through time,
 // open questions tide question marks, the reading's gaps ochre.
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
@@ -35,7 +35,7 @@ import { alpha, radius, type as typeRole, type MeaningKey } from '@/lib/design-t
 import type { Appearance, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { extentOf } from '@/lib/studio/tree'
 import type { ConceptChange, KeptLine, Reading } from '@/lib/studio/vision/types'
-import { AddThread, changedNote, ConceptMirror, ConceptPartBlock, type ConceptAction } from '@/components/studio/work/concept-mirror'
+import { AddThread, changedNote, ConceptMirror, type ConceptAction } from '@/components/studio/work/concept-mirror'
 
 const STATUS: Record<string, string> = { open: 'not started', drafted: 'in draft', done: 'done' }
 
@@ -57,7 +57,6 @@ const svg = (children: ReactNode, size = 12, fill = false) => (
   </svg>
 )
 const MARK = {
-  star: svg(<path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" />, 12, true),
   target: svg(<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></>),
   rule: svg(<><line x1="7" y1="8" x2="17" y2="8" /><line x1="7" y1="12" x2="17" y2="12" /><line x1="7" y1="16" x2="12" y2="16" /></>),
   pieces: svg(<><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></>),
@@ -217,7 +216,6 @@ export function VisionPage({
   const raised = kept.filter((k) => k.state === 'kept' && k.kind === 'open').slice().reverse()
   const gaps = reading?.gaps ?? []
   const pieceTitle = (id: string | null) => (id ? pieces.find((p) => p.id === id)?.title || 'untitled' : null)
-  const truths = pieces.filter((p) => (p.core_truth ?? '').trim())
   const withConcept = pieces.filter((p) => (p.core_truth ?? '').trim() || (p.emotional_journey ?? '').trim())
   const conceptThreads = withConcept.map((p) => ({ piece: p, lines: (p.open_threads ?? []).map((x) => x.trim()).filter(Boolean) }))
   const threadCount = conceptThreads.reduce((n, g) => n + g.lines.length, 0)
@@ -225,7 +223,8 @@ export function VisionPage({
   const together = pieces.length >= 2 ? reading?.statement ?? '' : ''
   const readProps = { reading, stale, busy: readingBusy, failed: readingFailed, ready: loaded && !disabled, onRead }
   const [openPiece, setOpenPiece] = useState<string | null>(pieces.length === 1 ? pieces[0]?.id ?? null : null)
-  const [threadsOpen, setThreadsOpen] = useState(threadCount > 0 && threadCount <= 3)
+  // The concept's own open threads always start folded: what was raised here comes first.
+  const [threadsOpen, setThreadsOpen] = useState(false)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
@@ -233,24 +232,6 @@ export function VisionPage({
         <span style={{ ...typeRole.eyebrow, color: t.violet }}>The vision</span>
         <h1 style={{ ...typeRole.display, color: t.textPrimary, textWrap: 'balance' }}>{project.title || 'Untitled'}</h1>
       </header>
-
-      {/* ── the core truth: first, because everything else answers to it ── */}
-      {truths.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: -8 }}>
-          {truths.map((p) => (
-            <CoreTruth
-              key={p.id}
-              piece={truths.length > 1 ? p.title || 'untitled' : null}
-              value={(p.core_truth ?? '').trim()}
-              note={changedNote(changes, p.id, 'core_truth')}
-              disabled={disabled}
-              onSave={(text) => onConcept({ action: 'edit', node_id: p.id, field: 'core_truth', text })}
-            />
-          ))}
-        </div>
-      ) : (
-        <Muted>No core truth yet. Once a piece has a core concept, its core truth opens this page.</Muted>
-      )}
 
       {/* ── straight from the canvas ──────────────────────────────────────── */}
       <Section tone="ember" mark={MARK.target} label="What it is for">
@@ -277,7 +258,7 @@ export function VisionPage({
         {pieces.length ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pieces.map((p, i) => {
-              const about = p.intent.trim()
+              const truth = (p.core_truth ?? '').trim()
               const shown = openPiece === p.id
               const hasConcept = !!((p.core_truth ?? '').trim() || (p.emotional_journey ?? '').trim() || p.intent.trim())
               return (
@@ -297,8 +278,8 @@ export function VisionPage({
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                       <span style={{ ...canvasType.words, color: t.textPrimary }}>{p.title || 'untitled'}</span>
                       {!shown && (
-                        <span style={{ ...canvasType.small, color: about ? t.textSecondary : t.textMuted, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                          {about || 'Nothing says what this one is for yet.'}
+                        <span style={{ ...canvasType.small, color: truth ? t.textSecondary : t.textMuted, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          {truth || 'No core truth yet.'}
                         </span>
                       )}
                     </span>
@@ -312,7 +293,7 @@ export function VisionPage({
                       {hasConcept ? (
                         <ConceptMirror
                           look="room"
-                          parts={['intent', 'emotional_journey']}
+                          parts={['core_truth', 'emotional_journey']}
                           node={{ id: p.id, core_truth: p.core_truth, intent: p.intent, emotional_journey: p.emotional_journey, open_threads: p.open_threads }}
                           changes={changes}
                           decided={[]}
@@ -470,51 +451,6 @@ export function VisionPage({
 }
 
 // ── the parts ───────────────────────────────────────────────────────────────
-
-/** The core truth, large: what the page opens on, and what the work rests on. */
-function CoreTruth({ piece, value, note, disabled, onSave }: {
-  piece: string | null
-  value: string
-  note: string | null
-  disabled: boolean
-  onSave: (text: string) => Promise<boolean>
-}) {
-  const { t } = useTheme()
-  return (
-    <div
-      style={{
-        position: 'relative', overflow: 'hidden', borderRadius: radius.card, padding: '26px 28px 22px',
-        background: `linear-gradient(140deg, ${alpha(t.violet, 0.18)} 0%, ${alpha(t.violet, 0.05)} 55%, ${alpha(t.violet, 0.02)} 100%)`,
-        border: `1px solid ${alpha(t.violet, 0.3)}`,
-      }}
-    >
-      <span aria-hidden style={{ position: 'absolute', right: 18, top: -18, fontFamily: typeRole.display.fontFamily, fontSize: 140, lineHeight: 1, color: alpha(t.violet, 0.12), pointerEvents: 'none' }}>”</span>
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ color: t.violet, display: 'inline-flex' }}>{MARK.star}</span>
-          <span style={{ ...canvasType.label, color: t.violet }}>Core truth</span>
-          {piece && <span style={{ ...canvasType.meta, color: t.textMuted }}>· {piece}</span>}
-          {note && <span style={{ ...canvasType.meta, color: t.textMuted, marginLeft: 'auto' }}>{note}</span>}
-        </div>
-        <ConceptPartBlock
-          look="bare"
-          label="Core truth"
-          field="core_truth"
-          value={value}
-          note={note}
-          disabled={disabled}
-          linkAlign="flex-start"
-          onSave={onSave}
-          render={(v) => (
-            <p style={{ fontFamily: typeRole.display.fontFamily, fontWeight: 600, fontSize: 'clamp(21px, 2.4vw, 27px)', lineHeight: 1.28, letterSpacing: '-0.02em', color: t.textPrimary, margin: 0, textWrap: 'balance' }}>
-              {v}
-            </p>
-          )}
-        />
-      </div>
-    </div>
-  )
-}
 
 /** One decision on the line through time: a tick, the words, the reason, when. */
 function Decision({ line, about, disabled, onRemove }: {

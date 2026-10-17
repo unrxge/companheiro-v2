@@ -13,7 +13,7 @@ import type { BoardItem } from '@/lib/studio/board-items'
 import type { TaskRow } from '@/lib/studio/tasks-db'
 import type { VisionConversation, VisionMessage, VisionState } from '@/lib/studio/vision/types'
 import { WRITING } from '@/lib/studio/task-groups'
-import type { ExamplePart, ExamplePiece, ExampleSource } from './types'
+import type { ExamplePart, ExamplePiece, ExampleSource, ExampleSpot } from './types'
 
 export const EXAMPLE_PREFIX = 'example-'
 
@@ -36,6 +36,21 @@ export interface BuiltExample {
 }
 
 const DAY = 86_400_000
+
+// Hand placements on the canvas are kept in the board's own units
+// (components/studio/work/board.tsx): x from the world's left edge, y from
+// where the cards rest. The lane starts at LEFT_ROOM + MARGIN = 800 and a
+// card's width follows the window (laneCardWidth), so a slot here assumes a
+// 720px card and the 44px gap. The cards rest at REST_TOP = 184 and stand at
+// most 560px tall with a 46px gap below, so 790 is clear of the tallest card.
+const LANE_LEFT = 800
+const SLOT = 720 + 44
+const UNDER_CARDS = 184 + 560 + 46
+// A list stood beside the first card is drawn at the narrowest a task list
+// goes (ITEM_WIDTH in board-items.ts), so it stays in view when the canvas
+// opens on that card at 100%.
+const BESIDE_W = 260
+const BESIDE_GAP = 36
 
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -64,7 +79,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     const pieceId = id(piece.key)
     keyed.set(piece.key, pieceId)
     const born = Math.max(1, src.startedDaysAgo - 2 - position * 4)
-    const touched = Math.max(0, Math.min(born - 1, piece.status === 'done' ? born - 6 : position))
+    const touched = piece.touchedDaysAgo ?? Math.max(0, Math.min(born - 1, piece.status === 'done' ? born - 6 : position))
     const parts = piece.parts ?? []
     const partNodes: WorkNode[] = parts.map((part: ExamplePart, i) => {
       const partId = id(part.key)
@@ -91,9 +106,15 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     return found
   }
 
+  const spot = (at: ExampleSpot | { x: number; y: 'beside' } | undefined) => {
+    if (!at) return { board_x: null, board_y: null }
+    if (at.y === 'beside') return { board_x: LANE_LEFT - BESIDE_W - BESIDE_GAP + Math.round(at.x), board_y: 184 }
+    return { board_x: Math.round(LANE_LEFT + at.x * SLOT), board_y: Math.round(UNDER_CARDS + at.y) }
+  }
+
   const threads: Thread[] = src.threads.map((th, position) => ({
     id: id(`thread-${th.key}`), user_id: '', project_id: pid, position, name: th.name, intent: th.intent,
-    rules: (th.rules ?? []).map((r, i) => rule(`thread-${th.key}`, r, i, src.startedDaysAgo - 10)), hue: th.hue, board_x: null, board_y: null,
+    rules: (th.rules ?? []).map((r, i) => rule(`thread-${th.key}`, r, i, src.startedDaysAgo - 10)), hue: th.hue, ...spot(th.at),
     created_at: ago(src.startedDaysAgo - 8 - position), updated_at: ago(Math.max(0, 6 - position)),
   }))
   const tags: ThreadTag[] = src.threads.flatMap((th) => th.on.map((on) => ({ node_id: nodeId(on.at), thread_id: id(`thread-${th.key}`), note: on.note ?? '' })))
@@ -111,7 +132,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
 
   const items: BoardItem[] = src.items.map((item, n) => ({
     id: id(`item-${n + 1}`), user_id: '', project_id: pid, kind: item.kind, asset_id: null,
-    node_ids: item.pieces.map(nodeId), board_x: null, board_y: null, w: null,
+    node_ids: item.pieces.map(nodeId), ...spot(item.at), w: item.at?.y === 'beside' ? BESIDE_W : null,
     content: item.kind === 'palette'
       ? { swatches: (item.swatches ?? []).map((s, m) => ({ id: id(`swatch-${n + 1}-${m + 1}`), hex: s.hex, name: s.name })) }
       : { tasks: (item.tasks ?? []).map((t, m) => ({ id: id(`list-${n + 1}-${m + 1}`), title: t.title, done: !!t.done })) },

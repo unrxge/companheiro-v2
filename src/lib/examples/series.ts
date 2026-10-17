@@ -6,8 +6,8 @@ import type { ExampleSource } from './types'
 export const series: ExampleSource = {
   key: 'series',
   practices: ['creator', 'cinematographer'],
-  label: 'Filmmaker',
-  who: 'a filmmaker three episodes into a documentary series',
+  label: 'Social media creator',
+  who: 'a social media creator three episodes into a documentary series',
   teaser: 'Five people who work through the night, filmed under the last sodium streetlights before the city switches to LED.',
   title: 'The Orange Hours',
   intent:
@@ -24,13 +24,15 @@ export const series: ExampleSource = {
   log: [
     { role: 'assistant', content: 'What have you been noticing that nobody else seems to?' },
     { role: 'user', content: 'The streetlights. My whole street went from orange to this blue-white LED in one week. It looks like a car park now. Nobody said a word. And I realised every night scene I’ve ever loved, I shot under sodium.' },
-    { role: 'assistant', content: 'So a look is disappearing. But a look on its own is a reel, not a series. Who lives in that light?' },
+    { role: 'assistant', content: 'What would be lost if the orange went everywhere?' },
+    { role: 'user', content: 'A whole way of seeing the night. I want to make something about it before it’s gone. I post short documentaries on YouTube and Instagram, so probably a series. But a series about streetlights is just a pretty reel.' },
+    { role: 'assistant', content: 'Then who lives in that light?' },
     { role: 'user', content: 'Night workers. The man who washes the trams at the depot. Nurses. Taxi drivers. The fish market at 5am. People who only ever see the city orange.' },
     { role: 'assistant', content: 'What do you feel when you film at night that you don’t feel by day?' },
     { role: 'user', content: 'That everyone awake is on the same side. Like a secret shift.' },
     { role: 'assistant', content: 'Who is watching? One person, one screen.' },
     { role: 'user', content: 'Someone who’s walked home at 4am and felt like the city was theirs. And people who work nights, who never see themselves on screen unless it’s a crime drama.' },
-    { role: 'assistant', content: 'Then the series holds two things at once: a light that is ending, and the people who live in it. What’s the sentence under both?' },
+    { role: 'assistant', content: 'Then the series holds two things at once: a light that is ending, and the people who live in it. What is the sentence under both?' },
     { role: 'user', content: 'The night has a colour, and it’s being switched off. And the people who kept it lit were always the ones nobody saw.' },
     { role: 'assistant', content: 'And what will you refuse to do, however good it would look?' },
     { role: 'user', content: 'Light anything. If the sodium’s gone, we show the white. No gels, no faking it.' },
@@ -188,6 +190,7 @@ export const series: ExampleSource = {
   threads: [
     {
       key: 'sodium',
+      at: { x: 1.05, y: 30 },
       name: 'Sodium light',
       intent: 'The 589-nanometre orange of the old streetlights: the look of the series, and the thing it is about.',
       hue: 'ochre',
@@ -201,6 +204,7 @@ export const series: ExampleSource = {
     },
     {
       key: 'silence',
+      at: { x: 0.6, y: 100 },
       name: 'Before the shift',
       intent: 'Each person held in silence for twenty seconds before they start work.',
       hue: 'tide',
@@ -213,6 +217,7 @@ export const series: ExampleSource = {
     },
     {
       key: 'map',
+      at: { x: 1.5, y: 124 },
       name: 'The city map',
       intent: 'A hand-drawn map of the city where the orange dots go out, one episode at a time.',
       hue: 'violet',
@@ -228,6 +233,7 @@ export const series: ExampleSource = {
     {
       kind: 'palette',
       pieces: ['tram', 'lamps'],
+      at: { x: 0.1, y: 40 },
       swatches: [
         { hex: '#FF9A2E', name: 'Sodium, 589nm' },
         { hex: '#E6ECF2', name: 'LED white' },
@@ -239,6 +245,7 @@ export const series: ExampleSource = {
     {
       kind: 'tasks',
       pieces: ['lamps'],
+      at: { x: 2.1, y: 20 },
       tasks: [
         { title: 'FX3 and four batteries (the cold drains them by 4am)', done: true },
         { title: '35mm f/1.4', done: true },

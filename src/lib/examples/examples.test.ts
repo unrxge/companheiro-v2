@@ -48,7 +48,7 @@ test('each concept is whole: a journey of short labelled beats wherever there is
     assert.ok(src.intent.length > 120, `${src.key}: the purpose says enough`)
     assert.ok(src.rules.length >= 3)
     assert.ok(src.log.length >= 8, `${src.key}: the Idea Lab conversation is kept`)
-    assert.ok(src.pieces.length >= 5, `${src.key}: enough pieces to show a board`)
+    assert.ok(src.pieces.length >= 3, `${src.key}: enough pieces to show a board`)
     for (const piece of src.pieces) {
       assert.ok(piece.conviction.trim(), `${piece.key}: conviction`)
       if (!piece.truth) continue
@@ -127,7 +127,7 @@ test('the example route reads like the real routes and refuses every change', ()
     assert.equal(res.status, 403)
     assert.deepEqual(res.body, { error: EXAMPLE_REFUSAL, code: 'example' })
   }
-  assert.equal(answerExample('PATCH', ['nodes', 'example-writer--keys'], q(), NOW).status, 403)
+  assert.equal(answerExample('PATCH', ['nodes', 'example-writer--the-drawer'], q(), NOW).status, 403)
   assert.equal(answerExample('POST', ['projects', 'example-writer', 'open'], q(), NOW).status, 200, 'opening is not a change')
 
   assert.equal(answerExample('GET', ['projects', 'example-nobody', 'tree'], q(), NOW).status, 404)
@@ -135,13 +135,15 @@ test('the example route reads like the real routes and refuses every change', ()
 })
 
 test('a piece’s tools see only that piece', () => {
-  const tasks = answerExample('GET', ['nodes', 'example-writer--keys', 'tasks'], q(), NOW).body as { tasks: Array<{ node_id: string }> }
+  const piece = 'example-writer--the-drawer'
+  const tasks = answerExample('GET', ['nodes', piece, 'tasks'], q(), NOW).body as { tasks: Array<{ node_id: string }> }
   assert.ok(tasks.tasks.length > 0)
-  assert.ok(tasks.tasks.every((t) => t.node_id === 'example-writer--keys'))
+  assert.ok(tasks.tasks.every((t) => t.node_id === piece))
 
-  const lines = answerExample('GET', ['write', 'anchor-lines'], q('node_id=example-writer--keys'), NOW).body as { anchorLines: Array<{ section_id: string }> }
+  const inside = new Set(buildExample(EXAMPLES[0], NOW).tree.nodes.filter((n) => n.id === piece || n.parent_id === piece).map((n) => n.id))
+  const lines = answerExample('GET', ['write', 'anchor-lines'], q(`node_id=${piece}`), NOW).body as { anchorLines: Array<{ section_id: string }> }
   assert.ok(lines.anchorLines.length > 0)
-  assert.ok(lines.anchorLines.every((l) => l.section_id.startsWith('example-writer--k')), 'only the keys issue and its parts')
+  assert.ok(lines.anchorLines.every((l) => inside.has(l.section_id)), 'only the drawer and its parts')
 })
 
 test('the vision room opens on the kept conversation, with its page', () => {

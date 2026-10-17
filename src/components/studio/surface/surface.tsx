@@ -83,6 +83,8 @@ export function useCanvas(
   world: World,
   opts: {
     initialCentre?: Point | null
+    /** The zoom the first view opens at, with `initialCentre`. 100% when left out. */
+    initialZoom?: number
     minZoom?: number
     home?: Point
     /** Nothing here can be picked up (a phone looking at the board), so a
@@ -173,9 +175,9 @@ export function useCanvas(
   useEffect(() => {
     if (placed.current || frame.w === 0) return
     placed.current = true
-    if (opts.initialCentre) jumpTo(opts.initialCentre)
+    if (opts.initialCentre) jumpTo(opts.initialCentre, opts.initialZoom)
     else setPanRaw(clampPan(home.current, 1, world, frame))
-  }, [frame, world, jumpTo, opts.initialCentre])
+  }, [frame, world, jumpTo, opts.initialCentre, opts.initialZoom])
 
   // A resize, or a world that grew, must not strand the view outside the edges.
   useEffect(() => {

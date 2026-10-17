@@ -21,15 +21,15 @@ export const studio: ExampleSource = {
   startedDaysAgo: 52,
 
   log: [
-    { role: 'assistant', content: 'Tell me about the project the way you’d tell a friend, not a client.' },
-    { role: 'user', content: 'A bakery my grandmother would have gone to. Sixty years, same street, same oven. The granddaughter, Teresa, is opening a second shop across the river and she’s terrified it’ll feel like a chain. Her father thinks it should look exactly like 1964. She wants it modern. I’m in the middle.' },
-    { role: 'assistant', content: 'What’s the thing in the old shop you’d be heartbroken to lose?' },
+    { role: 'assistant', content: 'What has been taking up most of your thinking lately?' },
+    { role: 'user', content: 'A client project. I run a one-person design studio and I’m doing the identity for a bakery my grandmother would have gone to. Sixty years, same street, same oven. The granddaughter, Teresa, is opening a second shop across the river and she’s terrified it’ll feel like a chain. Her father thinks it should look exactly like 1964. She wants it modern. I’m in the middle.' },
+    { role: 'assistant', content: 'What is the thing in the old shop you’d be heartbroken to lose?' },
     { role: 'user', content: 'The handwriting. Dona Aurélia wrote every order in the same notebooks for forty years. The price boards are still in her hand. Nobody’s touched them.' },
     { role: 'assistant', content: 'Who walks into the new shop? Not a market segment. One person.' },
     { role: 'user', content: 'Someone who just moved to that neighbourhood, who doesn’t know the name, who’s paid eight euros for bad sourdough. They need to trust it before they’ve tasted it.' },
-    { role: 'assistant', content: 'So the brand has to give a stranger sixty years of trust in the time it takes to read a sign. What can’t it do?' },
+    { role: 'assistant', content: 'So the identity has to give a stranger sixty years of trust in the time it takes to read a sign. What can’t it do?' },
     { role: 'user', content: 'Pretend. It can’t fake old. No distressed textures, no invented “established” badges. The age has to be real or not there at all.' },
-    { role: 'assistant', content: 'Then here is the centre of it: the new shop should taste like her bread without looking like her shop. The trust travels in the hand, not the decor. Does that hold?' },
+    { role: 'assistant', content: 'Then this is what I hear at the centre of it: the new shop should taste like her bread without looking like her shop. The trust travels in the hand, not the decor. Does that hold?' },
     { role: 'user', content: 'Yes. That’s the presentation. That’s literally the first slide.' },
   ],
 
@@ -171,6 +171,7 @@ export const studio: ExampleSource = {
   threads: [
     {
       key: 'handwriting',
+      at: { x: 0.62, y: 108 },
       name: 'Dona Aurélia’s handwriting',
       intent: 'Her hand from the old order books, used wherever a person would write: the mark, the band, the letter.',
       hue: 'ember',
@@ -183,6 +184,7 @@ export const studio: ExampleSource = {
     },
     {
       key: 'regulars',
+      at: { x: 0.14, y: 46 },
       name: 'What the regulars say',
       intent: 'How the old street talks about the bakery: “an Aurélia”, “the early ones”. The brand borrows their words and never invents its own.',
       hue: 'tide',
@@ -194,6 +196,7 @@ export const studio: ExampleSource = {
     },
     {
       key: 'tile',
+      at: { x: 2.05, y: 36 },
       name: 'The counter-tile blue',
       intent: 'The blue of the old counter’s tiles: the one colour carried over from 1964.',
       hue: 'verdant',
@@ -208,6 +211,7 @@ export const studio: ExampleSource = {
     {
       kind: 'palette',
       pieces: ['wordmark', 'packaging'],
+      at: { x: 1.1, y: 28 },
       swatches: [
         { hex: '#A8642B', name: 'Crust' },
         { hex: '#F3EDE2', name: 'Flour' },
@@ -219,6 +223,7 @@ export const studio: ExampleSource = {
     {
       kind: 'tasks',
       pieces: ['wordmark'],
+      at: { x: 1.56, y: 64 },
       tasks: [
         { title: 'Teresa: make the A less “tech”', done: true },
         { title: 'Both: try everything in one colour first', done: true },

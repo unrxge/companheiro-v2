@@ -10,7 +10,6 @@
 import { useState, type ReactNode } from 'react'
 import { AnimatePresence, motion as m } from 'motion/react'
 import { Atmosphere } from '@/components/shell/atmosphere'
-import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { ThemeToggleButton } from '@/components/ui/theme-toggle-button'
 import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -69,15 +68,12 @@ export function StageHeader({
 
   return (
     <div className="stage-header-pad" style={{ pointerEvents: 'none' }}>
-      {/* Below 720px the Dock sits at the bottom of the screen, so the pill
-         can sit right under the status bar; at 720px and up the Dock takes
-         over the top-centre, so the pill needs the same clearance PageShell
-         reserves for it (page-shell.tsx: `${dock ? 84 : 28}px` at this same
-         breakpoint) — otherwise a long title or the "Saving…" status can
-         run under the Dock pill. */}
+      {/* The pill and the theme toggle stand level with the Dock (dock.tsx:
+         14px from the top at 720px and up), in the corners either side of it,
+         rather than dropped below it (the person's decision, 2026-10-17). A
+         title in the pill is kept short (42vw) so it never reaches the Dock. */}
       <style>{`
         .stage-header-pad { padding: 14px 16px 0; }
-        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .stage-header-pad { padding-top: 84px; } }
       `}</style>
       {onUp && upText && iconOnly ? (
         <button
@@ -157,12 +153,10 @@ export function StageHeader({
       </AnimatePresence>
 
       {/* Its own corner, not sharing the identity pill on the left — a
-         constant a person's eye learns once and finds anywhere. Same Dock
-         clearance as the pill above, so it drops below the Dock at desktop
-         widths instead of sitting under its right edge. */}
+         constant a person's eye learns once and finds anywhere. Level with
+         the Dock, like the pill. */}
       <style>{`
         .stage-header-toggle { top: 14px; }
-        @media (min-width: ${DOCK_DESKTOP_MIN}px) { .stage-header-toggle { top: 84px; } }
       `}</style>
       <div data-hold className="stage-header-toggle" style={{ position: 'absolute', right: 16, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
         {status && (

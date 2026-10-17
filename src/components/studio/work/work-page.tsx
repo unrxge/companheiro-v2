@@ -175,6 +175,17 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
 
   // A whole piece (not a part of one) carries the Write page's tools with it.
   const isRootPiece = focus.kind === 'node' && !!node && !node.parent_id
+
+  // An example piece opens with its core concept out on the rail, since the
+  // concept is most of what it is there to show. Not on a phone, where an
+  // open panel covers the writing.
+  const exampleConceptFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (access?.reason !== 'example' || !isRootPiece || !node || narrow) return
+    if (exampleConceptFor.current === node.id) return
+    exampleConceptFor.current = node.id
+    setRail('concept')
+  }, [access?.reason, isRootPiece, node, narrow])
   const tools = usePieceTools(isRootPiece && node ? node.id : null)
   const [shaping, setShaping] = useState<'shape' | 'place' | 'divide' | null>(null)
   const [shapeNote, setShapeNote] = useState<string | null>(null)
@@ -432,9 +443,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // The plan is not carrying this project right now: said where the other
   // notices sit, with the way through. An example project (lib/examples)
   // says what it is instead, in the same place.
+  // The example's banner stands on its canvas only: inside a piece or the
+  // vision room the page is left to speak for itself.
   const example = access?.reason === 'example' ? project?.settings?.example ?? null : null
   const planBanner = example
-    ? [<ExampleBanner key="example" who={example.who} where={focus.kind === 'project' ? 'canvas' : 'piece'} />]
+    ? (focus.kind === 'project' ? [<ExampleBanner key="example" who={example.who} />] : [])
     : access && !access.workable && project
     ? [
       <PlanBanner

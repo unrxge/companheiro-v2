@@ -45,12 +45,23 @@ export interface ExamplePiece {
   body?: string
   parts?: ExamplePart[]
   tasks?: Array<{ title: string; category: string; done?: boolean }>
+  /** Days since it was last worked on, when it should differ from the usual (the canvas opens on the latest). */
+  touchedDaysAgo?: number
   /** Lines kept for it. `part` places one in a part by its key. */
   fragments?: Array<{ text: string; part?: string }>
 }
 
+/**
+ * Where something sits on the canvas, as a hand would have left it: `x` in
+ * piece slots along the lane (0 is the first piece's left edge, 1.5 halfway
+ * along the second), `y` in pixels below the row of cards. Left out, the board
+ * places it itself.
+ */
+export interface ExampleSpot { x: number; y: number }
+
 export interface ExampleThread {
   key: string
+  at?: ExampleSpot
   name: string
   intent: string
   hue: ThreadHue
@@ -61,6 +72,8 @@ export interface ExampleThread {
 
 export interface ExampleItem {
   kind: 'tasks' | 'palette'
+  /** Where it sits. `y: 'beside'` stands it level with the cards, to the left of the first. */
+  at?: ExampleSpot | { x: number; y: 'beside' }
   /** The pieces it sits beside, by key. Empty: it stands on its own. */
   pieces: string[]
   tasks?: Array<{ title: string; done?: boolean }>
