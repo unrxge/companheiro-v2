@@ -44,6 +44,7 @@ import { HistoryPanel } from '@/components/studio/work/history-panel'
 import { ThreadSuggestionCard, useThreadSuggestions } from '@/components/studio/work/thread-suggestions'
 import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
+import { ExampleBanner } from '@/components/studio/work/example-banner'
 import { usePhone } from '@/lib/use-phone'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan, usePlan } from '@/lib/billing/use-plan'
@@ -429,8 +430,12 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   ))
 
   // The plan is not carrying this project right now: said where the other
-  // notices sit, with the way through.
-  const planBanner = access && !access.workable && project
+  // notices sit, with the way through. An example project (lib/examples)
+  // says what it is instead, in the same place.
+  const example = access?.reason === 'example' ? project?.settings?.example ?? null : null
+  const planBanner = example
+    ? [<ExampleBanner key="example" who={example.who} where={focus.kind === 'project' ? 'canvas' : 'piece'} />]
+    : access && !access.workable && project
     ? [
       <PlanBanner
         key="plan"
@@ -610,11 +615,12 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           parts={scopeNode.children.map((c, i) => ({ id: c.id, label: c.title || `Part ${i + 1}` }))}
           onAdd={(text) => tools.addLine(text)}
           onRemove={(id) => void tools.removeLine(id)}
+          disabled={readOnly}
         />
       )}
 
       {rail === 'tasks' && (
-        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} onRemove={(task) => void tools.removeTask(task)} />
+        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} onRemove={(task) => void tools.removeTask(task)} disabled={readOnly} />
       )}
 
       {rail === 'assistant' && scopeNode && isRootPiece && (
@@ -873,6 +879,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               onPlace={() => void reshape('place', node.id)}
               onDivide={() => void reshape('divide', node.id, node.children.length > 0)}
               onLeave={saveBeforeLeaving}
+              journey={!example}
             />
           )}
           {focus.kind === 'node' && !node && <Empty line="That part is gone." />}

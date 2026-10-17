@@ -41,6 +41,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState<string | null>(null)
   // On unless they switch it off; null until the answer arrives, so the switch never shows a guess.
   const [analytics, setAnalytics] = useState<boolean | null>(null)
+  // The example projects under Active on the Project Board; null until the answer arrives.
+  const [examples, setExamples] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +54,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         if (d.settings) setSettings(d.settings)
         if (d.email) setEmail(d.email)
         if (d.usage_analytics) setAnalytics(d.usage_analytics.on !== false)
+        if (d.examples) setExamples(d.examples.on === true)
       })
       .catch(() => {})
   }, [])
@@ -72,6 +75,18 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     setSaving(true)
     try {
       await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usage_analytics: on }) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const showExamples = async (on: boolean) => {
+    setExamples(on)
+    setSaving(true)
+    try {
+      await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ examples: on }) })
+      // The board paints from the list it last saw; the next visit asks again.
+      lastSeenProjects.clear()
     } finally {
       setSaving(false)
     }
@@ -188,6 +203,18 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               <div style={hint}>Everything you own, as one JSON file.</div>
             </div>
             <GhostButton href="/api/account" size="sm">Export</GhostButton>
+          </div>
+          <Divider />
+          <div style={{ ...row, flexWrap: 'wrap', gap: '10px 16px' }}>
+            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+              <div style={label}>Example projects</div>
+              <div style={hint}>Projects made the way artists use the app, under Active on your Project Board. For looking at; they are not yours and nothing in them can be changed.</div>
+            </div>
+            {examples !== null && (
+              <Pill hue={examples ? 'verdant' : 'neutral'} selected={examples} onClick={() => showExamples(!examples)} size="md">
+                {examples ? 'On' : 'Off'}
+              </Pill>
+            )}
           </div>
           <Divider />
           {/* Wraps like the dictation row: the words need the width on a phone. */}

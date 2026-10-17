@@ -8,6 +8,7 @@ import { PageHeader, PageShell, Container, Card } from '@/components/shell/page-
 import { SettingsButton } from '@/components/settings/settings-sheet'
 import { loadPlan } from '@/lib/billing/use-plan'
 import { activeLimitLine, entitlementsFor, isResting, restEndsAt } from '@/lib/billing/entitlements'
+import { exampleCard, examplesFor } from '@/lib/examples'
 
 const NOW = '2026-09-25T10:00:00.000Z'
 const IDEA = 'A morning where nothing was asked of me, and how strange it was to notice.'
@@ -51,7 +52,7 @@ function node(id: string, parent: string | null, position: number, title: string
 }
 
 type MockPlan = 'practice' | 'direction' | 'ended' | 'cancelled' | null
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean }
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean; practices: string[] | null }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -215,6 +216,13 @@ function installMock(o: Opts) {
 
     // ?view=kanban: the Project Board. "demo" is the one card whose canvas and writing are mocked too.
     if (path === '/api/studio/projects' && method === 'GET') return json({ projects: shelf })
+    // ?examples=writer,client: the example projects under Active, for someone
+    // who named those practices (?examples=1 for someone who named none).
+    // Opening one goes to the real /p/example-… pages, which need no account.
+    if (path === '/api/examples' && method === 'GET') {
+      return json(o.practices ? { shown: true, examples: examplesFor(o.practices).map(({ example, matched }) => exampleCard(example, matched)) } : { shown: false, examples: [] })
+    }
+    if (path === '/api/examples' && method === 'PATCH') return json({ success: true })
     if (path === '/api/idea-lab/conceptualise/draft') return json({ drafts: method === 'GET' ? [{ id: 'd1', phase: 2, messages: [{ role: 'assistant', content: 'What would it cost you to leave that sentence out?' }] }] : [] })
     if (path === '/api/idea-lab/territories') return json({})
     {
@@ -607,7 +615,8 @@ function Inner() {
   // ?empty=1 is a blank page; the default is the paragraph "Skip to writing" leaves behind. ?long=1 has a full draft.
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
   const plan = (['practice', 'direction', 'ended', 'cancelled'] as const).find((x) => x === params.get('plan')) ?? null
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading') }
+  const practices = params.get('examples') === null ? null : (params.get('examples') ?? '').split(',').filter((p) => p && p !== '1')
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading'), practices }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {

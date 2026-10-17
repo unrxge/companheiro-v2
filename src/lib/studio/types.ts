@@ -21,6 +21,8 @@ export interface ProjectSettings {
   carried?: CarriedThought[]
   /** When it last gave up its place in Active (lib/studio/plan-access.ts). */
   left_active_at?: string
+  /** Set only on the example projects (lib/examples), which are never stored: who made it, for the banner. */
+  example?: { key: string; who: string }
 }
 
 /** The person's own words from a check-in, sent to a project and not yet answered. */

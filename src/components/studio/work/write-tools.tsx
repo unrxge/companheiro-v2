@@ -234,11 +234,13 @@ function DashedList({ lines }: { lines: string[] }) {
 
 // ── tasks ────────────────────────────────────────────────────────────────────
 
-export function TasksPanel({ tasks, onToggle, onAdd, onRemove }: {
+export function TasksPanel({ tasks, onToggle, onAdd, onRemove, disabled = false }: {
   tasks: PieceTask[]
   onToggle: (task: PieceTask) => void
   onAdd: (title: string, category: string) => Promise<void>
   onRemove: (task: PieceTask) => void
+  /** Read, never changed: nothing can be ticked, added or removed. */
+  disabled?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -246,18 +248,20 @@ export function TasksPanel({ tasks, onToggle, onAdd, onRemove }: {
       <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
         Ways into the work, not a list the piece has to satisfy. Keep what helps and remove the rest.
       </p>
-      <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} />
+      <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} disabled={disabled} />
     </div>
   )
 }
 
 // ── anchor lines ─────────────────────────────────────────────────────────────
 
-export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
+export function AnchorsPanel({ lines, parts, onAdd, onRemove, disabled = false }: {
   lines: AnchorLine[]
   parts: Array<{ id: string; label: string }>
   onAdd: (text: string) => Promise<void>
   onRemove: (id: string) => void
+  /** Read, never changed: the lines are shown with nothing to add or remove them by. */
+  disabled?: boolean
 }) {
   const { t } = useTheme()
   const field = useFieldStyle()
@@ -276,7 +280,7 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {!disabled && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <textarea
           aria-label="A fragment"
           value={draft}
@@ -292,7 +296,7 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
             Add
           </GhostButton>
         </div>
-      </div>
+      </div>}
       {lines.length === 0 ? (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>No fragments yet.</p>
       ) : (
@@ -301,14 +305,16 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove }: {
             <li key={line.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ ...canvasType.small, fontSize: 14, color: t.textSecondary, fontStyle: 'italic', lineHeight: 1.5 }}>“{line.text}”</span>
-                <button
-                  type="button"
-                  aria-label="Remove this line"
-                  onClick={() => onRemove(line.id)}
-                  style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
-                >
-                  ✕
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    aria-label="Remove this line"
+                    onClick={() => onRemove(line.id)}
+                    style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               <span style={{ ...canvasType.chip, color: t.textMuted }}>{labelOf(line.section_id)}</span>
             </li>
@@ -367,7 +373,7 @@ export function PartLines({ lines, onAdd, onRemove }: {
  * on its way (Write · Reimagine · Test · Post · Reflect).
  */
 export function PieceFooter({
-  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onLeave,
+  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onLeave, journey = true,
 }: {
   projectId: string
   nodeId: string
@@ -383,6 +389,8 @@ export function PieceFooter({
   onDivide: () => void
   /** Saves what's been typed; awaited before the ribbon carries you to another step. */
   onLeave: () => Promise<void>
+  /** The Write · Reimagine · Test · Post · Reflect ribbon. Off for an example, whose later steps have nothing behind them. */
+  journey?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -409,7 +417,7 @@ export function PieceFooter({
       {note && <p role="status" style={{ ...canvasType.small, color: t.textMuted, margin: 0, padding: '0 16px' }}>{note}</p>}
 
       <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, padding: '20px 16px 0', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <JourneyNavNode projectId={projectId} nodeId={nodeId} step="write" beforeNavigate={onLeave} />
+        {journey && <JourneyNavNode projectId={projectId} nodeId={nodeId} step="write" beforeNavigate={onLeave} />}
         <span style={{ ...canvasType.small, color: t.textMuted }}>
           {words} {words === 1 ? 'word' : 'words'}
         </span>

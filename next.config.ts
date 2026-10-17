@@ -5,6 +5,22 @@ import { assertWiring } from "./src/lib/deploy-env";
 assertWiring();
 
 const nextConfig: NextConfig = {
+  // The example projects on a new account's Project Board are never stored:
+  // every request the real pages make about one (its ids all start
+  // `example-`) is answered read-only from code by /api/examples/… instead of
+  // the route that reads the database. Before the filesystem, so it wins over
+  // the real routes. See src/lib/examples/serve.ts.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/api/studio/:kind(projects|nodes|items|threads)/:id(example-[a-z0-9-]+)", destination: "/api/examples/:kind/:id" },
+        { source: "/api/studio/:kind(projects|nodes|items|threads)/:id(example-[a-z0-9-]+)/:rest*", destination: "/api/examples/:kind/:id/:rest*" },
+        { source: "/api/write/:route*", has: [{ type: "query", key: "node_id", value: "example-.*" }], destination: "/api/examples/write/:route*" },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async redirects() {
     return [
       // The Shape step (Translate) was removed; old links land on Test, query string kept.

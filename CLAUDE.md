@@ -99,6 +99,18 @@ Two copies of the app, so work in progress never reaches the people using it.
 
 ---
 
+## Example projects
+
+Four finished-looking projects under Active on a new account's Project Board, one per niche (2026-10-17): a songwriter's album (*The Age He Was*), a fiction season on Substack (*Lost Property*), a one-person studio's client identity (*Aurélia Bakery*), and a documentary series for creators and cinematographers (*The Orange Hours*). Each has a full core concept per piece, threads, tasks in categories, fragments, a palette and task list on the canvas, decisions and open questions in the vision room, dated concept changes, a reading, one past vision conversation, and the Idea Lab conversation it came from.
+
+- **Never in anyone's database.** Authored in `src/lib/examples/<key>.ts` (shape in `types.ts`), turned into real rows by `build.ts`, served read-only by `serve.ts` through `/api/examples/[...path]`. `next.config.ts` rewrites every API request whose id starts `example-` (path, or `node_id` in the query) there, before the real routes, so the canvas, writing page and vision room open an example unchanged. Writes answer 403 `code: 'example'`; nothing reaches the companion, analytics, plan limits or recall. Keep every new id under `example-<key>--`.
+- **Read-only on screen** through `access.reason === 'example'` (`readOnly` in `work-page.tsx`): `ExampleBanner` replaces the plan banner, the Write → Reflect ribbon is hidden. The vision room opens on the kept conversation.
+- **Who sees which:** `examplesFor()` matches the practices named at sign-up (writer → Substack, songwriter → album, creator/cinematographer → series, client/director → studio); none matched shows all four; "Show the other N" reveals the rest. `examplesShown()` (`shown.ts`): accounts created from `EXAMPLES_FROM` see them until "Put these away"; older accounts only if they switch them on in Settings → Example projects. The choice is `examples` in the auth user's metadata.
+- **Dates are days before today**, so they always read as current work. `examples.test.ts` checks ids, that every thread touches some pieces but not all, journey format, and that the reading only names things on the canvas.
+- **Preview without an account:** `/dev/work-page?view=kanban&examples=writer,client` (or `=1` for none named); the cards open the real `/p/example-…` pages, which need no session.
+
+---
+
 ## Usage analytics
 
 What the maker can see about how people use the app: `/admin/people` (owner only, linked from `/admin`). Decided with the person on 2026-10-12; the limits below are theirs and are also what the Privacy Policy (`#analytics`) tells users.

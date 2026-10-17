@@ -31,6 +31,7 @@ import type { ShelfProject } from '@/lib/studio/types'
 import { isResting, restEndsAt } from '@/lib/billing/entitlements'
 import { usePlan } from '@/lib/billing/use-plan'
 import { PlanNote } from '@/components/billing/plan-note'
+import type { ExampleCard } from '@/lib/examples'
 
 interface ConceptualiseDraft {
   id: string
@@ -110,6 +111,11 @@ function Board() {
   const [swap, setSwap] = useState<{ project: ShelfProject; holders: ShelfProject[]; after?: () => void } | null>(null)
   const [swapping, setSwapping] = useState(false)
   const [restingNote, setRestingNote] = useState<ShelfProject | null>(null)
+  // The example projects (lib/examples): read-only, never stored, chosen from
+  // the practices named at sign-up. Shown under Active until put away.
+  const [examples, setExamples] = useState<ExampleCard[]>([])
+  const [otherExamples, setOtherExamples] = useState(false)
+  const [examplesAway, setExamplesAway] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -129,7 +135,17 @@ function Board() {
       .then((r) => (r.ok ? r.json() : { drafts: [] }))
       .then((d) => setDrafts(d.drafts || []))
       .catch(() => {})
+    fetch('/api/examples')
+      .then((r) => (r.ok ? r.json() : { examples: [] }))
+      .then((d) => setExamples(Array.isArray(d.examples) ? d.examples : []))
+      .catch(() => {})
   }, [load])
+
+  const putExamplesAway = useCallback(() => {
+    setExamples([])
+    setExamplesAway(true)
+    fetch('/api/examples', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) }).catch(() => {})
+  }, [])
 
   // Moves and deletions are applied here before the server answers, so the
   // remembered list follows the board rather than the last response.
@@ -533,6 +549,68 @@ function Board() {
     )
   })
 
+  // Under Active: whose work each stands in for, opened onto its canvas like
+  // any project. Never dragged, renamed or moved: it is not the person's.
+  const renderExamples = () => {
+    if (examplesAway) {
+      return (
+        <p style={{ fontSize: 12, color: c.textMuted, margin: '18px 2px 0' }}>
+          Examples put away. Settings brings them back.
+        </p>
+      )
+    }
+    if (examples.length === 0) return null
+    const theirs = examples.filter((e) => e.example.matched)
+    const rest = examples.filter((e) => !e.example.matched)
+    const shown = otherExamples ? [...theirs, ...rest] : theirs
+    const link: React.CSSProperties = {
+      fontSize: 12, color: c.textSecondary, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+      textDecoration: 'underline', textUnderlineOffset: 3,
+    }
+    return (
+      <section aria-label="Examples" style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div>
+          <h3 style={{ ...columnEyebrow, color: c.textMuted }}>Examples</h3>
+          <p style={{ fontSize: 12.5, color: c.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
+            Projects made the way artists use Companheiro. Open one to look around; nothing in them can be changed.
+          </p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+          {shown.map((e) => (
+            <button
+              key={e.id}
+              onClick={(ev) => openCanvas(e.id, ev.currentTarget)}
+              style={{
+                textAlign: 'left', background: c.cardBg, boxShadow: c.shadow, border: `1px dashed ${c.divider}`, borderRadius: 12,
+                padding: '12px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 112,
+                transition: 'border-color 0.2s',
+              }}
+              onMouseEnter={(ev) => { ev.currentTarget.style.borderColor = c.tide }}
+              onMouseLeave={(ev) => { ev.currentTarget.style.borderColor = c.divider }}
+            >
+              <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: c.tide }}>
+                Example · {e.example.label}
+              </span>
+              <span style={{ color: c.textPrimary, fontWeight: 500, fontSize: 14, lineHeight: 1.35 }}>{e.title}</span>
+              <span style={{ fontSize: 12.5, color: c.textSecondary, lineHeight: 1.45 }}>{e.example.teaser}</span>
+              <span style={{ fontSize: 11, color: c.textMuted, marginTop: 'auto' }}>
+                {[`${e.root_ids.length} pieces`, e.thread_count ? `${e.thread_count} threads` : null].filter(Boolean).join(' • ')}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {rest.length > 0 && (
+            <button type="button" onClick={() => setOtherExamples((v) => !v)} style={link}>
+              {otherExamples ? 'Only the ones for my work' : `Show ${rest.length === 1 ? 'the other example' : `the other ${rest.length}`}`}
+            </button>
+          )}
+          <button type="button" onClick={putExamplesAway} style={link}>Put these away</button>
+        </div>
+      </section>
+    )
+  }
+
   const emptyLine = (column: Column) => (
     <p style={{ fontSize: 12, color: c.textMuted, margin: '4px 2px' }}>
       {column === 'Queue' ? 'Nothing waiting.' : column === 'Active' ? 'Nothing in motion yet.' : 'Nothing finished yet.'}
@@ -563,6 +641,7 @@ function Board() {
           {column === 'Queue' && renderDrafts()}
           {columns[column].map((p) => renderCard(p, column, true))}
           {counts[column] === 0 && emptyLine(column)}
+          {column === 'Active' && renderExamples()}
         </div>
       </div>
     )
@@ -619,6 +698,7 @@ function Board() {
             {activeTab === 'Queue' && renderDrafts()}
             {columns[activeTab].map((p) => renderCard(p, activeTab, false))}
             {counts[activeTab] === 0 && emptyLine(activeTab)}
+            {activeTab === 'Active' && renderExamples()}
           </div>
         </div>
 

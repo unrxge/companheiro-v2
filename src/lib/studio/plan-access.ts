@@ -74,8 +74,9 @@ export interface ProjectAccess {
   plan: Plan
   /** Can be edited and talked about. Reading and exporting never depend on it. */
   workable: boolean
-  /** not_active: another project holds the place. over_limit: more are active than the plan carries, and one has to be chosen. */
-  reason: 'not_active' | 'over_limit' | null
+  /** not_active: another project holds the place. over_limit: more are active than the plan carries, and one has to be chosen.
+   *  example: one of the example projects on a new account's board (lib/examples), only ever given by its own route. */
+  reason: 'not_active' | 'over_limit' | 'example' | null
   /** The project(s) in Active, when the plan has a limit. */
   active: Array<{ id: string; title: string }>
   /** How many the plan works on at once. null is any number. */

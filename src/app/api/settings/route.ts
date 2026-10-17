@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { analyticsChoiceOf } from '@/lib/usage-analytics'
+import { examplesShown } from '@/lib/examples/shown'
 
 interface Settings {
   dictation_lang: string | null
@@ -21,7 +22,11 @@ export async function GET() {
       .eq('user_id', user.id)
       .maybeSingle()
     // Usage analytics: on unless switched off, and whether they have been told it exists (lib/usage-analytics.ts).
-    return NextResponse.json({ settings: { ...EMPTY, ...(data ?? {}) }, email: user.email ?? null, usage_analytics: analyticsChoiceOf(user.user_metadata) })
+    // The example projects on the Project Board (lib/examples): on for new accounts until put away.
+    return NextResponse.json({
+      settings: { ...EMPTY, ...(data ?? {}) }, email: user.email ?? null, usage_analytics: analyticsChoiceOf(user.user_metadata),
+      examples: { on: examplesShown(user.user_metadata, user.created_at) },
+    })
   } catch (error) {
     console.error('settings GET error:', error)
     return NextResponse.json({ settings: EMPTY }, { status: 500 })
@@ -33,7 +38,17 @@ export async function PUT(request: NextRequest) {
     const auth = await requireUser()
     if (!auth) return NextResponse.json({ success: false }, { status: 401 })
     const { supabase, user } = auth
-    const body: Partial<Settings> & { usage_analytics?: boolean; usage_analytics_told?: boolean } = await request.json()
+    const body: Partial<Settings> & { usage_analytics?: boolean; usage_analytics_told?: boolean; examples?: boolean } = await request.json()
+
+    // Whether the example projects are on the Project Board: kept on the account, like the analytics choice.
+    if (typeof body.examples === 'boolean') {
+      const { error } = await supabase.auth.updateUser({ data: { examples: { on: body.examples, changed_at: new Date().toISOString() } } })
+      if (error) {
+        console.error('settings examples error:', error)
+        return NextResponse.json({ success: false }, { status: 500 })
+      }
+      if (Object.keys(body).length === 1) return NextResponse.json({ success: true })
+    }
 
     // The usage analytics choice lives on the account itself, beside the record
     // of which Terms they agreed to. Choosing either way also means they have
