@@ -8,6 +8,7 @@ export const director: ExampleSource = {
   practices: ['director'],
   label: 'Creative director',
   who: 'a creative director three weeks from presenting a global campaign',
+  note: 'The voice in its recording is computer-generated.',
   teaser: 'The first campaign in eleven years for a 120-year-old luggage maker: a film, six arrivals halls, an editorial issue and a repair ledger.',
   title: 'Aldermoor: Come Back Different',
   intent:
@@ -269,6 +270,18 @@ export const director: ExampleSource = {
       at: { x: 2.3, y: 160 },
       caption: 'The marks are the product. Age the hero cases until they look like this.',
       file: { name: 'director-scuffed-leather.jpg', mime: 'image/jpeg', bytes: 289098, width: 1200, height: 800 },
+    },
+    {
+      kind: 'recording',
+      pieces: ['film', 'ledger'],
+      at: { x: 2.9, y: 40 },
+      caption: 'Walking back from the workshop: the last frame, and the repair books',
+      file: {
+        name: 'director-voice-memo.m4a', mime: 'audio/mp4', bytes: 350981, seconds: 29.3,
+        envelope: [0.393, 0.587, 0.849, 0.688, 0.592, 0.569, 0.467, 0.383, 0.539, 0.529, 0.702, 0.679, 0.581, 0.886, 0.916, 0.677, 0.652, 0.41, 0.546, 1.0, 0.976, 0.518, 0.853, 0.19],
+        ownVoice: true,
+        transcript: 'Okay. Note to self, walking back from the workshop, before I lose it. The last frame of the film. It is not the line over black. It is typed over the case, in her hallway. Come back different. Full stop. Then nothing. No logo for a full second. And, ask Mira whether the old repair books have destinations written in them. Because if they do, that is the whole Ledger. That is the whole thing. Okay. Train.',
+      },
     },
   ],
 

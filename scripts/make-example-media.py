@@ -7,6 +7,13 @@ Writes into public/examples/:
   director-arrivals-light.jpg         mood reference: an arrivals hall at 6am, out of focus
   director-taxi-home.jpg              mood reference: city lights through a wet taxi window
   director-scuffed-leather.jpg        mood reference: tan leather, marked by use
+  director-voice-memo.m4a             a voice note recorded walking down a street (with --memo PATH)
+
+The voice note's words are spoken by the app's own speech voice (OpenAI's
+gpt-4o-mini-tts, voice "coral", the model read-aloud uses), made once on the
+live server by a temporary route (since removed) and passed in with --memo;
+the street around it is made here. A generated voice is always said so
+(`note` on the example).
 
 Every sound and pixel is generated here, so there is nothing anyone else
 owns in them. It prints each file's duration, size and waveform (24 bars),
@@ -307,7 +314,64 @@ def scuffed_leather():
     return grain(img, 0.015)
 
 
+def read_pcm(path):
+    """A 16-bit mono WAV, header and all; a streamed one may not say how long it is, so the length is read off the file."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    rate = struct.unpack('<I', data[24:28])[0]
+    at = data.find(b'data') + 8
+    pcm = np.frombuffer(data[at:at + ((len(data) - at) // 2) * 2], dtype='<i2').astype(np.float64) / 32768
+    return pcm, rate
+
+
+def director_memo(path):
+    voice, rate = read_pcm(path)
+    # To the project's rate.
+    t_new = np.arange(int(len(voice) * SR / rate)) / SR
+    voice = np.interp(t_new, np.arange(len(voice)) / rate, voice)
+    lead, tail = 0.9, 1.1
+    n = int((lead + tail) * SR) + len(voice)
+    street = np.zeros(n)
+    # Traffic a street away: a low, slow rumble.
+    rumble = np.cumsum(rng.normal(0, 1, n))
+    rumble -= np.convolve(rumble, np.ones(SR // 2) / (SR // 2), mode='same')
+    street += lowpass(rumble / (np.max(np.abs(rumble)) + 1e-9), 300) * 0.5
+    # Two cars passing: noise swelling and falling away.
+    t = np.arange(n) / SR
+    for when, width, gain in [(4.0, 2.2, 0.55), (17.5, 2.8, 0.45)]:
+        swell = np.exp(-((t - when) / width) ** 2)
+        street += lowpass(rng.normal(0, 1, n), 900) * swell * gain
+    # Footsteps on pavement, a little uneven.
+    step = 0.0
+    while step < n / SR:
+        at = int(step * SR)
+        thud = np.exp(-np.linspace(0, 30, int(0.06 * SR))) * rng.normal(0, 1, int(0.06 * SR))
+        street[at:at + len(thud)] += lowpass(thud, 1200)[: len(street) - at] * 0.35
+        step += rng.uniform(0.5, 0.6)
+    # Air moving across the phone's microphone, now and then.
+    gust = np.clip(np.sin(t * 0.7) + np.sin(t * 1.9 + 1), 0, None)
+    street += lowpass(rng.normal(0, 1, n), 200) * gust * 0.12
+    street = highpass(street, 60)
+    street = street / (np.max(np.abs(street)) + 1e-9) * 0.4
+    start = int(lead * SR)
+    mix = street.copy()
+    mix[start:start + len(voice)] += voice / (np.max(np.abs(voice)) + 1e-9) * 0.8
+    # The phone held close: no deep lows, a little top cut.
+    mix = highpass(mix, 120)
+    mix = lowpass(mix, 7500)
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = os.path.join(tmp, 'memo.wav')
+        write_wav(wav, mix)
+        out = os.path.join(OUT, 'director-voice-memo.m4a')
+        encode_m4a(wav, out)
+    return {'file': 'director-voice-memo.m4a', 'seconds': round(len(mix) / SR, 1), 'bytes': os.path.getsize(out), 'envelope': envelope(mix)}
+
+
 if __name__ == '__main__':
+    import sys
+    if '--memo' in sys.argv:
+        print(json.dumps(director_memo(sys.argv[sys.argv.index('--memo') + 1])))
+        sys.exit(0)
     made = {
         'memo': guitar_memo(),
         'arrivals': to_jpeg(arrivals_light(), 'director-arrivals-light.jpg'),
