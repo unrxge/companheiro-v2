@@ -42,10 +42,12 @@ const DAY = 86_400_000
 // where the cards rest. The lane starts at LEFT_ROOM + MARGIN = 800 and a
 // card's width follows the window (laneCardWidth), so a slot here assumes a
 // 720px card and the 44px gap. The cards rest at REST_TOP = 184 and stand at
-// most 560px tall with a 46px gap below, so 790 is clear of the tallest card.
+// most 560px tall with a 46px gap below, so that line is clear of the tallest card.
+// From four pieces the board draws its cards at 85% (CROWDED_SCALE), and
+// these follow.
 const LANE_LEFT = 800
-const SLOT = 720 + 44
-const UNDER_CARDS = 184 + 560 + 46
+const slotFor = (pieces: number) => Math.round(720 * (pieces >= 4 ? 0.85 : 1)) + 44
+const underCardsFor = (pieces: number) => 184 + Math.round(560 * (pieces >= 4 ? 0.85 : 1)) + 46
 // A list stood beside the first card is drawn at the narrowest a task list
 // goes (ITEM_WIDTH in board-items.ts), so it stays in view when the canvas
 // opens on that card at 100%.
@@ -109,7 +111,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
   const spot = (at: ExampleSpot | { x: number; y: 'beside' } | undefined) => {
     if (!at) return { board_x: null, board_y: null }
     if (at.y === 'beside') return { board_x: LANE_LEFT - BESIDE_W - BESIDE_GAP + Math.round(at.x), board_y: 184 }
-    return { board_x: Math.round(LANE_LEFT + at.x * SLOT), board_y: Math.round(UNDER_CARDS + at.y) }
+    return { board_x: Math.round(LANE_LEFT + at.x * slotFor(src.pieces.length)), board_y: Math.round(underCardsFor(src.pieces.length) + at.y) }
   }
 
   const threads: Thread[] = src.threads.map((th, position) => ({

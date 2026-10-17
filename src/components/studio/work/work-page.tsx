@@ -530,6 +530,25 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     </div>
   )
 
+  const rulesBlock = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <RuleList
+        rules={scopeRules}
+        inherited={scopeNode ? inherited : []}
+        disabled={readOnly}
+        onChange={setScopeRules}
+      />
+      {scopeNode && !readOnly && (liveRuleCount > 0 || inherited.length > 0) && (
+        <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} loading={checking} loadingLabel="Reading it…">
+            Check it against the rules
+          </GhostButton>
+          {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
+        </div>
+      )}
+    </div>
+  )
+
   const companionDrawer = (
     <>
     <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)} sheet={sheeted}>
@@ -592,26 +611,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         </div>
       )}
 
-      {rail === 'rules' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <RuleList
-            rules={scopeRules}
-            inherited={scopeNode ? inherited : []}
-            disabled={readOnly}
-            onChange={setScopeRules}
-          />
-          {scopeNode && !readOnly && (liveRuleCount > 0 || inherited.length > 0) && (
-            <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <GhostButton size="sm" onClick={() => void runCheck(scopeNode.id)} loading={checking} loadingLabel="Reading it…">
-                Check it against the rules
-              </GhostButton>
-              {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
-            </div>
-          )}
-        </div>
-      )}
+      {rail === 'rules' && rulesBlock}
 
       {rail === 'concept' && scopeNode && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
         <ConceptPanel
           node={scopeNode}
           projectId={projectId}
@@ -620,6 +623,15 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           onChanged={() => void api.refresh()}
           disabled={readOnly}
         />
+          {/* The rules live with the concept: what the piece is, and what it holds to (2026-10-17). */}
+          <section style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Label>The rules</Label>
+            <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
+              What this piece holds to. When it is marked done, or when you ask, the writing is read against them and a collision is pointed out.
+            </p>
+            {rulesBlock}
+          </section>
+        </div>
       )}
 
       {rail === 'anchors' && scopeNode && (

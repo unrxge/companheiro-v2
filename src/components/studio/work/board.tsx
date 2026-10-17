@@ -78,6 +78,9 @@ const WEB_GAP = 46      // space between the cards and the web below them
 // centred on its first two, rather than at 100% on the last one worked on.
 const WIDE_OPEN_AFTER = 3
 const WIDE_OPEN_ZOOM = 0.69
+// From this many pieces the cards are drawn at CROWDED_SCALE of their size.
+const CROWDED_AT = 4
+const CROWDED_SCALE = 0.85
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
@@ -275,8 +278,11 @@ export function Board({
   const threads = useMemo(() => allThreads.filter((th) => !binned.hidden.has(th.id)), [allThreads, binned.hidden])
   const items = useMemo(() => allItems.filter((it) => !binned.hidden.has(it.id)), [allItems, binned.hidden])
 
-  const cardW = frame.w ? laneCardWidth(frame.w, GAP) : 520
-  const cardH = frame.h ? Math.round(Math.min(560, Math.max(340, frame.h * 0.5))) : 420
+  // Four pieces or more and the cards come down a size, so more of the lane
+  // is in view at once (the person's decision, 2026-10-17).
+  const crowded = pieces.length >= CROWDED_AT ? CROWDED_SCALE : 1
+  const cardW = Math.round((frame.w ? laneCardWidth(frame.w, GAP) : 520) * crowded)
+  const cardH = Math.round((frame.h ? Math.min(560, Math.max(340, frame.h * 0.5)) : 420) * crowded)
   // Kept in proportion with the piece cards, not a width of its own — a
   // fixed one dwarfed a lane of narrower cards on anything but a wide window.
   const visionW = visionWidth(cardW)

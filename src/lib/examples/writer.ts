@@ -8,10 +8,10 @@ export const writer: ExampleSource = {
   practices: ['writer'],
   label: 'Journaling',
   who: 'a man shaping a year of morning journals into three pieces of writing',
-  teaser: 'A year of journal entries written at half past five, before anyone wakes up, shaped into three pieces.',
+  teaser: 'A year of journal entries written at half past five, and the three pieces of writing being drawn out of them.',
   title: 'Before Anyone Wakes Up',
   intent:
-    'A year of journal entries written at half past five, before my daughter and my wife wake up and the day starts asking for me, shaped into three pieces I might one day let someone read. They are about the weight most people carry and never mention: a job that pays for a life I barely have time to live, the dreams I put in a drawer, and the people I love most getting the most tired version of me. For anyone who has stayed in the shower ten minutes longer because it is the one place nobody needs anything from them.',
+    'For almost a year I have written in a notebook every morning at half past five, before Mia and Ana wake up and the day starts asking for me. Most of those entries are for nobody. This project is what I am drawing out of them: three pieces of writing, each one built from the mornings that kept circling the same thing, that I might one day let someone read. The year is the raw material; the three pieces are what it is saying. They are about the weight most people carry and never mention: a job that pays for a life I barely have time to live, the dreams I put in a drawer, and the people I love most getting the most tired version of me. For anyone who has stayed in the shower ten minutes longer because it is the one place nobody needs anything from them.',
   arc: 'Beginning',
   rules: [
     'Written from what happened, then shaped. Never invented.',
@@ -22,11 +22,11 @@ export const writer: ExampleSource = {
 
   log: [
     { role: 'assistant', content: 'What has been on your mind lately, even when you try to think about something else?' },
-    { role: 'user', content: 'Mornings, honestly. I’ve started getting up at half five, before my daughter and my wife are up, and just writing in a notebook. Nothing fancy. It’s the only part of the day that feels like mine.' },
+    { role: 'user', content: 'Mornings, honestly. Since last autumn I get up at half five, before my daughter and my wife are up, and just write in a notebook. Nothing fancy. It’s nearly a year of mornings now, and it’s the only part of the day that feels like mine.' },
     { role: 'assistant', content: 'What ends up on the page in that hour?' },
     { role: 'user', content: 'Things I’d never say out loud. That I’m tired all the time. That I thought I’d be somewhere else by thirty-eight. That I love my family and I still stay in the shower an extra ten minutes because nobody can need anything from me in there.' },
     { role: 'assistant', content: 'Do you want to do something with those pages, or is writing them the point?' },
-    { role: 'user', content: 'I’ve been thinking about shaping some of it into actual pieces. Not a book. Maybe three. Something I could finish, and maybe show someone one day.' },
+    { role: 'user', content: 'Reading back, the same few things keep coming up, month after month. I’ve been thinking about pulling those out into actual pieces. Not a book. Maybe three. Something I could finish, and maybe show someone one day.' },
     { role: 'assistant', content: 'If one person read those three pieces, who would you want it to be? Not who would like them. Who needs them.' },
     { role: 'user', content: 'Some guy like me. Late thirties, a decent job he doesn’t love, a kid, a list of things he meant to do by now. Who thinks he’s the only one who feels like this.' },
     { role: 'assistant', content: 'What would you want him to feel when he gets to the end?' },
@@ -45,10 +45,10 @@ export const writer: ExampleSource = {
       conviction: 'Everyone deserves one hour a day that nobody can ask anything of.',
       truth: 'The only hour I’m not useful to anyone is the only hour I feel like myself.',
       journey: [
-        'The dark — waking six minutes before the alarm, afraid to lose even one of them.',
-        'The quiet house — the kettle, the boiler, everyone he loves asleep upstairs.',
-        'The honest page — what he writes when nobody will ever read it.',
-        'Footsteps — his daughter on the stairs; the hour ends, and he is glad to give the day away.',
+        'The dark — I wake six minutes before the alarm, afraid to lose even one of them.',
+        'The quiet house — the kettle, the boiler, everyone I love asleep upstairs.',
+        'The honest page — what I write when nobody will ever read it.',
+        'Footsteps — Mia on the stairs; the hour ends, and I’m glad to give the day away.',
       ],
       parts: [
         {
@@ -85,10 +85,10 @@ export const writer: ExampleSource = {
       conviction: 'Dreams you put away don’t die. They wait, and the waiting is its own kind of grief.',
       truth: 'I didn’t give up on what I wanted. I put it somewhere safe and forgot where.',
       journey: [
-        'The list — found in a box from the old flat: things to do by thirty, in handwriting he barely recognises.',
+        'The list — found in a box from the old flat: things to do by thirty, in handwriting I barely recognise.',
         'The reasons — each one crossed off for a good reason, and one for no reason at all.',
-        'Still there — none of it is dead; it is waiting to see if he comes back.',
-        'Taken out — the last line on the list, “Write something”, is the notebook in his hands.',
+        'Still there — none of it is dead; it is waiting to see if I come back.',
+        'Taken out — the last line on the list, “Write something”, is the notebook in my hands.',
       ],
       open: ['Does the swimming stay in? It’s the only one with no excuse, and that’s why it hurts.'],
       parts: [
@@ -128,10 +128,10 @@ export const writer: ExampleSource = {
       conviction: 'Love isn’t proved in the big moments. It’s in what you have left at seven in the evening.',
       truth: 'The people I love most get what’s left of me, and they deserve the first of me.',
       journey: [
-        'Seven o’clock — he comes through the front door with nothing left.',
+        'Seven o’clock — I come through the front door with nothing left.',
         'The small no — “not tonight” to a game of cards.',
-        'The noticing — she stops asking him, and asks her mum instead.',
-        'The turn — one morning she comes down at ten to six, and he lets her stay.',
+        'The noticing — she stops asking me, and asks her mum instead.',
+        'The turn — one morning she comes down at ten to six, and I let her stay.',
       ],
       open: ['Do I let Mia into the hour, or does that end it?'],
       tasks: [
@@ -150,7 +150,7 @@ export const writer: ExampleSource = {
       key: 'notebook',
       at: { x: 1.62, y: 48 },
       name: 'The notebook',
-      intent: 'The cheap blue notebook from the supermarket. Where it is in each piece says how safe he feels.',
+      intent: 'The cheap blue notebook from the supermarket, a year of mornings in it. Where it is in each piece says how safe I feel.',
       hue: 'tide',
       rules: ['It is never called a journal in the writing.'],
       on: [
@@ -162,7 +162,7 @@ export const writer: ExampleSource = {
       key: 'mia',
       at: { x: 2.3, y: 28 },
       name: 'Mia',
-      intent: 'His daughter, glimpsed. She is the reason for most of it and never the subject.',
+      intent: 'My daughter, glimpsed. She is the reason for most of it and never the subject.',
       hue: 'ember',
       rules: ['She never says more than one line.'],
       on: [
@@ -174,11 +174,11 @@ export const writer: ExampleSource = {
       key: 'unsaid',
       at: { x: 0.55, y: 92 },
       name: 'What I don’t say out loud',
-      intent: 'What he writes and would never say to anyone: that he is tired, that he is scared, that he wanted more.',
+      intent: 'What I write and would never say to anyone: that I’m tired, that I’m scared, that I wanted more.',
       hue: 'violet',
       on: [
-        { at: 'hp-honest', note: 'Everything he writes and would never say.' },
-        { at: 'dr-reasons', note: 'The reasons he gives other people, beside the real ones.' },
+        { at: 'hp-honest', note: 'Everything I write and would never say.' },
+        { at: 'dr-reasons', note: 'The reasons I give other people, beside the real ones.' },
       ],
     },
   ],
@@ -190,6 +190,7 @@ export const writer: ExampleSource = {
       at: { x: 0, y: 'beside' },
       tasks: [
         { title: 'Up at 5:30, four days a week', done: true },
+        { title: 'Read back through the year and mark which mornings belong to which piece', done: true },
         { title: 'Tell Ana what the half-past-five thing is', done: true },
         { title: 'Buy the next notebook before this one runs out' },
         { title: 'Ask at the library about the Thursday writing group' },
@@ -239,7 +240,7 @@ export const writer: ExampleSource = {
   reading: {
     daysAgo: 3,
     statement:
-      'Each piece sits at a different hour of the same kind of day: half past five in the kitchen, a lunch break in the staff room, seven in the evening at the front door. Held side by side, they move from the hour he keeps for himself into the hours other people need him, and only the last one lets someone stay in the hour he keeps.',
+      'Each piece sits at a different hour of the same kind of day: half past five in the kitchen, a lunch break in the staff room, seven in the evening at the front door. Held side by side, they move from the hour you keep for yourself into the hours other people need you, and only the last one lets someone stay in the hour you keep.',
     gaps: [
       {
         text: '“Say the hard thing once, plainly” and “The Drawer” pull against each other: as drafted, most of its reasons are defended at length, and only the one about swimming is said once and left.',

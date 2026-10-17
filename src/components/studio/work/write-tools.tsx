@@ -280,6 +280,9 @@ export function AnchorsPanel({ lines, parts, onAdd, onRemove, disabled = false }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
+        Lines, images and half-thoughts kept for this piece before they have a place in it. Each one is set in the part it belongs to, so it is there when you reach that part.
+      </p>
       {!disabled && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <textarea
           aria-label="A fragment"
