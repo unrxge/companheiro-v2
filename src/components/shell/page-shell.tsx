@@ -115,6 +115,7 @@ export function PageHeader({
   actions,
   themeToggle = true,
   size = 'lg',
+  clampOnPhone = false,
 }: {
   eyebrow?: React.ReactNode
   title: React.ReactNode
@@ -124,6 +125,8 @@ export function PageHeader({
   actions?: React.ReactNode
   themeToggle?: boolean
   size?: 'lg' | 'md'
+  /** On a phone, a smaller title kept to two lines (a long piece's name ran to three beside the buttons). */
+  clampOnPhone?: boolean
 }) {
   const { theme, toggle } = useTheme()
   const watchedBy = useContext(HeaderSlot)
@@ -156,7 +159,7 @@ export function PageHeader({
         )}
         <div style={{ minWidth: 0 }}>
           {eyebrow && <p style={{ ...typeRoles.eyebrow, color: shell.muted, marginBottom: 10 }}>{eyebrow}</p>}
-          <h1 style={{ ...titleStyle, color: shell.text, textWrap: 'balance' as never }}>{title}</h1>
+          <h1 className={clampOnPhone ? 'page-title-clamp' : undefined} style={{ ...titleStyle, color: shell.text, textWrap: 'balance' as never }}>{title}</h1>
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, paddingBottom: 4 }}>

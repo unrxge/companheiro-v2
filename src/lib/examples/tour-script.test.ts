@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { EXAMPLE_PRACTICES, tourLength, tourSteps, voiceFor, VOICES, ANY_VOICE } from './tour-script'
+import { EXAMPLE_PRACTICES, pieceTourSteps, tourLength, tourSteps, voiceFor, VOICES, ANY_VOICE } from './tour-script'
 import { EXAMPLES } from './index'
 import { buildExample } from './build'
 
@@ -80,4 +80,15 @@ test('a phone is told to hold, a computer to rest', () => {
 test('the browser\'s note of what each example is for matches the examples themselves', () => {
   for (const src of EXAMPLES) assert.deepEqual([...(EXAMPLE_PRACTICES[src.key] ?? [])], [...src.practices], src.key)
   assert.equal(Object.keys(EXAMPLE_PRACTICES).length, EXAMPLES.length)
+})
+
+test('the walk round a piece is short, says why, and ends back in the words', () => {
+  const steps = pieceTourSteps({ practices: ['songwriter'], exampleFor: ['director'] })
+  assert.deepEqual(steps.map((s) => s.key), ['write', 'concept', 'fragments', 'assistant', 'flow', 'end'])
+  assert.ok(tourLength(steps) < 28_000, `reads in under 28s (${tourLength(steps)})`)
+  assert.match(steps.find((s) => s.key === 'flow')!.lines.join(' '), /a listener/)
+  for (const s of steps) for (const line of [s.headline, ...s.lines]) assert.ok(line.split(/\s+/).length <= 12, line)
+  // it leaves the page as it found it: no panel open, written in parts
+  assert.equal(steps.find((s) => s.key === 'flow')!.panel, null)
+  assert.equal(steps[steps.length - 1].view, 'write')
 })

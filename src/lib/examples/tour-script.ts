@@ -84,14 +84,24 @@ export interface TourInput {
 }
 
 /** Something on the window the tour points at that is not on the canvas. */
-export type TourAnchor = 'launcher' | 'vision-page' | 'vision-talk'
+export type TourAnchor =
+  | 'launcher' | 'vision-page' | 'vision-talk'
+  // the writing page
+  | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
+
+/** A panel on the writing page the tour opens (or closes, with null). */
+export type TourPanel = 'concept' | 'anchors' | 'assistant'
 
 export interface TourStep {
   key: string
   headline: string
   lines: string[]
-  /** Brought into view and lit round: canvas ids, the whole board, or a part of the window. */
-  show: { ids: string[] | 'all' } | { anchor: TourAnchor }
+  /** Brought into view and lit round: canvas ids, the whole board, or parts of the window (lit together). */
+  show: { ids: string[] | 'all' } | { anchor: TourAnchor | TourAnchor[] }
+  /** On the writing page: the panel open while the step stands (null closes it). */
+  panel?: TourPanel | null
+  /** On the writing page: written in parts, or read straight through. */
+  view?: 'write' | 'flow'
   /** On a narrow screen, frame only these: all of `show` would be too small to read. */
   narrow?: string[]
   /** The piece whose "+" opens during the step, its menu shown as it is in a project of one's own. */
@@ -226,6 +236,61 @@ export function tourSteps(input: TourInput): TourStep[] {
   }))
 
   return steps
+}
+
+/**
+ * The walk round a piece, the first time an example's piece is opened: what
+ * the writing page is for, the things beside the words, and reading it through.
+ * Like the canvas walk, it says why, never how.
+ */
+export function pieceTourSteps(input: { practices: readonly string[]; exampleFor: readonly string[] }): TourStep[] {
+  const v = voiceFor(input.practices, input.exampleFor)
+  return [
+    step({
+      key: 'write',
+      headline: 'Where the piece itself gets made.',
+      lines: ['In parts, so one can change without losing the rest.'],
+      show: { anchor: 'writing' },
+      panel: null,
+      view: 'write',
+    }),
+    step({
+      key: 'concept',
+      headline: 'What it’s for stays beside you.',
+      lines: ['Its core concept, open while you work.', 'So the middle never forgets the start.'],
+      show: { anchor: ['rail-concept', 'rail-panel'] },
+      panel: 'concept',
+    }),
+    step({
+      key: 'fragments',
+      headline: 'Lines worth keeping, kept.',
+      lines: ['A phrase that came too early. One for later.', 'Each waits by the piece it belongs to.'],
+      show: { anchor: ['rail-anchors', 'rail-panel'] },
+      panel: 'anchors',
+    }),
+    step({
+      key: 'assistant',
+      headline: 'A second reader, when you’re stuck.',
+      lines: ['It guides. It writes only when you ask it to.'],
+      show: { anchor: ['rail-assistant', 'rail-panel'] },
+      panel: 'assistant',
+    }),
+    step({
+      key: 'flow',
+      headline: 'Then read it straight through.',
+      lines: [`The way ${v.audience} will meet it.`],
+      show: { anchor: ['view-switch', 'writing'] },
+      panel: null,
+      view: 'flow',
+    }),
+    step({
+      key: 'end',
+      headline: 'Over to you.',
+      lines: ['Nothing here is saved.', 'Start your own when you’re ready.'],
+      show: { anchor: 'writing' },
+      view: 'write',
+    }),
+  ]
 }
 
 /** The whole tour, for a sense of its length. */

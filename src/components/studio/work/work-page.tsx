@@ -48,7 +48,7 @@ import { ExampleBanner } from '@/components/studio/work/example-banner'
 import { forgetLayout } from '@/lib/examples/layout'
 import { useNoHover, usePhone } from '@/lib/use-phone'
 import { ExampleTour, type RoomMove } from '@/components/studio/work/example-tour'
-import { EXAMPLE_PRACTICES, tourSteps, type TourStep } from '@/lib/examples/tour-script'
+import { EXAMPLE_PRACTICES, pieceTourSteps, tourSteps, type TourStep } from '@/lib/examples/tour-script'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan, usePlan } from '@/lib/billing/use-plan'
@@ -500,6 +500,21 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     }, 1100)
     return () => window.clearTimeout(id)
   }, [appearancesFor, board.items, board.ready, example, noHover, roots, tourDue, tree.threads])
+  // And the writing page's own walk, the first time an example's piece is opened.
+  const pieceTourDue = useExampleTour(!!example && focus.kind === 'node' && isRootPiece && state.status === 'ready', 'piece')
+  const [pieceTouring, setPieceTouring] = useState<TourStep[] | null>(null)
+  const pieceTourStarted = useRef(false)
+  useEffect(() => {
+    if (!pieceTourDue.due || !example || pieceTourStarted.current) return
+    const id = window.setTimeout(() => {
+      if (pieceTourStarted.current) return
+      pieceTourStarted.current = true
+      setPieceTouring(pieceTourSteps({ practices: pieceTourDue.due?.practices ?? [], exampleFor: EXAMPLE_PRACTICES[example.key] ?? [] }))
+      pieceTourDue.markSeen()
+    }, 1000)
+    return () => window.clearTimeout(id)
+  }, [example, pieceTourDue])
+
   const onTourRoom = useCallback((move: RoomMove, from: { x: number; y: number } | null) => {
     if (move === 'open') { setRail(null); setVisionRoom({ origin: from }); setRoomTour({ tab: 'page' }); return }
     if (move === 'close') { setRoomTour((cur) => ({ ...cur, close: true })); return }
@@ -883,6 +898,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           <TitleField key={node.id} value={node.title} onCommit={(title) => void api.editNode(node.id, { title })} />
         ) : headerTitle}
         size="md"
+        clampOnPhone
         actions={
           <span
             aria-live="polite"
@@ -897,8 +913,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Container
         padding={26}
         style={{
-          paddingRight: rail && roomBeside ? 478 : narrow ? 52 : 70,
-          paddingBottom: sheeted ? 'calc(50vh + 96px)' : undefined,
+          // A phone holds no margin for the tools: they are a row under the title there.
+          paddingRight: rail && roomBeside ? 478 : narrow ? undefined : 70,
+          // ...and the last words can be scrolled clear of the section marks and the Dock.
+          paddingBottom: sheeted ? 'calc(50vh + 96px)' : narrow ? 'calc(150px + env(safe-area-inset-bottom))' : undefined,
           transition: 'padding-right 200ms ease',
         }}
       >
@@ -916,14 +934,24 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           `}</style>
           <div className="piece-bar">
             <Trail
-              steps={focus.kind === 'node' ? trail : []}
+              // On a phone the last step is the title right above it; said twice, it took a line.
+              steps={focus.kind === 'node' ? (narrow ? trail.slice(0, -1) : trail) : []}
               onGo={(id) => goNode(id)}
               projectTitle={project.title}
               onGoProject={() => goProject()}
             />
             {focus.kind === 'node' && node && (
               <div className="piece-bar-tools">
-                <div className="piece-bar-switch">
+                {narrow && !sheeted && (
+                  <Rail
+                    inline
+                    open={rail}
+                    onOpen={setRail}
+                    tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
+                    counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
+                  />
+                )}
+                <div className="piece-bar-switch" data-tour="view-switch">
                   <ViewSwitch view={view} onChange={setView} />
                 </div>
               </div>
@@ -938,6 +966,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           {checkNote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>{checkNote}</p>}
 
           {focus.kind === 'node' && node && (
+            <div data-tour="writing">
             <Studio
               node={node}
               threads={tree.threads}
@@ -969,6 +998,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               onStorylineOpen={setStorylineOpen}
               disabled={readOnly}
             />
+            </div>
           )}
           {focus.kind === 'node' && node && isRootPiece && (
             <PieceFooter
@@ -1008,11 +1038,21 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Rail
         open={rail}
         onOpen={setRail}
-        hidden={focus.kind === 'thread' || sheeted || (narrow && storylineOpen)}
+        hidden={focus.kind === 'thread' || sheeted || narrow}
         tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
         counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
       />
       {companionDrawer}
+      {pieceTouring && (
+        <ExampleTour
+          steps={pieceTouring}
+          phone={phone}
+          onPanel={(panel) => setRail(panel)}
+          onView={setView}
+          onDone={() => setPieceTouring(null)}
+          startAt={process.env.NODE_ENV === 'production' ? 0 : Math.max(0, Number(new URLSearchParams(window.location.search).get('piecetour') ?? 1) - 1)}
+        />
+      )}
       {historyOpen && node && (
         <HistoryPanel
           nodeId={node.id}

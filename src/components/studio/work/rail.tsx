@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { useDockAway } from '@/components/shell/page-shell'
+import { useNarrow } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 
@@ -49,6 +50,7 @@ export function Rail({
   counts,
   tools,
   hidden = false,
+  inline = false,
 }: {
   open: RailKey | null
   onOpen: (key: RailKey | null) => void
@@ -57,13 +59,17 @@ export function Rail({
   /** Which tools to draw; all of them by default. */
   tools?: RailKey[]
   hidden?: boolean
+  /** A row in the page's own flow (a phone): standing over the right edge
+   *  there, it covered the words and held a margin open the whole way down. */
+  inline?: boolean
 }) {
   const { t } = useTheme()
   if (hidden) return null
+  const size = inline ? 36 : 40
 
   return (
     <div
-      style={{
+      style={inline ? { display: 'flex', gap: 8 } : {
         position: 'fixed', right: 14, top: '50%', transform: 'translateY(-50%)',
         zIndex: 40, display: 'flex', flexDirection: 'column', gap: 10,
       }}
@@ -75,13 +81,14 @@ export function Rail({
           <button
             key={tool.key}
             type="button"
+            data-tour={`rail-${tool.key}`}
             aria-label={tool.label}
             aria-pressed={active}
             title={tool.label}
             onClick={() => onOpen(active ? null : tool.key)}
             style={{
               position: 'relative',
-              width: 40, height: 40, borderRadius: 999, padding: 0,
+              width: size, height: size, borderRadius: 999, padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
               border: `1px solid ${active ? t.textMuted : shell.line}`,
@@ -200,6 +207,9 @@ export function Drawer({
 }) {
   const { t } = useTheme()
   const dockAway = useDockAway()
+  // A phone: the panel is the width of the screen, not a strip with a sliver
+  // of page beside it.
+  const narrow = useNarrow()
 
   useEffect(() => {
     if (!open) return
@@ -223,6 +233,7 @@ export function Drawer({
     `}</style>
     <aside
       aria-label={title}
+      data-tour="rail-panel"
       className={sheet ? 'rail-sheet' : 'rail-drawer'}
       data-dock-away={dockAway || undefined}
       style={{
@@ -230,7 +241,9 @@ export function Drawer({
         background: t.containerBg, border: `1px solid ${t.divider}`, boxShadow: t.containerShadow,
         ...(sheet
           ? { left: 0, right: 0, height: '50vh', borderRadius: '20px 20px 0 0' }
-          : { right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
+          : narrow
+            ? { left: 8, right: 8, top: 64, borderRadius: radius.card }
+            : { right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
       }}
     >
       <header

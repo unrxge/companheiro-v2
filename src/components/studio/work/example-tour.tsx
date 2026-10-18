@@ -19,7 +19,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { BoardTourHandle } from '@/components/studio/work/board'
-import type { TourStep } from '@/lib/examples/tour-script'
+import type { TourPanel, TourStep } from '@/lib/examples/tour-script'
 
 /** Travel between steps: the canvas glide, and the lit window following it. */
 const GLIDE_MS = 1000
@@ -60,8 +60,8 @@ function idsFor(step: TourStep, narrow: boolean): string[] | 'all' | null {
 /** What a step points at, where it is on the window right now. */
 function rectFor(step: TourStep, narrow: boolean): Rect | null {
   if ('anchor' in step.show) {
-    const el = document.querySelector(`[data-tour="${step.show.anchor}"]`)
-    return el ? unionOf([el]) : null
+    const anchors = Array.isArray(step.show.anchor) ? step.show.anchor : [step.show.anchor]
+    return unionOf(anchors.flatMap((a) => Array.from(document.querySelectorAll(`[data-tour="${a}"]`))))
   }
   const ids = idsFor(step, narrow)
   const els = ids === 'all'
@@ -84,16 +84,21 @@ function gestureAt(step: TourStep): Rect | null {
 }
 
 export function ExampleTour({
-  steps, board, phone, onRoom, onDone, startAt = 0,
+  steps, board, phone, onRoom, onPanel, onView, onDone, startAt = 0,
 }: {
   steps: TourStep[]
   /** Where to begin (the preview only, for looking at one step). */
   startAt?: number
-  board: React.MutableRefObject<BoardTourHandle | null>
+  /** The canvas, on the canvas's walk; absent on the writing page's. */
+  board?: React.MutableRefObject<BoardTourHandle | null>
+  /** The writing page's panels, opened and closed as the walk reaches them. */
+  onPanel?: (panel: TourPanel | null) => void
+  /** The writing page's two ways of reading. */
+  onView?: (view: 'write' | 'flow') => void
   /** On a phone (or a window as narrow): the caption is a sheet, and holds are shown, not rests. */
   phone: boolean
   /** The vision room, as the tour reaches it: opened out of the button, a half shown, closed again. */
-  onRoom: (move: RoomMove, from: { x: number; y: number } | null) => void
+  onRoom?: (move: RoomMove, from: { x: number; y: number } | null) => void
   /** Played to the end. */
   onDone: () => void
 }) {
@@ -118,7 +123,7 @@ export function ExampleTour({
 
   // ── moving on ─────────────────────────────────────────────────────────────
   const finish = useCallback(() => {
-    board.current?.light(null)
+    board?.current?.light(null)
     setLeaving(true)
     window.setTimeout(onDone, reduce ? 0 : 420)
   }, [board, onDone, reduce])
@@ -154,30 +159,33 @@ export function ExampleTour({
     let travel = 'ids' in step.show ? GLIDE_MS : 520
     if (step.room === 'open' || step.room === 'close') {
       const door = document.querySelector('[data-tour="launcher"]')?.getBoundingClientRect()
-      onRoom(step.room, door ? { x: door.left + door.width / 2, y: door.top + door.height / 2 } : null)
+      onRoom?.(step.room, door ? { x: door.left + door.width / 2, y: door.top + door.height / 2 } : null)
       travel = ROOM_MS
     } else if (step.room) {
-      onRoom(step.room, null)
+      onRoom?.(step.room, null)
       travel = Math.max(travel, 420)
     }
+    // The writing page: a panel opening or closing, the page changing how it reads.
+    if (step.panel !== undefined) { onPanel?.(step.panel); travel = Math.max(travel, 560) }
+    if (step.view) { onView?.(step.view); travel = Math.max(travel, 560) }
     const ids = idsFor(step, narrow)
     if (ids) {
       const inset = narrow
         ? { top: 64, bottom: SHEET_H + 28, left: 10, right: 10 }
         : { top: 72, right: CARD_W + CARD_GAP * 2, bottom: 96, left: 24 }
-      board.current?.frame(ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS, below: step.plus ? MENU_BELOW : 0 })
+      board?.current?.frame(ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS, below: step.plus ? MENU_BELOW : 0 })
     }
-    board.current?.light(step.light ?? null)
+    board?.current?.light(step.light ?? null)
     const id = window.setTimeout(() => {
       readSince.current = performance.now()
       setPhase('reading')
     }, reduce ? 120 : travel)
     // The "+" is seen being tapped, and then what it offers opens.
     const plus = step.plus
-    const opens = plus ? window.setTimeout(() => board.current?.plus(plus), (reduce ? 120 : travel) + 560) : 0
+    const opens = plus ? window.setTimeout(() => board?.current?.plus(plus), (reduce ? 120 : travel) + 560) : 0
     return () => {
       window.clearTimeout(id)
-      if (plus) { window.clearTimeout(opens); board.current?.plus(null) }
+      if (plus) { window.clearTimeout(opens); board?.current?.plus(null) }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
@@ -294,7 +302,7 @@ export function ExampleTour({
   }, [reduce])
 
   if (!step) return null
-  const inRoom = 'anchor' in step.show && step.show.anchor !== 'launcher'
+  const inRoom = 'anchor' in step.show && (step.show.anchor === 'vision-page' || step.show.anchor === 'vision-talk')
   const words = step.headline.split(' ')
 
   return (
