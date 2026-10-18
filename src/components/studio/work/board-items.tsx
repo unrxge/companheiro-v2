@@ -215,7 +215,7 @@ interface PreviewRow {
  * so the board can keep room for it.
  */
 export function ItemShell({
-  item, width, label, born, armed, disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
+  item, width, label, born, armed, disabled, resizable = !disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
 }: {
   item: BoardItem
   width: number
@@ -226,6 +226,8 @@ export function ItemShell({
   /** Being connected: the next piece clicked joins or leaves it. */
   armed: boolean
   disabled: boolean
+  /** The corner can be dragged even where nothing else can (an example). */
+  resizable?: boolean
   padded?: boolean
   onConnect: () => void
   onRemove: () => void
@@ -288,7 +290,7 @@ export function ItemShell({
         </ShellAct>
       </div>
 
-      {!disabled && onResizeStart && canResize(item.kind) && (
+      {resizable && onResizeStart && canResize(item.kind) && (
         <div
           role="separator"
           aria-label={`Resize ${label}`}
@@ -481,10 +483,12 @@ export function ImageBlock({
  * app. Nothing reads them: they are for the eye, like the pictures.
  */
 export function PaletteBlock({
-  item, disabled, onContent,
+  item, disabled, canRename = !disabled, onContent,
 }: {
   item: BoardItem
   disabled: boolean
+  /** Its name can be changed even where nothing else can (an example). */
+  canRename?: boolean
   onContent: (content: BoardItemContent) => void
 }) {
   const { t } = useTheme()
@@ -508,7 +512,19 @@ export function PaletteBlock({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ paddingRight: 48 }}>
-        <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>Palette</span>
+        {canRename ? (
+          <CardField
+            value={item.content.title ?? ''}
+            placeholder="Palette"
+            ariaLabel="The palette’s name"
+            disabled={false}
+            onCommit={(title) => onContent({ title })}
+            max={CAPTION_MAX.title}
+            style={{ fontSize: 13, fontWeight: 600 }}
+          />
+        ) : (
+          <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>{item.content.title || 'Palette'}</span>
+        )}
         <div style={{ ...canvasType.chip, color: t.textMuted }}>
           {swatches.length === 0 ? 'No colours yet' : `${swatches.length} ${swatches.length === 1 ? 'colour' : 'colours'}`}
         </div>
@@ -599,11 +615,13 @@ export function PaletteBlock({
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 export function RecordingBlock({
-  item, asset, disabled, onTitle, onStale,
+  item, asset, disabled, canRename = !disabled, onTitle, onStale,
 }: {
   item: BoardItem
   asset: AssetView | undefined
   disabled: boolean
+  /** Its name can be changed even where nothing else can (an example). */
+  canRename?: boolean
   onTitle: (title: string) => void
   onStale: () => void
 }) {
@@ -630,12 +648,12 @@ export function RecordingBlock({
           value={item.content.title ?? ''}
           placeholder="Name this recording"
           ariaLabel="The recording’s name"
-          disabled={disabled}
+          disabled={!canRename}
           onCommit={onTitle}
           max={CAPTION_MAX.title}
           style={{ fontSize: 13, fontWeight: 600 }}
         />
-        {disabled && !item.content.title && <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>A recording</span>}
+        {!canRename && !item.content.title && <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>A recording</span>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 'auto' }}>
         <button

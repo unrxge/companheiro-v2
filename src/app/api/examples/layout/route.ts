@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser()
     if (!auth || !adminIds().includes(auth.user.id)) return new NextResponse(null, { status: 204 })
-    const body = (await request.json().catch(() => ({}))) as { project_id?: unknown; layout?: unknown }
+    const body = (await request.json().catch(() => ({}))) as { project_id?: unknown; layout?: unknown; edits?: unknown }
     const projectId = typeof body.project_id === 'string' ? body.project_id : ''
     if (!exampleOfId(projectId) || projectId.includes('--')) return NextResponse.json({ error: 'not an example' }, { status: 400 })
 
@@ -30,9 +30,24 @@ export async function POST(request: NextRequest) {
         spots[id] = a && Number.isFinite(a.x) && Number.isFinite(a.y) ? [Math.round(a.x as number), Math.round(a.y as number)] : null
       }
     }
+    // Names and widths changed on its items, kept beside where things were put.
+    let edits: Record<string, { w?: number; title?: string }> | null = null
+    if (body.edits && typeof body.edits === 'object') {
+      edits = {}
+      for (const [id, e] of Object.entries(body.edits as Record<string, unknown>).slice(0, MAX_SPOTS)) {
+        if (!id.startsWith(`${projectId}--`) || !e || typeof e !== 'object') continue
+        const r = e as { w?: unknown; title?: unknown }
+        edits[id] = {
+          ...(Number.isFinite(r.w) ? { w: Math.round(r.w as number) } : {}),
+          ...(typeof r.title === 'string' ? { title: r.title.slice(0, 120) } : {}),
+        }
+      }
+    }
     const kept = { ...((auth.user.user_metadata?.example_layout ?? {}) as Record<string, unknown>) }
     if (spots) kept[projectId] = spots
     else delete kept[projectId]
+    if (edits && Object.keys(edits).length) kept[`${projectId}:edits`] = edits
+    else delete kept[`${projectId}:edits`]
     const { error } = await auth.supabase.auth.updateUser({ data: { example_layout: kept } })
     if (error) {
       console.error('example layout error:', error)

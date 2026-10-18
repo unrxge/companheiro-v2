@@ -29,7 +29,7 @@ export function cleanHex(raw: string): string | null {
 }
 
 export interface BoardItemContent {
-  /** A recording's name. */
+  /** A recording's or a palette's name. */
   title?: string
   /** An image's caption. */
   caption?: string

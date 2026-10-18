@@ -175,7 +175,7 @@ export function ConceptMirror({
 
       {show('decided') && decided.length > 0 && (
         <Card inner padding={18}>
-          <Head label="Decided since it was locked" />
+          <Head label="Decided since concept was defined" />
           {decided.map((k, i) => (
             <div key={k.id}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '9px 0' }}>

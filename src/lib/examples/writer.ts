@@ -196,18 +196,6 @@ export const writer: ExampleSource = {
         { title: 'Ask at the library about the Thursday writing group' },
       ],
     },
-    {
-      kind: 'palette',
-      pieces: ['half-past-five'],
-      at: { x: 0.08, y: 36 },
-      swatches: [
-        { hex: '#1E2A3A', name: 'Window at 5:30' },
-        { hex: '#E3B567', name: 'The lamp on the table' },
-        { hex: '#9AA3AB', name: 'Kettle steel' },
-        { hex: '#F1D9C4', name: 'First light' },
-        { hex: '#2B4C7E', name: 'Notebook cover' },
-      ],
-    },
   ],
 
   kept: [

@@ -140,9 +140,9 @@ export function PageHeader({
          buttons, a subtitle that wraps (any phone) pulled them down level
          with its last line and was itself squeezed between them. */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: eyebrow ? 'flex-end' : 'center', gap: 14, minWidth: 0, flex: 1 }}>
         {back && (
-          <div style={{ paddingBottom: 6 }}>
+          <div style={{ paddingBottom: eyebrow ? 6 : 0 }}>
             {typeof back === 'string' ? (
               <IconButton href={back} ariaLabel="Back">
                 <BackArrow />

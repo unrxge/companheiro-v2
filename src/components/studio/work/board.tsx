@@ -864,7 +864,7 @@ export function Board({
   /** The corner of an image or a task list, dragged to make it wider or
    *  narrower. Each kind has its own limits (lib/studio/board-items.ts). */
   const beginResize = useCallback((item: BoardItem) => (e: React.PointerEvent) => {
-    if (disabled || e.button !== 0) return
+    if (!canMove || e.button !== 0) return
     e.stopPropagation()
     e.preventDefault()
     const target = e.currentTarget as HTMLElement
@@ -887,7 +887,7 @@ export function Board({
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [act, canvas.zoom, disabled])
+  }, [act, canvas.zoom, canMove])
 
   /** Every hand placement, gone at once: hubs and items back under their pieces. */
 
@@ -1321,6 +1321,7 @@ export function Board({
                 born={born === it.id}
                 armed={armingItem === it.id}
                 disabled={disabled}
+                resizable={canMove}
                 padded={it.kind !== 'image'}
                 onConnect={() => { setArming(null); setArmingItem((cur) => (cur === it.id ? null : it.id)) }}
                 onRemove={() => act.removeItem(it)}
@@ -1342,6 +1343,7 @@ export function Board({
                     item={it}
                     asset={asset}
                     disabled={disabled}
+                    canRename={canMove}
                     onTitle={(title) => act.patchItem(it.id, { content: { title } })}
                     onStale={stale}
                   />
@@ -1350,6 +1352,7 @@ export function Board({
                   <PaletteBlock
                     item={it}
                     disabled={disabled}
+                    canRename={canMove}
                     onContent={(content) => act.patchItem(it.id, { content })}
                   />
                 )}

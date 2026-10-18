@@ -198,6 +198,7 @@ export function ConceptPanel({ node, projectId, conversationLog, vision = EMPTY_
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <ConceptMirror
+        parts={['core_truth', 'intent', 'emotional_journey', 'decided']}
         node={{ id: node.id, core_truth: node.core_truth, intent: node.intent, emotional_journey: node.emotional_journey, open_threads: node.open_threads }}
         changes={vision.changes}
         decided={kept.filter((k) => k.kind === 'decision' && (k.node_id === node.id || !k.node_id)).slice().reverse()}

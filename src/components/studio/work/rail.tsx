@@ -210,10 +210,12 @@ export function Drawer({
     <>
     {/* Below the Dock breakpoint the Dock sits along the bottom, so the panel stops above it, unless the Dock has stepped away. */}
     <style>{`
-      .rail-drawer, .rail-sheet { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); transition: bottom .2s ease; }
-      .rail-drawer[data-dock-away] { bottom: 16px; }
+      .rail-sheet { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px); transition: bottom .2s ease; }
       .rail-sheet[data-dock-away] { bottom: 0; }
-      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { bottom: 16px; } .rail-sheet { bottom: 0; } }
+      /* The panel is as tall as what is in it, and no taller than the room above the Dock. */
+      .rail-drawer { bottom: auto; max-height: calc(100dvh - 64px - max(14px, env(safe-area-inset-bottom)) - 66px); }
+      .rail-drawer[data-dock-away] { max-height: calc(100dvh - 64px - 16px); }
+      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { max-height: calc(100dvh - 64px - 16px); } .rail-sheet { bottom: 0; } }
     `}</style>
     <aside
       aria-label={title}
@@ -247,7 +249,7 @@ export function Drawer({
           ✕
         </button>
       </header>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 20 }}>{children}</div>
+      <div style={{ flex: sheet ? 1 : '0 1 auto', minHeight: 0, overflowY: 'auto', padding: 20 }}>{children}</div>
     </aside>
     </>
   )

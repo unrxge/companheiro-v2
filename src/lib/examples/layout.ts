@@ -30,14 +30,14 @@ export function readLayout(projectId: string): Layout {
   }
 }
 
-function send(projectId: string, layout: Layout | null) {
+function send(projectId: string, layout: Layout | null, edits: Record<string, Edit> | null = null) {
   try {
     void fetch('/api/examples/layout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       keepalive: true,
-      body: JSON.stringify({ project_id: projectId, layout }),
+      body: JSON.stringify({ project_id: projectId, layout, edits: layout === null ? null : edits ?? readEdits(projectId) }),
     }).catch(() => {})
   } catch {
     // Nothing depends on it.
@@ -54,8 +54,44 @@ export function keepSpot(projectId: string, id: string, at: Spot): Layout {
 
 /** Everything back where the example put it. */
 export function forgetLayout(projectId: string): void {
-  try { window.localStorage.removeItem(KEY(projectId)) } catch { /* nothing kept */ }
+  try { window.localStorage.removeItem(KEY(projectId)); window.localStorage.removeItem(EDITS(projectId)) } catch { /* nothing kept */ }
   send(projectId, null)
+}
+
+/** What else an example lets anyone change on an item: a task list's width, a palette's or a recording's name. */
+export type Edit = { w?: number; title?: string }
+const EDITS = (projectId: string) => `companheiro:example-edits:${projectId}`
+
+export function readEdits(projectId: string): Record<string, Edit> {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(EDITS(projectId)) ?? '{}') as Record<string, Edit>
+    const out: Record<string, Edit> = {}
+    for (const [id, e] of Object.entries(parsed ?? {})) {
+      if (!id.startsWith(projectId) || !e || typeof e !== 'object') continue
+      out[id] = {
+        ...(Number.isFinite(e.w) ? { w: Math.round(e.w as number) } : {}),
+        ...(typeof e.title === 'string' ? { title: e.title.slice(0, 120) } : {}),
+      }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+export function keepEdit(projectId: string, id: string, edit: Edit): void {
+  const next = { ...readEdits(projectId), [id]: { ...readEdits(projectId)[id], ...edit } }
+  try { window.localStorage.setItem(EDITS(projectId), JSON.stringify(next)) } catch { /* lasts this visit */ }
+  send(projectId, readLayout(projectId), next)
+}
+
+/** Items with what was renamed or resized laid over them. */
+export function withEdits<T extends { id: string; w: number | null; content: { title?: string } }>(rows: T[], edits: Record<string, Edit>): T[] {
+  return rows.map((row) => {
+    const e = edits[row.id]
+    if (!e) return row
+    return { ...row, ...(e.w !== undefined ? { w: e.w } : {}), content: e.title !== undefined ? { ...row.content, title: e.title } : row.content }
+  })
 }
 
 /** Rows with what was dragged laid over them. */

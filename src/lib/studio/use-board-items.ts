@@ -10,7 +10,7 @@ import type {
   BoardItem, BoardItemContent, CreateItemRequest, ItemsPayload, PatchItemRequest, ProjectTask,
 } from '@/lib/studio/board-items'
 import type { AssetView, SignUploadResponse } from '@/lib/studio/types'
-import { keepSpot, readLayout, withLayout, type Spot } from '@/lib/examples/layout'
+import { keepEdit, keepSpot, readEdits, readLayout, withEdits, withLayout, type Edit, type Spot } from '@/lib/examples/layout'
 
 const MEDIA_BUCKET = 'studio-media'
 /** The bucket's own ceiling (migration 030). */
@@ -98,7 +98,7 @@ export function useBoardItems(projectId: string, enabled: boolean) {
       if (!alive.current) return
       setReady(res.ready)
       // An example's items, with whatever this browser moved laid over them (lib/examples/layout.ts).
-      setItems(projectId.startsWith('example-') ? withLayout(res.items, readLayout(projectId)) : res.items)
+      setItems(projectId.startsWith('example-') ? withEdits(withLayout(res.items, readLayout(projectId)), readEdits(projectId)) : res.items)
       setAssets(Object.fromEntries(res.assets.map((a) => [a.id, a])))
       setTasks(res.tasks)
     } catch {
@@ -203,6 +203,12 @@ export function useBoardItems(projectId: string, enabled: boolean) {
     placeLocal: (id: string, at: Spot) => {
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, board_x: at?.x ?? null, board_y: at?.y ?? null } : it)))
       keepSpot(projectId, id, at)
+    },
+
+    /** An example's item renamed or resized: shown at once and kept in this browser, never sent. */
+    editLocal: (id: string, edit: Edit) => {
+      setItems((prev) => withEdits(prev, { [id]: edit }))
+      keepEdit(projectId, id, edit)
     },
 
     editContent: (id: string, content: BoardItemContent) => patch(id, { content }),

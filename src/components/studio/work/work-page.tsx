@@ -420,7 +420,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     ...(isExampleProject ? {
       movePiece: (id: string, at: { x: number; y: number } | null) => api.placeLocal('node', id, at),
       moveThread: (id: string, at: { x: number; y: number } | null) => api.placeLocal('thread', id, at),
-      patchItem: (id: string, patch: { board_x?: number | null; board_y?: number | null }) => {
+      patchItem: (id: string, patch: { board_x?: number | null; board_y?: number | null; w?: number | null; content?: { title?: string } }) => {
+        // A width, or a palette's or recording's name: the other things an example lets you change.
+        if (typeof patch.w === 'number' || typeof patch.content?.title === 'string') {
+          board.api.editLocal(id, { ...(typeof patch.w === 'number' ? { w: patch.w } : {}), ...(typeof patch.content?.title === 'string' ? { title: patch.content.title } : {}) })
+        }
         if ('board_x' in patch || 'board_y' in patch) {
           board.api.placeLocal(id, patch.board_x === null || patch.board_x === undefined || patch.board_y === null || patch.board_y === undefined ? null : { x: patch.board_x, y: patch.board_y })
         }
@@ -562,6 +566,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     </div>
   )
 
+  // In the core concept tab: the piece's own rules only, not the ones it inherits from the project.
+  const pieceRulesBlock = (
+    <RuleList rules={scopeRules} inherited={[]} disabled={readOnly} onChange={setScopeRules} />
+  )
+
   const companionDrawer = (
     <>
     <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)} sheet={sheeted}>
@@ -640,9 +649,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           <section style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Label>The rules</Label>
             <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
-              What this piece holds to. When it is marked done, or when you ask, the writing is read against them and a collision is pointed out.
+              What this piece holds to.
             </p>
-            {rulesBlock}
+            {pieceRulesBlock}
           </section>
         </div>
       )}

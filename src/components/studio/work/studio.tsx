@@ -371,11 +371,6 @@ export function Studio({
                     style={{ ...canvasType.label, color: t.textSecondary, letterSpacing: '0.08em' }}
                   />
                 </div>
-                {part.beat && (
-                  <span style={{ ...canvasType.small, color: t.textMuted, fontStyle: 'italic', flexShrink: 0 }}>
-                    {part.beat}
-                  </span>
-                )}
                 <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />
                 {!disabled && (
                   <div className="part-actions">
