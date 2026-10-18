@@ -71,19 +71,14 @@ export function litBy(focus: WebFocus | null, web: Web): Lit | null {
     lit.pieces.add(focus.id)
     for (const thread of web.threads) if (thread.on.includes(focus.id)) reach(thread, lit.threads)
     for (const item of web.items) if (item.on.includes(focus.id)) reach(item, lit.items)
-    return lit
+  } else {
+    const from = focus.kind === 'hub' ? web.threads : web.items
+    const strand = from.find((s) => s.id === focus.id)
+    if (strand) reach(strand, focus.kind === 'hub' ? lit.threads : lit.items)
   }
-
-  const from = focus.kind === 'hub' ? web.threads : web.items
-  const strand = from.find((s) => s.id === focus.id)
-  // Something with nothing on it still lights itself, so resting on it says
-  // "this reaches nothing" rather than looking like nothing happened.
-  if (!strand) {
-    (focus.kind === 'hub' ? lit.threads : lit.items).add(focus.id)
-    return lit
-  }
-  reach(strand, focus.kind === 'hub' ? lit.threads : lit.items)
-  return lit
+  // Connected to nothing, there is nothing to follow: the board stays as it
+  // is, rather than going dark round a card with no strands of its own.
+  return lit.lines.size === 0 ? null : lit
 }
 
 /** Is this one of the things lit? Nothing lit means everything reads normally. */

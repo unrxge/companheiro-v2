@@ -52,12 +52,11 @@ test('resting on something hanging there lights the pieces it is on', () => {
   assert.equal(lit.threads.size, 0)
 })
 
-test('something connected to nothing still lights itself', () => {
-  const thread = litBy({ kind: 'hub', id: 'alone' }, web)!
-  assert.deepEqual([...thread.threads], ['alone'])
-  assert.equal(thread.pieces.size, 0)
-  const gone = litBy({ kind: 'item', id: 'not-here' }, web)!
-  assert.deepEqual([...gone.items], ['not-here'])
+test('something connected to nothing lights nothing, rather than darkening the board', () => {
+  assert.equal(litBy({ kind: 'hub', id: 'alone' }, web), null)
+  assert.equal(litBy({ kind: 'item', id: 'loose' }, web), null)
+  assert.equal(litBy({ kind: 'item', id: 'not-here' }, web), null)
+  assert.equal(litBy({ kind: 'piece', id: 'nobody' }, web), null)
 })
 
 test('isLit answers for each kind', () => {

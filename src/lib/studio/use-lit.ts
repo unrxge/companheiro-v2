@@ -109,6 +109,48 @@ export function useLit(enabled = true): Lit {
 
   useEffect(() => () => { stopTimer(); stopDwell(); stopLeaving() }, [stopTimer, stopDwell, stopLeaving])
 
+  // A mouse's answer is only as good as the pointer still being there. A
+  // "leave" does not always arrive: the board can pan or zoom under a pointer
+  // that has not moved, the block can be drawn again under it, a drag can end
+  // somewhere else. So while something is lit by a mouse, where the pointer
+  // really is is checked on every move, and on a wheel or a scroll (which move
+  // the board, not the pointer), and the answer goes the moment the pointer is
+  // not over that thing, or has left the window altogether.
+  const lastAt = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    if (!enabled || !focus || held.current) return
+    const id = focus.id
+    const over = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null
+      return !!el?.closest?.(`[data-lit="${CSS.escape(id)}"]`)
+    }
+    const check = () => {
+      const at = lastAt.current
+      if (at && !over(at.x, at.y)) clear()
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      lastAt.current = { x: e.clientX, y: e.clientY }
+      if (!over(e.clientX, e.clientY)) clear()
+    }
+    // After the board has moved under the pointer, not before. A timer, not
+    // an animation frame: frames stop in a tab that is not being drawn.
+    const soon = () => { window.setTimeout(check, 60) }
+    const gone = () => clear()
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('wheel', soon, { capture: true, passive: true })
+    window.addEventListener('scroll', soon, true)
+    window.addEventListener('blur', gone)
+    document.documentElement.addEventListener('pointerleave', gone)
+    return () => {
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('wheel', soon, true)
+      window.removeEventListener('scroll', soon, true)
+      window.removeEventListener('blur', gone)
+      document.documentElement.removeEventListener('pointerleave', gone)
+    }
+  }, [enabled, focus, clear])
+
   const bind = useCallback((kind: WebKind, id: string) => ({
     'data-lit': id,
     onPointerEnter: (e: React.PointerEvent) => {
@@ -119,6 +161,7 @@ export function useLit(enabled = true): Lit {
       stopLeaving()
       stopDwell()
       dwellAt.current = { x: e.clientX, y: e.clientY }
+      lastAt.current = { x: e.clientX, y: e.clientY }
       dwell.current = window.setTimeout(() => {
         dwell.current = null
         dwellAt.current = null
