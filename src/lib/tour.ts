@@ -15,7 +15,7 @@ export function markTourSeen(): void {
 // date of birth, what their practice looks like and the themes their work returns to.
 // The themes become their Idea Lab territories (PUT /api/onboarding); the rest
 // is kept in the auth user's metadata and decides which parts of the app the
-// tour shows them (see slidesFor in components/tour/slides.tsx).
+// tour shows them (see tourSlides in components/tour/slides.tsx).
 
 export const PRACTICES = [
   { key: 'writer', label: 'Writer' },

@@ -2,9 +2,11 @@
 
 // A new account's first screen, full page. Two short steps ask who is here
 // (a name, a date of birth), what their practice looks like and what their
-// work keeps returning to. Then the tour: the four parts of the app that fit
-// what they said, each described in their own terms (copy.ts), and a fifth
-// slide that names the rest and asks whether they are ready. Only the tour's
+// work keeps returning to. Then a short tour that does not explain the app
+// (the example projects on the board walk them round the canvas and the
+// writing page): where ideas come from, why a project starts from its concept,
+// and one habit chosen for their practice, each said in their own terms
+// (copy.ts), then how to get the most from it and where to begin. Only the tour's
 // slides are numbered, Skip is only offered once the two steps are answered,
 // and Back from the first slide returns to them. Opened again from Settings,
 // it is the tour alone.
@@ -25,8 +27,8 @@ import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
 import { ageFrom, cleanName, GENERAL_QUESTIONS, MAX_NAME, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
-import { tourCopy } from './copy'
-import { slidesFor, type TourSlide } from './slides'
+import { BEST_VALUE, tourCopy } from './copy'
+import { tourSlides } from './slides'
 
 const hues = tokensFor('dark')
 const FADE = 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%)'
@@ -411,18 +413,22 @@ function BackArrow() {
   )
 }
 
-// ── The tour: four parts chosen for them, then the rest by name ─────────────
+// ── The tour: three slides chosen for them, then where to begin ─────────────
 
 /** The last slide's visual: what else is inside, and the themes they gave. */
-function AlsoInside({ rest, themes, analytics }: { rest: TourSlide[]; themes: string[]; analytics?: { on: boolean; set: (on: boolean) => void } }) {
+/** The last slide's visual: how to get the most from the app, the themes they gave, and the analytics switch. */
+function BestValue({ themes, analytics }: { themes: string[]; analytics?: { on: boolean; set: (on: boolean) => void } }) {
   const { t } = useTheme()
   return (
     <Container padding={12}>
       <Card padding="6px 18px">
-        {rest.map((s, i) => (
-          <div key={s.id} style={{ padding: '11px 0', borderBottom: i < rest.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
-            <p style={{ ...typeRoles.h3, color: t.textPrimary }}>{s.where}</p>
-            <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 1 }}>{s.short}</p>
+        {BEST_VALUE.map((v, i) => (
+          <div key={v.title} className="flex gap-3" style={{ padding: '12px 0', borderBottom: i < BEST_VALUE.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+            <span aria-hidden style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, minWidth: 14 }}>{i + 1}</span>
+            <div>
+              <p style={{ ...typeRoles.h3, color: t.textPrimary }}>{v.title}</p>
+              <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 1 }}>{v.body}</p>
+            </div>
           </div>
         ))}
       </Card>
@@ -467,8 +473,8 @@ function Carousel({
   const reduce = useReducedMotion()
   const track = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
-  const { shown, rest } = useMemo(() => slidesFor(practices), [practices])
-  // The parts chosen for them, then one more that names the rest.
+  const shown = useMemo(() => tourSlides(practices), [practices])
+  // The parts chosen for them, then one on getting the most from it all.
   const count = shown.length + 1
   const last = index === count - 1
   // Usage analytics: on unless they say otherwise here. Arriving at the slide counts as having been told.
@@ -520,7 +526,7 @@ function Carousel({
     return () => window.removeEventListener('keydown', onKey)
   }, [go, index])
 
-  const names = [...shown.map((s) => s.where), 'And more']
+  const names = [...shown.map((s) => s.where), 'Begin']
   const begin = firstRun ? 'Begin' : 'Done'
   const back = index > 0 ? () => go(index - 1) : onQuestions
 
@@ -555,14 +561,19 @@ function Carousel({
                   <p style={{ ...typeRoles.eyebrow, color: hues[s ? s.mood : 'tide'] }}>
                     <span style={{ color: shell.muted }}>{i + 1} of {count} · </span>{where}
                   </p>
-                  <h2 className="mt-3.5 lg:mt-2.5" style={TITLE}>{say ? say.title : name ? `That’s the heart of it, ${name}.` : 'That’s the heart of it.'}</h2>
+                  <h2 className="mt-3.5 lg:mt-2.5" style={TITLE}>{say ? say.title : name ? `Where to begin, ${name}.` : 'Where to begin.'}</h2>
                   <p className={LEDE} style={LEDE_STYLE}>
-                    {say ? say.body : 'There’s more inside, and you’ll meet each part when you need it. Nothing here has to be learned first.'}
+                    {say
+                      ? say.body
+                      : firstRun
+                        // New accounts find example projects on their board, and the first one opened walks them round it.
+                        ? 'Your Project Board has an example project for the kind of work you do. Open it first: it shows you round the canvas and the writing page, and nothing you do there can break it.'
+                        : 'The rest you’ll meet as you need it. Nothing here has to be learned first.'}
                   </p>
                   {!s && <p className={LEDE} style={{ ...LEDE_STYLE, color: shell.text }}>Ready to begin?</p>}
                 </div>
                 <div className="w-full">
-                  {s ? <s.Widget key={runs[i]} active={i === index} own={s.id === 'idea' ? own : undefined} /> : <AlsoInside rest={rest} themes={themes} analytics={onAnalytics ? { on: share, set: (on) => { setShare(on); onAnalytics(on) } } : undefined} />}
+                  {s ? <s.Widget key={runs[i]} active={i === index} own={s.id === 'idea' ? own : undefined} /> : <BestValue themes={themes} analytics={onAnalytics ? { on: share, set: (on) => { setShare(on); onAnalytics(on) } } : undefined} />}
                 </div>
               </div>
             </section>

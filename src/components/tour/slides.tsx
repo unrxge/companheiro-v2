@@ -1,14 +1,13 @@
 // The tour's slides: one part of the app each, with a plain headline, when to
-// use it, and a small working copy of the real screen. After sign-up the tour
-// shows the four that fit what the person said their practice is (slidesFor)
-// and names the rest; the landing page shows four (see landing.tsx, Inside).
+// use it, and a small working copy of the real screen. The landing page shows
+// four (see landing.tsx, Inside); after sign-up the tour shows three, chosen
+// by tourSlides below and said in the person's own terms (copy.ts).
 
 import type { Hue } from '@/lib/design-tokens'
 import type { Practice } from '@/lib/tour'
-import { CanvasMockup, RuleHeardMockup } from '@/components/landing/mockups'
 import { BoardWidget, CaptureWidget, CheckInWidget, ConceptualiseWidget, PortraitWidget, SummonWidget, WritingWidget, type TourWidgetProps } from './widgets'
 
-export type SlideId = 'idea' | 'conceptualise' | 'board' | 'canvas' | 'rules' | 'writing' | 'checkin' | 'portrait' | 'capture'
+export type SlideId = 'idea' | 'conceptualise' | 'board' | 'writing' | 'checkin' | 'portrait' | 'capture'
 export interface TourSlide {
   id: SlideId
   where: string
@@ -86,55 +85,40 @@ export const SLIDES: TourSlide[] = [
   },
 ]
 
-// Parts of the app the landing page shows in its own sections, and the tour
-// shows to the people they are for.
-const MORE: TourSlide[] = [
-  {
-    id: 'canvas',
-    where: 'Canvas',
-    short: 'A project’s pieces, references, recordings and tasks, side by side.',
-    title: 'Lay the whole project out.',
-    body: 'Open a project and everything it needs sits on one canvas: the pieces, a reference image, a voice note, the tasks. Threads show what connects, so you can see the shape of the work at a glance.',
-    mood: 'verdant',
-    Widget: ({ active }) => <CanvasMockup compact active={active} />,
-  },
-  {
-    id: 'rules',
-    where: 'Vision',
-    short: 'Say a rule once while you talk a project through, and it’s kept.',
-    title: 'Say a rule once. It keeps it for you.',
-    body: 'Mention a line you won’t cross while you talk the work through, and it asks whether to keep it. Kept rules come back as a question when new work runs against them, and never become rules without you.',
-    mood: 'violet',
-    Widget: () => <RuleHeardMockup />,
-  },
-]
+// ── After sign-up ───────────────────────────────────────────────────────────
+// The Project Board, the canvas, the vision room and the writing page are
+// shown by walking round an example project the first time one is opened
+// (lib/examples/tour-script.ts), so the tour leaves them out. It shows what
+// those walks do not: where an idea comes from (their own themes), why every
+// project starts from its concept, and one habit chosen for the kind of work
+// they said they do. The last slide is how to get the most from the app.
 
-const ALL: TourSlide[] = [...SLIDES, ...MORE]
-/** The order the parts are met in when making something. */
-const FLOW: SlideId[] = ['idea', 'conceptualise', 'board', 'canvas', 'rules', 'writing', 'checkin', 'portrait', 'capture']
-const SHOWN = 4
+export type HabitId = 'capture' | 'checkin' | 'portrait'
 
-// What matters most to each kind of practice, first to fourth (also read by copy.ts,
-// to decide whose words a slide is said in). Someone who
-// picks several gets the parts their choices agree on.
-export const RANK: Record<Practice | 'none', SlideId[]> = {
-  writer: ['conceptualise', 'writing', 'idea', 'portrait'],
-  songwriter: ['idea', 'writing', 'canvas', 'conceptualise'],
-  cinematographer: ['canvas', 'conceptualise', 'rules', 'board'],
-  creator: ['idea', 'capture', 'writing', 'board'],
-  client: ['board', 'rules', 'canvas', 'conceptualise'],
-  director: ['rules', 'canvas', 'board', 'conceptualise'],
-  none: ['conceptualise', 'board', 'writing', 'idea'],
+/** The one habit that pays off most for each kind of practice. */
+const HABIT: Record<Practice, HabitId> = {
+  writer: 'portrait',
+  songwriter: 'checkin',
+  cinematographer: 'capture',
+  creator: 'capture',
+  client: 'checkin',
+  director: 'capture',
 }
 
-/** The four parts to show someone with these practices, and the rest to name. Both in the order they are met. */
-export function slidesFor(practices: Practice[]): { shown: TourSlide[]; rest: TourSlide[] } {
-  const score = new Map<SlideId, number>()
-  for (const p of practices.length ? practices : (['none'] as const)) {
-    RANK[p].forEach((id, i) => score.set(id, (score.get(id) ?? 0) + RANK[p].length - i))
-  }
-  const byFlow = (a: SlideId, b: SlideId) => FLOW.indexOf(a) - FLOW.indexOf(b)
-  const picked = [...score.keys()].sort((a, b) => score.get(b)! - score.get(a)! || byFlow(a, b)).slice(0, SHOWN)
-  const of = (ids: SlideId[]) => ids.sort(byFlow).map((id) => ALL.find((s) => s.id === id)!)
-  return { shown: of(picked), rest: of(FLOW.filter((id) => !picked.includes(id))) }
+/** The habit most of their practices share; a tie goes to the one they named first. Talk, when they named none. */
+export function habitFor(practices: Practice[]): HabitId {
+  if (!practices.length) return 'checkin'
+  const count = (h: HabitId) => practices.filter((p) => HABIT[p] === h).length
+  return practices.map((p) => HABIT[p]).reduce((best, h) => (count(h) > count(best) ? h : best))
+}
+
+/** Of the practices they named, the one that habit is chosen for (whose words its slide is said in). */
+export function practiceFor(habit: HabitId, practices: Practice[]): Practice | undefined {
+  return practices.find((p) => HABIT[p] === habit) ?? practices[0]
+}
+
+/** The tour's slides for someone with these practices, in order. */
+export function tourSlides(practices: Practice[]): TourSlide[] {
+  const want: SlideId[] = ['idea', 'conceptualise', habitFor(practices)]
+  return want.map((id) => SLIDES.find((s) => s.id === id)!)
 }
