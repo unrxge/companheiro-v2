@@ -29,6 +29,7 @@ export function PieceCard({
   onMove,
   first,
   last,
+  compact = false,
   dimmed = false,
   targeted = false,
   disabled = false,
@@ -42,6 +43,8 @@ export function PieceCard({
   onMove: (delta: -1 | 1) => void
   first: boolean
   last: boolean
+  /** A narrow card (a project of four pieces or more): tighter margins, a smaller title, shorter labels. */
+  compact?: boolean
   /** Something else on the board is being connected and this is not part of it. */
   dimmed?: boolean
   /** Waiting to be picked as the other end of a connection. */
@@ -61,6 +64,10 @@ export function PieceCard({
 
   const preview = previewOf(node, 1500)
   const words = extentOf(node)
+  // Everything that has a size of its own comes down together, so a narrow
+  // card is the same card smaller and not the wide one squeezed.
+  const pad = compact ? 16 : 24
+  const titleSize = compact ? 20 : 26
 
   const commit = () => {
     setRenaming(false)
@@ -85,7 +92,7 @@ export function PieceCard({
       }}
     >
       {/* ── the head: what it is called, and what can be done to it ─────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '22px 24px 10px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: compact ? '16px 16px 8px' : '22px 24px 10px', flexShrink: 0 }}>
         {renaming ? (
           <input
             ref={field}
@@ -100,14 +107,14 @@ export function PieceCard({
             style={{
               flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
               padding: 0, color: t.textPrimary,
-              fontFamily: fonts.display, fontWeight: 600, fontSize: 26, lineHeight: 1.18, letterSpacing: '-0.02em',
+              fontFamily: fonts.display, fontWeight: 600, fontSize: titleSize, lineHeight: 1.18, letterSpacing: '-0.02em',
             }}
           />
         ) : (
           <h2
             style={{
               flex: 1, minWidth: 0, margin: 0, color: node.title ? t.textPrimary : t.textMuted,
-              fontFamily: fonts.display, fontWeight: 600, fontSize: 26, lineHeight: 1.18, letterSpacing: '-0.02em',
+              fontFamily: fonts.display, fontWeight: 600, fontSize: titleSize, lineHeight: 1.18, letterSpacing: '-0.02em',
               display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
               maxHeight: '2.36em',
             }}
@@ -146,7 +153,7 @@ export function PieceCard({
       {node.intent && (
         <p
           style={{
-            ...canvasType.small, color: t.textSecondary, margin: '0 0 12px', padding: '0 24px',
+            ...canvasType.small, color: t.textSecondary, margin: '0 0 10px', padding: `0 ${pad}px`,
             // Two lines, hard. The gap below is a margin and not padding on
             // purpose: overflow clips at the padding box, so padding here would
             // let a third, half-cut line show through over the words.
@@ -168,14 +175,14 @@ export function PieceCard({
           // Chrome centres a button's content vertically whatever its display is;
           // the words have to start at the top of the card, so say so explicitly
           display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
-          background: 'none', border: 'none', padding: '0 24px', textAlign: 'left',
+          background: 'none', border: 'none', padding: `0 ${pad}px`, textAlign: 'left',
           cursor: 'pointer', overflow: 'hidden',
           maskImage: 'linear-gradient(to bottom, #000 62%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to bottom, #000 62%, transparent 100%)',
         }}
       >
         {preview ? (
-          <p style={{ ...canvasType.body, fontSize: 15.5, lineHeight: 1.62, color: t.textPrimary, margin: 0, whiteSpace: 'pre-wrap' }}>
+          <p style={{ ...canvasType.body, fontSize: compact ? 14 : 15.5, lineHeight: 1.6, color: t.textPrimary, margin: 0, whiteSpace: 'pre-wrap' }}>
             {preview}
           </p>
         ) : (
@@ -188,11 +195,11 @@ export function PieceCard({
       {/* ── the foot: only what the words cannot say themselves ─────────── */}
       <div
         style={{
-          display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
-          padding: '10px 24px 16px', ...canvasType.chip, color: t.textMuted,
+          display: 'flex', alignItems: 'center', gap: compact ? 8 : 12, flexShrink: 0,
+          padding: compact ? `8px ${pad}px 14px` : '10px 24px 16px', ...canvasType.chip, color: t.textMuted,
         }}
       >
-        <span>{words.toLocaleString()} {words === 1 ? 'word' : 'words'}</span>
+        <span>{compact ? words.toLocaleString() : `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`}</span>
         {node.children.length > 0 && <span>{node.children.length} parts</span>}
         {node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
 
@@ -204,11 +211,11 @@ export function PieceCard({
           aria-label={`${words > 0 ? 'Resume' : 'Begin'} writing ${node.title || 'this piece'}`}
           style={{
             marginLeft: 'auto', flexShrink: 0, ...canvasType.chip, fontSize: 12, fontWeight: 600,
-            padding: '6px 12px', borderRadius: radius.field, cursor: 'pointer',
+            padding: compact ? '6px 10px' : '6px 12px', borderRadius: radius.field, cursor: 'pointer',
             border: `1px solid ${alpha(t.tide, 0.4)}`, background: alpha(t.tide, 0.1), color: t.tide,
           }}
         >
-          {words > 0 ? 'Resume writing' : 'Begin writing'}
+          {compact ? (words > 0 ? 'Resume' : 'Begin') : (words > 0 ? 'Resume writing' : 'Begin writing')}
         </button>
       </div>
     </div>

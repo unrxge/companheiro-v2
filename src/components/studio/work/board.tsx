@@ -81,9 +81,18 @@ const WEB_GAP = 46      // space between the cards and the web below them
 // centred on its first two, rather than at 100% on the last one worked on.
 const WIDE_OPEN_AFTER = 3
 const WIDE_OPEN_ZOOM = 0.69
-// From this many pieces the cards are drawn at CROWDED_SCALE of their size.
+// From this many pieces the cards come down in size, so more of the lane is
+// in view at once. Width does most of the work — it is what the lane is
+// measured in, and what made a project of six pieces a long way to walk —
+// and height gives up less, because a card too short stops showing any of its
+// words. Floors keep either from going below what a card can still be read at.
 const CROWDED_AT = 4
-const CROWDED_SCALE = 0.85
+const CROWDED_W_SCALE = 0.56
+const CROWDED_H_SCALE = 0.8
+const CROWDED_MIN_W = 300
+const CROWDED_MIN_H = 290
+/** At or under this a card drops to its compact face (see `PieceCard`). */
+export const COMPACT_CARD_W = 440
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
@@ -293,9 +302,21 @@ export function Board({
 
   // Four pieces or more and the cards come down a size, so more of the lane
   // is in view at once (the person's decision, 2026-10-17).
-  const crowded = pieces.length >= CROWDED_AT ? CROWDED_SCALE : 1
-  const cardW = Math.round((frame.w ? laneCardWidth(frame.w, GAP) : 520) * crowded)
-  const cardH = Math.round((frame.h ? Math.min(560, Math.max(340, frame.h * 0.5)) : 420) * crowded)
+  const crowded = pieces.length >= CROWDED_AT
+  const fullW = frame.w ? laneCardWidth(frame.w, GAP) : 520
+  const fullH = frame.h ? Math.min(560, Math.max(340, frame.h * 0.5)) : 420
+  // Wide enough to take the whole project in one frame when it can, and no
+  // wider than the scale cap: a window that could hold four pieces at 600 each
+  // does not need them that big. Never below the floor, past which the words
+  // stop being readable and the board is simply walked instead.
+  // The board opens zoomed out from this many pieces (WIDE_OPEN_ZOOM), so the
+  // room a project has to fit in is the frame as seen at that zoom, not at 100%.
+  const fitFrame = frame.w ? frame.w / WIDE_OPEN_ZOOM : 0
+  const fitW = fitFrame ? Math.floor((fitFrame - MARGIN * 2 + GAP) / pieces.length - GAP) : Infinity
+  const cardW = crowded
+    ? Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW)))
+    : fullW
+  const cardH = crowded ? Math.round(Math.max(CROWDED_MIN_H, Math.min(fullH, fullH * CROWDED_H_SCALE))) : fullH
   // Kept in proportion with the piece cards, not a width of its own — a
   // fixed one dwarfed a lane of narrower cards on anything but a wide window.
   const visionW = visionWidth(cardW)
@@ -1268,6 +1289,7 @@ export function Board({
                 node={piece}
                 width={cardW}
                 height={cardH}
+                compact={cardW <= COMPACT_CARD_W}
                 first={i === 0}
                 last={i === pieces.length - 1}
                 dimmed={Boolean(armedOn && armedOn.has(piece.id))}
