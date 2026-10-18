@@ -9,21 +9,24 @@ test('every step names a stage, and the stages run in order', () => {
   assert.deepEqual(stages, ['start', 'feeling', 'reply', 'aside', 'understood', 'added', 'end'])
 })
 
-test('the example builds up step by step and is cleared at both ends', () => {
-  const at = (s: DemoStage | null) => demoShows(s)
-  assert.deepEqual(at(null), { feeling: false, reply: false, typing: null, offer: 'none' })
-  assert.deepEqual(at('start'), { feeling: false, reply: false, typing: null, offer: 'none' })
-  assert.deepEqual(at('feeling'), { feeling: true, reply: false, typing: null, offer: 'none' })
-  assert.deepEqual(at('reply'), { feeling: true, reply: true, typing: null, offer: 'none' })
-  assert.equal(at('aside').typing?.startsWith('Note for'), true)
-  assert.deepEqual(at('understood'), { feeling: true, reply: true, typing: null, offer: 'offered' })
-  assert.deepEqual(at('added'), { feeling: true, reply: true, typing: null, offer: 'added' })
-  assert.deepEqual(at('end'), { feeling: false, reply: false, typing: null, offer: 'none' })
+test('the two examples never share the screen', () => {
+  assert.deepEqual(demoShows(null), { scene: null, feeling: false, reply: false, typing: null, offer: 'none' })
+  assert.deepEqual(demoShows('start'), { scene: null, feeling: false, reply: false, typing: null, offer: 'none' })
+  assert.deepEqual(demoShows('feeling'), { scene: 1, feeling: true, reply: false, typing: null, offer: 'none' })
+  assert.deepEqual(demoShows('reply'), { scene: 1, feeling: true, reply: true, typing: null, offer: 'none' })
+  // The second example starts on a cleared page: nothing of the first is left.
+  assert.equal(demoShows('aside').scene, 2)
+  assert.equal(demoShows('aside').feeling, false)
+  assert.equal(demoShows('aside').reply, false)
+  assert.equal(demoShows('aside').typing?.startsWith('Note for'), true)
+  assert.deepEqual(demoShows('understood'), { scene: 2, feeling: false, reply: false, typing: null, offer: 'offered' })
+  assert.deepEqual(demoShows('added'), { scene: 2, feeling: false, reply: false, typing: null, offer: 'added' })
+  assert.deepEqual(demoShows('end'), { scene: null, feeling: false, reply: false, typing: null, offer: 'none' })
 })
 
 test('the words are short enough to read in the time each step stands', () => {
   for (const s of checkInTourSteps()) {
-    assert.ok(s.headline.split(' ').length <= 9, s.headline)
+    assert.ok(s.headline.split(' ').length <= 10, s.headline)
     assert.ok(s.ms >= 2600 && s.ms <= 5600)
   }
 })

@@ -89,7 +89,7 @@ export type TourAnchor =
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
   // the check-in
-  | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added'
+  | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added' | 'checkin-scene'
 
 /** A panel on the writing page the tour opens (or closes, with null). */
 export type TourPanel = 'concept' | 'anchors' | 'assistant'

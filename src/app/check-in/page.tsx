@@ -12,7 +12,7 @@ import type { ProposedNote, IntentMode } from '@/lib/check-in-intent'
 import { NoteOfferCard, type NoteOffer } from '@/components/check-in/note-offer'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
-import { checkInTourSteps, demoShows, DEMO, type DemoStage } from '@/lib/check-in-tour'
+import { checkInTourSteps, demoShows, DEMO, SCENES, type DemoStage } from '@/lib/check-in-tour'
 import { usePhone } from '@/lib/use-phone'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
@@ -724,7 +724,22 @@ export default function CheckInPage() {
         </m.div>
       ) : (
         <Container>
-          <div style={{ maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* The walk's two examples are two scenes: each fades in on its own,
+              under a label saying which it is, and the first is gone before
+              the second begins. */}
+          <m.div
+            key={showingDemo ? `scene-${demo.scene ?? 0}` : 'live'}
+            initial={showingDemo ? { opacity: 0, y: 14 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            style={{ maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}
+          >
+            {showingDemo && demo.scene && (
+              <div data-tour="checkin-scene" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                <Pill hue={demo.scene === 1 ? 'tide' : 'ochre'} size="md">{SCENES[demo.scene].label}</Pill>
+                <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary }}>{SCENES[demo.scene].title}</span>
+              </div>
+            )}
             <div data-tour="checkin-thread">
             <Thread messages={shownMessages} streaming={!showingDemo && isProcessing} align="left">
               {/* Read aloud for the last companion reply */}
@@ -838,7 +853,7 @@ export default function CheckInPage() {
               {inputArea}
             </div>
             <div ref={messagesEndRef} style={{ height: 1 }} />
-          </div>
+          </m.div>
         </Container>
       )}
 

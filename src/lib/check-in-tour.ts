@@ -24,17 +24,34 @@ export const DEMO = {
 
 export type DemoStage = 'start' | 'feeling' | 'reply' | 'aside' | 'understood' | 'added' | 'end'
 
+/**
+ * The two examples are two separate moments, not one conversation: the first
+ * (checking in) clears away completely before the second (a thought on the
+ * go) begins, and each is labelled as which example it is.
+ */
+export const SCENES = {
+  1: { label: 'Example 1 of 2', title: 'Checking in' },
+  2: { label: 'Example 2 of 2', title: 'A thought on the go, for a project' },
+} as const
+
 /** What a stage puts on screen. */
-export function demoShows(stage: DemoStage | null): { feeling: boolean; reply: boolean; typing: string | null; offer: 'none' | 'offered' | 'added' } {
-  const order: DemoStage[] = ['start', 'feeling', 'reply', 'aside', 'understood', 'added', 'end']
-  const at = stage ? order.indexOf(stage) : -1
-  const live = at > 0 && at < order.indexOf('end')
+export function demoShows(stage: DemoStage | null): {
+  scene: 1 | 2 | null
+  feeling: boolean
+  reply: boolean
+  typing: string | null
+  offer: 'none' | 'offered' | 'added'
+} {
+  const scene = stage === 'feeling' || stage === 'reply' ? 1
+    : stage === 'aside' || stage === 'understood' || stage === 'added' ? 2
+    : null
   return {
-    feeling: live && at >= order.indexOf('feeling'),
-    reply: live && at >= order.indexOf('reply'),
+    scene,
+    feeling: scene === 1,
+    reply: stage === 'reply',
     // Being said, before it has been sent.
     typing: stage === 'aside' ? DEMO.aside : null,
-    offer: !live || at < order.indexOf('understood') ? 'none' : at >= order.indexOf('added') ? 'added' : 'offered',
+    offer: stage === 'understood' ? 'offered' : stage === 'added' ? 'added' : 'none',
   }
 }
 
@@ -48,27 +65,27 @@ export function checkInTourSteps(): TourStep[] {
       lines: ['Out loud or in writing. A sentence is enough.'],
     }),
     step({
-      key: 'feeling', stage: 'feeling', show: { anchor: 'checkin-thread' },
-      headline: 'A check-in is just how you are.',
+      key: 'feeling', stage: 'feeling', show: { anchor: ['checkin-scene', 'checkin-thread'] },
+      headline: 'First, checking in: just how you are.',
       lines: ['A hard night, a good day, something you keep turning over.'],
     }),
     step({
-      key: 'reply', stage: 'reply', show: { anchor: 'checkin-thread' },
+      key: 'reply', stage: 'reply', show: { anchor: ['checkin-scene', 'checkin-thread'] },
       headline: 'It is reflected back, then one question.',
       lines: ['Not advice. Something to see your own words by, if you want to keep going.'],
     }),
     step({
-      key: 'aside', stage: 'aside', show: { anchor: 'checkin-start' },
-      headline: 'Or leave something on a project.',
-      lines: ['A thought on the go, an idea, something not to forget. Say which project it is for.'],
+      key: 'aside', stage: 'aside', show: { anchor: ['checkin-scene', 'checkin-start'] },
+      headline: 'Second, a different moment: a thought on the go.',
+      lines: ['An idea for a project, or something not to forget. Say which project it is for.'],
     }),
     step({
-      key: 'understood', stage: 'understood', show: { anchor: 'checkin-note' },
+      key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] },
       headline: 'You see what it understood first.',
       lines: ['The words, the project, a thought or a reminder. Change any of it, or say it was a check-in.'],
     }),
     step({
-      key: 'added', stage: 'added', show: { anchor: 'checkin-added' },
+      key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] },
       headline: 'It waits on the project’s canvas.',
       lines: ['Like a note on the wall, there the next time you open it.'],
     }),
