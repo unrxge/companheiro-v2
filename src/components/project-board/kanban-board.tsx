@@ -187,7 +187,6 @@ function Board() {
   // The example projects (lib/examples): read-only, never stored, chosen from
   // the practices named at sign-up. Shown under Active until put away.
   const [examples, setExamples] = useState<ExampleCard[]>([])
-  const [otherExamples, setOtherExamples] = useState(false)
   const [examplesAway, setExamplesAway] = useState(false)
 
   const load = useCallback(async () => {
@@ -635,26 +634,22 @@ function Board() {
       )
     }
     if (examples.length === 0) return null
-    const theirs = examples.filter((e) => e.example.matched)
-    const rest = examples.filter((e) => !e.example.matched)
-    const shown = otherExamples ? [...theirs, ...rest] : theirs
+    // The order is the person's own: the formats they chose in onboarding come
+    // first, in the order they chose them (examplesFor), and the rest follow, so
+    // the first card is always the nearest to what they make.
+    const shown = examples
     const link: React.CSSProperties = {
       fontSize: 12, color: c.textSecondary, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
       textDecoration: 'underline', textUnderlineOffset: 3,
     }
     return (
-      <section aria-label="Examples" style={{ padding: '14px 0 14px', borderBottom: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
+      <section aria-label="Examples" className="pb-[calc(76px+env(safe-area-inset-bottom))] min-[720px]:pb-3.5" style={{ paddingTop: 14, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
         <div style={{ padding: '0 16px', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 16px' }}>
           <h3 style={{ ...columnEyebrow, color: c.textMuted, marginRight: 'auto' }} className="min-[720px]:!mr-0">Examples</h3>
           <p className="hidden min-[720px]:block" style={{ fontSize: 12.5, color: c.textMuted, margin: 0, lineHeight: 1.5, flex: '1 1 260px' }}>
             Projects made the way artists use Companheiro. Open one to look around; nothing in them can be changed.
           </p>
           <span style={{ display: 'inline-flex', gap: 14 }}>
-            {rest.length > 0 && (
-              <button type="button" onClick={() => setOtherExamples((v) => !v)} style={link}>
-                {otherExamples ? 'Only the ones for my work' : `Show ${rest.length === 1 ? 'the other example' : `the other ${rest.length}`}`}
-              </button>
-            )}
             <button type="button" onClick={putExamplesAway} style={link}>Put these away</button>
           </span>
         </div>
@@ -737,8 +732,6 @@ function Board() {
         {/* Tabs until there is room for three columns (1080px+). Deliberately wider
             than Tailwind's md: a portrait iPad (744-1024px) cannot fit two fixed
             260px columns plus a readable Active column. */}
-        {renderExamples()}
-
         <div className="min-[1080px]:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
           {COLUMNS.map((name) => (
             <button
@@ -777,6 +770,9 @@ function Board() {
             {counts[activeTab] === 0 && emptyLine(activeTab)}
           </div>
         </div>
+
+        {/* Across the foot of the board, under all three columns. */}
+        {renderExamples()}
 
       </Container>
 
