@@ -237,17 +237,11 @@ export async function POST(request: NextRequest) {
         ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
         : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
 
-    // Past the fair-use soft cap the fast model stands in, without an effort level.
-    const model = pickModel(auth, MODELS.concept);
-    const full = model === MODELS.concept;
     return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
       {
-        model,
-        // Thinking is always on with this model and counts here; a reply is
-        // still asked to stay short.
-        max_tokens: full ? 3000 : 400,
-        ...(full ? { output_config: { effort: 'low' as const } } : {}),
+        model: pickModel(auth, MODELS.concept),
+        max_tokens: 400,
         system: [
           {
             type: "text",
@@ -269,8 +263,7 @@ export async function POST(request: NextRequest) {
           phaseComplete: complete,
         };
       },
-      { phase: nextPhase },
-      { fallbackModel: MODELS.deep }
+      { phase: nextPhase }
     );
   } catch (error) {
     console.error("Conceptualise route error:", error);
