@@ -323,6 +323,20 @@ export interface BuiltPrompt {
   register: Register | 'mixed'
 }
 
+// What shape the question may take. Written after real questions came back as
+// one long sentence holding three ideas ("the quiet they have been calling
+// peace was actually just the absence of noise, and that true silence, the
+// kind that holds you rather than haunts you, only arrives when..."), which
+// has to be read three times before it can be answered. A spark has to be
+// understood at a glance and still leave a great deal open.
+const SIMPLE_QUESTION = (limit: number) => `HOW SIMPLE IT MUST BE — this matters more than anything else about the wording:
+- ONE idea and ONE clause. Not a setup followed by a question, not two thoughts joined by "and" or "while" or "and that", and never a second question after "and what…" or "or is it…". Pick the stronger half and stop.
+- At most ${limit} words. Shorter is better; 8 to 16 is often right.
+- Plain, everyday words. No stacked abstractions ("the quiet between presence and performance"), no "the kind that…", no "what it means to…", no relative clauses ("who realises that…", "which…"), no dashes of any kind.
+- It must be understood completely on first reading. If anyone would need to read it twice, it is too complex: cut it in half.
+- Simple does not mean shallow. The best sparks are small and wide: few words, so much open space behind them that the mind starts wandering at once. Do the narrowing yourself and leave the person all the room.
+`
+
 function divergence(rejected: string[]): string {
   const previousPrompt = rejected[rejected.length - 1]
   if (!previousPrompt) return ''
@@ -398,6 +412,7 @@ ${arcSection}
 
 ${territorySection}${mixedBlock}
 
+${SIMPLE_QUESTION(isImpersonal ? 18 : 24)}
 ENERGY:
 Facet — ${facetSteer}
 Tone — ${toneSteer}
@@ -465,9 +480,9 @@ What makes it good:
 - It could only be asked of this field. If another field's noun could be swapped in and the question still worked, go narrower.
 - It is answered from judgment and experience, not from a textbook. No quiz questions, no requests for a how-to, no survey questions ("what is the future of...", "why does ... matter").
 - It stays in the field's register. Do not turn it into a question about the person's feelings, healing, identity or soul, and do not reach for what the field "teaches us about being human". Feeling belongs in the question only where the work itself deals in it.
-- It is short enough to hold in the head: 35 words at most, with at most one clause of setup before the question. If it needs explaining, it is the wrong question. Do not open with "When you" out of habit.
-- Plain words, in the field's own vocabulary used correctly. No invented terms, no em dashes.
+- Plain words, in the field's own vocabulary used correctly. No invented terms. Do not open with "When you" out of habit.
 
+${SIMPLE_QUESTION(impersonal ? 18 : 22)}
 A great prompt opens exactly one door, not a hallway.
 
 Return only the prompt text. No quotation marks, no preamble, no explanation.`;
@@ -482,3 +497,17 @@ Return only the prompt text. No quotation marks, no preamble, no explanation.`;
 
   return { system, userMessage, register: 'field' }
 }
+
+// A question that has to be read twice has failed, so the route checks what
+// came back and asks once more if it is plainly too complicated. Dashes mean a
+// parenthetical thought inside the question; length is checked with a little
+// give over what the prompt asks for.
+export function tooComplex(question: string, impersonal: boolean): boolean {
+  const q = question.trim()
+  if (/[—–]|--| - /.test(q)) return true
+  if ((q.match(/\?/g) || []).length > 1) return true
+  return q.split(/\s+/).length > (impersonal ? 24 : 28)
+}
+
+export const SIMPLER_REQUEST =
+  'That one is too long or too complicated to take in at a glance. Write a much simpler one: a single idea in a single clause, plain everyday words, no dashes, under 16 words. Keep the same ground, drop everything else.'

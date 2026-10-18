@@ -6,7 +6,7 @@ import { MODELS } from "@/lib/models";
 import { getActivePortrait, formatPortraitForPrompt } from "@/lib/portrait";
 import { withLanguage } from "@/lib/language";
 import { logUsage } from "@/lib/usage-log";
-import { buildIdeaPrompt, getRandomArcs, getRandomTerritories, overallRegister, pickFacetSeed, promptModelTier, type TerritoryInput } from "@/lib/idea-prompt";
+import { buildIdeaPrompt, getRandomArcs, getRandomTerritories, overallRegister, pickFacetSeed, promptModelTier, tooComplex, SIMPLER_REQUEST, type TerritoryInput } from "@/lib/idea-prompt";
 import { classifyRegister, makesFrom } from "@/lib/territory-map";
 import { entitlementsOf } from "@/lib/studio/plan-access";
 
@@ -155,14 +155,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<PromptRes
     const regeneration = Number.isFinite(body.regeneration) ? Math.max(0, Math.floor(body.regeneration as number)) : rejected.length > 0 ? 1 : 0;
     const tier = (await entitlementsOf(auth)).deepQuestions ? "deep" : promptModelTier(regeneration);
 
-    const response = await anthropic.messages.create({
-      model: tier === "deep" ? pickModel(auth, MODELS.deep) : MODELS.fast,
-      max_tokens: 250,
-      system: withLanguage(system),
-      messages: [{ role: "user", content: userMessage }],
-    });
+    const model = tier === "deep" ? pickModel(auth, MODELS.deep) : MODELS.fast;
+    const generate = (messages: { role: "user" | "assistant"; content: string }[]) =>
+      anthropic.messages.create({ model, max_tokens: 250, system: withLanguage(system), messages });
 
+    let response = await generate([{ role: "user", content: userMessage }]);
     logUsage(auth.user.id, "idea-lab/prompt", response.model, response.usage, { register, regeneration, tier });
+
+    // One quiet second try when the first came back too complicated to take in
+    // at a glance. Whatever the second says is used: never a loop.
+    const first = response.content.find((block) => block.type === "text");
+    if (first && first.type === "text" && tooComplex(first.text, isImpersonal)) {
+      response = await generate([
+        { role: "user", content: userMessage },
+        { role: "assistant", content: first.text.trim() },
+        { role: "user", content: SIMPLER_REQUEST },
+      ]);
+      logUsage(auth.user.id, "idea-lab/prompt", response.model, response.usage, { register, regeneration, tier, simplified: true });
+    }
 
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {
