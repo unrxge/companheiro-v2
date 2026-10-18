@@ -20,7 +20,7 @@ import {
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
 import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
-import { TaskGroups } from '@/components/studio/work/task-groups'
+import { Progress, ROOMY_CSS, RoomyRow, TaskGroups } from '@/components/studio/work/task-groups'
 import { SortableList } from '@/components/studio/work/sortable'
 import { useNoHover } from '@/lib/use-phone'
 import { formatDateShort } from '@/lib/dates'
@@ -841,7 +841,11 @@ export function TaskListBlock({
   const { t } = useTheme()
   const [draft, setDraft] = useState('')
   const [large, setLarge] = useState(false)
+  const [ownDraft, setOwnDraft] = useState('')
+  // The larger view opens on what is left; the finished ones are a tap away.
+  const [showDone, setShowDone] = useState(false)
   const own = item.content.tasks ?? []
+  const listName = item.content.title?.trim() || 'Tasks'
   const ids = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
   const mine = tasks.filter((x) => ids.has(x.node_id))
   const writing = mine.filter(isWritingTask)
@@ -876,6 +880,14 @@ export function TaskListBlock({
   const hidden = total - preview.length
 
   const setOwn = (next: OwnTask[]) => onContent({ tasks: next })
+  const addOwn = () => {
+    const title = ownDraft.trim()
+    if (!title) return
+    setOwn([...own, { id: crypto.randomUUID(), title, done: false }])
+    setOwnDraft('')
+  }
+  const doneCount = mine.filter((x) => x.status === 'complete').length + own.filter((x) => x.done).length
+  const allCount = mine.length + own.length
   const add = () => {
     const title = draft.trim()
     if (!title) return
@@ -888,7 +900,7 @@ export function TaskListBlock({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ paddingRight: 48 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary }}>Tasks</span>
+          <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={listName}>{listName}</span>
           <button
             type="button"
             aria-label="Open this task list larger"
@@ -975,36 +987,89 @@ export function TaskListBlock({
         // The dialog is drawn on the page, but its events still climb to the
         // canvas through React: stopped here so nothing underneath is dragged.
         <span onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-          <ModalDialog onClose={() => setLarge(false)} title="Tasks" subtitle={scope} maxWidth="680px">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-              {pieces.map((piece) => (
-                <section key={piece.id}>
-                  {pieces.length > 1 && (
-                    <div style={{ ...canvasType.small, fontSize: 14, fontWeight: 600, color: t.textPrimary, marginBottom: 10 }}>{piece.title.trim() || 'Untitled'}</div>
-                  )}
-                  <TaskGroups
-                    tasks={mine.filter((x) => x.node_id === piece.id)}
-                    disabled={disabled}
-                    onToggle={onToggleTask}
-                    onAdd={(title, category) => onAddTask(piece.id, title, category)}
-                    onRemove={onRemoveTask}
-                    onReorder={onReorderTasks}
+          <ModalDialog onClose={() => setLarge(false)} title={listName} subtitle={scope} maxWidth="720px">
+            <style>{ROOMY_CSS}</style>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* where the list stands, and the one switch that clears the finished away */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {!disabled && (
+                  <input
+                    aria-label="Name this task list"
+                    defaultValue={item.content.title ?? ''}
+                    placeholder="Name this list: Launch, Edit pass, Research…"
+                    maxLength={80}
+                    onBlur={(e) => { const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v !== (item.content.title ?? '')) onContent({ title: v }) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                    style={{
+                      ...canvasType.small, fontSize: 14, width: '100%', boxSizing: 'border-box', color: t.textPrimary, background: 'transparent',
+                      border: `1px dashed ${alpha(t.textPrimary, 0.18)}`, borderRadius: radius.field, padding: '8px 12px', outline: 'none', fontFamily: 'inherit',
+                    }}
                   />
-                </section>
-              ))}
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <span style={{ ...canvasType.small, fontSize: 13, color: t.textSecondary }}>
+                    <b style={{ fontSize: 22, fontWeight: 600, color: t.textPrimary, marginRight: 6 }}>{allCount - doneCount}</b>
+                    to do{doneCount > 0 ? ` · ${doneCount} done` : ''}
+                  </span>
+                  {allCount > 0 && <Progress done={doneCount} total={allCount} width={120} />}
+                  {doneCount > 0 && (
+                    <button
+                      type="button"
+                      aria-pressed={showDone}
+                      onClick={() => setShowDone((v) => !v)}
+                      style={{
+                        ...canvasType.chip, marginLeft: 'auto', padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+                        color: showDone ? t.textPrimary : t.textSecondary, background: showDone ? alpha(t.textPrimary, 0.1) : 'transparent',
+                        border: `1px solid ${alpha(t.textPrimary, 0.16)}`,
+                      }}
+                    >
+                      {showDone ? 'Hide done' : `Show ${doneCount} done`}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {pieces.map((piece) => {
+                const theirs = mine.filter((x) => x.node_id === piece.id)
+                const theirDone = theirs.filter((x) => x.status === 'complete').length
+                return (
+                  <section key={piece.id} style={{ padding: '14px 16px 16px', borderRadius: 16, background: alpha(t.textPrimary, 0.035), border: `1px solid ${alpha(t.textPrimary, 0.07)}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ ...canvasType.small, fontSize: 16, fontWeight: 600, color: t.textPrimary, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {piece.title.trim() || 'Untitled'}
+                      </span>
+                      <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{theirDone} of {theirs.length}</span>
+                      <Progress done={theirDone} total={theirs.length} />
+                    </div>
+                    <TaskGroups
+                      roomy
+                      hideDone={!showDone}
+                      tasks={theirs}
+                      disabled={disabled}
+                      onToggle={onToggleTask}
+                      onAdd={(title, category) => onAddTask(piece.id, title, category)}
+                      onRemove={onRemoveTask}
+                      onReorder={onReorderTasks}
+                    />
+                  </section>
+                )
+              })}
 
               {/* the list's own tasks: not tied to any one piece */}
-              <section>
-                <div style={{ ...canvasType.small, fontSize: 14, fontWeight: 600, color: t.textPrimary }}>On this list only</div>
-                <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: '2px 0 8px' }}>Tasks that don’t belong to one piece.</p>
+              <section style={{ padding: '14px 16px 16px', borderRadius: 16, background: alpha(t.textPrimary, 0.035), border: `1px solid ${alpha(t.textPrimary, 0.07)}` }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+                  <span style={{ ...canvasType.small, fontSize: 16, fontWeight: 600, color: t.textPrimary }}>On this list only</span>
+                  <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{own.filter((x) => x.done).length} of {own.length}</span>
+                </div>
+                <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: '0 0 8px' }}>Tasks that don’t belong to one piece.</p>
                 <SortableList
                   disabled={disabled}
                   label="this task"
                   onReorder={(ids) => setOwn(ids.map((id) => own.find((x) => x.id === id)).filter((x): x is OwnTask => !!x))}
-                  rows={own.map((task) => ({
+                  rows={own.filter((task) => showDone || !task.done).map((task) => ({
                     id: task.id,
                     node: (
-                      <TaskRow
+                      <RoomyRow
                         title={task.title}
                         done={task.done}
                         disabled={disabled}
@@ -1017,14 +1082,14 @@ export function TaskListBlock({
                 {!disabled && (
                   <input
                     aria-label="A new task on this list"
-                    value={draft}
+                    value={ownDraft}
                     placeholder="Add a task…"
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+                    onChange={(e) => setOwnDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn() } }}
                     style={{
-                      ...canvasType.small, fontSize: 13, width: '100%', boxSizing: 'border-box', marginTop: own.length ? 6 : 0,
+                      ...canvasType.small, fontSize: 14, width: '100%', boxSizing: 'border-box', marginTop: own.length ? 6 : 0,
                       color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field,
-                      padding: '7px 10px', outline: 'none', fontFamily: 'inherit',
+                      padding: '9px 12px', outline: 'none', fontFamily: 'inherit',
                     }}
                   />
                 )}

@@ -1177,7 +1177,7 @@ export function Board({
       const content = r.kind === 'palette'
         ? { ...(r.title ? { title: r.title } : {}), swatches: r.colours.map((hex) => ({ id: crypto.randomUUID(), hex, name: '' })) }
         : r.kind === 'tasks'
-          ? { tasks: r.tasks.map((title) => ({ id: crypto.randomUUID(), title, done: false })) }
+          ? { ...(r.title ? { title: r.title } : {}), tasks: r.tasks.map((title) => ({ id: crypto.randomUUID(), title, done: false })) }
           : { caption: r.caption }
       actions.patchItem(made.id, { ...(r.on.length > 1 ? { node_ids: r.on } : {}), content })
       setBorn(made.id)

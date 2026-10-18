@@ -25,7 +25,7 @@ export function normaliseItem(row: unknown): BoardItem {
 export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemContent {
   if (!isRecord(raw)) return {}
   const out: BoardItemContent = {}
-  if ((kind === 'recording' || kind === 'palette') && isString(raw.title)) out.title = raw.title.replace(/\s+/g, ' ').trim().slice(0, 120)
+  if ((kind === 'recording' || kind === 'palette' || kind === 'tasks') && isString(raw.title)) out.title = raw.title.replace(/\s+/g, ' ').trim().slice(0, 120)
   if (kind === 'image' && isString(raw.caption)) out.caption = raw.caption.replace(/\s+/g, ' ').trim().slice(0, 300)
   if (kind === 'tasks') {
     if (typeof raw.writing_closed === 'boolean') out.writing_closed = raw.writing_closed

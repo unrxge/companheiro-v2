@@ -53,7 +53,7 @@ function itemWords(item: BoardItem): string[] {
     return [`${c.note === 'reminder' ? (c.done ? 'a reminder, done' : 'a reminder') : 'a note'}: “${one(c.text)}”`]
   }
   const own = (c.tasks ?? []).filter((t) => one(t.title))
-  return own.length ? [`a task list:\n${own.map((t) => `      [${t.done ? 'x' : ' '}] ${one(t.title)}`).join('\n')}`] : []
+  return own.length ? [`a task list${one(c.title) ? `, named “${one(c.title)}”` : ''}:\n${own.map((t) => `      [${t.done ? 'x' : ' '}] ${one(t.title)}`).join('\n')}`] : []
 }
 
 function part(node: TreeNode, depth: number): string {

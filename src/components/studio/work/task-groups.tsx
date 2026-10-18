@@ -17,8 +17,75 @@ export interface GroupTask extends Categorised {
   status: 'pending' | 'complete'
 }
 
+/** A thin bar for how far along something is. */
+export function Progress({ done, total, width = 72 }: { done: number; total: number; width?: number }) {
+  const { t } = useTheme()
+  return (
+    <span aria-hidden style={{ display: 'inline-block', width, height: 4, borderRadius: 999, background: alpha(t.textPrimary, 0.1), overflow: 'hidden', flexShrink: 0 }}>
+      <span style={{ display: 'block', height: '100%', width: `${total ? Math.round((done / total) * 100) : 0}%`, borderRadius: 999, background: t.verdant, transition: 'width 260ms ease' }} />
+    </span>
+  )
+}
+
+/** One task in the larger view: a roomy row with a round tick, softly lit when pointed at. */
+export function RoomyRow({ title, done, disabled, onToggle, onRemove }: {
+  title: string
+  done: boolean
+  disabled: boolean
+  onToggle: () => void
+  onRemove?: () => void
+}) {
+  const { t } = useTheme()
+  return (
+    <div className="tg-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 4, borderRadius: 10 }}>
+      <button
+        type="button"
+        aria-pressed={done}
+        disabled={disabled}
+        onClick={onToggle}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0, padding: '10px 10px', background: 'none', border: 'none', cursor: disabled ? 'default' : 'pointer', textAlign: 'left', font: 'inherit' }}
+      >
+        <span
+          aria-hidden
+          style={{
+            flexShrink: 0, width: 18, height: 18, marginTop: 1, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1.5px solid ${done ? t.verdant : alpha(t.textPrimary, 0.35)}`, background: done ? t.verdant : 'transparent', transition: 'background 160ms ease, border-color 160ms ease',
+          }}
+        >
+          {done && (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={t.containerBg} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          )}
+        </span>
+        <span style={{ ...canvasType.small, fontSize: 15, lineHeight: 1.45, color: done ? t.textMuted : t.textPrimary, textDecoration: done ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>
+          {title}
+        </span>
+      </button>
+      {onRemove && !disabled && (
+        <button
+          type="button"
+          className="tg-x"
+          aria-label={`Remove “${title}”`}
+          title="Remove"
+          onClick={onRemove}
+          style={{ flexShrink: 0, width: 28, height: 28, marginTop: 5, marginRight: 4, padding: 0, border: 'none', borderRadius: 8, background: 'transparent', color: t.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** The hover light on a roomy row, and the remove mark that appears with it (always there where nothing can hover). */
+export const ROOMY_CSS = `
+  .tg-row:hover { background: rgba(232,230,224,0.05); }
+  .tg-row .tg-x { opacity: 0; transition: opacity 140ms ease; }
+  .tg-row:hover .tg-x, .tg-row:focus-within .tg-x { opacity: 1; }
+  @media (hover: none) { .tg-row .tg-x { opacity: 1; } }
+`
+
 export function TaskGroups<T extends GroupTask>({
-  tasks, onToggle, onAdd, onRemove, onReorder, disabled = false,
+  tasks, onToggle, onAdd, onRemove, onReorder, disabled = false, roomy = false, hideDone = false,
 }: {
   tasks: T[]
   onToggle: (task: T) => void
@@ -31,6 +98,10 @@ export function TaskGroups<T extends GroupTask>({
    */
   onReorder?: (ids: string[]) => void
   disabled?: boolean
+  /** The larger view: roomier rows, and each group's progress in its header. */
+  roomy?: boolean
+  /** Finished tasks are tucked away (the counts still include them). */
+  hideDone?: boolean
 }) {
   const { t } = useTheme()
   // Categories named here that have no task yet. They are kept once a task goes in.
@@ -67,11 +138,12 @@ export function TaskGroups<T extends GroupTask>({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {roomy && <style>{ROOMY_CSS}</style>}
       {groups.map((group, gi) => {
         const open = !closed[group.name]
         const left = group.tasks.filter((x) => x.status === 'pending').length
         // Finished tasks sink to the bottom but stay in view.
-        const rows = [...group.tasks].sort((a, b) => (a.status === b.status ? 0 : a.status === 'complete' ? 1 : -1))
+        const rows = [...group.tasks].filter((x) => !hideDone || x.status !== 'complete').sort((a, b) => (a.status === b.status ? 0 : a.status === 'complete' ? 1 : -1))
         return (
           <section key={group.name} style={{ borderTop: gi ? rule : 'none', padding: gi ? '12px 0' : '0 0 12px' }}>
             <button
@@ -84,7 +156,8 @@ export function TaskGroups<T extends GroupTask>({
                 <path d="M9 6l6 6-6 6" />
               </svg>
               <span style={{ ...canvasType.label, color: t.textPrimary }}>{group.name}</span>
-              <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto' }}>
+              <span style={{ ...canvasType.chip, color: t.textMuted, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {roomy && group.tasks.length > 0 && <Progress done={group.tasks.length - left} total={group.tasks.length} width={48} />}
                 {group.tasks.length === 0 ? 'empty' : left === 0 ? 'all done' : `${left} to do`}
               </span>
             </button>
@@ -97,6 +170,10 @@ export function TaskGroups<T extends GroupTask>({
                   onReorder={(ids) => onReorder?.(ids)}
                   rows={rows.map((task) => {
                     const done = task.status === 'complete'
+                    if (roomy) return {
+                      id: task.id,
+                      node: <RoomyRow title={task.title} done={done} disabled={disabled} onToggle={() => onToggle(task)} onRemove={onRemove ? () => onRemove(task) : undefined} />,
+                    }
                     return {
                       id: task.id,
                       node: (

@@ -21,7 +21,7 @@ import type { PlusChoice } from '@/components/studio/work/board-items'
 
 export type AddResult =
   | { kind: 'thread'; on: string[]; name: string; intent: string }
-  | { kind: 'tasks'; on: string[]; tasks: string[] }
+  | { kind: 'tasks'; on: string[]; title: string; tasks: string[] }
   | { kind: 'palette'; on: string[]; title: string; colours: string[] }
   | { kind: 'image'; on: string[]; file: File; caption: string }
   | { kind: 'recording'; on: string[]; title: string }
@@ -60,7 +60,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
   const make = () => {
     if (!ready) return
     if (kind === 'thread') onMake({ kind, on, name: name.trim(), intent: intent.trim() })
-    else if (kind === 'tasks') onMake({ kind, on, tasks: tasks.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 30) })
+    else if (kind === 'tasks') onMake({ kind, on, title: name.trim(), tasks: tasks.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 30) })
     else if (kind === 'palette') onMake({ kind, on, title: name.trim(), colours })
     else if (kind === 'image' && file) onMake({ kind, on, file, caption: intent.trim() })
     else if (kind === 'recording') onMake({ kind, on, title: name.trim() })
@@ -105,7 +105,10 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
           )}
 
           {kind === 'tasks' && (
-            <textarea autoFocus value={tasks} onChange={(e) => setTasks(e.target.value)} placeholder={'One task a line'} rows={5} style={{ ...field, resize: 'vertical' }} />
+            <>
+              <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Its name (optional): Launch, Edit pass, Research" maxLength={80} style={field} />
+              <textarea value={tasks} onChange={(e) => setTasks(e.target.value)} placeholder={'One task a line'} rows={5} style={{ ...field, marginTop: 10, resize: 'vertical' }} />
+            </>
           )}
 
           {kind === 'palette' && (
