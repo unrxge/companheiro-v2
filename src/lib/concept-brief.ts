@@ -7,9 +7,12 @@
 // written from what they mean and not from a title and a guess. It keeps the
 // conceptualise stages (first contact, expansion, the audience, the principle,
 // declaration) and the page that shows them, and runs them briskly: one plain
-// question per stage, every answer taken as it stands, and a stage their words
-// have already settled is skipped. Their time is a favour to us, so nothing
-// here digs.
+// question per stage, and a stage their words have already settled is skipped.
+// Their time is a favour to us, but a concept with nothing at its root is a
+// disservice later, so common sense decides: an answer specific enough to
+// write from is taken as it stands, and one so general it could belong to a
+// hundred other projects earns one follow-up asking what makes this one
+// theirs. At most two follow-ups in the whole brief (BRIEF_FOLLOW_UPS).
 //
 // Where the brief stands is not read out of prose (that was tried with the
 // <phase_complete/> marker: the model closes stages it did not ask about, and
@@ -41,17 +44,25 @@ export function briefStorageKey(projectId: string): string {
 
 const LAST = 5
 
+/** Follow-ups a whole brief may spend, and never more than one on a stage. */
+export const BRIEF_FOLLOW_UPS = 2
+
+/** Whether the stage just answered may be asked once more. */
+export function canFollowUp(phase: number, followedUp: readonly number[]): boolean {
+  return phase >= 1 && phase < LAST && !followedUp.includes(phase) && followedUp.length < BRIEF_FOLLOW_UPS
+}
+
 /**
  * The earliest stage the next line may ask, however the model words it.
  *
- * Every answer moves the brief on, with one exception: the first answer may be
- * followed up once, because what this is for is the one thing that has to be
- * understood. After that nothing is asked twice. The last stage stays the last:
- * what is written after the say-back is a correction, not another answer.
+ * Every answer moves the brief on, unless the stage just answered may still be
+ * followed up (canFollowUp), in which case the model may ask it once more. The
+ * last stage stays the last: what is written after the say-back is a
+ * correction, not another answer.
  */
-export function briefFloor(phase: number, answers: number): number {
+export function briefFloor(phase: number, followedUp: readonly number[] = []): number {
   if (phase >= LAST) return LAST
-  if (phase <= 1 && answers <= 1) return 1
+  if (canFollowUp(phase, followedUp)) return Math.max(phase, 1)
   return phase + 1
 }
 
@@ -81,6 +92,10 @@ export function briefTool(floor: number) {
     items: { type: 'integer', minimum: 1, maximum: 4 },
     description: 'The stages from 1 to 4 that what they have said so far (in this conversation, or in what the project already says) has already answered. Think this through first.',
   }
+  const root = {
+    type: 'string',
+    description: 'The root so far: the one thing they have said that makes this project theirs and no one else\'s (a particular person, place, moment, loss or reason), in their words. Leave it empty if everything so far could belong to a hundred other projects on the same subject: "Lisbon", "people", "feelings", "someone after they are gone" are not a root, and neither is an abstract theme however well put ("a city losing what it was holding onto"); "the tram depot my grandfather drove from for 30 years" is. Fill this in second.',
+  }
   const sayBack = {
     type: 'string',
     description: 'Everything they have said, said back in two or three plain sentences, in the language they write in, with no question.',
@@ -97,10 +112,11 @@ export function briefTool(floor: number) {
         type: 'object' as const,
         properties: {
           settled,
+          root,
           asking: { type: 'integer', enum: [LAST], description: 'Always 5: you are saying it back.' },
           say_back: sayBack,
         } as Record<string, unknown>,
-        required: ['settled', 'asking', 'say_back'],
+        required: ['settled', 'root', 'asking', 'say_back'],
       },
     }
   }
@@ -112,10 +128,11 @@ export function briefTool(floor: number) {
       type: 'object' as const,
       properties: {
         settled,
+        root,
         asking: {
           type: 'integer',
           enum: allowed,
-          description: 'The stage you are asking now: the first of the allowed stages that is not in settled, or 5 when everything before it is settled and you are saying it back.',
+          description: 'The stage you are asking now: the first of the allowed stages that is not in settled, or 5 when everything before it is settled and you are saying it back. But never 5 while root is empty if the turn says you may still ask the stage just answered once more: ask that stage again instead, gently, for what makes this one theirs.',
         },
         question: {
           type: 'string',
@@ -126,13 +143,15 @@ export function briefTool(floor: number) {
           description: 'Only when asking is 5: everything they have said, said back in two or three plain sentences, in the language they write in, with no question. Empty otherwise.',
         },
       },
-      required: ['settled', 'asking', 'question', 'say_back'],
+      required: ['settled', 'root', 'asking', 'question', 'say_back'],
     } as { type: 'object'; properties: Record<string, unknown>; required: string[] },
   }
 }
 
 export type BriefTurn = {
   say: string
+  /** This line asks the stage just answered again: a follow-up, counted against BRIEF_FOLLOW_UPS. */
+  followUp: boolean
   /** The stage the line asks, and so the stage the page is on. */
   phase: number
   readyToAdvance: boolean
@@ -169,7 +188,7 @@ export function parseBriefTurn(input: unknown, { phase, floor }: { phase: number
     return null
   }
   if (!say) return null
-  return { say, phase: stage, readyToAdvance: stage === LAST, phaseComplete: stage > phase }
+  return { say, phase: stage, followUp: stage === phase && phase < LAST, readyToAdvance: stage === LAST, phaseComplete: stage > phase }
 }
 
 /**
@@ -207,30 +226,31 @@ They already know what this project is; they are not here to find out. They are 
 
 HOW YOU ASK
 - One question per turn, in a line or two of plain words, and only about the project itself. Write in the language they write in; the example wordings below are only examples.
-- Take what they say as it stands. A few words is an answer, and so is "I don't know". Never ask them to say more, go deeper, give an example or explain themselves. Never ask for the plot, the detail or the specifics, and never ask a stage a second way.
-- When an answer is thin, take it and go to the next stage's question. The core concept is theirs to edit afterwards; your job is only to hear what they have.
-- Do not test the idea, challenge it, open it out or take it somewhere new. They know where it is going; you only need to hear it.
+- Use common sense about when you have enough. The concept needs a root: something specific to this project and to them, worth a person spending real energy on. A short answer is a full answer when it has that ("a song for my dad, who I left on a bad day" is enough). An answer so general it could belong to a hundred other projects on the same subject ("a song about leaving", "to inspire people", "everyone") does not have it yet.
+- When an answer has no root yet and the turn says you may, ask once more, gently, for what makes this one theirs: the person, the moment, the reason it is this project and not any other on the subject (for example "What about it is yours, that another song about leaving wouldn't have?"). Never ask the same stage a third time, and never ask for the plot or for detail for its own sake.
+- When they say "I don't know", or answer the follow-up thinly, take it and go on. The core concept is theirs to edit afterwards.
+- Do not test the idea, challenge it, open it out or take it somewhere new. They know where it is going; you only need to hear it, with its root.
 - Never ask about form, medium, genre, length, timing, what happens next, or whether they are ready.
 - Between stages, ask the question and nothing else. Do not hand their answer back to them, praise it, or use a stock phrase such as "Got it", "That lands" or "Understood". Showing you listened is what the say-back at the end is for.
 
 STAGES
 There are five, in order, and each turn lists the ones you may ask. Ask the first that their words have not already answered. If what they have said answers several at once, skip all of them: a person who has told you everything is asked nothing more, and is given back what you heard.
 
-Every turn, answer by calling brief_turn. Fill settled in first, then asking, so that what you ask follows from what is settled.`
+Every turn, answer by calling brief_turn. Fill settled in first, then root, then asking, so that what you ask follows from what is settled and from whether the project has a root yet.`
 }
 
-/** The part that moves with the brief. */
-export function briefVolatileBlock({ phase, answers, project }: { phase: number; answers: number; project?: { title?: string | null; intent?: string | null } | null }): string {
-  const floor = briefFloor(phase, answers)
+/** The part that moves with the brief. `followedUp`: the stages already asked twice. */
+export function briefVolatileBlock({ phase, followedUp = [], project }: { phase: number; followedUp?: readonly number[]; project?: { title?: string | null; intent?: string | null } | null }): string {
+  const floor = briefFloor(phase, followedUp)
   const lines: string[] = []
 
   if (phase >= LAST) {
     lines.push(`THE LAST STAGE. You have said it back, and they have written after it. There is nothing more to ask:\n${STAGES[LAST]}\n\nCall brief_turn with asking 5.`)
   } else {
-    if (phase > 1 || answers > 1) {
-      lines.push(`Stage ${phase} has been asked and they have answered it. Take the answer as it stands, whatever it says, and do not ask it again.`)
+    if (canFollowUp(phase, followedUp)) {
+      lines.push(`Stage ${phase} has just been answered. If the answer is specific to this project and to them, take it and move on. If it is so general it could belong to a hundred other projects on the same subject, or (stage 1) it does not say what this is at all, you may ask stage ${phase} once more, with asking ${phase}: gently, for what makes this one theirs. This is the only time this stage can be asked again${followedUp.length + 1 >= BRIEF_FOLLOW_UPS ? ', and the last follow-up this brief has' : ''}.`)
     } else {
-      lines.push(`This is their first answer. Stage 1 is the one thing you must understand: if the answer does not say what this is for (a bare category such as "a story", a greeting, a question back), ask it once more in different, simpler words (for example "What is the project itself?"), with asking 1. Otherwise move on.`)
+      lines.push(`Stage ${phase} has been asked and they have answered it. Take the answer as it stands, whatever it says, and do not ask it again.`)
     }
     const open: string[] = []
     for (let n = floor; n <= LAST; n++) open.push(`${n}. ${STAGES[n]}`)

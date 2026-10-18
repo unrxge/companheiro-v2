@@ -15,4 +15,10 @@ export const MODELS = {
   // conversations that the plan is sold on. Thinking is always on with this
   // model and counts toward max_tokens, so its callers leave room for it.
   vision: 'claude-opus-5-5',
+  // Conceptualise: developing an idea before its core concept is written.
+  // Run against scripted people on 2026-10-18, this was the one model that
+  // followed the depth rules (ask small questions into what costs them, do
+  // not close it with a verdict) instead of ignoring or overdoing them. Low
+  // effort keeps a reply to about four seconds.
+  concept: 'claude-opus-5-5',
 } as const

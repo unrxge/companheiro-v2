@@ -32,6 +32,8 @@ interface SavedBrief {
   messages: ThreadMessage[]
   phase: number
   readyToAdvance: boolean
+  /** The stages already asked twice; the route allows only so many follow-ups. */
+  followedUp?: number[]
 }
 
 // A brief begun and left (the canvas, a refresh) picks up where it was, in
@@ -45,7 +47,8 @@ function readSavedBrief(projectId: string): SavedBrief | null {
       && saved.messages.length > 0
       && saved.messages.every((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
       && typeof saved.phase === 'number' && saved.phase >= 1 && saved.phase <= PHASE_LABELS.length
-    return ok ? { messages: saved.messages!, phase: saved.phase!, readyToAdvance: saved.readyToAdvance === true } : null
+    const followedUp = Array.isArray(saved.followedUp) ? saved.followedUp.filter((n) => Number.isInteger(n)) : []
+    return ok ? { messages: saved.messages!, phase: saved.phase!, readyToAdvance: saved.readyToAdvance === true, followedUp } : null
   } catch {
     return null
   }
@@ -83,6 +86,8 @@ function ConceptualiseContent() {
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
   const [messages, setMessages] = useState<ThreadMessage[]>(() => (briefProject ? [{ role: 'assistant', content: BRIEF_OPENING }] : []))
+  // The stages the brief has already asked twice (lib/concept-brief: at most one follow-up a stage, two in all).
+  const briefFollowedUp = useRef<number[]>([])
   const [inputText, setInputText] = useState('')
   const inputTextRef = useRef('')
   inputTextRef.current = inputText
@@ -118,6 +123,7 @@ function ConceptualiseContent() {
         setMessages(saved.messages)
         setPhase(saved.phase)
         setReadyToAdvance(saved.readyToAdvance)
+        briefFollowedUp.current = saved.followedUp ?? []
       }
       return
     }
@@ -233,12 +239,12 @@ function ConceptualiseContent() {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined, followedUp: briefProject ? briefFollowedUp.current : undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
       setMessages([...conversationHistory, { role: 'assistant', content: '' }])
-      const { text, meta } = await readTextStream<{ phase: number; readyToAdvance: boolean; phaseComplete?: boolean }>(
+      const { text, meta } = await readTextStream<{ phase: number; readyToAdvance: boolean; phaseComplete?: boolean; followedUp?: number[] }>(
         res,
         (visibleText) => setMessages([...conversationHistory, { role: 'assistant', content: visibleText }]),
         [PHASE_MARKER]
@@ -248,13 +254,14 @@ function ConceptualiseContent() {
       const finalPhase = meta?.phase ?? currentPhase
       const finalReadyToAdvance = meta?.readyToAdvance ?? false
       if (meta) { setPhase(meta.phase); setReadyToAdvance(meta.readyToAdvance) }
+      if (Array.isArray(meta?.followedUp)) briefFollowedUp.current = meta.followedUp
 
       // Keep the completion marker in history (hidden in display) so the
       // server advances the phase on the next turn.
       const stored = meta?.phaseComplete ? `${text}\n${PHASE_MARKER}` : text
       const finalMessages: ThreadMessage[] = [...conversationHistory, { role: 'assistant', content: stored }]
       setMessages(finalMessages)
-      if (briefProject) writeSavedBrief(briefProject, { messages: finalMessages, phase: finalPhase, readyToAdvance: finalReadyToAdvance })
+      if (briefProject) writeSavedBrief(briefProject, { messages: finalMessages, phase: finalPhase, readyToAdvance: finalReadyToAdvance, followedUp: briefFollowedUp.current })
       else saveDraft(finalMessages, finalPhase, finalReadyToAdvance)
     } catch (err) {
       console.error('Conceptualise error:', err)

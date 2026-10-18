@@ -41,6 +41,8 @@ interface ConceptualiseRequest {
    *  built late for a project started without one. A short brief taken from
    *  someone who already knows the idea (lib/concept-brief.ts). */
   brief?: boolean;
+  /** With `brief`: the stages already asked twice (lib/concept-brief's follow-ups). */
+  followedUp?: number[];
 }
 
 /**
@@ -86,8 +88,10 @@ Hold this as the room the idea is walking into, not as a brief to satisfy. Do no
  * One turn of the short brief. The person already knows what the project is,
  * so this is a different job from the conversation below: no companion
  * context (the brief is about this project and nothing else, and it is read
- * and answered fast), the fast model throughout, one plain question per stage,
- * and a stage their words have already settled is skipped.
+ * and answered fast), one plain question per stage, a follow-up only where an
+ * answer has nothing specific at its root, and a stage their words have
+ * already settled is skipped. The deep model, because deciding whether an
+ * answer has a root is a judgement the fast one makes badly.
  *
  * The stage is not read out of the prose. The model is made to call
  * `brief_turn`, naming the stage its line asks, and the page moves to that
@@ -99,10 +103,10 @@ async function briefTurn(
   auth: AuthedContext,
   messages: Message[],
   phase: number,
-  projectId: string
+  projectId: string,
+  followedUp: number[]
 ): Promise<Response> {
-  const answers = messages.filter((m) => m.role === "user").length;
-  const floor = briefFloor(phase, answers);
+  const floor = briefFloor(phase, followedUp);
 
   const { data: project } = await auth.supabase
     .from("studio_projects")
@@ -119,7 +123,7 @@ async function briefTurn(
 
   const tool = briefTool(floor);
   const response = await anthropic.messages.create({
-    model: pickModel(auth, MODELS.fast),
+    model: pickModel(auth, MODELS.deep),
     max_tokens: 400,
     system: [
       {
@@ -127,7 +131,7 @@ async function briefTurn(
         text: withLanguage(briefStableBlock(COMPANION_TONE)),
         cache_control: { type: "ephemeral", ttl: "1h" },
       },
-      { type: "text", text: briefVolatileBlock({ phase, answers, project }) },
+      { type: "text", text: briefVolatileBlock({ phase, followedUp, project }) },
     ],
     tools: [tool],
     tool_choice: { type: "tool", name: tool.name },
@@ -142,7 +146,12 @@ async function briefTurn(
     return NextResponse.json({ response: "", phase, readyToAdvance: false }, { status: 502 });
   }
 
-  const meta = { phase: turn.phase, readyToAdvance: turn.readyToAdvance, phaseComplete: turn.phaseComplete };
+  const meta = {
+    phase: turn.phase,
+    readyToAdvance: turn.readyToAdvance,
+    phaseComplete: turn.phaseComplete,
+    followedUp: turn.followUp ? [...followedUp, phase] : followedUp,
+  };
   return new Response(turn.say + META_DELIMITER + JSON.stringify(meta), {
     headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
   });
@@ -172,7 +181,8 @@ export async function POST(request: NextRequest) {
     // "Build the core concept" for a project started without one: a short
     // brief, not the full conversation. Nothing else below applies to it.
     if (body.brief && body.projectId) {
-      return await briefTurn(auth, body.messages, body.phase, body.projectId);
+      const followedUp = (Array.isArray(body.followedUp) ? body.followedUp : []).filter((n) => Number.isInteger(n) && n >= 1 && n <= 4).slice(0, 4);
+      return await briefTurn(auth, body.messages, body.phase, body.projectId, followedUp);
     }
 
     const currentPhase = body.phase;
@@ -227,11 +237,17 @@ export async function POST(request: NextRequest) {
         ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
         : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
 
+    // Past the fair-use soft cap the fast model stands in, without an effort level.
+    const model = pickModel(auth, MODELS.concept);
+    const full = model === MODELS.concept;
     return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
       {
-        model: pickModel(auth, nextPhase <= 2 ? MODELS.fast : MODELS.deep),
-        max_tokens: 400,
+        model,
+        // Thinking is always on with this model and counts here; a reply is
+        // still asked to stay short.
+        max_tokens: full ? 3000 : 400,
+        ...(full ? { output_config: { effort: 'low' as const } } : {}),
         system: [
           {
             type: "text",
@@ -253,7 +269,8 @@ export async function POST(request: NextRequest) {
           phaseComplete: complete,
         };
       },
-      { phase: nextPhase }
+      { phase: nextPhase },
+      { fallbackModel: MODELS.deep }
     );
   } catch (error) {
     console.error("Conceptualise route error:", error);
