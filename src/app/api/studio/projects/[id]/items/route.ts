@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   return withAuth(async (auth) => {
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
-    if (typeof body.kind !== 'string' || !KINDS.has(body.kind)) throw badRequest('kind must be image, recording, tasks or palette')
+    if (typeof body.kind !== 'string' || !KINDS.has(body.kind)) throw badRequest('kind must be image, recording, tasks, palette or note')
     const kind = body.kind as BoardItemKind
 
     const project = await requireProject(auth, id)

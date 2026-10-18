@@ -51,7 +51,18 @@ function imageSizeOf(file: Blob): Promise<{ width: number; height: number }> {
 // ?plan=practice shows the canvas as Practice has it: no new threads, images or recordings.
 export default function DevBoardPage() {
   const practice = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('plan') === 'practice'
-  const [items, setItems] = useState<BoardItem[]>([])
+  // ?notes=1 starts with two notes left from a check-in, standing on their own.
+  const [items, setItems] = useState<BoardItem[]>(() => {
+    if (typeof window === 'undefined' || !new URLSearchParams(window.location.search).has('notes')) return []
+    const note = (id: string, text: string, kind: 'thought' | 'reminder'): BoardItem => ({
+      id, user_id: USER, project_id: PROJECT, kind: 'note', asset_id: null, node_ids: [], board_x: null, board_y: null, w: null,
+      content: { text, note: kind, from_check_in: true }, created_at: NOW, updated_at: NOW,
+    })
+    return [
+      note('n1', 'Open episode two on the ferry ramp at first light, not the market.', 'thought'),
+      note('n2', 'Book the ferry crew before Friday', 'reminder'),
+    ]
+  })
   const [assets, setAssets] = useState<Record<string, AssetView>>({})
   const [tasks, setTasks] = useState<ProjectTask[]>(TASKS)
   const [locked, setLocked] = useState<string | null>(null)

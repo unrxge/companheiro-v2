@@ -15,7 +15,7 @@ import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import {
-  canResize, CAPTION_MAX, CAPTION_ROWS, captionLimit, isWritingTask, MAX_SWATCHES, PALETTE_SEED, RECORDING_H,
+  canResize, CAPTION_MAX, CAPTION_ROWS, captionLimit, isWritingTask, MAX_SWATCHES, NOTE_MAX, PALETTE_SEED, RECORDING_H,
   type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type ProjectTask, type Swatch,
 } from '@/lib/studio/board-items'
 import type { AssetView } from '@/lib/studio/types'
@@ -23,10 +23,12 @@ import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
 import { TaskGroups } from '@/components/studio/work/task-groups'
 import { SortableList } from '@/components/studio/work/sortable'
 import { useNoHover } from '@/lib/use-phone'
+import { formatDateShort } from '@/lib/dates'
 
 // ── the menu a piece's "+" opens ────────────────────────────────────────────
 
-export type PlusChoice = 'thread' | BoardItemKind
+// A note arrives from a check-in, never from a piece's "+".
+export type PlusChoice = 'thread' | Exclude<BoardItemKind, 'note'>
 
 interface PlusOption { key: PlusChoice; label: string; hint: string; icon: ReactNode }
 
@@ -629,6 +631,95 @@ export function PaletteBlock({
   )
 }
 
+// ── a note ──────────────────────────────────────────────────────────────────
+//
+// A few words kept for later, like a note stuck on the wall: a thought, or a
+// reminder that can be ticked off. Most are left from a check-in. The words
+// can be changed here; nothing else about a note needs arranging.
+
+export function NoteBlock({
+  item, disabled, onContent,
+}: {
+  item: BoardItem
+  disabled: boolean
+  onContent: (content: BoardItemContent) => void
+}) {
+  const { t } = useTheme()
+  const c = item.content
+  const reminder = c.note === 'reminder'
+  const done = reminder && c.done === true
+  const [draft, setDraft] = useState(c.text ?? '')
+  const [focused, setFocused] = useState(false)
+  const box = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(() => { if (!focused) setDraft(c.text ?? '') }, [c.text, focused])
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [draft])
+
+  const hue = reminder ? t.ochre : t.tide
+  const when = formatDateShort(item.created_at)
+  const words: React.CSSProperties = {
+    ...canvasType.small, fontSize: 14, lineHeight: 1.45, width: '100%', boxSizing: 'border-box',
+    color: done ? t.textMuted : t.textPrimary, textDecoration: done ? 'line-through' : 'none',
+    whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'inherit',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingRight: 48, ...canvasType.chip, color: t.textMuted }}>
+        <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: hue, flexShrink: 0 }} />
+        <span style={{ color: hue, fontWeight: 650 }}>{reminder ? 'Reminder' : 'Note'}</span>
+        <span>{c.from_check_in ? `from a check-in · ${when}` : when}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+        {reminder && (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={done}
+            aria-label={done ? 'Mark as not done' : 'Mark as done'}
+            disabled={disabled}
+            onClick={(e) => { e.stopPropagation(); onContent({ done: !done }) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              width: 18, height: 18, marginTop: 1, flexShrink: 0, borderRadius: 6, padding: 0,
+              cursor: disabled ? 'default' : 'pointer',
+              border: `1.5px solid ${done ? hue : alpha(t.textPrimary, 0.35)}`,
+              background: done ? hue : 'transparent', color: t.containerBg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {done && (
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+            )}
+          </button>
+        )}
+        {disabled ? (
+          <p style={{ ...words, margin: 0 }}>{c.text}</p>
+        ) : (
+          <textarea
+            ref={box}
+            aria-label={reminder ? 'The reminder' : 'The note'}
+            value={draft}
+            rows={1}
+            maxLength={NOTE_MAX}
+            placeholder="A few words…"
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => { setFocused(false); if (draft.trim() !== (c.text ?? '')) onContent({ text: draft.trim() }) }}
+            // Its own presses stay its own: the card around it is something you drag.
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ ...words, resize: 'none', background: 'transparent', border: 'none', outline: 'none', padding: 0, overflow: 'hidden' }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── a recording ─────────────────────────────────────────────────────────────
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
@@ -1151,4 +1242,5 @@ export const ITEM_LABEL: Record<BoardItemKind, string> = {
   recording: 'this recording',
   tasks: 'this task list',
   palette: 'this palette',
+  note: 'this note',
 }

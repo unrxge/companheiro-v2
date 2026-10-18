@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { KIND_LABELS, KIND_HUE, type PortraitKind } from '@/lib/portrait-kinds'
@@ -8,6 +8,12 @@ import { useDictation } from '@/lib/use-dictation'
 import { useReadAloud } from '@/lib/use-read-aloud'
 import { useStayAwake } from '@/lib/use-stay-awake'
 import { canOfferLab } from '@/lib/check-in-prompt'
+import type { ProposedNote, IntentMode } from '@/lib/check-in-intent'
+import { NoteOfferCard, type NoteOffer } from '@/components/check-in/note-offer'
+import { ExampleTour } from '@/components/studio/work/example-tour'
+import { useExampleTour } from '@/lib/examples/use-example-tour'
+import { checkInTourSteps, demoShows, DEMO, type DemoStage } from '@/lib/check-in-tour'
+import { usePhone } from '@/lib/use-phone'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
@@ -107,6 +113,14 @@ export default function CheckInPage() {
   const [belongs, setBelongs] = useState<{ project_id: string; title: string; quote: string } | null>(null)
   const [belongsState, setBelongsState] = useState<'offered' | 'adding' | 'added' | 'dismissed' | 'failed'>('offered')
   const belongsAsked = useRef(0)
+  // Things said here that were meant for a project ("note for the album: …",
+  // "remind me to …"): what was understood, waiting for a yes.
+  const [noteOffers, setNoteOffers] = useState<NoteOffer[]>([])
+  const [projects, setProjects] = useState<Array<{ id: string; title: string }>>([])
+  // The first-visit walk: an example conversation set out on this page.
+  const [demoStage, setDemoStage] = useState<DemoStage | null>(null)
+  const [walkDone, setWalkDone] = useState(false)
+  const phone = usePhone()
 
   const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
@@ -206,14 +220,49 @@ export default function CheckInPage() {
     }
   }
 
+  // Every message is read first for what it is for: a check-in, something to
+  // keep on a project, or both (lib/check-in-intent.ts). A note never gets a
+  // reflection it did not ask for, and anything unclear is a check-in.
   const handleSend = async () => {
-    if (!transcript.trim()) return
+    const userText = transcript.trim()
+    if (!userText || isProcessing) return
     setIsProcessing(true)
     setError(null)
-    const userText = transcript.trim()
+    const lastReply = [...messages].reverse().find((x) => x.role === 'assistant')?.content ?? null
+    let mode: IntentMode = 'check_in'
+    try {
+      const res = await fetch('/api/check-in/intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: userText, last_reply: lastReply }),
+      })
+      if (res.ok) {
+        const d = (await res.json()) as { mode: IntentMode; notes: ProposedNote[]; projects: Array<{ id: string; title: string }> }
+        if (d.projects?.length) setProjects(d.projects)
+        if (d.mode !== 'check_in' && d.notes?.length) {
+          mode = d.mode
+          setNoteOffers((prev) => [
+            ...prev,
+            ...d.notes.map((n) => ({ id: crypto.randomUUID(), said: userText, text: n.text, kind: n.kind, project_id: n.project_id, state: 'offered' as const })),
+          ])
+        }
+      }
+    } catch {
+      // Not knowing what it was for: it is a check-in, as it always was.
+    }
+    setTranscript('')
+    if (mode === 'note') {
+      setIsProcessing(false)
+      return
+    }
+    await runCheckIn(userText)
+  }
+
+  const runCheckIn = async (userText: string) => {
+    setIsProcessing(true)
+    setError(null)
     const priorHistory = messages.map((x) => ({ role: x.role, content: x.content }))
     setMessages((prev) => [...prev, { role: 'user', content: userText }])
-    setTranscript('')
     const alreadyResponded = messages.some((x) => x.role === 'assistant')
     try {
       if (alreadyResponded) {
@@ -399,6 +448,34 @@ export default function CheckInPage() {
     belongsAsked.current = 0
   }
 
+  const changeOffer = (id: string, patch: Partial<NoteOffer>) =>
+    setNoteOffers((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)))
+
+  const addNote = async (offer: NoteOffer) => {
+    if (!offer.project_id || !offer.text.trim() || offer.state === 'adding') return
+    changeOffer(offer.id, { state: 'adding', error: undefined })
+    try {
+      const res = await fetch('/api/check-in/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: offer.project_id, text: offer.text.trim(), kind: offer.kind }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { changeOffer(offer.id, { state: 'failed', error: d.error }); return }
+      changeOffer(offer.id, { state: 'added' })
+    } catch {
+      changeOffer(offer.id, { state: 'failed' })
+    }
+  }
+
+  // "No, this was a check-in": the same words go to the companion instead.
+  const offerWasCheckIn = (offer: NoteOffer) => {
+    setNoteOffers((prev) => prev.filter((o) => o.id !== offer.id))
+    // Said as both: the check-in already has these words.
+    if (messages.some((x) => x.role === 'user' && x.content === offer.said)) return
+    void runCheckIn(offer.said)
+  }
+
   const hasAiResponded = messages.some((x) => x.role === 'assistant')
   const offerLab = canOfferLab(signals?.creative_readiness, messages.filter((x) => x.role === 'user').map((x) => x.content))
 
@@ -407,7 +484,7 @@ export default function CheckInPage() {
   // words are read, and nothing happens unless they choose it.
   const userWordCount = messages.filter((x) => x.role === 'user').length
   useEffect(() => {
-    if (!hasAiResponded || isProcessing || belongs || belongsAsked.current >= 3) return
+    if (!hasAiResponded || isProcessing || belongs || belongsAsked.current >= 3 || noteOffers.length > 0) return
     belongsAsked.current += 1
     const words = messages.filter((x) => x.role === 'user').map((x) => x.content).join('\n\n')
     let alive = true
@@ -437,6 +514,22 @@ export default function CheckInPage() {
       setBelongsState('failed')
     }
   }
+  const walk = useExampleTour(!isLoadingHistory && messages.length === 0 && noteOffers.length === 0 && inputMode === null, 'checkin')
+  const walkSteps = useMemo(() => checkInTourSteps(), [])
+  const demo = demoShows(demoStage)
+  const demoMessages: Message[] = [
+    ...(demo.feeling ? [{ role: 'user' as const, content: DEMO.feeling }] : []),
+    ...(demo.reply ? [{ role: 'assistant' as const, content: DEMO.reply }] : []),
+  ]
+  const demoOffer: NoteOffer | null = demo.offer === 'none' ? null : {
+    id: 'demo', said: DEMO.aside, text: DEMO.note.text, kind: DEMO.note.kind, project_id: DEMO.project.id,
+    state: demo.offer === 'added' ? 'added' : 'offered',
+  }
+  const showingDemo = demoStage !== null
+  const shownMessages = showingDemo ? demoMessages : messages
+  const shownOffers = showingDemo ? (demoOffer ? [demoOffer] : []) : noteOffers
+  const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && !!demo.typing)
+
   const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }] : pastCheckIns)
   const hour = new Date().getHours()
   const daypart = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
@@ -444,8 +537,23 @@ export default function CheckInPage() {
   // ── Input area ─────────────────────────────────────────────────────────────
   const textareaValue = transcript + (dictationInterim ? (transcript && !transcript.endsWith(' ') ? ' ' : '') + dictationInterim : '')
   const inputArea = (
-    <div style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '0 auto' }}>
-      {inputMode === null ? (
+    <div data-tour="checkin-start" style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '0 auto' }}>
+      {showingDemo && demo.typing ? (
+        <>
+          <textarea
+            readOnly
+            value={demo.typing}
+            rows={3}
+            aria-label="An example"
+            style={{
+              width: '100%', boxSizing: 'border-box', backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`,
+              borderRadius: 12, padding: '12px 14px', fontFamily: 'var(--font-geist-sans)', fontSize: 16, fontWeight: 500,
+              color: t.textPrimary, outline: 'none', resize: 'none', lineHeight: 1.65,
+            }}
+          />
+          <PrimaryButton full size="lg">Send</PrimaryButton>
+        </>
+      ) : inputMode === null ? (
         <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="check-in-mode-picker">
           <m.button onClick={() => { setInputMode('mic'); startMicMode() }} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by voice">
             <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: '#1c1916', border: '1.5px solid #352f29', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.shadow }}>
@@ -607,9 +715,9 @@ export default function CheckInPage() {
         @media (max-width: 640px) { .check-in-mode-picker { gap: 32px; } }
       `}</style>
 
-      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" subtitle="Say how you are, out loud or in writing, and hear it reflected back." />
+      <PageHeader eyebrow={`Companheiro · ${daypart}`} title="Check-in" subtitle="Say how you are and hear it reflected back, or leave a thought or a reminder on one of your projects. Out loud or in writing." />
 
-      {messages.length === 0 ? (
+      {!conversing ? (
         /* Idle: the two circles, directly on the shell, exactly as minimal as before */
         <m.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }} style={{ minHeight: '46vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
           {inputArea}
@@ -617,9 +725,10 @@ export default function CheckInPage() {
       ) : (
         <Container>
           <div style={{ maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <Thread messages={messages} streaming={isProcessing} align="left">
+            <div data-tour="checkin-thread">
+            <Thread messages={shownMessages} streaming={!showingDemo && isProcessing} align="left">
               {/* Read aloud for the last companion reply */}
-              {hasAiResponded && !isProcessing && (
+              {!showingDemo && hasAiResponded && !isProcessing && (
                 <div style={{ marginTop: -12 }}>
                   {(() => {
                     const lastAi = [...messages].map((x, i) => ({ x, i })).reverse().find(({ x }) => x.role === 'assistant')
@@ -644,9 +753,24 @@ export default function CheckInPage() {
                 </div>
               )}
             </Thread>
+            </div>
+
+            {/* What was understood as meant for a project, waiting for a yes. */}
+            {shownOffers.map((offer) => (
+              <NoteOfferCard
+                key={offer.id}
+                offer={offer}
+                demo={showingDemo}
+                projects={showingDemo ? [DEMO.project] : projects}
+                onChange={(patch) => changeOffer(offer.id, patch)}
+                onAdd={() => void addNote(offer)}
+                onCheckIn={() => offerWasCheckIn(offer)}
+                onLeave={() => setNoteOffers((prev) => prev.filter((o) => o.id !== offer.id))}
+              />
+            ))}
 
             {/* Contextual doors — only surface when there is something real to offer */}
-            {hasAiResponded && !isProcessing && (showJournalButton || offerLab) && (
+            {!showingDemo && hasAiResponded && !isProcessing && (showJournalButton || offerLab) && (
               <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 {showJournalButton && (
                   <GhostButton size="sm" onClick={handleJournalPrompt} disabled={isLoadingJournal} loading={isLoadingJournal} loadingLabel="Generating…">
@@ -670,7 +794,7 @@ export default function CheckInPage() {
             {/* Sending something to a project is a side door: it never takes
                 them out of the check-in, the confirmation clears itself, and
                 the conversation carries on underneath whatever they choose. */}
-            {belongs && belongsState !== 'dismissed' && (
+            {!showingDemo && belongs && belongsState !== 'dismissed' && (
               <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} role="status">
                 <Card>
                   {belongsState === 'added' ? (
@@ -718,7 +842,21 @@ export default function CheckInPage() {
         </Container>
       )}
 
-      {historySection}
+      {!showingDemo && historySection}
+
+      {/* The first visit: one check-in and one note, played on this page. */}
+      {walk.due && !walkDone && (
+        <ExampleTour
+          steps={walkSteps}
+          phone={phone}
+          label="A short walk round the check-in"
+          onStep={(st) => {
+            if (st.key === walkSteps[0].key) walk.markSeen()
+            setDemoStage((st.stage as DemoStage) ?? null)
+          }}
+          onDone={() => { setDemoStage(null); setWalkDone(true); walk.markSeen() }}
+        />
+      )}
     </PageShell>
   )
 }

@@ -70,7 +70,7 @@ export function voiceFor(practices: readonly string[], exampleFor: readonly stri
 
 export interface TourPiece { id: string }
 export interface TourThread { id: string; name: string; on: string[] }
-export interface TourItem { id: string; kind: 'image' | 'recording' | 'tasks' | 'palette'; on: string[] }
+export interface TourItem { id: string; kind: 'image' | 'recording' | 'tasks' | 'palette' | 'note'; on: string[] }
 
 export interface TourInput {
   pieces: TourPiece[]
@@ -88,6 +88,8 @@ export type TourAnchor =
   | 'launcher' | 'vision-page' | 'vision-talk' | 'add-button'
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
+  // the check-in
+  | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added'
 
 /** A panel on the writing page the tour opens (or closes, with null). */
 export type TourPanel = 'concept' | 'anchors' | 'assistant'
@@ -112,6 +114,8 @@ export interface TourStep {
   room?: 'open' | 'page' | 'talk' | 'close'
   /** Shown being done: on the first thing in view, or on the "+" for `plus`. */
   gesture?: 'hold' | 'rest' | 'tap'
+  /** On the check-in: which moment of the example conversation is on screen. */
+  stage?: string
   /** How long it stands once it has arrived, for reading. */
   ms: number
 }

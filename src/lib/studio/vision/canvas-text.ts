@@ -48,6 +48,10 @@ function itemWords(item: BoardItem): string[] {
     const names = (c.swatches ?? []).map((s) => one(s.name)).filter(Boolean)
     return names.length ? [`a palette, its colours named: ${names.join(', ')}`] : []
   }
+  if (item.kind === 'note') {
+    if (!one(c.text)) return []
+    return [`${c.note === 'reminder' ? (c.done ? 'a reminder, done' : 'a reminder') : 'a note'}: “${one(c.text)}”`]
+  }
   const own = (c.tasks ?? []).filter((t) => one(t.title))
   return own.length ? [`a task list:\n${own.map((t) => `      [${t.done ? 'x' : ' '}] ${one(t.title)}`).join('\n')}`] : []
 }

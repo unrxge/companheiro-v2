@@ -86,9 +86,13 @@ function gestureAt(step: TourStep): Rect | null {
 }
 
 export function ExampleTour({
-  steps, board, phone, onRoom, onPanel, onView, onDone, startAt = 0,
+  steps, board, phone, onRoom, onPanel, onView, onStep, onDone, startAt = 0, label = 'A short walk round this example',
 }: {
   steps: TourStep[]
+  /** Each step as it begins: lets a page set out what the step talks about (the check-in's example conversation). */
+  onStep?: (step: TourStep) => void
+  /** What a screen reader hears the walk called. */
+  label?: string
   /** Where to begin (the preview only, for looking at one step). */
   startAt?: number
   /** The canvas, on the canvas's walk; absent on the writing page's. */
@@ -158,6 +162,7 @@ export function ExampleTour({
     if (phone && touched && 'vibrate' in navigator) {
       try { navigator.vibrate(8) } catch { /* not allowed here */ }
     }
+    onStep?.(step)
     let travel = 'ids' in step.show ? GLIDE_MS : 520
     if (step.room === 'open' || step.room === 'close') {
       const door = document.querySelector('[data-tour="launcher"]')?.getBoundingClientRect()
@@ -284,10 +289,21 @@ export function ExampleTour({
           const overTop = Math.max(0, ch + 14 - r.y)
           c.dataset.edge = overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
         } else {
-          const right = r.x + r.w / 2 > vw * 0.55
-          const x = right ? Math.max(16, r.x - CARD_GAP - CARD_W) : Math.min(vw - CARD_W - 16, r.x + r.w + CARD_GAP)
-          const y = Math.min(vh - ch - 24, Math.max(84, r.y + r.h / 2 - ch / 2))
-          c.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+          const roomRight = vw - 16 - (r.x + r.w + CARD_GAP)
+          const roomLeft = r.x - CARD_GAP - 16
+          if (roomRight >= CARD_W || roomLeft >= CARD_W) {
+            const right = roomRight >= CARD_W && (roomLeft < CARD_W || r.x + r.w / 2 <= vw * 0.55)
+            const x = right ? r.x + r.w + CARD_GAP : r.x - CARD_GAP - CARD_W
+            const y = Math.min(vh - ch - 24, Math.max(84, r.y + r.h / 2 - ch / 2))
+            c.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+          } else {
+            // No room either side (a centred column on a smaller screen): under
+            // what is lit when it fits there, otherwise over it.
+            const x = Math.min(vw - CARD_W - 16, Math.max(16, r.x + r.w / 2 - CARD_W / 2))
+            const below = r.y + r.h + CARD_GAP
+            const y = below + ch <= vh - 16 ? below : Math.max(16, r.y - CARD_GAP - ch)
+            c.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+          }
         }
       }
       const g = hand.current
@@ -344,7 +360,7 @@ export function ExampleTour({
         data-leaving={leaving || undefined}
         role="dialog"
         aria-modal="true"
-        aria-label="A short walk round this example"
+        aria-label={label}
         onClick={tryAdvance}
         style={{ position: 'fixed', inset: 0, zIndex: 300, cursor: phase === 'reading' ? 'pointer' : 'default', touchAction: 'none' }}
       >

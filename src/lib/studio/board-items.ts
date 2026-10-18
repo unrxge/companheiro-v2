@@ -1,12 +1,18 @@
 // What sits on a project's canvas besides its pieces and threads: images,
-// recordings and task lists (migration 028). The shapes both sides share, and
+// recordings and task lists (migration 028), palettes (031) and notes (036). The shapes both sides share, and
 // the arithmetic about where those things may go. No React, so it is tested
 // on its own.
 
 import type { AssetView } from '@/lib/studio/types'
 import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 
-export type BoardItemKind = 'image' | 'recording' | 'tasks' | 'palette'
+export type BoardItemKind = 'image' | 'recording' | 'tasks' | 'palette' | 'note'
+
+/** A note is a thought kept for later, or something to remember to do. */
+export type NoteKind = 'thought' | 'reminder'
+
+/** The most a note holds: a few sentences said on the go, not a draft. */
+export const NOTE_MAX = 600
 
 /** A task that belongs to the list itself: anything that is not the writing. */
 export interface OwnTask { id: string; title: string; done: boolean }
@@ -44,6 +50,14 @@ export interface BoardItemContent {
   writing_closed?: boolean
   /** A palette's colours. */
   swatches?: Swatch[]
+  /** A note's words. */
+  text?: string
+  /** What kind of note it is. */
+  note?: NoteKind
+  /** A reminder that has been done. */
+  done?: boolean
+  /** Left here from a check-in, rather than written on the canvas. */
+  from_check_in?: boolean
 }
 
 /**
@@ -55,12 +69,15 @@ export interface BoardItemContent {
 export function asksBeforeRemoving(item: Pick<BoardItem, 'kind' | 'content'>): boolean {
   if (item.kind === 'image' || item.kind === 'recording') return true
   if (item.kind === 'tasks') return (item.content.tasks?.length ?? 0) > 0
+  // A note said on the go cannot be said again word for word.
+  if (item.kind === 'note') return !!item.content.text?.trim()
   return false
 }
 
 /** What each part of a content block is when it has never been set. */
 const EMPTY_CONTENT: Required<BoardItemContent> = {
   title: '', caption: '', tasks: [], writing_closed: false, swatches: [], rows: 4,
+  text: '', note: 'thought', done: false, from_check_in: false,
 }
 
 /**
@@ -143,6 +160,7 @@ export const ITEM_WIDTH: Record<BoardItemKind, { base: number; min: number; max:
   tasks: { base: 300, min: 260, max: 380 },
   recording: { base: 300, min: 300, max: 300 },
   palette: { base: 300, min: 220, max: 560 },
+  note: { base: 260, min: 200, max: 440 },
 }
 export const RECORDING_H = 116
 /** Rows a caption may wrap to before it stops growing. */
@@ -174,7 +192,7 @@ export function captionLimit(innerWidth: number, fontSize: number, hardMax: numb
   return Math.max(24, Math.min(hardMax, Math.floor(perLine * CAPTION_ROWS * 0.9)))
 }
 /** Used before a task list has been measured, and for an image with no known shape. */
-export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H, palette: 128 }
+export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H, palette: 128, note: 132 }
 const CAPTION_H = 34
 
 export const canResize = (kind: BoardItemKind) => ITEM_WIDTH[kind].min !== ITEM_WIDTH[kind].max
@@ -474,13 +492,17 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
     out.set(thing.id, field.put(thing.w, thing.h, gap, band, card))
   }
 
-  // What belongs to no piece sits below the lot, across the whole width.
+  // What belongs to no piece sits below the lot, across the whole width,
+  // starting under the first card rather than out in the margin to its left
+  // (where the opening view does not reach, and a note left from a check-in
+  // would not be found).
   if (loose.length > 0) {
     const under = field.bottom(top)
     const floor = under === top ? top : under + gap
     const below = new Field([])
+    const start = order.length ? Math.max(near, order[0].x) : near
     for (const thing of [...loose].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))) {
-      out.set(thing.id, below.put(thing.w, thing.h, gap, { left: near, right: far }, { left: near, right: far, y: floor }))
+      out.set(thing.id, below.put(thing.w, thing.h, gap, { left: start, right: far }, { left: start, right: far, y: floor }))
     }
   }
 

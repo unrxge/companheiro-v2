@@ -3,12 +3,12 @@
 import type { AuthedContext } from '@/lib/supabase/route'
 import { badRequest, fromDbError, isFiniteNumber, isRecord, isString, isUuid, notFound } from '@/lib/studio/db'
 import {
-  cleanHex, itemWidth, MAX_SWATCHES,
+  cleanHex, itemWidth, MAX_SWATCHES, NOTE_MAX,
   type BoardItem, type BoardItemContent, type BoardItemKind, type OwnTask, type Swatch,
 } from '@/lib/studio/board-items'
 
 export const ITEM_COLS = 'id, user_id, project_id, kind, asset_id, node_ids, board_x, board_y, w, content, created_at, updated_at'
-export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks', 'palette'])
+export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks', 'palette', 'note'])
 
 const MAX_OWN_TASKS = 100
 
@@ -56,6 +56,13 @@ export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemConten
       if (swatches.length >= MAX_SWATCHES) break
     }
     out.swatches = swatches
+  }
+  if (kind === 'note') {
+    // Line breaks are kept: a reminder can be a short list.
+    if (isString(raw.text)) out.text = raw.text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, NOTE_MAX)
+    if (raw.note === 'thought' || raw.note === 'reminder') out.note = raw.note
+    if (typeof raw.done === 'boolean') out.done = raw.done
+    if (typeof raw.from_check_in === 'boolean') out.from_check_in = raw.from_check_in
   }
   return out
 }

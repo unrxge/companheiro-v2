@@ -37,7 +37,7 @@ import { CheckCard } from '@/components/studio/work/rules'
 import { VisionBlock, VISION_COLLAPSED_H, VISION_EXPANDED_H, visionWidth } from '@/components/studio/work/vision-block'
 import { hueOf } from '@/components/studio/work/bits'
 import {
-  ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
+  ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, NoteBlock, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
 import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
 import {
@@ -1599,6 +1599,13 @@ export function Board({
                     item={it}
                     disabled={disabled}
                     canRename={canMove}
+                    onContent={(content) => act.patchItem(it.id, { content })}
+                  />
+                )}
+                {it.kind === 'note' && (
+                  <NoteBlock
+                    item={it}
+                    disabled={disabled}
                     onContent={(content) => act.patchItem(it.id, { content })}
                   />
                 )}

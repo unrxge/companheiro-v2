@@ -10,13 +10,14 @@ import { useCallback, useEffect, useState } from 'react'
 // for looking at it.
 
 /** The canvas's walk, and the writing page's: each played once. */
-export type TourWhich = 'canvas' | 'piece'
+export type TourWhich = 'canvas' | 'piece' | 'checkin'
 const SEEN: Record<TourWhich, string> = {
   canvas: 'companheiro.example-tour.seen',
   piece: 'companheiro.example-piece-tour.seen',
+  checkin: 'companheiro.check-in-tour.seen',
 }
 /** What plays a walk again in the preview: ?tour= for the canvas's, ?piecetour= for the writing page's. */
-const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour' }
+const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour', checkin: 'tour' }
 
 const seenHere = (which: TourWhich) => {
   try { return !!window.localStorage.getItem(SEEN[which]) } catch { return false }
@@ -39,9 +40,9 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
     let live = true
     fetch('/api/examples/tour', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d: { seen?: boolean; pieceSeen?: boolean; practices?: unknown }) => {
+      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; practices?: unknown }) => {
         if (!live) return
-        const seen = which === 'piece' ? d.pieceSeen : d.seen
+        const seen = which === 'piece' ? d.pieceSeen : which === 'checkin' ? d.checkInSeen : d.seen
         if (seen && !forced) {
           try { window.localStorage.setItem(SEEN[which], '1') } catch { /* fine */ }
           return
