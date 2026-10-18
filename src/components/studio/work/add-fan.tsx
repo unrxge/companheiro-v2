@@ -12,7 +12,7 @@
 //     its rim brightens, so it feels alive rather than advertised
 //   · on arrival the light makes one brighter sweep, once, and then settles
 //
-// Pressed, the choices fan out of it in an arc, as Pinterest's do on iOS:
+// Pressed, the choices stack up out of it, one above the other:
 // hold and slide onto one (it swells and says its name) and let go to choose
 // it, or tap the "+" and then tap a choice.
 
@@ -23,20 +23,14 @@ import { alpha, shell } from '@/lib/design-tokens'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { PLUS_OPTIONS, type PlusChoice } from '@/components/studio/work/board-items'
 
-const SIZE = 56
+const SIZE = 68
 const BUBBLE = 50
-/** How far the fan reaches out from the "+". */
-const RADIUS = 118
+/** The gap between one choice and the next, up the stack. */
+const STEP = BUBBLE + 12
 /** A press held this long opens the fan for sliding onto a choice. */
 const HOLD_MS = 180
 /** How near the pointer comes before the "+" starts to notice it. */
 const NOTICE = 180
-
-/** The fan's angles, left round to straight up (a quarter circle out of the corner). */
-function angles(n: number): number[] {
-  if (n <= 1) return [225]
-  return Array.from({ length: n }, (_, i) => 180 + (90 * i) / (n - 1))
-}
 
 export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick, onLocked }: {
   open: boolean
@@ -51,10 +45,8 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
 }) {
   const { t } = useTheme()
   const options = PLUS_OPTIONS.filter((o) => available.includes(o.key))
-  const at = angles(options.length).map((deg) => {
-    const r = (deg * Math.PI) / 180
-    return { x: Math.cos(r) * RADIUS, y: Math.sin(r) * RADIUS }
-  })
+  // Stacked straight up from the "+", the first choice nearest it.
+  const at = options.map((_, i) => ({ x: 0, y: -(i + 1) * STEP - (SIZE - BUBBLE) / 2 }))
   const [hot, setHot] = useState<number | null>(null)
   const button = useRef<HTMLButtonElement | null>(null)
   const root = useRef<HTMLDivElement | null>(null)
@@ -170,17 +162,17 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
         .add-plus {
           transform: translate(var(--lean-x, 0px), var(--lean-y, 0px));
           transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 200ms ease, background 200ms ease;
-          border-color: rgba(232, 230, 224, calc(0.14 + var(--near, 0) * 0.4)) !important;
+          box-shadow: 0 12px 34px rgba(0,0,0,0.5), 0 0 0 calc(6px + var(--near, 0) * 6px) rgba(232,230,224,calc(0.06 + var(--near, 0) * 0.1)) !important;
         }
-        .add-plus:hover { background: rgba(28, 27, 25, 0.9) !important; }
+        .add-plus:hover { background: #F4F2EC !important; }
         .add-plus-icon { transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
         .add-plus[aria-expanded="true"] .add-plus-icon { transform: rotate(135deg); }
         /* The sliver of light round the rim: a conic glint, masked to a ring. */
         .add-glint {
           position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
-          background: conic-gradient(from 0deg, transparent 0deg 300deg, ${alpha(shell.text, 0.0)} 300deg, ${alpha(shell.text, 0.75)} 345deg, transparent 360deg);
-          -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.6px));
-                  mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1.6px));
+          background: conic-gradient(from 0deg, transparent 0deg 290deg, rgba(255,255,255,0) 290deg, rgba(255,255,255,0.95) 340deg, transparent 360deg);
+          -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+                  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
           opacity: calc(0.35 + var(--near, 0) * 0.65);
           animation: addSweep 7s linear infinite;
         }
@@ -203,13 +195,12 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
             data-tour="plus-menu"
             role="menu"
             aria-label="Add to this project"
-            style={{ position: 'absolute', right: -6, bottom: -6, width: RADIUS + BUBBLE + 12, height: RADIUS + BUBBLE + 12, pointerEvents: 'none' }}
+            style={{ position: 'absolute', right: -6, bottom: SIZE, width: 230, height: options.length * STEP + 12, pointerEvents: 'none' }}
           >
-            {/* a soft pool of shade under the arc, so the choices read over a busy board */}
+            {/* a soft column of shade behind the stack, so it reads over a busy board */}
             <span aria-hidden style={{
-              position: 'absolute', right: -60, bottom: -60, width: (RADIUS + BUBBLE) * 2, height: (RADIUS + BUBBLE) * 2, borderRadius: '50%',
-              background: 'radial-gradient(circle at 50% 50%, rgba(10,9,8,0.72) 0%, rgba(10,9,8,0.45) 45%, rgba(10,9,8,0) 70%)',
-              transform: `translate(${RADIUS / 2}px, ${RADIUS / 2}px)`,
+              position: 'absolute', inset: '-30px -30px -10px -60px', borderRadius: 40,
+              background: 'radial-gradient(ellipse at 80% 60%, rgba(10,9,8,0.7) 0%, rgba(10,9,8,0.4) 50%, rgba(10,9,8,0) 78%)',
             }} />
           </div>
         )}
@@ -243,30 +234,29 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
               }}
             >
               <span style={{ display: 'flex', transform: 'scale(1.15)' }}>{o.icon}</span>
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute', right: 'calc(100% + 10px)', top: '50%', transform: 'translateY(-50%)', whiteSpace: 'nowrap',
+                  ...canvasType.small, fontSize: 13, fontWeight: 600, padding: '6px 12px', borderRadius: 999, pointerEvents: 'none',
+                  background: isHot && !greyed ? shell.text : 'rgba(13,12,11,0.9)', color: isHot && !greyed ? shell.ink : greyed ? alpha(shell.text, 0.45) : shell.text,
+                  border: `1px solid ${shell.line}`, transition: 'background 140ms ease, color 140ms ease',
+                }}
+              >
+                {o.label}{greyed && !inert && locked.includes(o.key) ? ' · Direction' : ''}
+              </span>
               {greyed && !inert && (
                 <span aria-hidden style={{ position: 'absolute', top: -4, right: -4, width: 9, height: 9, borderRadius: '50%', background: t.violet, boxShadow: `0 0 0 2px rgba(22,21,19,0.94)` }} />
               )}
             </button>
           )
         })}
-        {/* what the swelled one is, named over the fan */}
-        {open && (
-          <span
-            key={hotOption?.key ?? (inert ? 'inert' : 'none')}
-            aria-live="polite"
-            style={{
-              position: 'absolute', left: '50%', bottom: RADIUS + BUBBLE + 4, transform: 'translate(-50%, 0)',
-              ...canvasType.small, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', pointerEvents: 'none',
-              padding: '6px 12px', borderRadius: 999, background: 'rgba(13,12,11,0.9)', border: `1px solid ${shell.line}`,
-              color: shell.text, animation: 'fanName 160ms ease both',
-              marginLeft: -RADIUS / 2,
-            }}
-          >
-            {inert
-              ? 'An example is for looking'
-              : hotOption
-                ? (locked.includes(hotOption.key) ? `${hotOption.label} · Direction` : hotOption.label)
-                : 'Add to this project'}
+        {open && inert && (
+          <span style={{
+            position: 'absolute', right: 0, bottom: SIZE + options.length * STEP + 14, whiteSpace: 'nowrap', pointerEvents: 'none',
+            ...canvasType.small, fontSize: 12, color: shell.muted, padding: '5px 11px', borderRadius: 999, background: 'rgba(13,12,11,0.9)', border: `1px solid ${shell.line}`,
+          }}>
+            An example is for looking
           </span>
         )}
         <button
@@ -286,13 +276,15 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
           style={{
             position: 'relative', width: SIZE, height: SIZE, borderRadius: '50%', padding: 0, cursor: 'pointer', zIndex: 4,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(13,12,11,0.78)', backdropFilter: 'blur(18px) saturate(1.1)', WebkitBackdropFilter: 'blur(18px) saturate(1.1)',
-            border: `1px solid ${alpha(shell.text, 0.14)}`, color: shell.text,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.4)', touchAction: 'none',
+            // Light against the dark board, without a colour of its own: it is
+            // found by contrast and by the light on its rim, not by shouting.
+            background: 'rgba(232,230,224,0.92)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+            border: `1px solid ${alpha(shell.text, 0.5)}`, color: shell.ink,
+            boxShadow: '0 12px 34px rgba(0,0,0,0.5), 0 0 0 6px rgba(232,230,224,0.06)', touchAction: 'none',
           }}
         >
           <span aria-hidden className="add-glint" data-arrive />
-          <svg className="add-plus-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+          <svg className="add-plus-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
