@@ -229,7 +229,11 @@ export function Drawer({
       /* The panel is as tall as what is in it, and no taller than the room above the Dock. */
       .rail-drawer { bottom: auto; max-height: calc(100dvh - 64px - max(14px, env(safe-area-inset-bottom)) - 66px); }
       .rail-drawer[data-dock-away] { max-height: calc(100dvh - 64px - 16px); }
-      @media (min-width: ${DOCK_DESKTOP_MIN}px) { .rail-drawer { max-height: calc(100dvh - 64px - 16px); } .rail-sheet { bottom: 0; } }
+      /* Beside the rail's icons, which are centred on the screen, the panel is centred on it too. */
+      @media (min-width: ${DOCK_DESKTOP_MIN}px) {
+        .rail-drawer, .rail-drawer[data-dock-away] { top: 50%; transform: translateY(-50%); max-height: calc(100dvh - 128px); }
+        .rail-sheet { bottom: 0; }
+      }
     `}</style>
     <aside
       aria-label={title}
@@ -243,7 +247,7 @@ export function Drawer({
           ? { left: 0, right: 0, height: '50vh', borderRadius: '20px 20px 0 0' }
           : narrow
             ? { left: 8, right: 8, top: 64, borderRadius: radius.card }
-            : { right: 62, top: 64, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
+            : { right: 62, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
       }}
     >
       <header
