@@ -40,6 +40,7 @@ import {
   ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, NoteBlock, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
 import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
+import { AddFan } from '@/components/studio/work/add-fan'
 import {
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
@@ -1141,11 +1142,6 @@ export function Board({
   // ── making something new, from the corner ─────────────────────────────────
   /** The corner's "+" has been pressed and asks what to make. */
   const cornerOpen = menuFor !== null
-  const toggleCorner = useCallback(() => {
-    // An example shows what it offers, greyed: nothing is added to an example.
-    setMenuLive(false)
-    setMenuFor((cur) => (cur ? null : 'corner'))
-  }, [])
   /** What is being made, while the dialog asks what is in it. */
   const [adding, setAdding] = useState<PlusChoice | null>(null)
   /** A recording named and placed, waiting to be recorded. */
@@ -1255,19 +1251,16 @@ export function Board({
                the eye finds it. Not on a phone, where the canvas is for
                looking, except on an example, which shows what it would offer. */}
             {(!disabled || example) && (!phone || example) && (
-              <AddCorner open={cornerOpen} onClick={toggleCorner}>
-                {cornerOpen && (
-                  <PlusMenu
-                    place="corner"
-                    available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
-                    locked={example ? [] : lockedChoices}
-                    inert={example && !menuLive}
-                    onPick={(choice) => { setMenuFor(null); setAdding(choice) }}
-                    onLocked={(choice) => { setMenuFor(null); act.onLocked(choice) }}
-                    onClose={() => setMenuFor(null)}
-                  />
-                )}
-              </AddCorner>
+              <AddFan
+                open={cornerOpen}
+                onOpen={() => { setMenuLive(false); setMenuFor('corner') }}
+                onClose={() => setMenuFor(null)}
+                available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
+                locked={example ? [] : lockedChoices}
+                inert={example && !menuLive}
+                onPick={(choice) => setAdding(choice)}
+                onLocked={(choice) => act.onLocked(choice)}
+              />
             )}
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
@@ -1887,100 +1880,6 @@ function UndoButton({ next, onUndo }: { next: string | null; onUndo: () => void 
 
 // ── starting a thread from the piece it runs through ────────────────────────
 
-/**
- * The corner "+": the way to make anything new on the canvas. Large, in the
- * warm accent, with a slow glow breathing out of it so the eye goes there;
- * the glow stops while its menu is open. Above the Dock and the vision button
- * on a narrow screen.
- */
-function AddCorner({ open, onClick, children }: { open: boolean; onClick: () => void; children?: React.ReactNode }) {
-  const { t } = useTheme()
-  return (
-    <>
-      <style>{`
-        @keyframes addGlow {
-          0%, 100% { box-shadow: 0 0 0 2px ${alpha(t.ember, 0.8)}, 0 0 30px 12px ${alpha(t.ember, 0.6)}, 0 0 90px 36px ${alpha(t.ember, 0.35)}; }
-          50% { box-shadow: 0 0 0 3px ${alpha(t.ember, 0.95)}, 0 0 48px 20px ${alpha(t.ember, 0.75)}, 0 0 140px 60px ${alpha(t.ember, 0.45)}; }
-        }
-        @keyframes addHalo {
-          0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.55; }
-          50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.9; }
-        }
-        .add-corner-halo {
-          position: absolute; left: 50%; top: 50%; width: 220px; height: 220px; border-radius: 50%; pointer-events: none;
-          background: radial-gradient(circle, ${alpha(t.ember, 0.55)} 0%, ${alpha(t.ember, 0.22)} 35%, ${alpha(t.ember, 0)} 70%);
-          animation: addHalo 2.8s ease-in-out infinite; transform: translate(-50%, -50%);
-        }
-        .add-corner { right: 24px; bottom: 24px; }
-        @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
-          .add-corner { right: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 16px); }
-        }
-        .add-corner-btn { animation: addGlow 2.8s ease-in-out infinite; }
-        .add-corner-btn:hover { transform: scale(1.07); }
-        .add-corner-btn:active { transform: scale(0.95); }
-        .add-corner-word { opacity: 0; transform: translate(8px, -50%); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
-        .add-corner:hover .add-corner-word { opacity: 1; transform: translate(0, -50%); }
-        @media (hover: none) { .add-corner-word { display: none; } }
-        .add-corner-btn[aria-expanded="true"] { animation: none; }
-        @media (prefers-reduced-motion: reduce) { .add-corner-btn, .add-corner-halo { animation: none; } .add-corner-btn { box-shadow: 0 0 44px 16px ${alpha(t.ember, 0.6)}; } }
-      `}</style>
-      <div className="add-corner" data-hold style={{ position: 'absolute', zIndex: 42 }}>
-        {children}
-        {!open && (
-          <span
-            aria-hidden
-            className="add-corner-word"
-            style={{
-              position: 'absolute', right: 'calc(100% + 14px)', top: '50%', whiteSpace: 'nowrap',
-              ...canvasType.small, fontSize: 13, fontWeight: 600, color: shell.text,
-              padding: '6px 12px', borderRadius: 999, background: 'rgba(13,12,11,0.82)', border: `1px solid ${shell.line}`,
-            }}
-          >
-            Add
-          </span>
-        )}
-        {!open && <span aria-hidden className="add-corner-halo" style={{ right: 'auto', bottom: 'auto', marginLeft: 0 }} />}
-        <button
-          type="button"
-          className="add-corner-btn"
-          data-tour="add-button"
-          aria-label="Add something to this project"
-          aria-expanded={open}
-          title="Add a thread, a task list, an image, a recording or a palette"
-          onClick={onClick}
-          style={{
-            position: 'relative',
-            width: 60, height: 60, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: t.ember, color: shell.ink,
-            boxShadow: open ? `0 0 0 1px ${alpha(t.ember, 0.8)}, 0 10px 30px rgba(0,0,0,0.45)` : undefined,
-            transition: 'transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1)',
-          }}
-        >
-          {/* Companheiro's own mark (public/favicon.svg): the ring and the
-             spark inside it. The small "+" on its edge is what says press me
-             to add, so the mark can be the mark and still read as a button. */}
-          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden>
-            <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="2" />
-            <circle cx="16" cy="15" r="3.8" fill="currentColor" />
-          </svg>
-          <span
-            aria-hidden
-            className="add-corner-badge"
-            style={{
-              position: 'absolute', top: -3, right: -3, width: 22, height: 22, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: shell.text, color: shell.ink, boxShadow: `0 0 0 3px ${t.ember}`,
-              transform: open ? 'rotate(-45deg) scale(0)' : 'none', transition: 'transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1)',
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          </span>
-        </button>
-      </div>
-    </>
-  )
-}
 
 // ── what the board says while you are connecting ────────────────────────────
 

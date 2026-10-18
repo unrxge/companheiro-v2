@@ -30,7 +30,7 @@ import { formatDateShort } from '@/lib/dates'
 // A note arrives from a check-in, never from a piece's "+".
 export type PlusChoice = 'thread' | Exclude<BoardItemKind, 'note'>
 
-interface PlusOption { key: PlusChoice; label: string; hint: string; icon: ReactNode }
+export interface PlusOption { key: PlusChoice; label: string; hint: string; icon: ReactNode }
 
 const stroke = (children: ReactNode) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -38,7 +38,7 @@ const stroke = (children: ReactNode) => (
   </svg>
 )
 
-const PLUS_OPTIONS: PlusOption[] = [
+export const PLUS_OPTIONS: PlusOption[] = [
   { key: 'thread', label: 'A thread', hint: 'Something that runs through some of the pieces', icon: stroke(<><circle cx="6" cy="6" r="2.4" /><circle cx="18" cy="18" r="2.4" /><path d="M8 8c6 0 2 8 8 8" /></>) },
   { key: 'tasks', label: 'A task list', hint: 'The writing tasks, and anything else to do', icon: stroke(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8.5 12l2.2 2.2L15.5 9.5" /></>) },
   { key: 'image', label: 'An image', hint: 'A picture beside the words', icon: stroke(<><rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" /></>) },
@@ -177,10 +177,10 @@ export function NewPieceMenu({ onStart, onConceptualise, onClose }: {
 export function PlusMenu({
   available, locked, onPick, onLocked, onClose, inert = false, place = 'below',
 }: {
-  available: PlusChoice[]
-  locked: PlusChoice[]
   /** Where it opens: under a "+", or up out of the corner button. */
   place?: 'below' | 'corner'
+  available: PlusChoice[]
+  locked: PlusChoice[]
   onPick: (choice: PlusChoice) => void
   onLocked: (choice: PlusChoice) => void
   onClose: () => void
