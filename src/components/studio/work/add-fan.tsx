@@ -117,9 +117,10 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
     if (!open) return
     const away = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) onClose() }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    const id = window.setTimeout(() => window.addEventListener('pointerdown', away), 0)
+    // Capture phase: the canvas stops presses on its own ground and cards.
+    const id = window.setTimeout(() => window.addEventListener('pointerdown', away, true), 0)
     window.addEventListener('keydown', key)
-    return () => { window.clearTimeout(id); window.removeEventListener('pointerdown', away); window.removeEventListener('keydown', key) }
+    return () => { window.clearTimeout(id); window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', key) }
   }, [open, onClose])
 
   // ── it notices the pointer: leans towards it, rim brightening, as it nears
