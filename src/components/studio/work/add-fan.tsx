@@ -158,12 +158,30 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
         }
         @keyframes addSweep { to { transform: rotate(360deg); } }
         @keyframes addArrive { 0% { opacity: 0; transform: rotate(-120deg); } 35% { opacity: 1; } 100% { opacity: 0.35; transform: rotate(600deg); } }
-        @keyframes fanOut { from { transform: translate(0, 0) scale(0.2); opacity: 0; } to { transform: translate(var(--fx), var(--fy)) scale(1); opacity: 1; } }
+        /* A small hop: each choice pops out of the button, overshoots upward, tilts, and settles. */
+        @keyframes fanOut {
+          0% { transform: translate(0, 0) scale(0.2) rotate(-40deg); opacity: 0; }
+          55% { transform: translate(var(--fx), calc(var(--fy) - 14px)) scale(1.12) rotate(8deg); opacity: 1; }
+          78% { transform: translate(var(--fx), calc(var(--fy) + 3px)) scale(0.97) rotate(-3deg); }
+          100% { transform: translate(var(--fx), var(--fy)) scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes labelIn { from { opacity: 0; transform: translate(14px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+        @keyframes mistBreathe { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.12); opacity: 1; } }
+        @keyframes mistBurst { 0% { transform: scale(0.8); } 45% { transform: scale(1.5); } 100% { transform: scale(1.3); } }
+        /* The mist: the button's own colour, blurred wide behind it. */
+        .add-mist {
+          position: absolute; left: 50%; top: 50%; width: ${SIZE * 3.4}px; height: ${SIZE * 3.4}px; margin: ${-SIZE * 1.7}px 0 0 ${-SIZE * 1.7}px;
+          border-radius: 50%; pointer-events: none; z-index: 0; filter: blur(14px);
+          background: radial-gradient(circle, rgba(232,230,224,0.62) 0%, rgba(232,230,224,0.34) 28%, rgba(232,230,224,0.12) 52%, rgba(232,230,224,0) 72%);
+          opacity: calc(0.8 + var(--near, 0) * 0.2);
+          animation: mistBreathe 5s ease-in-out infinite;
+        }
+        .add-mist[data-open] { animation: mistBurst 620ms cubic-bezier(0.3, 0.9, 0.3, 1) both; opacity: 1; }
         @keyframes fanName { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
         .add-plus {
           transform: translate(var(--lean-x, 0px), var(--lean-y, 0px));
           transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 200ms ease, background 200ms ease;
-          box-shadow: 0 12px 34px rgba(0,0,0,0.5), 0 0 0 calc(6px + var(--near, 0) * 6px) rgba(232,230,224,calc(0.06 + var(--near, 0) * 0.1)) !important;
+          box-shadow: 0 0 22px rgba(232,230,224,calc(0.4 + var(--near, 0) * 0.3)), 0 10px 28px rgba(0,0,0,0.4) !important;
         }
         .add-plus:hover { background: #F4F2EC !important; }
         .add-plus-icon { transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -178,10 +196,12 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
           animation: addSweep 7s linear infinite;
         }
         .add-glint[data-arrive] { animation: addArrive 1.6s cubic-bezier(0.3, 0, 0.2, 1) 0.9s both, addSweep 7s linear 2.5s infinite; }
-        .fan-bubble { animation: fanOut 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .fan-bubble { animation: fanOut 520ms cubic-bezier(0.3, 0.8, 0.3, 1) both; }
+        .fan-label { animation: labelIn 300ms ease-out both; animation-delay: var(--ld, 0ms); }
         @media (prefers-reduced-motion: reduce) {
           .add-glint, .add-glint[data-arrive] { animation: none; }
           .fan-bubble { animation: none; transform: translate(var(--fx), var(--fy)); }
+          .fan-label, .add-mist, .add-mist[data-open] { animation: none; }
         }
       `}</style>
       <div
@@ -190,6 +210,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
         data-hold
         style={{ position: 'absolute', zIndex: 42, width: SIZE, height: SIZE }}
       >
+        <span aria-hidden className="add-mist" data-open={open || undefined} />
         {/* the fan: a box over the whole arc, so the walk round an example can light it */}
         {open && (
           <div
@@ -201,7 +222,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
             {/* a soft column of shade behind the stack, so it reads over a busy board */}
             <span aria-hidden style={{
               position: 'absolute', inset: '-30px -30px -10px -60px', borderRadius: 40,
-              background: 'radial-gradient(ellipse at 80% 60%, rgba(10,9,8,0.7) 0%, rgba(10,9,8,0.4) 50%, rgba(10,9,8,0) 78%)',
+              background: 'radial-gradient(ellipse at 80% 70%, rgba(232,230,224,0.16) 0%, rgba(232,230,224,0.07) 50%, rgba(232,230,224,0) 78%)', filter: 'blur(10px)',
             }} />
           </div>
         )}
@@ -223,7 +244,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
               style={{
                 position: 'absolute', left: (SIZE - BUBBLE) / 2, top: (SIZE - BUBBLE) / 2, width: BUBBLE, height: BUBBLE, borderRadius: '50%',
                 ['--fx' as string]: `${at[i].x}px`, ['--fy' as string]: `${at[i].y}px`,
-                animationDelay: `${i * 34}ms`,
+                animationDelay: `${i * 55}ms`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: inert ? 'default' : 'pointer',
                 background: isHot && !greyed ? shell.text : 'rgba(22,21,19,0.94)',
                 color: isHot && !greyed ? shell.ink : greyed ? alpha(shell.text, 0.38) : shell.text,
@@ -237,7 +258,9 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
               <span style={{ display: 'flex', transform: 'scale(1.15)' }}>{o.icon}</span>
               <span
                 aria-hidden
+                className="fan-label"
                 style={{
+                  ['--ld' as string]: `${i * 55 + 160}ms`,
                   position: 'absolute', right: 'calc(100% + 10px)', top: '50%', transform: 'translateY(-50%)', whiteSpace: 'nowrap',
                   ...canvasType.small, fontSize: 13, fontWeight: 600, padding: '6px 12px', borderRadius: 999, pointerEvents: 'none',
                   background: isHot && !greyed ? shell.text : 'rgba(13,12,11,0.9)', color: isHot && !greyed ? shell.ink : greyed ? alpha(shell.text, 0.45) : shell.text,
@@ -281,7 +304,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
             // found by contrast and by the light on its rim, not by shouting.
             background: 'rgba(232,230,224,0.92)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
             border: `1px solid ${alpha(shell.text, 0.5)}`, color: shell.ink,
-            boxShadow: '0 12px 34px rgba(0,0,0,0.5), 0 0 0 6px rgba(232,230,224,0.06)', touchAction: 'none',
+            touchAction: 'none',
           }}
         >
           <span aria-hidden className="add-glint" data-arrive />
