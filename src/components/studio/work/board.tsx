@@ -156,9 +156,11 @@ export interface BoardTourHandle {
    * as large as fits and never past `maxZoom`, centred in what the tour's
    * caption leaves of the window (`inset`, in window pixels).
    */
-  frame: (ids: string[] | 'all', opts?: { inset?: { top?: number; right?: number; bottom?: number; left?: number }; maxZoom?: number; ms?: number }) => void
+  frame: (ids: string[] | 'all', opts?: { inset?: { top?: number; right?: number; bottom?: number; left?: number }; maxZoom?: number; ms?: number; below?: number }) => void
   /** Lights one thing's web, as resting on it would, or nothing. */
   light: (focus: WebFocus | null) => void
+  /** Opens one piece's "+" as it is in a project of one's own (not greyed), or closes it. */
+  plus: (pieceId: string | null) => void
 }
 
 export interface BoardActions {
@@ -294,6 +296,10 @@ export function Board({
   const [visionOpen, setVisionOpen] = useState(false)
   /** The piece whose "+" is open. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** Opened by the example tour: shown as it is in a project of one's own, not greyed. */
+  const [menuLive, setMenuLive] = useState(false)
+  /** An example: looked at, moved about, never added to. */
+  const example = lockedForPlan && arrangeable
   /** The "add a piece" box is asking which way. */
   const [askingNewPiece, setAskingNewPiece] = useState(false)
   const [recorderFor, setRecorderFor] = useState<string | null>(null)
@@ -339,7 +345,9 @@ export function Board({
   const cardH = crowded ? Math.round(Math.max(CROWDED_MIN_H, Math.min(fullH, fullH * CROWDED_H_SCALE))) : fullH
   // Kept in proportion with the piece cards, not a width of its own — a
   // fixed one dwarfed a lane of narrower cards on anything but a wide window.
-  const visionW = visionWidth(cardW)
+  // On a phone the top of the board is as wide as the card under it, so the
+  // title and the notes above the cards fit the screen the board opens to.
+  const visionW = phone ? cardW : visionWidth(cardW)
 
   // Measured, not assumed: a fixed height for the expanded panel either
   // clipped a long intent and its rules mid-sentence, or left a gap too big
@@ -355,7 +363,7 @@ export function Board({
   // rather than shrink to fit, so this is the frame's own width, not any one
   // notice's. Kept separate from noticeW below: capping this the same way
   // would stop two notices ever sitting side by side at all.
-  const noticesRowMaxW = Math.round(Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2))
+  const noticesRowMaxW = phone ? cardW : Math.round(Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2))
   // Stretched across the frame itself, not the vision panel — a collision is
   // a nudge, and a nudge reads as one whenever it can stay short and wide
   // rather than boxed to the vision panel's own, much narrower scale. Every
@@ -846,8 +854,19 @@ export function Board({
     })
   }
   const opensWide = pieces.length > WIDE_OPEN_AFTER
+  // A phone opens on one card, as wide as the screen allows, with the title of
+  // the project above it in view: opened zoomed out on two cards, a phone
+  // showed the middle of both and the start of neither.
+  const phoneZoom = phone && frame.w ? Math.max(ZOOM.min, Math.min(1, (frame.w - 28) / cardW)) : null
   const initialCentre = useMemo<Point | null>(() => {
     if (!frame.w) return null
+    if (phoneZoom) {
+      const id = opensWide ? pieces[0]?.id : openOn.current
+      const i = Math.max(0, pieces.findIndex((p) => p.id === id))
+      const spot = pieces[i] ? pieceSpot(pieces[i], i) : visionAt
+      // the top of the board (the title) just under the page's own header
+      return { x: spot.x + cardW / 2, y: visionAt.y - 12 + (frame.h / 2 - 72) / phoneZoom }
+    }
     if (opensWide) {
       const a = pieceSpot(pieces[0], 0)
       const b = pieceSpot(pieces[1], 1)
@@ -859,9 +878,9 @@ export function Board({
     if (i === -1) return null
     const spot = pieceSpot(pieces[i], i)
     return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
-  }, [pieces, pieceSpot, cardW, cardH, frame.w, opensWide])
+  }, [pieces, pieceSpot, cardW, cardH, frame.w, frame.h, opensWide, phoneZoom, visionAt])
 
-  const canvas = useCanvas(ref, frame, world, { home, initialCentre, initialZoom: opensWide ? WIDE_OPEN_ZOOM : undefined, lookOnly: phone })
+  const canvas = useCanvas(ref, frame, world, { home, initialCentre, initialZoom: phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM : undefined), lookOnly: phone })
 
   // ── what the example tour can ask of the board ────────────────────────────
   useEffect(() => {
@@ -885,7 +904,7 @@ export function Board({
         const x0 = Math.min(...rects.map((r) => r.x))
         const y0 = Math.min(...rects.map((r) => r.y))
         const x1 = Math.max(...rects.map((r) => r.x + r.w))
-        const y1 = Math.max(...rects.map((r) => r.y + r.h))
+        const y1 = Math.max(...rects.map((r) => r.y + r.h)) + (opts.below ?? 0)
         const inset = { top: 0, right: 0, bottom: 0, left: 0, ...opts.inset }
         const room = { w: Math.max(120, frame.w - inset.left - inset.right), h: Math.max(120, frame.h - inset.top - inset.bottom) }
         const breathe = 36
@@ -897,6 +916,7 @@ export function Board({
         canvas.glideTo({ x: mid.x + (frame.w / 2 - roomMid.x) / k, y: mid.y + (frame.h / 2 - roomMid.y) / k }, k, opts.ms ?? 900)
       },
       light: (focus) => lighting.show(focus),
+      plus: (pieceId) => { setMenuLive(!!pieceId); setMenuFor(pieceId) },
     }
   })
 
@@ -1083,6 +1103,8 @@ export function Board({
   }, [act, addThreadFrom, say])
 
   const onPlus = useCallback((piece: TreeNode, i: number) => {
+    // An example shows its "+" and what it offers, greyed: nothing is added to an example.
+    if (example) { setMenuLive(false); setMenuFor((cur) => (cur === piece.id ? null : piece.id)); return }
     // With nothing but threads to offer, the "+" is what it always was.
     if (choices.length === 1) {
       if (lockedChoices.includes('thread')) act.onLocked('thread')
@@ -1090,7 +1112,7 @@ export function Board({
       return
     }
     setMenuFor((cur) => (cur === piece.id ? null : piece.id))
-  }, [act, addThreadFrom, choices.length, lockedChoices])
+  }, [act, addThreadFrom, choices.length, example, lockedChoices])
 
   const onImageChosen = useCallback(async (file: File | undefined) => {
     const pieceId = imageFor.current
@@ -1132,8 +1154,9 @@ export function Board({
         .add-piece-box:hover { background: ${alpha(shell.text, 0.07)}; border-color: ${alpha(shell.text, 0.46)}; color: ${shell.text}; }
         .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 12px); }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .board-banner { bottom: calc(22px + 52px + 12px); } }
-        /* A phone only: above the zoom pill, which is itself above the Dock (surface.tsx). */
-        .phone-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px + 10px + 42px + 10px); }
+        /* A phone only: at the top, under the page's own header, clear of the
+           vision button and the Dock at the bottom. */
+        .phone-banner { top: calc(max(14px, env(safe-area-inset-top)) + 62px); }
       `}</style>
       <style>{`@keyframes threadBorn {
         from { opacity: 0; transform: translateY(-10px) scaleY(0.82); }
@@ -1155,11 +1178,15 @@ export function Board({
         ariaLabel="The board — the pieces of this project and what hangs under them"
         chrome={
           <>
-            <ZoomPill
-              canvas={canvas}
-              onHome={canvas.resetView}
-              after={canMove ? <UndoButton next={history.next} onUndo={history.undo} /> : undefined}
-            />
+            {/* Not on a phone: two fingers are the zoom there, and the pill
+               stood in the way of the vision button above the Dock. */}
+            {!phone && (
+              <ZoomPill
+                canvas={canvas}
+                onHome={canvas.resetView}
+                after={canMove ? <UndoButton next={history.next} onUndo={history.undo} /> : undefined}
+              />
+            )}
             {phone && <PhoneBanner />}
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
@@ -1374,19 +1401,21 @@ export function Board({
               {/* everything a piece can have hanging under it starts here —
                  set into the card's own bottom edge, in this card's colour,
                  which a thread then carries */}
-              {!disabled && (
+              {(!disabled || example) && (
                 <AddThreadButton
                   hue={pieceHue(i)}
                   pieceTitle={piece.title}
-                  menu={choices.length > 1}
+                  menu={choices.length > 1 || example}
                   open={menuFor === piece.id}
+                  tourId={`plus-${piece.id}`}
                   onClick={() => onPlus(piece, i)}
                 />
               )}
               {menuFor === piece.id && (
                 <PlusMenu
-                  available={choices}
-                  locked={lockedChoices}
+                  available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
+                  locked={example ? [] : lockedChoices}
+                  inert={example && !menuLive}
                   onPick={(choice) => pick(choice, piece, i)}
                   onLocked={(choice) => { setMenuFor(null); act.onLocked(choice) }}
                   onClose={() => setMenuFor(null)}
@@ -1775,9 +1804,11 @@ function UndoButton({ next, onUndo }: { next: string | null; onUndo: () => void 
 /** Set into the middle of a card's bottom edge, in that card's own colour.
  *  The ring is the canvas behind it, so the button reads as a break in the
  *  card's outline rather than something floating over it. */
-function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
+function AddThreadButton({ hue, pieceTitle, menu, open, onClick, tourId }: {
   hue: ThreadHue
   pieceTitle: string
+  /** What the example tour finds it by. */
+  tourId?: string
   /** It opens a choice (a thread, a task list, an image, a recording) rather than starting a thread outright. */
   menu: boolean
   open: boolean
@@ -1790,6 +1821,7 @@ function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
   return (
     <button
       data-hold
+      data-tour={tourId}
       type="button"
       title={menu ? 'Add a thread, a task list, an image or a recording' : 'Start a thread here'}
       aria-label={label}
@@ -1820,28 +1852,46 @@ function AddThreadButton({ hue, pieceTitle, menu, open, onClick }: {
 
 // ── what the board says while you are connecting ────────────────────────────
 
-/** Said on a phone, where the board can be looked at but not arranged. */
+/**
+ * Said on a phone, where the board can be looked at but not arranged: once
+ * in this browser, for a few seconds, and gone at a tap. Said every time and
+ * for good, it was a box sitting over the bottom of every canvas.
+ */
+const PHONE_NOTE = 'companheiro.phone-note.seen'
 function PhoneBanner() {
+  const [shown, setShown] = useState(false)
+  const [going, setGoing] = useState(false)
+  useEffect(() => {
+    try { if (window.localStorage.getItem(PHONE_NOTE)) return; window.localStorage.setItem(PHONE_NOTE, '1') } catch { /* say it this once */ }
+    setShown(true)
+    const fade = window.setTimeout(() => setGoing(true), 6000)
+    const gone = window.setTimeout(() => setShown(false), 6500)
+    return () => { window.clearTimeout(fade); window.clearTimeout(gone) }
+  }, [])
+  if (!shown) return null
   return (
     <div
       data-hold
       role="status"
       className="phone-banner"
+      onClick={() => { setGoing(true); window.setTimeout(() => setShown(false), 400) }}
       style={{
         position: 'absolute', left: 16, right: 16, zIndex: 41,
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-        padding: '10px 14px', borderRadius: 16,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '9px 14px', borderRadius: 14,
         background: 'rgba(13,12,11,0.84)', backdropFilter: 'blur(18px) saturate(1.1)',
         WebkitBackdropFilter: 'blur(18px) saturate(1.1)',
         border: `1px solid ${shell.line}`,
+        opacity: going ? 0 : 1, transform: going ? 'translateY(-6px)' : 'none',
+        transition: 'opacity 400ms ease, transform 400ms ease',
       }}
     >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={shell.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0, marginTop: 1 }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={shell.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
         <rect x="7" y="2.5" width="10" height="19" rx="2.4" />
         <path d="M11 18h2" />
       </svg>
       <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.4, color: shell.text }}>
-        View only on a phone. Tap a piece to open it. To move or add things, use a tablet or a computer.
+        View only on a phone. Tap a piece to open it.
       </span>
     </div>
   )

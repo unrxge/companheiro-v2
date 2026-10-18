@@ -49,11 +49,12 @@ const PLUS_OPTIONS: PlusOption[] = [
  * anywhere else, or Escape. Both menus on this board use it, so they dismiss
  * alike and there is one place to change how that works.
  */
-function MenuShell({ label, children }: { label: string; children: ReactNode }) {
+function MenuShell({ label, children, mark }: { label: string; children: ReactNode; mark?: string }) {
   const { t } = useTheme()
   return (
     <div
       data-hold
+      data-tour={mark}
       data-canvas-menu
       role="menu"
       aria-label={label}
@@ -71,32 +72,36 @@ function MenuShell({ label, children }: { label: string; children: ReactNode }) 
 }
 
 /** One line of a canvas menu: what it makes, and what that means. */
-function MenuRow({ icon, label, hint, locked, onClick }: {
+function MenuRow({ icon, label, hint, locked, muted, onClick }: {
   icon: ReactNode
   label: string
   hint: string
   locked?: boolean
+  /** Greyed with no plan named: shown, not offered (an example's). */
+  muted?: boolean
   onClick: () => void
 }) {
   const { t } = useTheme()
+  const grey = locked || muted
   return (
     <button
       type="button"
       role="menuitem"
+      aria-disabled={muted || undefined}
       onClick={onClick}
-      className="plus-menu-row"
+      className={muted ? undefined : 'plus-menu-row'}
       data-locked={locked || undefined}
       title={locked ? `${label} is part of Direction` : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '9px 10px',
-        background: 'none', border: 'none', borderRadius: radius.field, cursor: 'pointer', textAlign: 'left',
-        color: locked ? t.textMuted : t.textPrimary,
+        background: 'none', border: 'none', borderRadius: radius.field, cursor: muted ? 'default' : 'pointer', textAlign: 'left',
+        color: grey ? t.textMuted : t.textPrimary,
       }}
     >
       {/* Greyed, not hidden: the row keeps its place and its words, dimmed,
          and the plan that carries it is named at full strength beside it. */}
-      <span style={{ flexShrink: 0, display: 'flex', color: locked ? t.textMuted : t.textSecondary, opacity: locked ? 0.55 : 1 }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, opacity: locked ? 0.55 : 1 }}>
+      <span style={{ flexShrink: 0, display: 'flex', color: grey ? t.textMuted : t.textSecondary, opacity: grey ? 0.55 : 1 }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, opacity: grey ? 0.55 : 1 }}>
         <span style={{ ...canvasType.small, fontSize: 13.5, fontWeight: 600, display: 'block', color: 'inherit' }}>{label}</span>
         <span style={{ ...canvasType.small, fontSize: 12, lineHeight: 1.35, display: 'block', color: t.textMuted }}>{hint}</span>
       </span>
@@ -165,19 +170,22 @@ export function NewPieceMenu({ onStart, onConceptualise, onClose }: {
  * the plan that does and answered by `onLocked` instead of `onPick`.
  */
 export function PlusMenu({
-  available, locked, onPick, onLocked, onClose,
+  available, locked, onPick, onLocked, onClose, inert = false,
 }: {
   available: PlusChoice[]
   locked: PlusChoice[]
   onPick: (choice: PlusChoice) => void
   onLocked: (choice: PlusChoice) => void
   onClose: () => void
+  /** An example's: every row greyed and doing nothing, with a line saying why. */
+  inert?: boolean
 }) {
   const ref = useDismiss(onClose)
+  const { t } = useTheme()
 
   return (
     <div ref={ref}>
-    <MenuShell label="Add to this piece">
+    <MenuShell label="Add to this piece" mark="plus-menu">
       {PLUS_OPTIONS.filter((o) => available.includes(o.key)).map((o) => {
         const isLocked = locked.includes(o.key)
         return (
@@ -187,10 +195,16 @@ export function PlusMenu({
             label={o.label}
             hint={o.hint}
             locked={isLocked}
-            onClick={() => (isLocked ? onLocked(o.key) : onPick(o.key))}
+            muted={inert}
+            onClick={() => { if (inert) return; if (isLocked) onLocked(o.key); else onPick(o.key) }}
           />
         )
       })}
+      {inert && (
+        <p style={{ ...canvasType.small, fontSize: 12, color: t.textMuted, margin: '6px 10px' }}>
+          An example is for looking. In a project of your own, these make things.
+        </p>
+      )}
     </MenuShell>
     </div>
   )

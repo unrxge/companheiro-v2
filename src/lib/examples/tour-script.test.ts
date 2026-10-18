@@ -45,11 +45,11 @@ test('every example gets the same short walk, ending where it began', () => {
     const keeps = src.items.some((i) => i.kind !== 'tasks')
     assert.deepEqual(
       steps.map((s) => s.key),
-      ['arrive', 'piece', 'thread', ...(keeps ? ['keep'] : []), 'room-door', 'room-page', 'room-talk', 'end'],
+      ['arrive', 'piece', 'thread', 'plus', ...(keeps ? ['keep'] : []), 'room-door', 'room-page', 'room-talk', 'end'],
       src.key,
     )
-    // reading time, before about a second of travel between steps: under 45s in all
-    assert.ok(tourLength(steps) < 37_000, `${src.key} reads in under 37s (${tourLength(steps)})`)
+    // reading time, before about a second of travel between steps: under 50s in all
+    assert.ok(tourLength(steps) < 41_000, `${src.key} reads in under 41s (${tourLength(steps)})`)
     // short sentences
     for (const s of steps) for (const line of [s.headline, ...s.lines]) {
       assert.ok(line.split(/\s+/).length <= 12, `"${line}" is short`)

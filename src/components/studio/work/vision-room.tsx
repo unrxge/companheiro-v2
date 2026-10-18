@@ -99,7 +99,8 @@ export function VisionRoom({
     return () => window.clearTimeout(id)
   }, [])
   const [wide, setWide] = useState(true)
-  const [tab, setTab] = useState<'page' | 'talk'>('talk')
+  // Narrow, the two halves take turns, and the vision comes first.
+  const [tab, setTab] = useState<'page' | 'talk'>('page')
   useEffect(() => { if (tour?.tab) setTab(tour.tab) }, [tour?.tab])
 
   const [loaded, setLoaded] = useState(false)
@@ -299,12 +300,16 @@ export function VisionRoom({
   }, [])
 
   const pending = kept.filter((k) => k.state === 'pending')
-  const openCount = kept.filter((k) => k.state === 'kept' && k.kind === 'open').length + (reading?.gaps.length ?? 0)
 
   const sheet = {
     background: t.containerBg, border: `1px solid ${t.divider}`, borderRadius: radius.container,
     boxShadow: t.containerShadow, minHeight: 0, overflow: 'hidden' as const, display: 'flex', flexDirection: 'column' as const,
   }
+  const glass = {
+    display: 'inline-flex', alignItems: 'center', borderRadius: 999,
+    background: 'rgba(13,12,11,0.6)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+    border: `1px solid ${shell.line}`, ...canvasType.small,
+  } as const
   const showPage = wide || tab === 'page'
   const showTalk = wide || tab === 'talk'
 
@@ -325,6 +330,9 @@ export function VisionRoom({
         .vision-wash { animation: visionWash ${IN_MS + 320}ms ease-in-out both; }
         .vision-room[data-leaving] .vision-wash { animation: visionWashBack ${OUT_MS}ms ease-in-out both; }
         .vision-rise { animation: visionRise 620ms ${motion.enter} both; }
+        /* Once open, a half shown again by its tab is simply there: replayed,
+           the rise left it blank for a second each time. */
+        .vision-room[data-settled]:not([data-leaving]) .vision-rise { animation: none; }
         .vision-room[data-leaving] .vision-rise { animation: visionSink ${Math.round(OUT_MS * 0.5)}ms cubic-bezier(0.7, 0, 0.84, 0) both; animation-delay: 0ms !important; }
         @media (prefers-reduced-motion: reduce) {
           .vision-room { animation: visionFade 160ms ease both; }
@@ -362,31 +370,35 @@ export function VisionRoom({
 
         <header
           className="vision-rise"
-          style={{ position: 'relative', zIndex: 2, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 14, padding: 'max(14px, env(safe-area-inset-top)) 16px 14px', animationDelay: '380ms' }}
+          style={{
+            position: 'relative', zIndex: 2, flexShrink: 0, padding: 'max(14px, env(safe-area-inset-top)) 16px 14px', animationDelay: '380ms',
+            // Narrow, the way back, the star and the two halves share one row
+            // with the star in the middle; there was no room for words beside it.
+            display: wide ? 'flex' : 'grid', gridTemplateColumns: wide ? undefined : '1fr auto 1fr', alignItems: 'center', gap: 14,
+          }}
         >
           <button
             type="button"
             onClick={leave}
             aria-label="Back to the canvas"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px 9px 10px', borderRadius: 999, cursor: 'pointer',
-              background: 'rgba(13,12,11,0.6)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-              border: `1px solid ${shell.line}`, color: shell.text, ...canvasType.small,
-            }}
+            style={{ ...glass, justifySelf: 'start', gap: 8, padding: '9px 14px 9px 10px', color: shell.text, cursor: 'pointer' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
             Canvas
           </button>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: t.violet, minWidth: 0 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ flexShrink: 0 }}><path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" /></svg>
-            <span style={{ ...canvasType.small, color: shell.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Talking about the vision
-            </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: t.violet, minWidth: 0, justifySelf: 'center' }}>
+            <svg width={wide ? 15 : 17} height={wide ? 15 : 17} viewBox="0 0 24 24" fill="currentColor" aria-label={wide ? undefined : 'Talking about the vision'} aria-hidden={wide || undefined} style={{ flexShrink: 0 }}><path d="M12 2L14.6 9.4 22 12 14.6 14.6 12 22 9.4 14.6 2 12 9.4 9.4Z" /></svg>
+            {wide && (
+              <span style={{ ...canvasType.small, color: shell.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Talking about the vision
+              </span>
+            )}
           </span>
 
           {!wide && (
-            <div role="tablist" aria-label="The two halves of this room" style={{ marginLeft: 'auto', display: 'inline-flex', padding: 3, borderRadius: 999, background: 'rgba(13,12,11,0.6)', border: `1px solid ${shell.line}` }}>
-              {([['talk', 'Talk'], ['page', 'The vision']] as const).map(([key, label]) => (
+            // The same glass as the way back beside it, so the row reads as one set of controls.
+            <div role="tablist" aria-label="The two halves of this room" style={{ ...glass, justifySelf: 'end', padding: 3, gap: 2 }}>
+              {([['page', 'Vision'], ['talk', 'Talk']] as const).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
@@ -394,11 +406,12 @@ export function VisionRoom({
                   aria-selected={tab === key}
                   onClick={() => setTab(key)}
                   style={{
-                    ...canvasType.small, fontSize: 12, padding: '7px 13px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                    background: tab === key ? shell.text : 'transparent', color: tab === key ? shell.ink : shell.muted,
+                    ...canvasType.small, padding: '6px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                    background: tab === key ? alpha(shell.text, 0.13) : 'transparent', color: tab === key ? shell.text : shell.muted,
+                    transition: 'background 160ms ease, color 160ms ease',
                   }}
                 >
-                  {label}{key === 'page' && openCount > 0 ? ` · ${openCount}` : ''}
+                  {label}
                 </button>
               ))}
             </div>
@@ -456,11 +469,9 @@ export function VisionRoom({
                       <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>Past conversations</>
                     )}
                   </button>
-                  <span style={{ ...canvasType.label, color: t.textMuted, flex: 1, minWidth: 0, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pastOpen ? 'Pick one up where it stopped' : conversationId ? (messages.length ? 'Picked up again' : 'This conversation') : 'A new conversation'}
-                  </span>
+                  {/* Only the two ways to go: no label naming what is open. */}
                   {conversationId && !pastOpen && (
-                    <button type="button" onClick={() => { void open('new') }} style={talkLink(t.textSecondary)}>
+                    <button type="button" onClick={() => { void open('new') }} style={{ ...talkLink(t.textSecondary), marginLeft: 'auto' }}>
                       Start a new one
                     </button>
                   )}

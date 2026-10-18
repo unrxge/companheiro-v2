@@ -54,7 +54,7 @@ export const EXAMPLE_PRACTICES: Record<string, readonly Practice[]> = {
 }
 
 /** For someone who named no practice. */
-export const ANY_VOICE: Voice = { piece: 'one piece of the work', whole: 'one project', audience: 'whoever it is for', keep: 'An image. A recording. A palette.' }
+export const ANY_VOICE: Voice = { piece: 'one piece of the work', whole: 'the whole', audience: 'anyone else', keep: 'An image. A recording. A palette.' }
 
 /**
  * The practice to speak to: one they named that this example belongs to, so
@@ -92,12 +92,16 @@ export interface TourStep {
   lines: string[]
   /** Brought into view and lit round: canvas ids, the whole board, or a part of the window. */
   show: { ids: string[] | 'all' } | { anchor: TourAnchor }
+  /** On a narrow screen, frame only these: all of `show` would be too small to read. */
+  narrow?: string[]
+  /** The piece whose "+" opens during the step, its menu shown as it is in a project of one's own. */
+  plus?: string
   /** A web lit while the step stands. */
   light?: WebFocus
   /** What happens to the vision room as the step begins. */
   room?: 'open' | 'page' | 'talk' | 'close'
-  /** Shown being done, on the first thing in view. */
-  gesture?: 'hold' | 'rest'
+  /** Shown being done: on the first thing in view, or on the "+" for `plus`. */
+  gesture?: 'hold' | 'rest' | 'tap'
   /** How long it stands once it has arrived, for reading. */
   ms: number
 }
@@ -153,8 +157,24 @@ export function tourSteps(input: TourInput): TourStep[] {
         input.phone ? 'Hold a card to light its threads.' : 'Rest on a card to light its threads.',
       ],
       show: { ids: [thread.id, ...thread.on] },
+      // A phone frames the thread alone; its lit strands show where it goes.
+      narrow: [thread.id],
       light: { kind: 'hub', id: thread.id },
       gesture: input.phone ? 'hold' : 'rest',
+    }))
+  }
+
+  // Where a thread begins: the "+" on the piece something was first noticed
+  // in. Said as why anyone would, not how the button works.
+  const startFrom = busiest ?? input.pieces[0]
+  if (startFrom) {
+    steps.push(step({
+      key: 'plus',
+      headline: 'Noticed something coming back?',
+      lines: ['Start a thread from the piece it showed up in.', 'Pictures, sounds and lists begin there too.'],
+      show: { ids: [startFrom.id] },
+      plus: startFrom.id,
+      gesture: 'tap',
     }))
   }
 

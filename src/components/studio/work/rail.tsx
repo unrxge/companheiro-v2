@@ -155,6 +155,9 @@ export function CompanionLauncher({
         style={{
           position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
           display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+          // One line, always: placed at left 50%, it was only allowed half the
+          // window's width and broke in two on a phone.
+          whiteSpace: 'nowrap',
           padding: '13px 24px', borderRadius: 999,
           border: `1px solid ${edge}`,
           background: active && !locked ? t.violet : 'rgba(13,12,11,0.78)',

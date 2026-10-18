@@ -27,7 +27,7 @@ export function useExampleTour(ready: boolean): ExampleTourDue {
 
   useEffect(() => {
     if (!ready) return
-    const forced = new URLSearchParams(window.location.search).get('tour') === '1'
+    const forced = !!new URLSearchParams(window.location.search).get('tour')
     if (!forced && seenHere()) return
     let live = true
     fetch('/api/examples/tour', { credentials: 'same-origin' })

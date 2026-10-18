@@ -161,8 +161,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const canMedia = access?.media ?? true
   const canTalkVision = access?.visionTalk ?? true
   // On a phone the board is for looking and for opening a piece (board.tsx
-  // says so in a banner): nothing waiting on an answer is offered there, and
-  // "Talk about the vision" is left to a tablet or a computer.
+  // says so in a banner): nothing waiting on an answer is offered there.
+  // "Talk about the vision" is, since 2026-10-18: the room is a conversation.
   const phone = usePhone()
   const hasCompanion = access?.companion ?? true
 
@@ -806,9 +806,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
           />
           {/* Bottom and centred, not a small icon in a corner pill — this is
              the invitation to talk the vision through, not an afterthought. */}
-          {/* Not on a phone — except on an example, which is only there to be
-             looked at, and whose room's conversation is already written. */}
-          {(!phone || isExampleProject) && <CompanionLauncher
+          {/* On a phone too: the room takes turns between its two halves there,
+             and a conversation is the one thing a phone is good at (2026-10-18). */}
+          {<CompanionLauncher
             active={!!visionRoom}
             locked={!canTalkVision}
             onClick={(from) => {
@@ -821,7 +821,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         </CanvasStage>
         <Dock />
         {companionDrawer}
-        {visionRoom && (!phone || isExampleProject) && (
+        {visionRoom && (
           <VisionRoom
             projectId={projectId}
             origin={visionRoom.origin}
@@ -844,6 +844,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             phone={phone}
             onRoom={onTourRoom}
             onDone={() => setTouring(null)}
+            // The preview only: ?tour=5 starts at the fifth step, to look at one.
+            startAt={process.env.NODE_ENV === 'production' ? 0 : Math.max(0, Number(new URLSearchParams(window.location.search).get('tour') ?? 1) - 1)}
           />
         )}
         {planNote && (

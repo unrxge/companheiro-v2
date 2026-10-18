@@ -30,8 +30,10 @@ const MIN_READ_MS = 1100
 /** How the caption sits on a computer. */
 const CARD_W = 360
 const CARD_GAP = 28
-/** A phone's caption is a sheet this tall, give or take a line. */
-const SHEET_H = 236
+/** A phone's caption is a sheet about this tall: kept small, the canvas is what is being shown. */
+const SHEET_H = 168
+/** The "+" menu hangs this far under its card, in board units, and is framed with it. */
+const MENU_BELOW = 330
 /** Around whatever is lit. */
 const PAD = 14
 
@@ -49,30 +51,44 @@ function unionOf(els: Element[]): Rect | null {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
 }
 
+/** The canvas ids a step frames: on a narrow screen, its shorter list when it has one. */
+function idsFor(step: TourStep, narrow: boolean): string[] | 'all' | null {
+  if (!('ids' in step.show)) return null
+  return narrow && step.narrow ? step.narrow : step.show.ids
+}
+
 /** What a step points at, where it is on the window right now. */
-function rectFor(step: TourStep): Rect | null {
+function rectFor(step: TourStep, narrow: boolean): Rect | null {
   if ('anchor' in step.show) {
     const el = document.querySelector(`[data-tour="${step.show.anchor}"]`)
     return el ? unionOf([el]) : null
   }
-  const ids = step.show.ids
+  const ids = idsFor(step, narrow)
   const els = ids === 'all'
     ? Array.from(document.querySelectorAll('[data-lit]'))
-    : ids.flatMap((id) => Array.from(document.querySelectorAll(`[data-lit="${CSS.escape(id)}"]`)))
+    : (ids ?? []).flatMap((id) => Array.from(document.querySelectorAll(`[data-lit="${CSS.escape(id)}"]`)))
+  // The "+" menu, once open, is part of what that step is showing.
+  if (step.plus) els.push(...Array.from(document.querySelectorAll('[data-tour="plus-menu"]')))
   return unionOf(els)
 }
 
-/** Where a step's gesture is shown being done: the first thing it points at. */
+/** Where a step's gesture is shown being done: the "+" it opens, or the first thing it points at. */
 function gestureAt(step: TourStep): Rect | null {
+  if (step.plus) {
+    const plus = document.querySelector(`[data-tour="plus-${CSS.escape(step.plus)}"]`)
+    return plus ? unionOf([plus]) : null
+  }
   if (!('ids' in step.show) || step.show.ids === 'all') return null
   const el = document.querySelector(`[data-lit="${CSS.escape(step.show.ids[0])}"]`)
   return el ? unionOf([el]) : null
 }
 
 export function ExampleTour({
-  steps, board, phone, onRoom, onDone,
+  steps, board, phone, onRoom, onDone, startAt = 0,
 }: {
   steps: TourStep[]
+  /** Where to begin (the preview only, for looking at one step). */
+  startAt?: number
   board: React.MutableRefObject<BoardTourHandle | null>
   /** On a phone (or a window as narrow): the caption is a sheet, and holds are shown, not rests. */
   phone: boolean
@@ -83,7 +99,7 @@ export function ExampleTour({
 }) {
   const { t } = useTheme()
   const reduce = useReducedMotion() ?? false
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(Math.max(0, Math.min(steps.length - 1, startAt)))
   const [phase, setPhase] = useState<'travelling' | 'reading'>('travelling')
   const [pressing, setPressing] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -130,7 +146,9 @@ export function ExampleTour({
     if (!step) return
     setPhase('travelling')
     // A small tick under the thumb on each new step, where the phone allows it.
-    if (phone && 'vibrate' in navigator) {
+    // (Only once they have touched the page: before that, browsers refuse it.)
+    const touched = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive
+    if (phone && touched && 'vibrate' in navigator) {
       try { navigator.vibrate(8) } catch { /* not allowed here */ }
     }
     let travel = 'ids' in step.show ? GLIDE_MS : 520
@@ -142,27 +160,36 @@ export function ExampleTour({
       onRoom(step.room, null)
       travel = Math.max(travel, 420)
     }
-    if ('ids' in step.show) {
+    const ids = idsFor(step, narrow)
+    if (ids) {
       const inset = narrow
-        ? { top: 64, bottom: SHEET_H + 24, left: 8, right: 8 }
+        ? { top: 64, bottom: SHEET_H + 28, left: 10, right: 10 }
         : { top: 72, right: CARD_W + CARD_GAP * 2, bottom: 96, left: 24 }
-      board.current?.frame(step.show.ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS })
+      board.current?.frame(ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS, below: step.plus ? MENU_BELOW : 0 })
     }
     board.current?.light(step.light ?? null)
     const id = window.setTimeout(() => {
       readSince.current = performance.now()
       setPhase('reading')
     }, reduce ? 120 : travel)
-    return () => window.clearTimeout(id)
+    // The "+" is seen being tapped, and then what it offers opens.
+    const plus = step.plus
+    const opens = plus ? window.setTimeout(() => board.current?.plus(plus), (reduce ? 120 : travel) + 560) : 0
+    return () => {
+      window.clearTimeout(id)
+      if (plus) { window.clearTimeout(opens); board.current?.plus(null) }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
 
-  // Read for as long as the step asks, then on.
+  // Read for as long as the step asks, then on. (The preview can hold a step
+  // still with ?tourhold=1, to look at it.)
+  const hold = process.env.NODE_ENV !== 'production' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tourhold')
   useEffect(() => {
-    if (phase !== 'reading' || !step) return
+    if (phase !== 'reading' || !step || hold) return
     const id = window.setTimeout(advance, step.ms)
     return () => window.clearTimeout(id)
-  }, [advance, phase, step])
+  }, [advance, hold, phase, step])
 
   // A key moves on as a tap does; nothing closes it.
   useEffect(() => {
@@ -205,7 +232,7 @@ export function ExampleTour({
       if (!s) return
       const vw = window.innerWidth
       const vh = window.innerHeight
-      const target = rectFor(s)
+      const target = rectFor(s, narrowRef.current)
       if (target) {
         const want = {
           x: Math.max(6, target.x - PAD), y: Math.max(6, target.y - PAD),
@@ -239,8 +266,13 @@ export function ExampleTour({
       if (c) {
         const ch = c.offsetHeight || SHEET_H
         if (narrowRef.current) {
-          const low = r.y + r.h / 2 > vh * 0.55
-          c.dataset.edge = low ? 'top' : 'bottom'
+          // At the bottom, unless the top covers nothing at all of what is lit
+          // and the bottom would. When something fills the screen (the vision
+          // room) the bottom is still right: it keeps the header at the top in
+          // view, and the start of what is being shown, which is read first.
+          const overBottom = Math.max(0, r.y + r.h - (vh - ch - 14))
+          const overTop = Math.max(0, ch + 14 - r.y)
+          c.dataset.edge = overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
         } else {
           const right = r.x + r.w / 2 > vw * 0.55
           const x = right ? Math.max(16, r.x - CARD_GAP - CARD_W) : Math.min(vw - CARD_W - 16, r.x + r.w + CARD_GAP)
@@ -277,6 +309,8 @@ export function ExampleTour({
         @keyframes tourHold { 0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; } 18% { opacity: 1; } 55% { transform: translate(-50%, -50%) scale(0.82); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(0.82); } 100% { transform: translate(-50%, -50%) scale(0.82); opacity: 0; } }
         @keyframes tourRipple { 0%, 55% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 62% { opacity: 0.8; } 100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } }
         @keyframes tourRest { 0% { transform: translate(46px, 52px); opacity: 0; } 15% { opacity: 1; } 55%, 85% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+        @keyframes tourTapDot { 0% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } 35% { transform: translate(-50%, -50%) scale(0.8); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }
+        @keyframes tourTap { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.9; } 100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; } }
         @keyframes tourFill { from { width: 0%; } to { width: 100%; } }
         @keyframes tourNudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
         .tour-root { animation: tourIn 380ms ease both; }
@@ -325,7 +359,7 @@ export function ExampleTour({
 
         {/* a hold, or a rest, shown being done */}
         <div ref={hand} aria-hidden style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', opacity: 0, transition: 'opacity 240ms ease' }}>
-          {step.gesture && phase === 'reading' && (step.gesture === 'hold' ? <Hold /> : <Rest />)}
+          {step.gesture && phase === 'reading' && (step.gesture === 'hold' ? <Hold /> : step.gesture === 'tap' ? <Tap /> : <Rest />)}
         </div>
 
         {/* the words */}
@@ -335,8 +369,8 @@ export function ExampleTour({
           data-edge="bottom"
           onClick={(e) => { e.stopPropagation(); tryAdvance() }}
           style={narrow ? {
-            position: 'absolute', left: 12, right: 12, maxWidth: 520, margin: '0 auto',
-            padding: '16px 20px 18px', borderRadius: 22,
+            position: 'absolute', left: 10, right: 10, maxWidth: 480, margin: '0 auto',
+            padding: '11px 16px 12px', borderRadius: 18,
             background: alpha(t.containerBg, 0.96), backdropFilter: 'blur(20px) saturate(1.1)',
             border: `1px solid ${alpha(t.textPrimary, 0.1)}`, boxShadow: '0 18px 50px rgba(0,0,0,0.45)',
           } : {
@@ -347,12 +381,12 @@ export function ExampleTour({
           }}
         >
           <Progress count={steps.length} at={index} reading={phase === 'reading'} ms={step.ms} colour={t.violet} track={alpha(t.textPrimary, 0.12)} />
-          <div aria-live="polite" style={{ minHeight: narrow ? 120 : 112, marginTop: 14 }}>
+          <div aria-live="polite" style={{ minHeight: narrow ? 56 : 112, marginTop: narrow ? 10 : 14 }}>
             {phase === 'reading' && (
               <div key={step.key}>
                 <h2 style={{
                   margin: 0, color: t.textPrimary, fontFamily: fonts.display, fontWeight: 650,
-                  fontSize: narrow ? 23 : 22, lineHeight: 1.18, letterSpacing: '-0.02em', textWrap: 'balance',
+                  fontSize: narrow ? 18.5 : 22, lineHeight: 1.2, letterSpacing: '-0.02em', textWrap: 'balance',
                 }}>
                   {words.map((w, i) => (
                     <span key={i} className="tour-word" style={{ animationDelay: `${i * 55}ms` }}>
@@ -360,10 +394,10 @@ export function ExampleTour({
                     </span>
                   ))}
                 </h2>
-                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ marginTop: narrow ? 6 : 10, display: 'flex', flexDirection: 'column', gap: narrow ? 2 : 4 }}>
                   {step.lines.map((line, i) => (
                     <p key={i} className="tour-line" style={{
-                      ...canvasType.body, fontSize: narrow ? 15.5 : 15, lineHeight: 1.45, margin: 0,
+                      ...canvasType.body, fontSize: narrow ? 13.5 : 15, lineHeight: 1.4, margin: 0,
                       color: i === 0 ? t.textSecondary : t.textMuted,
                       animationDelay: `${words.length * 55 + 120 + i * 140}ms`,
                     }}>
@@ -374,8 +408,9 @@ export function ExampleTour({
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, minHeight: 18 }}>
-            <span style={{ ...canvasType.meta, color: alpha(shell.text, 0.4) }}>{index + 1} of {steps.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: narrow ? 6 : 12, minHeight: 16 }}>
+            {/* On a phone the bars above already say how far in; the count is room it can spare. */}
+            <span style={{ ...canvasType.meta, color: alpha(shell.text, 0.4) }}>{narrow ? '' : `${index + 1} of ${steps.length}`}</span>
             {phase === 'reading' && (
               <span className="tour-line" style={{ ...canvasType.meta, color: alpha(shell.text, 0.55), display: 'inline-flex', alignItems: 'center', gap: 6, animationDelay: '900ms' }}>
                 {last ? (narrow ? 'Tap to start' : 'Click to start') : (narrow ? 'Tap for next' : 'Click for next')}
@@ -423,6 +458,22 @@ function Hold() {
         position: 'absolute', left: 0, top: 0, width: 46, height: 46, borderRadius: '50%',
         background: alpha(shell.text, 0.32), boxShadow: `0 0 0 1px ${alpha(shell.text, 0.6)}, 0 6px 20px rgba(0,0,0,0.35)`,
         animation: 'tourHold 2.2s cubic-bezier(0.3, 0, 0.2, 1) infinite',
+      }} />
+    </div>
+  )
+}
+
+/** One tap, once: the "+" being pressed before its menu opens. */
+function Tap() {
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{
+        position: 'absolute', left: 0, top: 0, width: 40, height: 40, borderRadius: '50%',
+        border: `2px solid ${alpha(shell.text, 0.9)}`, animation: 'tourTap 900ms 420ms ease-out both',
+      }} />
+      <span style={{
+        position: 'absolute', left: 0, top: 0, width: 34, height: 34, borderRadius: '50%',
+        background: alpha(shell.text, 0.35), animation: 'tourTapDot 900ms 120ms ease-out both',
       }} />
     </div>
   )
