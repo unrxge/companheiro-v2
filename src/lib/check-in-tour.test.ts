@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkInTourSteps, demoShows, type DemoStage } from './check-in-tour'
+import { checkInTourSteps, demoShows, SPOKEN_MS, DEMO, type DemoStage } from './check-in-tour'
 
 // What this guards: the walk showing one thing while saying another.
 
@@ -27,6 +27,12 @@ test('the two examples never share the screen', () => {
 test('the words are short enough to read in the time each step stands', () => {
   for (const s of checkInTourSteps()) {
     assert.ok(s.headline.split(' ').length <= 10, s.headline)
-    assert.ok(s.ms >= 2600 && s.ms <= 5600)
+    assert.ok(s.ms >= 2600 && s.ms <= 5600 + (s.key === 'aside' ? SPOKEN_MS : 0))
   }
+})
+
+test('the spoken example is given the time it takes to say', () => {
+  assert.ok(DEMO.aside.split(' ').length > 5)
+  const aside = checkInTourSteps().find((s) => s.key === 'aside')!
+  assert.ok(aside.ms >= SPOKEN_MS + 2600)
 })

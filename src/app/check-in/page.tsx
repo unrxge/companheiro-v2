@@ -10,6 +10,7 @@ import { useStayAwake } from '@/lib/use-stay-awake'
 import { canOfferLab } from '@/lib/check-in-prompt'
 import type { ProposedNote, IntentMode } from '@/lib/check-in-intent'
 import { NoteOfferCard, type NoteOffer } from '@/components/check-in/note-offer'
+import { SpokenDemo } from '@/components/check-in/spoken-demo'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
 import { checkInTourSteps, demoShows, DEMO, SCENES, type DemoStage } from '@/lib/check-in-tour'
@@ -539,20 +540,7 @@ export default function CheckInPage() {
   const inputArea = (
     <div data-tour="checkin-start" style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '0 auto' }}>
       {showingDemo && demo.typing ? (
-        <>
-          <textarea
-            readOnly
-            value={demo.typing}
-            rows={3}
-            aria-label="An example"
-            style={{
-              width: '100%', boxSizing: 'border-box', backgroundColor: t.inputBg, border: `1px solid ${t.inputBorder}`,
-              borderRadius: 12, padding: '12px 14px', fontFamily: 'var(--font-geist-sans)', fontSize: 16, fontWeight: 500,
-              color: t.textPrimary, outline: 'none', resize: 'none', lineHeight: 1.65,
-            }}
-          />
-          <PrimaryButton full size="lg">Send</PrimaryButton>
-        </>
+        <SpokenDemo words={demo.typing} />
       ) : inputMode === null ? (
         <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="check-in-mode-picker">
           <m.button onClick={() => { setInputMode('mic'); startMicMode() }} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by voice">
