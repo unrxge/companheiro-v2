@@ -4,9 +4,8 @@
 
 Writes into public/examples/:
   songwriter-thirty-four-chords.m4a   a phone memo of guitar chords (plucked-string synthesis)
-  director-arrivals-light.jpg         mood reference: an arrivals hall at 6am, out of focus
-  director-taxi-home.jpg              mood reference: city lights through a wet taxi window
-  director-scuffed-leather.jpg        mood reference: tan leather, marked by use
+  (the creative director's three mood images are the owner's own choice since
+  2026-10-18; the generators for them below are no longer run by default)
   director-voice-memo.m4a             a voice note recorded walking down a street (with --memo PATH)
 
 The voice note's words are spoken by the app's own speech voice (OpenAI's
@@ -374,8 +373,5 @@ if __name__ == '__main__':
         sys.exit(0)
     made = {
         'memo': guitar_memo(),
-        'arrivals': to_jpeg(arrivals_light(), 'director-arrivals-light.jpg'),
-        'taxi': to_jpeg(taxi_home(), 'director-taxi-home.jpg'),
-        'leather': to_jpeg(scuffed_leather(), 'director-scuffed-leather.jpg'),
     }
     print(json.dumps(made, indent=1))
