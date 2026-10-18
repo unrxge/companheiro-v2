@@ -47,6 +47,8 @@ import {
 import { opensOn } from '@/lib/studio/opening-view'
 import { openedIn } from '@/lib/studio/opened'
 import { useDeferred } from '@/lib/studio/use-deferred'
+import { useLit } from '@/lib/studio/use-lit'
+import { isLit, lineKey, litBy, type WebKind } from '@/lib/studio/web-focus'
 import { useUndo } from '@/lib/studio/use-undo'
 import type { AssetView } from '@/lib/studio/types'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -85,6 +87,10 @@ const CROWDED_SCALE = 0.85
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
+/** How far back a block falls while something else is being followed. */
+const DIMMED = 0.22
+/** Long enough to read as the board answering, short enough not to wait. */
+const LIT_MS = 160
 const ADD_THREAD_D = 30    // the "+" set into each card's bottom edge
 // There is no separate connection point: every thread on a piece leaves from
 // the "+" itself, all of them from that one spot, so the button is visibly
@@ -494,6 +500,28 @@ export function Board({
 
   const visionAt: Point = useMemo(() => ({ x: LEFT_ROOM + MARGIN, y: MARGIN }), [])
 
+  // ── following one thing through the web ───────────────────────────────────
+
+  /**
+   * Resting on a card, a thread or anything hanging under one lights what it
+   * is connected to and drops everything else back. On a canvas with a dozen
+   * threads this is the only way to read a single one of them; the arithmetic
+   * is in `web-focus.ts`, and `use-lit.ts` holds the gesture (resting with a
+   * mouse, holding with a finger).
+   */
+  // Not while a connection is being made: those modes dim and light the cards
+  // for their own reasons, and two answers at once is no answer.
+  const lighting = useLit(!arming && !armingItem)
+  const web = useMemo(() => ({
+    threads: hubs.map((th) => ({ id: th.id, on: [...(presence.get(th.id)?.roots ?? [])] })),
+    items: items.map((it) => ({ id: it.id, on: it.node_ids.filter((id) => pieceIds.has(id)) })),
+  }), [hubs, items, presence, pieceIds])
+  const lit = useMemo(() => litBy(lighting.focus, web), [lighting.focus, web])
+  /** How much of itself a block shows: all of it, or enough to keep its place. */
+  const litOpacity = useCallback(
+    (kind: WebKind, id: string) => (isLit(lit, kind, id) ? 1 : DIMMED),
+    [lit],
+  )
   /** Everything that can be put down, as boxes: what the end of the lane has to step around. */
   const boxes = useMemo<Box[]>(() => [
     ...hubs.map((th) => ({ ...hubAt(th), w: HUB_W, h: HUB_H })),
@@ -1099,15 +1127,20 @@ export function Board({
               const ox = p.x + cardW / 2
               const oy = p.y + cardH
               const deep = !here.direct.has(piece.id)
+              const on = !lit || lit.lines.has(lineKey(th.id, piece.id))
               return (
                 <path
                   key={`${th.id}-${piece.id}`}
                   d={smoothPath({ x: ox, y: oy }, { x: hx, y: hy })}
                   fill="none"
-                  stroke={alpha(colour, deep ? 0.32 : 0.55)}
-                  strokeWidth={1.5}
+                  // Followed, a strand is drawn at its full colour and a
+                  // little heavier; the rest of the net goes quiet rather
+                  // than away, so the shape of the whole is still there.
+                  stroke={alpha(colour, on ? (deep ? 0.6 : 0.95) : 0.07)}
+                  strokeWidth={on && lit ? 2.4 : 1.5}
                   strokeDasharray={deep ? '1 5' : undefined}
                   strokeLinecap="round"
+                  style={{ transition: `stroke ${LIT_MS}ms ease, stroke-width ${LIT_MS}ms ease` }}
                 />
               )
             })
@@ -1119,14 +1152,16 @@ export function Board({
             return pieces.map((piece, i) => {
               if (!it.node_ids.includes(piece.id)) return null
               const p = pieceAt(piece, i)
+              const on = !lit || lit.lines.has(lineKey(it.id, piece.id))
               return (
                 <path
                   key={`${it.id}-${piece.id}`}
                   d={smoothPath({ x: p.x + cardW / 2, y: p.y + cardH }, top)}
                   fill="none"
-                  stroke={alpha(hueOf(t, pieceHue(i)), 0.45)}
-                  strokeWidth={1.5}
+                  stroke={alpha(hueOf(t, pieceHue(i)), on ? 0.85 : 0.06)}
+                  strokeWidth={on && lit ? 2.4 : 1.5}
                   strokeLinecap="round"
+                  style={{ transition: `stroke ${LIT_MS}ms ease, stroke-width ${LIT_MS}ms ease` }}
                 />
               )
             })
@@ -1209,16 +1244,24 @@ export function Board({
           const targeted = armedItem ? true : Boolean(armedOn && !armedOn.has(piece.id))
           const onItem = Boolean(armedItem?.node_ids.includes(piece.id))
           const at = pieceAt(piece, i)
+          const light = lighting.bind('piece', piece.id)
+          const moving = drag?.kind === 'piece' && drag.id === piece.id
           return (
             <div
               key={piece.id}
-              onPointerDown={beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))}
+              {...light}
+              onPointerDown={(e) => {
+                light.onPointerDown(e)
+                beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))(e)
+              }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
                 cursor: canMove ? 'grab' : 'default', touchAction: 'none',
-                userSelect: 'none', WebkitUserSelect: 'none',
-                transition: drag?.kind === 'piece' && drag.id === piece.id
-                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+                opacity: litOpacity('piece', piece.id),
+                transition: moving
+                  ? `opacity ${LIT_MS}ms ease`
+                  : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}, opacity ${LIT_MS}ms ease`,
               }}
             >
               <PieceCard
@@ -1277,15 +1320,23 @@ export function Board({
         {/* the web's own blocks — one per thread, wherever it sits */}
         {hubs.map((th) => {
           const at = hubAt(th)
+          const light = lighting.bind('hub', th.id)
+          const moving = drag?.kind === 'hub' && drag.id === th.id
           return (
             <div
               key={th.id}
-              onPointerDown={beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))}
+              {...light}
+              onPointerDown={(e) => {
+                light.onPointerDown(e)
+                beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))(e)
+              }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: canMove ? 'grab' : 'default', touchAction: 'none',
-                userSelect: 'none', WebkitUserSelect: 'none',
-                transition: drag?.kind === 'hub' && drag.id === th.id
-                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+                opacity: litOpacity('hub', th.id),
+                transition: moving
+                  ? `opacity ${LIT_MS}ms ease`
+                  : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}, opacity ${LIT_MS}ms ease`,
               }}
             >
               <Hub
@@ -1307,18 +1358,28 @@ export function Board({
           const w = itemW(it)
           const asset = it.asset_id ? assets[it.asset_id] : undefined
           const stale = () => { if (it.asset_id) act.refreshAsset(it.asset_id) }
+          const light = lighting.bind('item', it.id)
+          const moving = drag?.kind === 'item' && drag.id === it.id
           return (
             <div
               key={it.id}
-              onPointerDown={beginDrag('item', it.id, at, (landed) => {
-                const k = kept(landed)
-                act.patchItem(it.id, { board_x: k.x, board_y: k.y })
-              })}
+              {...light}
+              onPointerDown={(e) => {
+                light.onPointerDown(e)
+                beginDrag('item', it.id, at, (landed) => {
+                  const k = kept(landed)
+                  act.patchItem(it.id, { board_x: k.x, board_y: k.y })
+                })(e)
+              }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: canMove ? 'grab' : 'default', touchAction: 'none',
-                userSelect: 'none', WebkitUserSelect: 'none',
-                transition: drag?.kind === 'item' && drag.id === it.id
-                  ? 'none' : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}`,
+                // Held, an image is the system's to save unless it is told
+                // otherwise, and the hold would never reach the board.
+                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+                opacity: litOpacity('item', it.id),
+                transition: moving
+                  ? `opacity ${LIT_MS}ms ease`
+                  : `left ${TIDY_MS}ms ${TIDY_EASE}, top ${TIDY_MS}ms ${TIDY_EASE}, opacity ${LIT_MS}ms ease`,
               }}
             >
               <ItemShell
