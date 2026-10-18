@@ -71,6 +71,8 @@ export interface Canvas {
    *  clampPan holds it inside the world's edges; this can't drift from the
    *  real thing, because it's computed the same way, once, in both places. */
   resetView: () => void
+  /** Puts the view's pan here, kept inside the edges: a block handing a drag back to the ground. */
+  panTo: (p: Point) => void
 }
 
 /**
@@ -221,7 +223,14 @@ export function useCanvas(
         setZoom(z * (1 - e.deltaY * 0.0035), anchor)
         return
       }
-      settle({ x: p.x - e.deltaX, y: p.y - e.deltaY })
+      // A mouse wheel only turns one way. Held with Shift, it goes sideways,
+      // which is the only way a mouse alone can reach the far end of a lane.
+      // (Some systems already turn Shift+wheel into a sideways scroll; then
+      // deltaX carries it and this does nothing extra.)
+      const sideways = e.shiftKey && e.deltaX === 0
+      settle(sideways
+        ? { x: p.x - e.deltaY, y: p.y }
+        : { x: p.x - e.deltaX, y: p.y - e.deltaY })
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
@@ -237,13 +246,17 @@ export function useCanvas(
       if (e.button !== 0 && e.button !== 1) return
       const target = e.target as HTMLElement | null
       const onCard = !!target?.closest('[data-hold]')
-      if (onCard && !lookOnly.current) return
+      // The middle button always moves the ground, whatever it is pressed on:
+      // on a crowded board there may be no bare ground left to press.
+      const middle = e.button === 1
+      if (onCard && !lookOnly.current && !middle) return
+      if (middle) e.preventDefault()
       stopGlide()
-      from = { x: e.clientX, y: e.clientY, pan: live.current.pan, held: !onCard }
+      from = { x: e.clientX, y: e.clientY, pan: live.current.pan, held: !onCard || middle }
       // Started on a card, the press may still be a tap on something inside
       // it. Capturing now would hand that tap to the ground instead, so the
       // ground only takes hold once the finger has actually travelled.
-      if (!onCard) {
+      if (!onCard || middle) {
         el.setPointerCapture(e.pointerId)
         setDragging(true)
       }
@@ -278,8 +291,8 @@ export function useCanvas(
   }, [ref, settle, stopGlide])
 
   return useMemo(
-    () => ({ pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView }),
-    [pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView],
+    () => ({ pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView, panTo: settle }),
+    [pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView, settle],
   )
 }
 

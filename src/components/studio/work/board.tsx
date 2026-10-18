@@ -96,6 +96,11 @@ export const COMPACT_CARD_W = 440
 const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
+/** How long a block is held still before it lifts and can be moved. */
+const LIFT_MS = 220
+/** How far a press travels before it is a look around rather than a click. */
+const PAN_SLOP = 5
+const LIFT_HINT = 'companheiro.lift-hint.seen'
 /** How far back a block falls while something else is being followed. */
 const DIMMED = 0.22
 /** Long enough to read as the board answering, short enough not to wait. */
@@ -940,10 +945,36 @@ export function Board({
   /** One drag gesture, for anything on the board. Persists the drop only
    *  when the pointer actually travelled — a plain click never moves
    *  anything, so every inner button keeps working exactly as it did. */
+  /** The block picked up by holding it, shown lifted until it is let go. */
+  const [lifted, setLifted] = useState<string | null>(null)
+  /**
+   * The first time a look around starts on a block, it is said once (in this
+   * browser) how to move one instead, since the hold is not something anyone
+   * would guess.
+   */
+  const hintLift = useCallback(() => {
+    try {
+      if (window.localStorage.getItem(LIFT_HINT)) return
+      window.localStorage.setItem(LIFT_HINT, '1')
+    } catch { return }
+    const text = 'To move something, hold it a moment until it lifts, then drag.'
+    setWord({ text, busy: false })
+    window.setTimeout(() => setWord((cur) => (cur && cur.text === text ? null : cur)), 6000)
+  }, [])
+
+  /**
+   * A press on a block. Moved straight away, it moves the ground, exactly as a
+   * press on bare canvas does: on a crowded board there is hardly any bare
+   * canvas left, and with a mouse (no two-finger scroll) every look around was
+   * picking something up and dropping it somewhere else. Held still for a
+   * moment, the block lifts, and then it moves where it is dragged. A plain
+   * click still reaches whatever is inside the block.
+   */
   const beginDrag = useCallback((
     kind: Drag['kind'], id: string, committed: Point, onDrop: (at: Point) => void,
   ) => (e: React.PointerEvent) => {
-    if (!canMove) return
+    // A phone's canvas moves its own ground under a finger (lookOnly).
+    if (phone) return
     const el = ref.current
     if (!el || e.button !== 0) return
     // user-select:none on the wrapper stops the drag's own text from
@@ -957,15 +988,40 @@ export function Board({
     const box = el.getBoundingClientRect()
     const grab = toWorld({ x: e.clientX - box.left, y: e.clientY - box.top }, canvas.pan, canvas.zoom)
     const offset = { x: grab.x - committed.x, y: grab.y - committed.y }
+    const start = { x: e.clientX, y: e.clientY }
+    const startPan = canvas.pan
+    let mode: 'pressed' | 'lifted' | 'panning' = 'pressed'
     let moved = false
     let landed = committed
     const target = e.currentTarget as HTMLElement
+    // Only something that can be moved lifts; a read-only canvas just pans.
+    const lift = canMove
+      ? window.setTimeout(() => {
+          if (mode !== 'pressed') return
+          mode = 'lifted'
+          setLifted(id)
+        }, LIFT_MS)
+      : 0
     // Capture is deferred until real movement, not set here at the down
     // event: capturing immediately redirects the click that follows a plain
     // press-and-release to this wrapper (the nearest common ancestor of
     // wherever the finger went down and up), so a rename or delete button
     // inside the card would stop receiving its own clicks entirely.
     const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x
+      const dy = ev.clientY - start.y
+      if (mode === 'pressed') {
+        if (Math.abs(dx) < PAN_SLOP && Math.abs(dy) < PAN_SLOP) return
+        // Moved before it lifted: this is a look around, not a move.
+        mode = 'panning'
+        window.clearTimeout(lift)
+        target.setPointerCapture(ev.pointerId)
+        if (canMove) hintLift()
+      }
+      if (mode === 'panning') {
+        canvas.panTo({ x: startPan.x + dx, y: startPan.y + dy })
+        return
+      }
       const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
       // Held below the line the pieces start on: the top of the board is not a place to put things.
       landed = keepBelow({ x: now.x - offset.x, y: now.y - offset.y }, cardTop)
@@ -976,17 +1032,19 @@ export function Board({
       if (moved) setDrag({ kind, id, at: landed })
     }
     const onUp = (ev: PointerEvent) => {
+      window.clearTimeout(lift)
       target.removeEventListener('pointermove', onMove)
       target.removeEventListener('pointerup', onUp)
       target.removeEventListener('pointercancel', onUp)
       if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
+      setLifted(null)
       setDrag(null)
-      if (moved) onDrop(landed)
+      if (mode === 'lifted' && moved) onDrop(landed)
     }
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [canvas.pan, canvas.zoom, cardTop, canMove])
+  }, [canvas, cardTop, canMove, hintLift, phone])
 
   /** The corner of an image or a task list, dragged to make it wider or
    *  narrower. Each kind has its own limits (lib/studio/board-items.ts). */
@@ -1151,6 +1209,13 @@ export function Board({
          this. Both are bottom-centre, so this one stands above it — the same
          two bottoms the launcher uses, plus its own height and a gap. */}
       <style>{`
+        /* Held long enough to be picked up: it rises off the board, so it is
+           plain that dragging now moves it rather than the view. */
+        [data-lifted] {
+          transform: scale(1.025); filter: drop-shadow(0 22px 34px rgba(0,0,0,0.5));
+          cursor: grabbing !important; z-index: 8;
+          transition: transform 150ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 150ms ease !important;
+        }
         .add-piece-box:hover { background: ${alpha(shell.text, 0.07)}; border-color: ${alpha(shell.text, 0.46)}; color: ${shell.text}; }
         .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 12px); }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .board-banner { bottom: calc(22px + 52px + 12px); } }
@@ -1355,6 +1420,10 @@ export function Board({
             <div
               key={piece.id}
               {...light}
+              data-lifted={lifted === piece.id || undefined}
+              // The whole block is the block's to handle (a look around or a
+              // move, see beginDrag), never the ground's as well.
+              data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
                 beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))(e)
@@ -1434,6 +1503,10 @@ export function Board({
             <div
               key={th.id}
               {...light}
+              data-lifted={lifted === th.id || undefined}
+              // The whole block is the block's to handle (a look around or a
+              // move, see beginDrag), never the ground's as well.
+              data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
                 beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))(e)
@@ -1472,6 +1545,10 @@ export function Board({
             <div
               key={it.id}
               {...light}
+              data-lifted={lifted === it.id || undefined}
+              // The whole block is the block's to handle (a look around or a
+              // move, see beginDrag), never the ground's as well.
+              data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
                 beginDrag('item', it.id, at, (landed) => {
