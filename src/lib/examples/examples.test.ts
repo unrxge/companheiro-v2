@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EXAMPLES, exampleCard, exampleOfId, examplesFor, examplesShown, EXAMPLES_FROM } from './index'
 import { buildExample, isExampleId, toHtml } from './build'
+import { ARRANGED } from './arrangement'
 import { answerExample, EXAMPLE_REFUSAL } from './serve'
 import { buildTree, appearancesOf } from '../studio/tree'
 import { PRACTICE_KEYS } from '../tour'
@@ -182,4 +183,25 @@ test('every image and recording an example shows is in public/examples', () => {
 test('words become the editor’s HTML, escaped', () => {
   assert.equal(toHtml('one\ntwo\n\nthree & <four>'), '<p>one<br>two</p><p>three &amp; &lt;four&gt;</p>')
   assert.equal(toHtml(''), '')
+})
+
+test('every example opens where its owner arranged it, and the arrangement names nothing that is gone', () => {
+  for (const src of EXAMPLES) {
+    const built = buildExample(src, NOW)
+    const pid = `example-${src.key}`
+    const own = (id: string) => id.slice(pid.length + 2)
+    const things = [...built.tree.threads, ...built.items]
+    const spots = ARRANGED[src.key]?.spots ?? {}
+    for (const thing of things) {
+      const at = spots[own(thing.id)]
+      assert.ok(at, `${thing.id} has a place`)
+      assert.deepEqual([thing.board_x, thing.board_y], [at[0], at[1]], `${thing.id} stands where it was left`)
+    }
+    const ids = new Set(things.map((t) => own(t.id)))
+    for (const key of Object.keys(spots)) assert.ok(ids.has(key), `${pid}: arranged "${key}" still exists`)
+    for (const key of Object.keys(ARRANGED[src.key]?.edits ?? {})) assert.ok(ids.has(key), `${pid}: edited "${key}" still exists`)
+  }
+  // the edits come through as well as the places
+  const palette = buildExample(EXAMPLES.find((e) => e.key === 'studio')!, NOW).items.find((i) => i.id === 'example-studio--item-1')!
+  assert.equal(palette.content.title, 'Brand tones')
 })

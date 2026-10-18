@@ -149,6 +149,7 @@ export function CompanionLauncher({
         aria-pressed={active}
         title={locked ? 'Talk about the vision is part of Direction' : 'Talk about the vision'}
         data-locked={locked || undefined}
+        data-tour="launcher"
         onClick={(e) => onClick(e.currentTarget)}
         className="companion-launcher"
         style={{

@@ -28,7 +28,7 @@ import { LEVELS } from '@/lib/studio/levels'
 import type { CheckOutcome, Rule, Thread, TreeNode } from '@/lib/studio/node-types'
 import { useWork } from '@/lib/studio/use-work'
 import { appearancesOf, findNode, newRule, pathTo, rulesInForce, wordCount } from '@/lib/studio/tree'
-import { Board, type BoardActions } from '@/components/studio/work/board'
+import { Board, type BoardActions, type BoardTourHandle } from '@/components/studio/work/board'
 import { Studio, type StudioHandle } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
 import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
@@ -46,10 +46,14 @@ import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
 import { ExampleBanner } from '@/components/studio/work/example-banner'
 import { forgetLayout } from '@/lib/examples/layout'
-import { usePhone } from '@/lib/use-phone'
+import { useNoHover, usePhone } from '@/lib/use-phone'
+import { ExampleTour, type RoomMove } from '@/components/studio/work/example-tour'
+import { EXAMPLE_PRACTICES, tourSteps, type TourStep } from '@/lib/examples/tour-script'
+import { useExampleTour } from '@/lib/examples/use-example-tour'
 import { PlanNote } from '@/components/billing/plan-note'
 import { loadPlan, usePlan } from '@/lib/billing/use-plan'
 import { noteOpened } from '@/lib/studio/opened'
+import { EXAMPLE_FRAME } from '@/lib/examples/arrangement'
 import { useBoardItems } from '@/lib/studio/use-board-items'
 import type { PlusChoice } from '@/components/studio/work/board-items'
 
@@ -108,6 +112,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // The room the canvas's "Talk about the vision" opens, and where on the
   // window it opens out of (the button that was pressed).
   const [visionRoom, setVisionRoom] = useState<{ origin: RoomOrigin | null } | null>(null)
+  // The example tour drives the room as it walks through it: which half a
+  // narrow room shows, and when it closes again.
+  const [roomTour, setRoomTour] = useState<{ tab?: 'page' | 'talk'; close?: boolean } | undefined>(undefined)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
@@ -468,6 +475,36 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // The example's banner stands on its canvas only: inside a piece or the
   // vision room the page is left to speak for itself.
   const example = access?.reason === 'example' ? project?.settings?.example ?? null : null
+
+  // ── the walk round an example, the first time one is opened ───────────────
+  const tourHandle = useRef<BoardTourHandle | null>(null)
+  const noHover = useNoHover()
+  const tourDue = useExampleTour(!!example && focus.kind === 'project' && state.status === 'ready')
+  const [touring, setTouring] = useState<TourStep[] | null>(null)
+  const tourStarted = useRef(false)
+  useEffect(() => {
+    if (!tourDue.due || !example || tourStarted.current || !board.ready) return
+    // The board has had a moment to measure and settle its opening view first.
+    const id = window.setTimeout(() => {
+      if (tourStarted.current) return
+      tourStarted.current = true
+      setTouring(tourSteps({
+        pieces: roots.map((r) => ({ id: r.id })),
+        threads: tree.threads.map((th) => ({ id: th.id, name: th.name, on: [...new Set(appearancesFor(th.id).map((a) => a.rootId))] })),
+        items: board.items.map((it) => ({ id: it.id, kind: it.kind, on: it.node_ids })),
+        practices: tourDue.due?.practices ?? [],
+        exampleFor: EXAMPLE_PRACTICES[example.key] ?? [],
+        phone: noHover,
+      }))
+      tourDue.markSeen()
+    }, 1100)
+    return () => window.clearTimeout(id)
+  }, [appearancesFor, board.items, board.ready, example, noHover, roots, tourDue, tree.threads])
+  const onTourRoom = useCallback((move: RoomMove, from: { x: number; y: number } | null) => {
+    if (move === 'open') { setRail(null); setVisionRoom({ origin: from }); setRoomTour({ tab: 'page' }); return }
+    if (move === 'close') { setRoomTour((cur) => ({ ...cur, close: true })); return }
+    setRoomTour((cur) => ({ ...cur, tab: move }))
+  }, [])
   const planBanner = example
     ? (focus.kind === 'project' ? [<ExampleBanner key="example" who={example.who} note={example.note} onPutBack={() => { forgetLayout(projectId); void api.refresh(); void board.api.reload() }} />] : [])
     : access && !access.workable && project
@@ -764,10 +801,14 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             actions={boardActions}
             disabled={readOnly}
             arrangeable={isExampleProject}
+            cardFrame={isExampleProject ? EXAMPLE_FRAME : undefined}
+            tourHandle={tourHandle}
           />
           {/* Bottom and centred, not a small icon in a corner pill — this is
              the invitation to talk the vision through, not an afterthought. */}
-          {!phone && <CompanionLauncher
+          {/* Not on a phone — except on an example, which is only there to be
+             looked at, and whose room's conversation is already written. */}
+          {(!phone || isExampleProject) && <CompanionLauncher
             active={!!visionRoom}
             locked={!canTalkVision}
             onClick={(from) => {
@@ -780,7 +821,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         </CanvasStage>
         <Dock />
         {companionDrawer}
-        {visionRoom && !phone && (
+        {visionRoom && (!phone || isExampleProject) && (
           <VisionRoom
             projectId={projectId}
             origin={visionRoom.origin}
@@ -788,11 +829,21 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             pieces={roots}
             threads={tree.threads}
             appearancesFor={appearancesFor}
-            onClose={() => setVisionRoom(null)}
+            onClose={() => { setVisionRoom(null); setRoomTour(undefined) }}
             onOpenPiece={(id) => { setVisionRoom(null); goNode(id) }}
             onRulesChanged={() => void api.refresh()}
             onConceptChanged={() => void api.refresh()}
             disabled={readOnly}
+            tour={roomTour}
+          />
+        )}
+        {touring && (
+          <ExampleTour
+            steps={touring}
+            board={tourHandle}
+            phone={phone}
+            onRoom={onTourRoom}
+            onDone={() => setTouring(null)}
           />
         )}
         {planNote && (

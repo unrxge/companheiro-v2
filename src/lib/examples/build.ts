@@ -14,6 +14,8 @@ import type { TaskRow } from '@/lib/studio/tasks-db'
 import type { VisionConversation, VisionMessage, VisionState } from '@/lib/studio/vision/types'
 import { WRITING } from '@/lib/studio/task-groups'
 import type { ExamplePart, ExamplePiece, ExampleSource, ExampleSpot } from './types'
+import { ARRANGED } from '@/lib/examples/arrangement'
+import { withEdits } from '@/lib/examples/layout'
 
 export const EXAMPLE_PREFIX = 'example-'
 
@@ -204,7 +206,20 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     messages: list.length, list,
   }
 
-  return { project, tree: { nodes, threads, tags, open_checks: [] }, items, assets, tasks, lines, conversation }
+  // The arrangement the owner left by hand stands over the slots above: where
+  // it says something goes, that is where a new account first sees it.
+  const arranged = ARRANGED[src.key]
+  const placed = <T extends { id: string; board_x: number | null; board_y: number | null }>(row: T): T => {
+    const at = arranged?.spots[row.id.slice(pid.length + 2)]
+    return at ? { ...row, board_x: at[0], board_y: at[1] } : row
+  }
+  const arrangedThreads = threads.map(placed)
+  const arrangedItems = withEdits(
+    items.map(placed),
+    Object.fromEntries(Object.entries(arranged?.edits ?? {}).map(([key, edit]) => [id(key), edit])),
+  )
+
+  return { project, tree: { nodes, threads: arrangedThreads, tags, open_checks: [] }, items: arrangedItems, assets, tasks, lines, conversation }
 }
 
 function node(n: Partial<WorkNode> & Pick<WorkNode, 'id' | 'parent_id' | 'position' | 'title' | 'created_at' | 'updated_at'>): WorkNode {

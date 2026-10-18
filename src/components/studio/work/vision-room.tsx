@@ -69,6 +69,7 @@ export function VisionRoom({
   onRulesChanged,
   onConceptChanged,
   disabled = false,
+  tour,
 }: {
   projectId: string
   origin: RoomOrigin | null
@@ -83,6 +84,9 @@ export function VisionRoom({
   /** A piece's core concept changed here, so the pieces should be read again (the writing page shows the same). */
   onConceptChanged: () => void
   disabled?: boolean
+  /** Driven by the example tour: which half a narrow room shows, and when to
+   *  leave (by the same way out a press of "Canvas" plays). */
+  tour?: { tab?: 'page' | 'talk'; close?: boolean }
 }) {
   const { t } = useTheme()
   const reduce = useReducedMotion() ?? false
@@ -96,6 +100,7 @@ export function VisionRoom({
   }, [])
   const [wide, setWide] = useState(true)
   const [tab, setTab] = useState<'page' | 'talk'>('talk')
+  useEffect(() => { if (tour?.tab) setTab(tour.tab) }, [tour?.tab])
 
   const [loaded, setLoaded] = useState(false)
   const [messages, setMessages] = useState<VisionMessage[]>([])
@@ -221,6 +226,7 @@ export function VisionRoom({
     }
     window.setTimeout(onClose, reduce ? 140 : OUT_MS)
   }, [onClose, reduce])
+  useEffect(() => { if (tour?.close) leave() }, [tour?.close, leave])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -407,7 +413,7 @@ export function VisionRoom({
           }}
         >
           {/* Both halves stay mounted, so a reply in flight survives a look at the page. */}
-          <div className="vision-rise" style={{ ...sheet, display: showPage ? 'flex' : 'none', animationDelay: '440ms' }}>
+          <div className="vision-rise" data-tour="vision-page" style={{ ...sheet, display: showPage ? 'flex' : 'none', animationDelay: '440ms' }}>
             <div className="vision-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: wide ? '40px 44px 44px' : '26px 20px 30px' }}>
               <VisionPage
                 project={project}
@@ -431,7 +437,7 @@ export function VisionRoom({
               />
             </div>
           </div>
-          <div className="vision-rise" style={{ ...sheet, display: showTalk ? 'flex' : 'none', animationDelay: '520ms' }}>
+          <div className="vision-rise" data-tour="vision-talk" style={{ ...sheet, display: showTalk ? 'flex' : 'none', animationDelay: '520ms' }}>
             <div style={{ flex: 1, minHeight: 0, padding: wide ? '26px 26px 22px' : '20px 18px 16px', display: 'flex', flexDirection: 'column' }}>
               {canList && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${alpha(t.textPrimary, 0.08)}`, flexShrink: 0 }}>

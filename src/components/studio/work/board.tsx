@@ -48,14 +48,14 @@ import { opensOn } from '@/lib/studio/opening-view'
 import { openedIn } from '@/lib/studio/opened'
 import { useDeferred } from '@/lib/studio/use-deferred'
 import { useLit } from '@/lib/studio/use-lit'
-import { isLit, lineKey, litBy, type WebKind } from '@/lib/studio/web-focus'
+import { isLit, lineKey, litBy, type WebFocus, type WebKind } from '@/lib/studio/web-focus'
 import { useUndo } from '@/lib/studio/use-undo'
 import type { AssetView } from '@/lib/studio/types'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, shell } from '@/lib/design-tokens'
 import type { Appearance, CheckOutcome, Rule, RuleCheck, Thread, ThreadHue, ThreadTag, TreeNode } from '@/lib/studio/node-types'
 import {
-  MARGIN, growWorld, laneCardWidth, laneSlot, smoothPath, toWorld, type Point,
+  MARGIN, ZOOM, growWorld, laneCardWidth, laneSlot, smoothPath, toWorld, type Point,
 } from '@/lib/studio/surface'
 
 const GAP = 44
@@ -149,6 +149,18 @@ export interface BoardTools {
   companion: boolean
 }
 
+/** What the example tour asks of the board. */
+export interface BoardTourHandle {
+  /**
+   * Brings these into view (piece, thread or item ids, or the whole board),
+   * as large as fits and never past `maxZoom`, centred in what the tour's
+   * caption leaves of the window (`inset`, in window pixels).
+   */
+  frame: (ids: string[] | 'all', opts?: { inset?: { top?: number; right?: number; bottom?: number; left?: number }; maxZoom?: number; ms?: number }) => void
+  /** Lights one thing's web, as resting on it would, or nothing. */
+  light: (focus: WebFocus | null) => void
+}
+
 export interface BoardActions {
   openPiece: (id: string, from: HTMLElement | null) => void
   /** `x` is where the new piece stands when the usual end of the lane is taken up by something else. */
@@ -220,6 +232,8 @@ export function Board({
   actions,
   disabled: lockedForPlan = false,
   arrangeable = false,
+  cardFrame,
+  tourHandle,
 }: {
   project: BoardProject
   pieces: TreeNode[]
@@ -245,6 +259,11 @@ export function Board({
   /** With `disabled`: things can still be moved around, and nothing else
    *  changed. The example projects (lib/examples) are read this way. */
   arrangeable?: boolean
+  /** Size the cards for this window rather than the real one. An example's
+   *  arrangement was made at one card size, and only holds at that size. */
+  cardFrame?: { w: number; h: number }
+  /** Filled in for the example tour: how it moves the view and lights a web. */
+  tourHandle?: React.MutableRefObject<BoardTourHandle | null>
 }) {
   const { t } = useTheme()
   // A phone looks at the board and opens pieces from it; arranging it (moving,
@@ -303,15 +322,16 @@ export function Board({
   // Four pieces or more and the cards come down a size, so more of the lane
   // is in view at once (the person's decision, 2026-10-17).
   const crowded = pieces.length >= CROWDED_AT
-  const fullW = frame.w ? laneCardWidth(frame.w, GAP) : 520
-  const fullH = frame.h ? Math.min(560, Math.max(340, frame.h * 0.5)) : 420
+  const sizing = cardFrame ?? frame
+  const fullW = sizing.w ? laneCardWidth(sizing.w, GAP) : 520
+  const fullH = sizing.h ? Math.min(560, Math.max(340, sizing.h * 0.5)) : 420
   // Wide enough to take the whole project in one frame when it can, and no
   // wider than the scale cap: a window that could hold four pieces at 600 each
   // does not need them that big. Never below the floor, past which the words
   // stop being readable and the board is simply walked instead.
   // The board opens zoomed out from this many pieces (WIDE_OPEN_ZOOM), so the
   // room a project has to fit in is the frame as seen at that zoom, not at 100%.
-  const fitFrame = frame.w ? frame.w / WIDE_OPEN_ZOOM : 0
+  const fitFrame = sizing.w ? sizing.w / WIDE_OPEN_ZOOM : 0
   const fitW = fitFrame ? Math.floor((fitFrame - MARGIN * 2 + GAP) / pieces.length - GAP) : Infinity
   const cardW = crowded
     ? Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW)))
@@ -842,6 +862,43 @@ export function Board({
   }, [pieces, pieceSpot, cardW, cardH, frame.w, opensWide])
 
   const canvas = useCanvas(ref, frame, world, { home, initialCentre, initialZoom: opensWide ? WIDE_OPEN_ZOOM : undefined, lookOnly: phone })
+
+  // ── what the example tour can ask of the board ────────────────────────────
+  useEffect(() => {
+    if (!tourHandle) return
+    const rectOf = (id: string): Box | null => {
+      const i = pieces.findIndex((p) => p.id === id)
+      if (i >= 0) { const a = pieceAt(pieces[i], i); return { x: a.x, y: a.y, w: cardW, h: cardH } }
+      const th = hubs.find((h) => h.id === id)
+      if (th) { const a = hubAt(th); return { x: a.x, y: a.y, w: HUB_W, h: HUB_H } }
+      const it = items.find((x) => x.id === id)
+      if (it) { const a = itemAt(it); return { x: a.x, y: a.y, w: itemW(it), h: itemH(it) } }
+      return null
+    }
+    tourHandle.current = {
+      frame: (ids, opts = {}) => {
+        const list = ids === 'all'
+          ? [...pieces.map((p) => p.id), ...hubs.map((h) => h.id), ...items.map((x) => x.id)]
+          : ids
+        const rects = list.map(rectOf).filter((r): r is Box => !!r)
+        if (!rects.length || !frame.w) return
+        const x0 = Math.min(...rects.map((r) => r.x))
+        const y0 = Math.min(...rects.map((r) => r.y))
+        const x1 = Math.max(...rects.map((r) => r.x + r.w))
+        const y1 = Math.max(...rects.map((r) => r.y + r.h))
+        const inset = { top: 0, right: 0, bottom: 0, left: 0, ...opts.inset }
+        const room = { w: Math.max(120, frame.w - inset.left - inset.right), h: Math.max(120, frame.h - inset.top - inset.bottom) }
+        const breathe = 36
+        const k = Math.max(ZOOM.min, Math.min(opts.maxZoom ?? 1, (room.w - breathe * 2) / (x1 - x0), (room.h - breathe * 2) / (y1 - y0)))
+        // The middle of what is being shown lands in the middle of the room
+        // the caption leaves, not the middle of the whole window.
+        const roomMid = { x: inset.left + room.w / 2, y: inset.top + room.h / 2 }
+        const mid = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }
+        canvas.glideTo({ x: mid.x + (frame.w / 2 - roomMid.x) / k, y: mid.y + (frame.h / 2 - roomMid.y) / k }, k, opts.ms ?? 900)
+      },
+      light: (focus) => lighting.show(focus),
+    }
+  })
 
   // Escape drops whatever you were in the middle of.
   useEffect(() => {

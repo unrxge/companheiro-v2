@@ -62,7 +62,8 @@ export interface Canvas {
   /** True while the ground is being dragged, so cards can drop their hover. */
   dragging: boolean
   setZoom: (k: number, anchor?: Point) => void
-  glideTo: (target: Point, k?: number) => void
+  /** `ms` asks for a slower glide, the point travelling straight while the zoom changes about it. */
+  glideTo: (target: Point, k?: number, ms?: number) => void
   jumpTo: (target: Point, k?: number) => void
   /** Glides back to exactly the view this project opens to — the same pan
    *  the very first frame settles on, not a point on the canvas centred by
@@ -154,12 +155,33 @@ export function useCanvas(
     glide.current = requestAnimationFrame(step)
   }, [])
 
-  const glideTo = useCallback((target: Point, k?: number) => {
+  const glideTo = useCallback((target: Point, k?: number, ms?: number) => {
     stopGlide()
-    const { zoom: z, frame: f, world: w } = live.current
+    const { pan: p0, zoom: z, frame: f, world: w } = live.current
     if (f.w === 0) { jumpTo(target, k); return }
     const nextK = k === undefined ? z : clampK(k)
-    animateTo(clampPan(centreOn(target, nextK, f), nextK, w, f), nextK)
+    if (ms === undefined) {
+      animateTo(clampPan(centreOn(target, nextK, f), nextK, w, f), nextK)
+      return
+    }
+    // A slow glide (the example tour leads the eye with these) moves the point
+    // at the middle of the glass in a straight line and changes the zoom about
+    // it, rather than easing the pan on its own: eased separately, the two
+    // pull the thing being travelled to off sideways as the zoom changes.
+    const from = toWorld({ x: f.w / 2, y: f.h / 2 }, p0, z)
+    const started = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / ms)
+      const e = EASE(t)
+      const k1 = z + (nextK - z) * e
+      const c = { x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e }
+      const { frame: f1, world: w1 } = live.current
+      setZoomRaw(k1)
+      setPanRaw(clampPan(centreOn(c, k1, f1), k1, w1, f1))
+      if (t < 1) glide.current = requestAnimationFrame(step)
+      else glide.current = null
+    }
+    glide.current = requestAnimationFrame(step)
   }, [animateTo, jumpTo, stopGlide, clampK])
 
   const resetView = useCallback(() => {

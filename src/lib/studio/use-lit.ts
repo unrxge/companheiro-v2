@@ -48,6 +48,8 @@ export interface Lit {
     onClickCapture: (e: React.MouseEvent) => void
   }
   clear: () => void
+  /** Lights this from outside the gesture (the example tour), or nothing. */
+  show: (focus: WebFocus | null) => void
 }
 
 export function useLit(enabled = true): Lit {
@@ -184,5 +186,12 @@ export function useLit(enabled = true): Lit {
     },
   }), [enabled, stopTimer, stopDwell, stopLeaving, clear])
 
-  return { focus, bind, clear }
+  const show = useCallback((next: WebFocus | null) => {
+    stopTimer()
+    stopDwell()
+    stopLeaving()
+    setFocus(next)
+  }, [stopTimer, stopDwell, stopLeaving])
+
+  return { focus, bind, clear, show }
 }
