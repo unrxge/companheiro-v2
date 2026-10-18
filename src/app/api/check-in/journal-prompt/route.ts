@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
-import { aiGate } from '@/lib/billing/fair-use'
+import { aiGate, pickModel } from '@/lib/billing/fair-use'
 import { buildCompanionContext } from '@/lib/companion-context'
 import { COMPANION_TONE } from '@/lib/companion-tone'
 import { MODELS } from '@/lib/models'
@@ -42,7 +42,7 @@ ${companionContext ? companionContext + '\n\n' : ''}
 You're given the whole exchange: the opening check-in AND, when present, the back-and-forth that followed. Use all of it. The real material is often what surfaced later in the conversation, not the opening entry alone — if something truer emerged as it went on, build the prompt from that, don't default back to the surface version.
 
 The prompt should:
-- Fully encompass what's actually been shared and uncovered across the whole exchange, not just the opening entry
+- Come from what's actually been shared and uncovered across the whole exchange, not just the opening entry: draw on all of it, then ask about its single truest place
 - Be specific to what they've actually expressed, not generic
 - Name the real thing underneath — the contradiction, the weight, the tender place the conversation actually arrived at
 - Serve as a guide for navigating what they're going through, something they can immerse themselves in
@@ -51,10 +51,13 @@ The prompt should:
 - Feel like a companion asking a real question, not a therapy prompt
 - Use direct, clear language with no filler
 
-Return ONLY the prompt itself. No preamble, no explanation. Brief — one to three sentences, never more. Every sentence must earn its place.`
+Return ONLY the prompt itself. No preamble, no explanation. Write exactly ONE question, in one or two short sentences, at most 35 words in all. Never join two questions with "and", "or" or a dash, and never add a second question after the first. Choose the single most alive place the conversation reached and ask about that alone: the prompt does not have to cover everything, and a narrow question is easier to begin writing from than a wide one. It is read by someone who is going to sit down alone and write, so it must feel light enough to start.`
 
     const response = await anthropic.messages.create({
-      model: MODELS.fast,
+      // The deeper model: the fast one wrote 80-word, several-clause prompts
+      // that were daunting to sit down to (median 80 words over ten real
+      // check-ins, against 31 here).
+      model: pickModel(auth, MODELS.deep),
       max_tokens: 300,
       system: withLanguage(systemPrompt),
       messages: [
