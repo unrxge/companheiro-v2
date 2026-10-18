@@ -10,7 +10,7 @@
 // the threads under them, room to add more — even when it holds one piece of
 // writing. Home is the way straight into the words.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -73,6 +73,79 @@ function workedOn(p: ShelfProject): boolean {
   const opened = new Date(p.last_opened_at).getTime()
   const made = new Date(p.created_at).getTime()
   return Number.isFinite(opened) && Number.isFinite(made) && opened - made > 60_000
+}
+
+/**
+ * A row that slides sideways: scroll, swipe or drag it, or use the arrows,
+ * which only show on the side there is more. Cards snap to the left edge so
+ * none is left half-showing when it stops. The ends fade where more continues.
+ */
+function ExampleCarousel({ children }: { children: React.ReactNode }) {
+  const { t } = useTheme()
+  const row = useRef<HTMLDivElement | null>(null)
+  const [edge, setEdge] = useState({ left: false, right: false })
+
+  const measure = useCallback(() => {
+    const el = row.current
+    if (!el) return
+    setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 })
+  }, [])
+
+  useEffect(() => {
+    measure()
+    const el = row.current
+    if (!el) return
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [children, measure])
+
+  const go = (dir: 1 | -1) => {
+    const el = row.current
+    if (!el) return
+    // A card and a bit at a time, so the one that was last in view leads the next.
+    el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.8), behavior: 'smooth' })
+  }
+
+  const arrow = (dir: 1 | -1): React.CSSProperties => ({
+    position: 'absolute', top: '50%', [dir === 1 ? 'right' : 'left']: 8, transform: 'translateY(-50%)', zIndex: 2,
+    width: 34, height: 34, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: t.containerBg, color: t.textPrimary, border: `1px solid ${t.divider}`, boxShadow: t.shadow, cursor: 'pointer', padding: 0,
+  })
+  const fade = (dir: 1 | -1): React.CSSProperties => ({
+    position: 'absolute', top: 0, bottom: 0, [dir === 1 ? 'right' : 'left']: 0, width: 44, zIndex: 1, pointerEvents: 'none',
+    background: `linear-gradient(to ${dir === 1 ? 'left' : 'right'}, ${t.containerBg}, transparent)`,
+  })
+
+  return (
+    <div style={{ position: 'relative', minWidth: 0 }}>
+      <div
+        ref={row}
+        onScroll={measure}
+        className="board-scroll"
+        tabIndex={0}
+        aria-label="Example projects, sliding sideways"
+        style={{
+          display: 'flex', gap: 10, overflowX: 'auto', overflowY: 'hidden', padding: '2px 16px 8px',
+          scrollSnapType: 'x proximity', scrollPaddingLeft: 16, WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain',
+        }}
+      >
+        {children}
+      </div>
+      {edge.left && <span aria-hidden style={fade(-1)} />}
+      {edge.right && <span aria-hidden style={fade(1)} />}
+      {edge.left && (
+        <button type="button" aria-label="Earlier examples" onClick={() => go(-1)} style={arrow(-1)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+      )}
+      {edge.right && (
+        <button type="button" aria-label="More examples" onClick={() => go(1)} style={arrow(1)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function ProjectBoard() {
@@ -549,12 +622,14 @@ function Board() {
     )
   })
 
-  // Under Active: whose work each stands in for, opened onto its canvas like
-  // any project. Never dragged, renamed or moved: it is not the person's.
+  // Across the top of all three columns: whose work each stands in for, opened
+  // onto its canvas like any project, in a row that slides sideways. Never
+  // dragged, renamed or moved: it is not the person's, so it belongs to no
+  // column and does not sit in Active.
   const renderExamples = () => {
     if (examplesAway) {
       return (
-        <p style={{ fontSize: 12, color: c.textMuted, margin: '18px 2px 0' }}>
+        <p style={{ fontSize: 12, color: c.textMuted, margin: '12px 16px 0' }}>
           Examples put away. Settings brings them back.
         </p>
       )
@@ -568,21 +643,30 @@ function Board() {
       textDecoration: 'underline', textUnderlineOffset: 3,
     }
     return (
-      <section aria-label="Examples" style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div>
-          <h3 style={{ ...columnEyebrow, color: c.textMuted }}>Examples</h3>
-          <p style={{ fontSize: 12.5, color: c.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
+      <section aria-label="Examples" style={{ padding: '14px 0 14px', borderBottom: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
+        <div style={{ padding: '0 16px', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 16px' }}>
+          <h3 style={{ ...columnEyebrow, color: c.textMuted, marginRight: 'auto' }} className="min-[720px]:!mr-0">Examples</h3>
+          <p className="hidden min-[720px]:block" style={{ fontSize: 12.5, color: c.textMuted, margin: 0, lineHeight: 1.5, flex: '1 1 260px' }}>
             Projects made the way artists use Companheiro. Open one to look around; nothing in them can be changed.
           </p>
+          <span style={{ display: 'inline-flex', gap: 14 }}>
+            {rest.length > 0 && (
+              <button type="button" onClick={() => setOtherExamples((v) => !v)} style={link}>
+                {otherExamples ? 'Only the ones for my work' : `Show ${rest.length === 1 ? 'the other example' : `the other ${rest.length}`}`}
+              </button>
+            )}
+            <button type="button" onClick={putExamplesAway} style={link}>Put these away</button>
+          </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+        <ExampleCarousel>
           {shown.map((e) => (
             <button
               key={e.id}
               onClick={(ev) => openCanvas(e.id, ev.currentTarget)}
               style={{
                 textAlign: 'left', background: c.cardBg, boxShadow: c.shadow, border: `1px dashed ${c.divider}`, borderRadius: 12,
-                padding: '12px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 112,
+                padding: '12px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
+                flex: '0 0 auto', width: 'min(280px, 78vw)', minHeight: 124, scrollSnapAlign: 'start',
                 transition: 'border-color 0.2s',
               }}
               onMouseEnter={(ev) => { ev.currentTarget.style.borderColor = c.tide }}
@@ -598,15 +682,7 @@ function Board() {
               </span>
             </button>
           ))}
-        </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {rest.length > 0 && (
-            <button type="button" onClick={() => setOtherExamples((v) => !v)} style={link}>
-              {otherExamples ? 'Only the ones for my work' : `Show ${rest.length === 1 ? 'the other example' : `the other ${rest.length}`}`}
-            </button>
-          )}
-          <button type="button" onClick={putExamplesAway} style={link}>Put these away</button>
-        </div>
+        </ExampleCarousel>
       </section>
     )
   }
@@ -641,7 +717,6 @@ function Board() {
           {column === 'Queue' && renderDrafts()}
           {columns[column].map((p) => renderCard(p, column, true))}
           {counts[column] === 0 && emptyLine(column)}
-          {column === 'Active' && renderExamples()}
         </div>
       </div>
     )
@@ -662,6 +737,8 @@ function Board() {
         {/* Tabs until there is room for three columns (1080px+). Deliberately wider
             than Tailwind's md: a portrait iPad (744-1024px) cannot fit two fixed
             260px columns plus a readable Active column. */}
+        {renderExamples()}
+
         <div className="min-[1080px]:hidden flex" style={{ borderBottom: `1px solid ${c.divider}` }}>
           {COLUMNS.map((name) => (
             <button
@@ -698,7 +775,6 @@ function Board() {
             {activeTab === 'Queue' && renderDrafts()}
             {columns[activeTab].map((p) => renderCard(p, activeTab, false))}
             {counts[activeTab] === 0 && emptyLine(activeTab)}
-            {activeTab === 'Active' && renderExamples()}
           </div>
         </div>
 
