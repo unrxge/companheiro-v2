@@ -27,6 +27,8 @@ const SIZE = 68
 const BUBBLE = 50
 /** The gap between one choice and the next, up the stack. */
 const STEP = BUBBLE + 12
+/** How long the choices take to fly back into the button. */
+const CLOSE_MS = 420
 /** A press held this long opens the fan for sliding onto a choice. */
 const HOLD_MS = 180
 /** How near the pointer comes before the "+" starts to notice it. */
@@ -147,6 +149,15 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
     return () => { cancelAnimationFrame(frame); window.removeEventListener('pointermove', onMove) }
   }, [open])
 
+  // Closing is played out: the choices stay drawn while they fly back in.
+  const [shown, setShown] = useState(open)
+  useEffect(() => {
+    if (open) { setShown(true); return }
+    const id = window.setTimeout(() => setShown(false), CLOSE_MS)
+    return () => window.clearTimeout(id)
+  }, [open])
+  const closing = shown && !open
+
   const hotOption = hot !== null ? options[hot] : null
 
   return (
@@ -197,11 +208,24 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
         }
         .add-glint[data-arrive] { animation: addArrive 1.6s cubic-bezier(0.3, 0, 0.2, 1) 0.9s both, addSweep 7s linear 2.5s infinite; }
         .fan-bubble { animation: fanOut 520ms cubic-bezier(0.3, 0.8, 0.3, 1) both; }
+        /* Closing: the choices are drawn back into the button, the top one first, spinning as they shrink. */
+        @keyframes fanIn {
+          0% { transform: translate(var(--fx), var(--fy)) scale(1) rotate(0deg); opacity: 1; }
+          30% { transform: translate(var(--fx), calc(var(--fy) - 10px)) scale(1.08) rotate(-6deg); opacity: 1; }
+          100% { transform: translate(0, 0) scale(0.15) rotate(200deg); opacity: 0; }
+        }
+        @keyframes labelOut { to { opacity: 0; transform: translate(18px, -50%); } }
+        @keyframes mistInhale { 0% { transform: scale(1.3); } 35% { transform: scale(1.05); opacity: 0.6; } 70% { transform: scale(1.4); opacity: 1; } 100% { transform: scale(1); } }
+        @keyframes plusSettle { 0% { scale: 1; } 40% { scale: 0.88; } 70% { scale: 1.08; } 100% { scale: 1; } }
+        .fan-bubble[data-closing] { animation: fanIn ${CLOSE_MS - 60}ms cubic-bezier(0.55, 0, 0.7, 0.4) both; }
+        .fan-label[data-closing] { animation: labelOut 160ms ease-in both; animation-delay: 0ms; }
+        .add-mist[data-closing] { animation: mistInhale ${CLOSE_MS + 100}ms ease-out both; }
+        .add-plus[data-closing] { animation: plusSettle 480ms cubic-bezier(0.34, 1.56, 0.64, 1) ${CLOSE_MS - 160}ms both; }
         .fan-label { animation: labelIn 300ms ease-out both; animation-delay: var(--ld, 0ms); }
         @media (prefers-reduced-motion: reduce) {
           .add-glint, .add-glint[data-arrive] { animation: none; }
-          .fan-bubble { animation: none; transform: translate(var(--fx), var(--fy)); }
-          .fan-label, .add-mist, .add-mist[data-open] { animation: none; }
+          .fan-bubble, .fan-bubble[data-closing] { animation: none; transform: translate(var(--fx), var(--fy)); }
+          .fan-label, .add-mist, .add-mist[data-open], .add-mist[data-closing], .add-plus[data-closing], .fan-label[data-closing] { animation: none; }
         }
       `}</style>
       <div
@@ -210,9 +234,9 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
         data-hold
         style={{ position: 'absolute', zIndex: 42, width: SIZE, height: SIZE }}
       >
-        <span aria-hidden className="add-mist" data-open={open || undefined} />
+        <span aria-hidden className="add-mist" data-open={open || undefined} data-closing={closing || undefined} />
         {/* the fan: a box over the whole arc, so the walk round an example can light it */}
-        {open && (
+        {shown && (
           <div
             data-tour="plus-menu"
             role="menu"
@@ -226,7 +250,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
             }} />
           </div>
         )}
-        {open && options.map((o, i) => {
+        {shown && options.map((o, i) => {
           const greyed = inert || locked.includes(o.key)
           const isHot = hot === i
           return (
@@ -238,13 +262,15 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
               aria-disabled={inert || undefined}
               title={o.label}
               className="fan-bubble"
+              data-closing={closing || undefined}
               onPointerEnter={() => setHot(i)}
               onPointerLeave={() => setHot((h) => (h === i ? null : h))}
               onClick={() => choose(i)}
               style={{
                 position: 'absolute', left: (SIZE - BUBBLE) / 2, top: (SIZE - BUBBLE) / 2, width: BUBBLE, height: BUBBLE, borderRadius: '50%',
                 ['--fx' as string]: `${at[i].x}px`, ['--fy' as string]: `${at[i].y}px`,
-                animationDelay: `${i * 55}ms`,
+                animationDelay: closing ? `${(options.length - 1 - i) * 40}ms` : `${i * 55}ms`,
+                pointerEvents: closing ? 'none' : undefined,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: inert ? 'default' : 'pointer',
                 background: isHot && !greyed ? shell.text : 'rgba(22,21,19,0.94)',
                 color: isHot && !greyed ? shell.ink : greyed ? alpha(shell.text, 0.38) : shell.text,
@@ -259,6 +285,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
               <span
                 aria-hidden
                 className="fan-label"
+                data-closing={closing || undefined}
                 style={{
                   ['--ld' as string]: `${i * 55 + 160}ms`,
                   position: 'absolute', right: 'calc(100% + 10px)', top: '50%', transform: 'translateY(-50%)', whiteSpace: 'nowrap',
@@ -287,6 +314,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
           ref={button}
           type="button"
           className="add-plus"
+          data-closing={closing || undefined}
           data-tour="add-button"
           aria-label="Add something to this project"
           aria-expanded={open}
