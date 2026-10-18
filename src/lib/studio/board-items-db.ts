@@ -29,6 +29,7 @@ export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemConten
   if (kind === 'image' && isString(raw.caption)) out.caption = raw.caption.replace(/\s+/g, ' ').trim().slice(0, 300)
   if (kind === 'tasks') {
     if (typeof raw.writing_closed === 'boolean') out.writing_closed = raw.writing_closed
+    if (typeof raw.rows === 'number' && Number.isFinite(raw.rows)) out.rows = Math.max(2, Math.min(30, Math.round(raw.rows)))
     if (Array.isArray(raw.tasks)) {
       const tasks: OwnTask[] = []
       for (const t of raw.tasks) {

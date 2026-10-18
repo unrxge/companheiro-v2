@@ -16,6 +16,9 @@ export interface Swatch { id: string; hex: string; name: string }
 
 /** How many colours one palette holds. */
 export const MAX_SWATCHES = 12
+
+/** A task list shows this many rows unless its corner was dragged taller or shorter. */
+export const TASK_ROWS = { base: 4, min: 2, max: 30, px: 34 }
 /** What a new palette starts with. */
 export const PALETTE_SEED = '#C86A3A'
 
@@ -35,6 +38,8 @@ export interface BoardItemContent {
   caption?: string
   /** A task list's own tasks. */
   tasks?: OwnTask[]
+  /** How many tasks a task list shows before "View all": its height, set by dragging its corner down. */
+  rows?: number
   /** The writing tasks are folded away. */
   writing_closed?: boolean
   /** A palette's colours. */
@@ -55,7 +60,7 @@ export function asksBeforeRemoving(item: Pick<BoardItem, 'kind' | 'content'>): b
 
 /** What each part of a content block is when it has never been set. */
 const EMPTY_CONTENT: Required<BoardItemContent> = {
-  title: '', caption: '', tasks: [], writing_closed: false, swatches: [],
+  title: '', caption: '', tasks: [], writing_closed: false, swatches: [], rows: 4,
 }
 
 /**

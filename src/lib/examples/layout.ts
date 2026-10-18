@@ -59,7 +59,7 @@ export function forgetLayout(projectId: string): void {
 }
 
 /** What else an example lets anyone change on an item: a task list's width, a palette's or a recording's name. */
-export type Edit = { w?: number; title?: string }
+export type Edit = { w?: number; title?: string; rows?: number }
 const EDITS = (projectId: string) => `companheiro:example-edits:${projectId}`
 
 export function readEdits(projectId: string): Record<string, Edit> {
@@ -71,6 +71,7 @@ export function readEdits(projectId: string): Record<string, Edit> {
       out[id] = {
         ...(Number.isFinite(e.w) ? { w: Math.round(e.w as number) } : {}),
         ...(typeof e.title === 'string' ? { title: e.title.slice(0, 120) } : {}),
+        ...(Number.isFinite(e.rows) ? { rows: Math.round(e.rows as number) } : {}),
       }
     }
     return out
@@ -86,11 +87,11 @@ export function keepEdit(projectId: string, id: string, edit: Edit): void {
 }
 
 /** Items with what was renamed or resized laid over them. */
-export function withEdits<T extends { id: string; w: number | null; content: { title?: string } }>(rows: T[], edits: Record<string, Edit>): T[] {
+export function withEdits<T extends { id: string; w: number | null; content: { title?: string; rows?: number } }>(rows: T[], edits: Record<string, Edit>): T[] {
   return rows.map((row) => {
     const e = edits[row.id]
     if (!e) return row
-    return { ...row, ...(e.w !== undefined ? { w: e.w } : {}), content: e.title !== undefined ? { ...row.content, title: e.title } : row.content }
+    return { ...row, ...(e.w !== undefined ? { w: e.w } : {}), content: { ...row.content, ...(e.title !== undefined ? { title: e.title } : {}), ...(e.rows !== undefined ? { rows: e.rows } : {}) } }
   })
 }
 

@@ -24,6 +24,7 @@
 // more, it is a constraint on the project, and the board says so before it
 // lets you finish the last connection.
 
+import { TASK_ROWS } from '@/lib/studio/board-items'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
@@ -264,7 +265,7 @@ export function Board({
   const [recorderFor, setRecorderFor] = useState<string | null>(null)
   /** A word at the foot of the board while a file goes up, or when one could not. */
   const [word, setWord] = useState<{ text: string; busy: boolean } | null>(null)
-  const [resizing, setResizing] = useState<{ id: string; w: number } | null>(null)
+  const [resizing, setResizing] = useState<{ id: string; w: number; rows?: number } | null>(null)
   /** Each item's own measured height (a task list is as tall as its tasks). */
   const [heights, setHeights] = useState<Record<string, number>>({})
   const imagePicker = useRef<HTMLInputElement | null>(null)
@@ -869,12 +870,17 @@ export function Board({
     e.preventDefault()
     const target = e.currentTarget as HTMLElement
     const startX = e.clientX
+    const startY = e.clientY
     const startW = itemWidth(item.kind, item.w)
     let w = startW
+    // A task list also grows downwards: dragging the corner down shows more of its tasks.
+    const startRows = item.content.rows ?? TASK_ROWS.base
+    let rows = startRows
     target.setPointerCapture(e.pointerId)
     const onMove = (ev: PointerEvent) => {
       w = itemWidth(item.kind, startW + (ev.clientX - startX) / canvas.zoom)
-      setResizing({ id: item.id, w })
+      if (item.kind === 'tasks') rows = Math.max(TASK_ROWS.min, Math.min(TASK_ROWS.max, startRows + Math.round((ev.clientY - startY) / canvas.zoom / TASK_ROWS.px)))
+      setResizing({ id: item.id, w, rows })
     }
     const onUp = (ev: PointerEvent) => {
       target.removeEventListener('pointermove', onMove)
@@ -882,6 +888,7 @@ export function Board({
       target.removeEventListener('pointercancel', onUp)
       if (target.hasPointerCapture(ev.pointerId)) target.releasePointerCapture(ev.pointerId)
       if (w !== startW) act.patchItem(item.id, { w })
+      if (rows !== startRows) act.patchItem(item.id, { content: { rows } })
       setResizing(null)
     }
     target.addEventListener('pointermove', onMove)
@@ -1362,6 +1369,7 @@ export function Board({
                     pieces={piecesFor(it)}
                     tasks={tasks}
                     disabled={disabled}
+                    rowsShown={resizing?.id === it.id ? resizing.rows : undefined}
                     onToggleTask={act.toggleTask}
                     onAddTask={act.addTask}
                     onRemoveTask={act.removeTask}

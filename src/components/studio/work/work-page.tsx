@@ -420,10 +420,15 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     ...(isExampleProject ? {
       movePiece: (id: string, at: { x: number; y: number } | null) => api.placeLocal('node', id, at),
       moveThread: (id: string, at: { x: number; y: number } | null) => api.placeLocal('thread', id, at),
-      patchItem: (id: string, patch: { board_x?: number | null; board_y?: number | null; w?: number | null; content?: { title?: string } }) => {
-        // A width, or a palette's or recording's name: the other things an example lets you change.
-        if (typeof patch.w === 'number' || typeof patch.content?.title === 'string') {
-          board.api.editLocal(id, { ...(typeof patch.w === 'number' ? { w: patch.w } : {}), ...(typeof patch.content?.title === 'string' ? { title: patch.content.title } : {}) })
+      patchItem: (id: string, patch: { board_x?: number | null; board_y?: number | null; w?: number | null; content?: { title?: string; rows?: number } }) => {
+        // A size, or a palette's or recording's name: the other things an example lets you change.
+        const c = patch.content
+        if (typeof patch.w === 'number' || typeof c?.title === 'string' || typeof c?.rows === 'number') {
+          board.api.editLocal(id, {
+            ...(typeof patch.w === 'number' ? { w: patch.w } : {}),
+            ...(typeof c?.title === 'string' ? { title: c.title } : {}),
+            ...(typeof c?.rows === 'number' ? { rows: c.rows } : {}),
+          })
         }
         if ('board_x' in patch || 'board_y' in patch) {
           board.api.placeLocal(id, patch.board_x === null || patch.board_x === undefined || patch.board_y === null || patch.board_y === undefined ? null : { x: patch.board_x, y: patch.board_y })

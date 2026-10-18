@@ -712,12 +712,14 @@ export function RecordingBlock({
  * out that is not writing.
  */
 export function TaskListBlock({
-  item, pieces, tasks, disabled, onToggleTask, onAddTask, onRemoveTask, onReorderTasks, onContent,
+  item, pieces, tasks, disabled, rowsShown, onToggleTask, onAddTask, onRemoveTask, onReorderTasks, onContent,
 }: {
   item: BoardItem
   /** The pieces whose tasks it shows: the ones it is connected to, or every piece when it stands alone. */
   pieces: Array<{ id: string; title: string }>
   tasks: ProjectTask[]
+  /** While its corner is being dragged: how many rows it is about to show. */
+  rowsShown?: number
   disabled: boolean
   onToggleTask: (task: ProjectTask) => void
   onAddTask: (nodeId: string, title: string, category: string) => Promise<void>
@@ -759,7 +761,7 @@ export function TaskListBlock({
     }))),
   ]
   const sorted = [...rows].sort((a, b) => Number(a.done) - Number(b.done))
-  const preview = sorted.slice(0, PREVIEW_ROWS)
+  const preview = sorted.slice(0, rowsShown ?? item.content.rows ?? PREVIEW_ROWS)
   const total = sorted.length
   const hidden = total - preview.length
 
