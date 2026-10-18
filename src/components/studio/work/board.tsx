@@ -39,7 +39,7 @@ import { hueOf } from '@/components/studio/work/bits'
 import {
   ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
-import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
+import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
 import {
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
@@ -164,8 +164,8 @@ export interface BoardTourHandle {
   frame: (ids: string[] | 'all', opts?: { inset?: { top?: number; right?: number; bottom?: number; left?: number }; maxZoom?: number; ms?: number; below?: number }) => void
   /** Lights one thing's web, as resting on it would, or nothing. */
   light: (focus: WebFocus | null) => void
-  /** Opens one piece's "+" as it is in a project of one's own (not greyed), or closes it. */
-  plus: (pieceId: string | null) => void
+  /** Opens the corner's "+" menu as it is in a project of one's own (not greyed), or closes it. */
+  plus: (open: boolean) => void
 }
 
 export interface BoardActions {
@@ -299,7 +299,7 @@ export function Board({
   /** The thread or item just made from a "+", so only that one grows out of it. */
   const [born, setBorn] = useState<string | null>(null)
   const [visionOpen, setVisionOpen] = useState(false)
-  /** The piece whose "+" is open. */
+  /** The corner's "+" menu, open ('corner') or not. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
   /** Opened by the example tour: shown as it is in a project of one's own, not greyed. */
   const [menuLive, setMenuLive] = useState(false)
@@ -307,14 +307,11 @@ export function Board({
   const example = lockedForPlan && arrangeable
   /** The "add a piece" box is asking which way. */
   const [askingNewPiece, setAskingNewPiece] = useState(false)
-  const [recorderFor, setRecorderFor] = useState<string | null>(null)
   /** A word at the foot of the board while a file goes up, or when one could not. */
   const [word, setWord] = useState<{ text: string; busy: boolean } | null>(null)
   const [resizing, setResizing] = useState<{ id: string; w: number; rows?: number } | null>(null)
   /** Each item's own measured height (a task list is as tall as its tasks). */
   const [heights, setHeights] = useState<Record<string, number>>({})
-  const imagePicker = useRef<HTMLInputElement | null>(null)
-  const imageFor = useRef<string | null>(null)
   /**
    * Removals waiting to be sent. What is removed goes off the board at once
    * and the request waits a few seconds, which is the whole of the undo for
@@ -921,7 +918,7 @@ export function Board({
         canvas.glideTo({ x: mid.x + (frame.w / 2 - roomMid.x) / k, y: mid.y + (frame.h / 2 - roomMid.y) / k }, k, opts.ms ?? 900)
       },
       light: (focus) => lighting.show(focus),
-      plus: (pieceId) => { setMenuLive(!!pieceId); setMenuFor(pieceId) },
+      plus: (open) => { setMenuLive(open); setMenuFor(open ? 'corner' : null) },
     }
   })
 
@@ -1125,14 +1122,6 @@ export function Board({
 
   /** A thread begins on a piece: born in that card's colour, already running
    *  through it, and opened so it can be named and carried to the others. */
-  const addThreadFrom = useCallback(async (piece: TreeNode, i: number) => {
-    const created = await act.addThread(pieceHue(i))
-    if (!created) return
-    act.tag(piece.id, created.id)
-    setBorn(created.id)
-    setOpenThread(created.id)
-  }, [act])
-
   // What this canvas's "+" offers, and which of those the plan does not carry.
   const choices = useMemo<PlusChoice[]>(
     () => ['thread', ...(tools.items ? (['tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : [])],
@@ -1149,42 +1138,57 @@ export function Board({
     window.setTimeout(() => setWord((cur) => (cur && cur.text === text ? null : cur)), 6000)
   }, [])
 
-  const pick = useCallback((choice: PlusChoice, piece: TreeNode, i: number) => {
-    setMenuFor(null)
-    if (choice === 'thread') { void addThreadFrom(piece, i); return }
-    if (choice === 'image') { imageFor.current = piece.id; imagePicker.current?.click(); return }
-    if (choice === 'recording') { setRecorderFor(piece.id); return }
-    const made = choice === 'palette' ? act.addPalette(piece.id) : act.addTaskList(piece.id)
-    made
-      .then((it) => setBorn(it.id))
-      .catch((e: unknown) => say(e instanceof Error && e.message ? e.message : 'That did not save. Try again.'))
-  }, [act, addThreadFrom, say])
+  // ── making something new, from the corner ─────────────────────────────────
+  /** The corner's "+" has been pressed and asks what to make. */
+  const cornerOpen = menuFor !== null
+  const toggleCorner = useCallback(() => {
+    // An example shows what it offers, greyed: nothing is added to an example.
+    setMenuLive(false)
+    setMenuFor((cur) => (cur ? null : 'corner'))
+  }, [])
+  /** What is being made, while the dialog asks what is in it. */
+  const [adding, setAdding] = useState<PlusChoice | null>(null)
+  /** A recording named and placed, waiting to be recorded. */
+  const [recordFor, setRecordFor] = useState<{ on: string[]; title: string } | null>(null)
 
-  const onPlus = useCallback((piece: TreeNode, i: number) => {
-    // An example shows its "+" and what it offers, greyed: nothing is added to an example.
-    if (example) { setMenuLive(false); setMenuFor((cur) => (cur === piece.id ? null : piece.id)); return }
-    // With nothing but threads to offer, the "+" is what it always was.
-    if (choices.length === 1) {
-      if (lockedChoices.includes('thread')) act.onLocked('thread')
-      else void addThreadFrom(piece, i)
-      return
-    }
-    setMenuFor((cur) => (cur === piece.id ? null : piece.id))
-  }, [act, addThreadFrom, choices.length, example, lockedChoices])
-
-  const onImageChosen = useCallback(async (file: File | undefined) => {
-    const pieceId = imageFor.current
-    imageFor.current = null
-    if (!file || !pieceId) return
-    setWord({ text: 'Adding the image…', busy: true })
+  /**
+   * Makes what the dialog was told: made, then its contents and the pieces it
+   * belongs to laid on in the same breath, so the undo stack holds one step,
+   * "adding the …", not a step per field. No piece is an answer: it stands on
+   * its own and the board places it below the pieces.
+   */
+  const make = useCallback(async (r: AddResult) => {
+    setAdding(null)
+    const first = r.on[0] ?? null
     try {
-      const it = await act.addImage(pieceId, file)
-      setBorn(it.id)
-      setWord(null)
+      if (r.kind === 'thread') {
+        const i = first ? pieces.findIndex((p) => p.id === first) : 0
+        const created = await act.addThread(pieceHue(Math.max(0, i)))
+        if (!created) return
+        actions.editThread(created.id, { name: r.name, intent: r.intent })
+        for (const id of r.on) actions.tag(id, created.id)
+        setBorn(created.id)
+        return
+      }
+      if (r.kind === 'recording') { setRecordFor({ on: r.on, title: r.title }); return }
+      let made: BoardItem
+      if (r.kind === 'image') {
+        setWord({ text: 'Adding the image…', busy: true })
+        made = await act.addImage(first, r.file)
+        setWord(null)
+      } else if (r.kind === 'palette') made = await act.addPalette(first)
+      else made = await act.addTaskList(first)
+      const content = r.kind === 'palette'
+        ? { ...(r.title ? { title: r.title } : {}), swatches: r.colours.map((hex) => ({ id: crypto.randomUUID(), hex, name: '' })) }
+        : r.kind === 'tasks'
+          ? { tasks: r.tasks.map((title) => ({ id: crypto.randomUUID(), title, done: false })) }
+          : { caption: r.caption }
+      actions.patchItem(made.id, { ...(r.on.length > 1 ? { node_ids: r.on } : {}), content })
+      setBorn(made.id)
     } catch (e) {
-      say(e instanceof Error && e.message ? e.message : 'The image could not be added. Try again.')
+      say(e instanceof Error && e.message ? e.message : 'That did not save. Try again.')
     }
-  }, [act, say])
+  }, [act, actions, pieces, say])
 
   // the entrance plays once; after that it is just a block on the board
   useEffect(() => {
@@ -1230,13 +1234,7 @@ export function Board({
       @media (prefers-reduced-motion: reduce) {
         @keyframes threadBorn { from { opacity: 0 } to { opacity: 1 } }
       }`}</style>
-      <input
-        ref={imagePicker}
-        type="file"
-        accept={IMAGE_ACCEPT}
-        hidden
-        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void onImageChosen(file) }}
-      />
+
       <Surface
         canvas={canvas}
         innerRef={ref}
@@ -1253,6 +1251,24 @@ export function Board({
               />
             )}
             {phone && <PhoneBanner />}
+            {/* The one way to make something new: bottom right, glowing, so
+               the eye finds it. Not on a phone, where the canvas is for
+               looking, except on an example, which shows what it would offer. */}
+            {(!disabled || example) && (!phone || example) && (
+              <AddCorner open={cornerOpen} onClick={toggleCorner}>
+                {cornerOpen && (
+                  <PlusMenu
+                    place="corner"
+                    available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
+                    locked={example ? [] : lockedChoices}
+                    inert={example && !menuLive}
+                    onPick={(choice) => { setMenuFor(null); setAdding(choice) }}
+                    onLocked={(choice) => { setMenuFor(null); act.onLocked(choice) }}
+                    onClose={() => setMenuFor(null)}
+                  />
+                )}
+              </AddCorner>
+            )}
             {arming && armedThread && (
               <ConnectBanner colour={hueOf(t, armedThread.hue)} onCancel={() => setArming(null)}>
                 Pick the piece <strong style={{ color: hueOf(t, armedThread.hue), fontWeight: 600 }}>{armedThread.name || 'this thread'}</strong> runs through next
@@ -1465,29 +1481,6 @@ export function Board({
                     position: 'absolute', inset: 0, borderRadius: radius.card,
                     background: alpha(onItem ? t.ember : t.tide, 0.06), border: 'none', cursor: 'pointer',
                   }}
-                />
-              )}
-              {/* everything a piece can have hanging under it starts here —
-                 set into the card's own bottom edge, in this card's colour,
-                 which a thread then carries */}
-              {(!disabled || example) && (
-                <AddThreadButton
-                  hue={pieceHue(i)}
-                  pieceTitle={piece.title}
-                  menu={choices.length > 1 || example}
-                  open={menuFor === piece.id}
-                  tourId={`plus-${piece.id}`}
-                  onClick={() => onPlus(piece, i)}
-                />
-              )}
-              {menuFor === piece.id && (
-                <PlusMenu
-                  available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
-                  locked={example ? [] : lockedChoices}
-                  inert={example && !menuLive}
-                  onPick={(choice) => pick(choice, piece, i)}
-                  onLocked={(choice) => { setMenuFor(null); act.onLocked(choice) }}
-                  onClose={() => setMenuFor(null)}
                 />
               )}
             </div>
@@ -1724,11 +1717,20 @@ export function Board({
         />
       )}
 
-      {recorderFor && (
+      {adding && (
+        <AddFlow
+          kind={adding}
+          pieces={pieces.map((p, i) => ({ id: p.id, title: p.title, colour: hueOf(t, pieceHue(i)) }))}
+          onCancel={() => setAdding(null)}
+          onMake={(r) => void make(r)}
+        />
+      )}
+      {recordFor && (
         <RecorderDialog
-          onClose={() => setRecorderFor(null)}
+          onClose={() => setRecordFor(null)}
           onDone={async (file, opts) => {
-            const it = await act.addRecording(recorderFor, file, opts)
+            const it = await act.addRecording(recordFor.on[0] ?? null, file, { ...opts, ...(recordFor.title ? { title: recordFor.title } : {}) })
+            if (recordFor.on.length > 1) actions.patchItem(it.id, { node_ids: recordFor.on })
             setBorn(it.id)
           }}
         />
@@ -1878,52 +1880,98 @@ function UndoButton({ next, onUndo }: { next: string | null; onUndo: () => void 
 
 // ── starting a thread from the piece it runs through ────────────────────────
 
-/** Set into the middle of a card's bottom edge, in that card's own colour.
- *  The ring is the canvas behind it, so the button reads as a break in the
- *  card's outline rather than something floating over it. */
-function AddThreadButton({ hue, pieceTitle, menu, open, onClick, tourId }: {
-  hue: ThreadHue
-  pieceTitle: string
-  /** What the example tour finds it by. */
-  tourId?: string
-  /** It opens a choice (a thread, a task list, an image, a recording) rather than starting a thread outright. */
-  menu: boolean
-  open: boolean
-  onClick: () => void
-}) {
+/**
+ * The corner "+": the way to make anything new on the canvas. Large, in the
+ * warm accent, with a slow glow breathing out of it so the eye goes there;
+ * the glow stops while its menu is open. Above the Dock and the vision button
+ * on a narrow screen.
+ */
+function AddCorner({ open, onClick, children }: { open: boolean; onClick: () => void; children?: React.ReactNode }) {
   const { t } = useTheme()
-  const colour = hueOf(t, hue)
-  const [hover, setHover] = useState(false)
-  const label = menu ? `Add something under ${pieceTitle || 'this piece'}` : `Start a thread from ${pieceTitle || 'this piece'}`
   return (
-    <button
-      data-hold
-      data-tour={tourId}
-      type="button"
-      title={menu ? 'Add a thread, a task list, an image or a recording' : 'Start a thread here'}
-      aria-label={label}
-      aria-haspopup={menu ? 'menu' : undefined}
-      aria-expanded={menu ? open : undefined}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        position: 'absolute', left: '50%', bottom: -ADD_THREAD_D / 2,
-        width: ADD_THREAD_D, height: ADD_THREAD_D, marginLeft: -ADD_THREAD_D / 2,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 0, borderRadius: '50%', border: 'none', cursor: 'pointer',
-        background: colour, color: t.cardBg,
-        boxShadow: `0 0 0 4px ${shell.ink}, 0 0 0 ${hover ? 8 : 4}px ${alpha(colour, hover ? 0.3 : 0)}`,
-        transform: `${hover ? 'scale(1.06)' : 'scale(1)'} rotate(${open ? 45 : 0}deg)`,
-        transition: 'transform 160ms ease, box-shadow 140ms ease',
-      }}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </svg>
-    </button>
+    <>
+      <style>{`
+        @keyframes addGlow {
+          0%, 100% { box-shadow: 0 0 0 2px ${alpha(t.ember, 0.8)}, 0 0 30px 12px ${alpha(t.ember, 0.6)}, 0 0 90px 36px ${alpha(t.ember, 0.35)}; }
+          50% { box-shadow: 0 0 0 3px ${alpha(t.ember, 0.95)}, 0 0 48px 20px ${alpha(t.ember, 0.75)}, 0 0 140px 60px ${alpha(t.ember, 0.45)}; }
+        }
+        @keyframes addHalo {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.55; }
+          50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.9; }
+        }
+        .add-corner-halo {
+          position: absolute; left: 50%; top: 50%; width: 220px; height: 220px; border-radius: 50%; pointer-events: none;
+          background: radial-gradient(circle, ${alpha(t.ember, 0.55)} 0%, ${alpha(t.ember, 0.22)} 35%, ${alpha(t.ember, 0)} 70%);
+          animation: addHalo 2.8s ease-in-out infinite; transform: translate(-50%, -50%);
+        }
+        .add-corner { right: 24px; bottom: 24px; }
+        @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
+          .add-corner { right: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 16px); }
+        }
+        .add-corner-btn { animation: addGlow 2.8s ease-in-out infinite; }
+        .add-corner-btn:hover { transform: scale(1.07); }
+        .add-corner-btn:active { transform: scale(0.95); }
+        .add-corner-word { opacity: 0; transform: translate(8px, -50%); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+        .add-corner:hover .add-corner-word { opacity: 1; transform: translate(0, -50%); }
+        @media (hover: none) { .add-corner-word { display: none; } }
+        .add-corner-btn[aria-expanded="true"] { animation: none; }
+        @media (prefers-reduced-motion: reduce) { .add-corner-btn, .add-corner-halo { animation: none; } .add-corner-btn { box-shadow: 0 0 44px 16px ${alpha(t.ember, 0.6)}; } }
+      `}</style>
+      <div className="add-corner" data-hold style={{ position: 'absolute', zIndex: 42 }}>
+        {children}
+        {!open && (
+          <span
+            aria-hidden
+            className="add-corner-word"
+            style={{
+              position: 'absolute', right: 'calc(100% + 14px)', top: '50%', whiteSpace: 'nowrap',
+              ...canvasType.small, fontSize: 13, fontWeight: 600, color: shell.text,
+              padding: '6px 12px', borderRadius: 999, background: 'rgba(13,12,11,0.82)', border: `1px solid ${shell.line}`,
+            }}
+          >
+            Add
+          </span>
+        )}
+        {!open && <span aria-hidden className="add-corner-halo" style={{ right: 'auto', bottom: 'auto', marginLeft: 0 }} />}
+        <button
+          type="button"
+          className="add-corner-btn"
+          data-tour="add-button"
+          aria-label="Add something to this project"
+          aria-expanded={open}
+          title="Add a thread, a task list, an image, a recording or a palette"
+          onClick={onClick}
+          style={{
+            position: 'relative',
+            width: 60, height: 60, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: t.ember, color: shell.ink,
+            boxShadow: open ? `0 0 0 1px ${alpha(t.ember, 0.8)}, 0 10px 30px rgba(0,0,0,0.45)` : undefined,
+            transition: 'transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+          }}
+        >
+          {/* Companheiro's own mark (public/favicon.svg): the ring and the
+             spark inside it. The small "+" on its edge is what says press me
+             to add, so the mark can be the mark and still read as a button. */}
+          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden>
+            <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="2" />
+            <circle cx="16" cy="15" r="3.8" fill="currentColor" />
+          </svg>
+          <span
+            aria-hidden
+            className="add-corner-badge"
+            style={{
+              position: 'absolute', top: -3, right: -3, width: 22, height: 22, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: shell.text, color: shell.ink, boxShadow: `0 0 0 3px ${t.ember}`,
+              transform: open ? 'rotate(-45deg) scale(0)' : 'none', transition: 'transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </span>
+        </button>
+      </div>
+    </>
   )
 }
 

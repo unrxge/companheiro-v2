@@ -60,7 +60,9 @@ function idsFor(step: TourStep, narrow: boolean): string[] | 'all' | null {
 /** What a step points at, where it is on the window right now. */
 function rectFor(step: TourStep, narrow: boolean): Rect | null {
   if ('anchor' in step.show) {
-    const anchors = Array.isArray(step.show.anchor) ? step.show.anchor : [step.show.anchor]
+    const anchors: string[] = Array.isArray(step.show.anchor) ? [...step.show.anchor] : [step.show.anchor]
+    // The "+" menu, once open, is part of what that step is showing.
+    if (step.plus) anchors.push('plus-menu')
     return unionOf(anchors.flatMap((a) => Array.from(document.querySelectorAll(`[data-tour="${a}"]`))))
   }
   const ids = idsFor(step, narrow)
@@ -75,7 +77,7 @@ function rectFor(step: TourStep, narrow: boolean): Rect | null {
 /** Where a step's gesture is shown being done: the "+" it opens, or the first thing it points at. */
 function gestureAt(step: TourStep): Rect | null {
   if (step.plus) {
-    const plus = document.querySelector(`[data-tour="plus-${CSS.escape(step.plus)}"]`)
+    const plus = document.querySelector('[data-tour="add-button"]')
     return plus ? unionOf([plus]) : null
   }
   if (!('ids' in step.show) || step.show.ids === 'all') return null
@@ -182,10 +184,10 @@ export function ExampleTour({
     }, reduce ? 120 : travel)
     // The "+" is seen being tapped, and then what it offers opens.
     const plus = step.plus
-    const opens = plus ? window.setTimeout(() => board?.current?.plus(plus), (reduce ? 120 : travel) + 560) : 0
+    const opens = plus ? window.setTimeout(() => board?.current?.plus(true), (reduce ? 120 : travel) + 560) : 0
     return () => {
       window.clearTimeout(id)
-      if (plus) { window.clearTimeout(opens); board?.current?.plus(null) }
+      if (plus) { window.clearTimeout(opens); board?.current?.plus(false) }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])

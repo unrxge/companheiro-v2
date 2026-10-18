@@ -49,7 +49,7 @@ const PLUS_OPTIONS: PlusOption[] = [
  * anywhere else, or Escape. Both menus on this board use it, so they dismiss
  * alike and there is one place to change how that works.
  */
-function MenuShell({ label, children, mark }: { label: string; children: ReactNode; mark?: string }) {
+function MenuShell({ label, children, mark, place = 'below' }: { label: string; children: ReactNode; mark?: string; place?: 'below' | 'corner' }) {
   const { t } = useTheme()
   return (
     <div
@@ -60,7 +60,10 @@ function MenuShell({ label, children, mark }: { label: string; children: ReactNo
       aria-label={label}
       onPointerDown={(e) => e.stopPropagation()}
       style={{
-        position: 'absolute', left: '50%', top: 'calc(100% + 24px)', transform: 'translateX(-50%)', zIndex: 5,
+        // Under the "+" it came from, or rising out of the corner button.
+        ...(place === 'corner'
+          ? { position: 'absolute', right: 0, bottom: 'calc(100% + 16px)', zIndex: 5 }
+          : { position: 'absolute', left: '50%', top: 'calc(100% + 24px)', transform: 'translateX(-50%)', zIndex: 5 }),
         width: 276, padding: 6, borderRadius: radius.widget,
         background: t.containerBg, boxShadow: t.containerShadow, border: `1px solid ${alpha(t.textPrimary, 0.08)}`,
       }}
@@ -170,10 +173,12 @@ export function NewPieceMenu({ onStart, onConceptualise, onClose }: {
  * the plan that does and answered by `onLocked` instead of `onPick`.
  */
 export function PlusMenu({
-  available, locked, onPick, onLocked, onClose, inert = false,
+  available, locked, onPick, onLocked, onClose, inert = false, place = 'below',
 }: {
   available: PlusChoice[]
   locked: PlusChoice[]
+  /** Where it opens: under a "+", or up out of the corner button. */
+  place?: 'below' | 'corner'
   onPick: (choice: PlusChoice) => void
   onLocked: (choice: PlusChoice) => void
   onClose: () => void
@@ -185,7 +190,7 @@ export function PlusMenu({
 
   return (
     <div ref={ref}>
-    <MenuShell label="Add to this piece" mark="plus-menu">
+    <MenuShell label="Add to this project" mark="plus-menu" place={place}>
       {PLUS_OPTIONS.filter((o) => available.includes(o.key)).map((o) => {
         const isLocked = locked.includes(o.key)
         return (

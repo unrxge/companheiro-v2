@@ -85,7 +85,7 @@ export interface TourInput {
 
 /** Something on the window the tour points at that is not on the canvas. */
 export type TourAnchor =
-  | 'launcher' | 'vision-page' | 'vision-talk'
+  | 'launcher' | 'vision-page' | 'vision-talk' | 'add-button'
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
 
@@ -104,8 +104,8 @@ export interface TourStep {
   view?: 'write' | 'flow'
   /** On a narrow screen, frame only these: all of `show` would be too small to read. */
   narrow?: string[]
-  /** The piece whose "+" opens during the step, its menu shown as it is in a project of one's own. */
-  plus?: string
+  /** The corner "+" opens during the step, its menu shown as it is in a project of one's own. */
+  plus?: boolean
   /** A web lit while the step stands. */
   light?: WebFocus
   /** What happens to the vision room as the step begins. */
@@ -174,19 +174,16 @@ export function tourSteps(input: TourInput): TourStep[] {
     }))
   }
 
-  // Where a thread begins: the "+" on the piece something was first noticed
-  // in. Said as why anyone would, not how the button works.
-  const startFrom = busiest ?? input.pieces[0]
-  if (startFrom) {
-    steps.push(step({
-      key: 'plus',
-      headline: 'Noticed something coming back?',
-      lines: ['Start a thread from the piece it showed up in.', 'Pictures, sounds and lists begin there too.'],
-      show: { ids: [startFrom.id] },
-      plus: startFrom.id,
-      gesture: 'tap',
-    }))
-  }
+  // Where anything new begins: the corner "+". Said as why anyone would, not
+  // how the button works, and that a new thing need not belong to a piece.
+  steps.push(step({
+    key: 'plus',
+    headline: 'Noticed something coming back?',
+    lines: ['Start a thread here, or add a picture, sound or list.', 'Tie it to the pieces it belongs to, or to none.'],
+    show: { anchor: 'add-button' },
+    plus: true,
+    gesture: 'tap',
+  }))
 
   // What the words cannot hold: pictures, sound, colour. Up to three, so the
   // step frames a handful and not the whole board again.
