@@ -17,7 +17,7 @@ import {
   parseBriefTurn,
   personFirst,
 } from "@/lib/concept-brief";
-import { BROUGHT_CONTEXT, conceptualisePhaseBlock, conceptualiseStableBlock, hitTurnCap, PHASE_MARKER } from "@/lib/conceptualise-prompt";
+import { BROUGHT_CONTEXT, conceptualisePhaseBlock, conceptualiseStableBlock, hitTurnCap, mergeTurns, MOVE_ON_NOTE, OPENING_NOTE, PHASE_MARKER, settleTurn } from "@/lib/conceptualise-prompt";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
@@ -43,6 +43,8 @@ interface ConceptualiseRequest {
   brief?: boolean;
   /** With `brief`: the stages already asked twice (lib/concept-brief's follow-ups). */
   followedUp?: number[];
+  /** The person pressed "Move on": no new message, the next phase begins. */
+  moveOn?: boolean;
 }
 
 /**
@@ -185,13 +187,14 @@ export async function POST(request: NextRequest) {
       return await briefTurn(auth, body.messages, body.phase, body.projectId, followedUp);
     }
 
+    body.messages = mergeTurns(body.messages);
     const currentPhase = body.phase;
     // Advance now if the previous assistant turn declared the phase complete
     // (the client keeps the marker in history), or if the cap was hit.
     // The marker no longer advances on the next request: the client is told to
     // move on in the same response that carries it (see the meta below), so it
     // already sends the new phase. Only the turn cap advances here.
-    const shouldAdvance = currentPhase < 5 && hitTurnCap(body.messages, currentPhase);
+    const shouldAdvance = currentPhase < 5 && (body.moveOn === true || hitTurnCap(body.messages, currentPhase));
     const nextPhase = shouldAdvance ? Math.min(currentPhase + 1, 5) : currentPhase;
 
     const companionContext = await buildCompanionContext(auth);
@@ -232,15 +235,21 @@ export async function POST(request: NextRequest) {
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to
     // but not including it, so the newest, never-reused turn isn't marked.
+    // "Move on" sends no new message: the conversation so far, then a note the
+    // person never sees asking for the next phase's first question.
     const claudeMessages: MessageParam[] =
-      body.messages.length > 0
-        ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
-        : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
+      body.moveOn && body.messages.length > 0
+        ? [...cacheLastMessage(body.messages), { role: "user", content: MOVE_ON_NOTE }]
+        : body.messages.length > 0
+          ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
+          : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
+    const model = pickModel(auth, MODELS.concept);
+    const extras = `${questionContext}${broughtContext}${checkInHandoverContext}${joining}`;
 
     return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
       {
-        model: pickModel(auth, MODELS.concept),
+        model,
         max_tokens: 400,
         system: [
           {
@@ -252,15 +261,41 @@ export async function POST(request: NextRequest) {
         ],
         messages: claudeMessages,
       },
-      (fullText) => {
-        const complete = fullText.includes(PHASE_MARKER);
-        // On completion the reply already asks the next phase's question, so
-        // the client moves to that phase now.
-        const reportedPhase = complete ? Math.min(nextPhase + 1, 5) : nextPhase;
+      async (fullText) => {
+        // Every reply has to leave the person a way on: a question, or the
+        // declaration. One that asked nothing moves the conversation on, and
+        // the next phase's first question is written now and sent with it.
+        const settled = settleTurn(fullText, nextPhase);
+        let nextQuestion = "";
+        if (settled.needsQuestion) {
+          try {
+            const res = await anthropic.messages.create({
+              model,
+              max_tokens: 200,
+              system: [
+                { type: "text", text: withLanguage(stableSystemBlock), cache_control: { type: "ephemeral", ttl: "1h" } },
+                { type: "text", text: `${conceptualisePhaseBlock(settled.phase)}${extras}` },
+              ],
+              messages: [
+                ...claudeMessages,
+                { role: "assistant", content: fullText.split(PHASE_MARKER).join("").trim() || "…" },
+                { role: "user", content: OPENING_NOTE },
+              ],
+            });
+            logUsage(auth.user.id, "idea-lab/conceptualise", res.model, res.usage, { phase: settled.phase, opening: true });
+            const text = res.content.find((b) => b.type === "text");
+            const asked = text && text.type === "text" ? text.text.split(PHASE_MARKER).join("").trim() : "";
+            // Only a question will do here; anything else and the Move on button is the way forward.
+            if (/[?？¿]/.test(asked)) nextQuestion = asked;
+          } catch (err) {
+            console.error("Conceptualise opening question failed:", err);
+          }
+        }
         return {
-          phase: reportedPhase,
-          readyToAdvance: reportedPhase === 5,
-          phaseComplete: complete,
+          phase: settled.phase,
+          readyToAdvance: settled.phase === 5,
+          phaseComplete: settled.complete,
+          ...(nextQuestion ? { nextQuestion } : {}),
         };
       },
       { phase: nextPhase }

@@ -76,7 +76,9 @@ Reflect with their words, not yours, and briefly. No praise of what they said or
 
 PHASE COMPLETION: the conversation moves through fixed phases, and every question you ask must belong to the current phase. A phase is done when its subject has an answer that is specific and theirs, or when its follow-ups are spent. If what this phase asks has already been answered in their own words earlier, it is done: do not ask it again. When it is done, stop asking about it: say back in one plain line what they said, then ask the first question of the NEXT phase (described below), and end your reply with the exact marker ${PHASE_MARKER} on its own line. Never mention the marker or phases to the person. Do not emit the marker on the first turn of a phase. When the principle is in their words, close the principle phase that same turn: give the say-back (what the piece is, who it is for, what it knows, in their words) in that reply and end it with the marker. Whenever you find yourself saying the whole piece back, you are declaring it: end that reply with the marker.
 
-Keep every question on the idea itself, and only ask one when it opens the idea further. NEVER ask about logistics or commitment: what form, medium, genre or length the piece will take (essay, poem, series, fragments), when or how they will write it, what happens next, or whether they are ready. The person does not need to decide or announce any of that — they will start writing when they want to and it will take the shape it takes. A reply that says its piece and stops, with no question, is always allowed.`;
+Keep every question on the idea itself, and only ask one when it opens the idea further. NEVER ask about logistics or commitment: what form, medium, genre or length the piece will take (essay, poem, series, fragments), when or how they will write it, what happens next, or whether they are ready. The person does not need to decide or announce any of that — they will start writing when they want to and it will take the shape it takes.
+
+EVERY REPLY LEAVES A WAY ON. Before the declaration, every reply ends with exactly one question: a follow-up inside this phase, or the first question of the next phase with the marker. A reply that only reflects or sums up leaves the person with nothing to answer, so never send one. Saying the whole piece back is the declaration: when you do it, end that reply with the marker. Never close by sending them off ("go make it", "now write it").`;
 }
 
 /** The current phase, and the next one for a reply that closes it. */
@@ -91,3 +93,40 @@ export function conceptualisePhaseBlock(nextPhase: number): string {
 // A brought idea has already been lived with — don't treat it as a raw
 // spark. Receive what's worked out, find what's still unresolved.
 export const BROUGHT_CONTEXT = `\nTHE PERSON BROUGHT THIS IDEA WITH THEM:\nThey've already been carrying it, maybe for a while. Don't re-explain it to them or start it from zero. Receive what they've worked out, notice what's settled and what's still loose, and spend your questions on the loose parts. If a phase's work is already answered by what they brought, complete it quickly.`
+
+/** Said to the model, unseen by the person, when they press "Move on". */
+export const MOVE_ON_NOTE = "[The person has chosen to move on to the next part of the conversation. Do not reply to this note or mention it. Ask the first question of the current phase, in a line or two, building on what they have already said. If the current phase is the declaration, say the piece back instead.]"
+
+/** Said to the model, unseen, when a reply left the person nothing to answer. */
+export const OPENING_NOTE = "[Do not reply to this note or mention it. Your last reply asked nothing. Ask the first question of the current phase now: one question, in a line or two, building on what they have already said, with nothing before it.]"
+
+/**
+ * Where a reply leaves the conversation. The model is told to end every reply
+ * before the declaration with a question, and to mark a finished phase; when
+ * it does neither, the person would be left with nothing to answer and no way
+ * on (seen 2026-10-19: a summary, "that seems right", then "go make it").
+ * Such a reply is taken as the phase finished: from the principle (4) it is
+ * the declaration, earlier it moves one phase on and the route asks that
+ * phase's first question in the same response (`needsQuestion`).
+ */
+export function settleTurn(text: string, phase: number): { phase: number; complete: boolean; needsQuestion: boolean } {
+  if (phase >= 5) return { phase: 5, complete: false, needsQuestion: false }
+  if (text.includes(PHASE_MARKER)) return { phase: Math.min(phase + 1, 5), complete: true, needsQuestion: false }
+  if (/[?？¿]/.test(text)) return { phase, complete: false, needsQuestion: false }
+  const next = phase >= 4 ? 5 : phase + 1
+  return { phase: next, complete: true, needsQuestion: next < 5 }
+}
+
+/**
+ * After "Move on" the page holds two companion turns in a row. The model wants
+ * the two sides to alternate, so neighbouring turns from one side are joined.
+ */
+export function mergeTurns<T extends { role: 'user' | 'assistant'; content: string }>(messages: T[]): T[] {
+  const out: T[] = []
+  for (const m of messages) {
+    const last = out[out.length - 1]
+    if (last && last.role === m.role) out[out.length - 1] = { ...last, content: `${last.content}\n\n${m.content}` }
+    else out.push({ ...m })
+  }
+  return out
+}

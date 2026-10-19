@@ -232,19 +232,19 @@ function ConceptualiseContent() {
     }).catch((err) => console.error('Failed to autosave draft:', err))
   }
 
-  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number, checkInHandoverMode?: boolean) => {
+  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number, checkInHandoverMode?: boolean, moveOn?: boolean) => {
     setIsLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined, followedUp: briefProject ? briefFollowedUp.current : undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined, followedUp: briefProject ? briefFollowedUp.current : undefined, moveOn: moveOn || undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
       setMessages([...conversationHistory, { role: 'assistant', content: '' }])
-      const { text, meta } = await readTextStream<{ phase: number; readyToAdvance: boolean; phaseComplete?: boolean; followedUp?: number[] }>(
+      const { text, meta } = await readTextStream<{ phase: number; readyToAdvance: boolean; phaseComplete?: boolean; followedUp?: number[]; nextQuestion?: string }>(
         res,
         (visibleText) => setMessages([...conversationHistory, { role: 'assistant', content: visibleText }]),
         [PHASE_MARKER]
@@ -258,7 +258,11 @@ function ConceptualiseContent() {
 
       // Keep the completion marker in history (hidden in display) so the
       // server advances the phase on the next turn.
-      const stored = meta?.phaseComplete ? `${text}\n${PHASE_MARKER}` : text
+      // A reply that asked nothing comes with the next phase's first question,
+      // written after it (lib/conceptualise-prompt's settleTurn): shown as the
+      // end of the same reply.
+      const said = meta?.nextQuestion ? `${text.trim()}\n\n${meta.nextQuestion}` : text
+      const stored = meta?.phaseComplete ? `${said}\n${PHASE_MARKER}` : said
       const finalMessages: ThreadMessage[] = [...conversationHistory, { role: 'assistant', content: stored }]
       setMessages(finalMessages)
       if (briefProject) writeSavedBrief(briefProject, { messages: finalMessages, phase: finalPhase, readyToAdvance: finalReadyToAdvance, followedUp: briefFollowedUp.current })
@@ -298,6 +302,14 @@ function ConceptualiseContent() {
     }
     setExistingDrafts((prev) => prev.filter((d) => d.id !== draftId))
   }
+
+  // "Move on": the person decides this part is done. No message of theirs is
+  // added; the next part's first question comes back.
+  const handleMoveOn = async () => {
+    if (isLoading || phase >= 5) return
+    await fetchAIResponse(messages, phase, undefined, true)
+  }
+  const canMoveOn = !briefProject && phase < 5 && !isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages.some((x) => x.role === 'user')
 
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
@@ -409,6 +421,11 @@ function ConceptualiseContent() {
             <Thread messages={messages} streaming={isLoading}>
               {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
             </Thread>
+            {canMoveOn && (
+              <div>
+                <GhostButton size="sm" onClick={handleMoveOn}>Move on to the next part</GhostButton>
+              </div>
+            )}
             {readyToAdvance && phase === 5 && !isLoading && messages.length > 0 && (
               <div>
                 <PrimaryButton onClick={handleDeclare}>{briefProject ? 'Build the core concept' : 'Declare this idea'}</PrimaryButton>
