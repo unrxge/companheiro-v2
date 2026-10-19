@@ -80,6 +80,7 @@ export function PageShell({
       `}</style>
       <div
         className={`page-col${fill ? ' page-col-fill' : ''}`}
+        data-tour="page"
         style={{
           position: 'relative',
           zIndex: 1,

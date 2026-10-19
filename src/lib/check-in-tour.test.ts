@@ -6,7 +6,7 @@ import { checkInTourSteps, demoShows, SPOKEN_MS, DEMO, type DemoStage } from './
 
 test('every step names a stage, and the stages run in order', () => {
   const stages = checkInTourSteps().map((s) => s.stage)
-  assert.deepEqual(stages, ['start', 'feeling', 'reply', 'aside', 'understood', 'added', 'end'])
+  assert.deepEqual(stages, ['start', 'start', 'feeling', 'reply', 'aside', 'understood', 'added', 'end'])
 })
 
 test('the two examples never share the screen', () => {

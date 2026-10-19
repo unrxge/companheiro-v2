@@ -859,7 +859,12 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             board={tourHandle}
             phone={phone}
             onRoom={onTourRoom}
-            onDone={() => setTouring(null)}
+            onDone={() => {
+              setTouring(null)
+              // Walks switched back on in Settings go on into the example's first piece, where the writing page's follows.
+              const first = roots[0]
+              if (tourDue.due?.chainPiece && example && first) router.push(`/p/${projectId}/n/${first.id}`)
+            }}
             // The preview only: ?tour=5 starts at the fifth step, to look at one.
             startAt={process.env.NODE_ENV === 'production' ? 0 : Math.max(0, Number(new URLSearchParams(window.location.search).get('tour') ?? 1) - 1)}
           />

@@ -41,9 +41,11 @@ export default function TourPage() {
       .then((d) => {
         setFirstRun(d?.onboarded === false)
         if (d?.profile) setProfile(d.profile)
+        // The walks are switched back on in Settings now; this page is only for a new account.
+        if (d?.onboarded !== false) router.replace('/home')
       })
       .catch(() => setFirstRun(false))
-  }, [])
+  }, [router])
 
   const answered = useCallback((who: TourProfile, themes: string[]) => {
     answers.current = { who, themes }

@@ -274,6 +274,26 @@ function Board() {
 
   const openCanvas = useCallback((id: string, from?: HTMLElement | null) => go(`/p/${id}`, 'in', from), [go])
 
+  // Guided walks switched back on in Settings: the board opens the example nearest
+  // to what the person makes (the first card), and its walk plays there. Once per
+  // switching-on, and only when asked for: a board is never taken over otherwise.
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (status !== 'ready' || examples.length === 0 || autoOpened.current) return
+    autoOpened.current = true
+    fetch('/api/examples/tour', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d: { autoOpen?: boolean; rearmedAt?: string | null }) => {
+        if (!d.autoOpen || !d.rearmedAt) return
+        try {
+          if (sessionStorage.getItem('companheiro.walk-opened') === d.rearmedAt) return
+          sessionStorage.setItem('companheiro.walk-opened', d.rearmedAt)
+        } catch { /* still opens once: the walk marks itself seen */ }
+        openCanvas(examples[0].id)
+      })
+      .catch(() => {})
+  }, [examples, openCanvas, status])
+
   const open = useCallback((p: ShelfProject, from: HTMLElement) => {
     const stage = projectState(p)
     if (stage === 'queued') { setPeek(p); return }

@@ -85,6 +85,8 @@ export interface TourInput {
 
 /** Something on the window the tour points at that is not on the canvas. */
 export type TourAnchor =
+  // the whole page's column: a walk's first, wide look before it narrows
+  | 'page'
   | 'launcher' | 'vision-page' | 'vision-talk' | 'add-button'
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
@@ -255,6 +257,15 @@ export function tourSteps(input: TourInput): TourStep[] {
 export function pieceTourSteps(input: { practices: readonly string[]; exampleFor: readonly string[] }): TourStep[] {
   const v = voiceFor(input.practices, input.exampleFor)
   return [
+    // A wide look first: the whole page, before it narrows to the words and then the tools.
+    step({
+      key: 'page',
+      headline: 'One page for one piece.',
+      lines: ['The words in the middle, its tools at the side.'],
+      show: { anchor: 'page' },
+      panel: null,
+      view: 'write',
+    }),
     step({
       key: 'write',
       headline: 'Where the piece itself gets made.',

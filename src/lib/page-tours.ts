@@ -19,7 +19,7 @@ const step = (s: Omit<TourStep, 'ms'>): TourStep => ({ ...s, ms: readingTime(s.h
 export function homeTourSteps(): TourStep[] {
   return [
     step({
-      key: 'home', show: { anchor: 'home-greeting' },
+      key: 'home', show: { anchor: 'page' },
       headline: 'This is home.',
       lines: ['Where a day with the work starts. Everything here leads somewhere.'],
     }),
@@ -57,9 +57,14 @@ export type LabDemo = 'energy' | 'mode' | null
 export function ideaLabTourSteps(): TourStep[] {
   return [
     step({
+      key: 'page', show: { anchor: 'page' },
+      headline: 'This is where a question is summoned.',
+      lines: ['For a day you sit down with no idea: set up what you want on the left, and it comes through on the right.'],
+    }),
+    step({
       key: 'lens', show: { anchor: 'lab-lens' },
       headline: 'Set a lens, and a question comes through it.',
-      lines: ['For a day you sit down with no idea. Three settings, then one question to make from.'],
+      lines: ['Movement, territory, energy and mode, then one question to make from.'],
     }),
     step({
       key: 'movement', show: { anchor: 'lab-movement' },
@@ -126,6 +131,11 @@ export function portraitShows(stage: PortraitDemo | null): { checkIn: boolean; e
 
 export function portraitTourSteps(): TourStep[] {
   return [
+    step({
+      key: 'page', show: { anchor: 'page' },
+      headline: 'This is your portrait.',
+      lines: ['Patterns the companion notices in how you work. A new one starts empty; here is how it fills.'],
+    }),
     step({
       key: 'checkin', stage: 'checkin', show: { anchor: 'portrait-checkin' },
       headline: 'It starts in your check-ins.',

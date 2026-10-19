@@ -3,9 +3,10 @@
 // ── the walk round an example ───────────────────────────────────────────────
 //
 // Plays the steps of lib/examples/tour-script.ts over an example's canvas, the
-// first time someone opens one. It cannot be skipped, and it never moves on by
-// itself or from a stray tap: only the message box (or its Next) moves it on,
-// and only once the step has played and had time to be read. Back goes back.
+// first time someone opens one. It moves on by itself, unhurried, once a step
+// has played and been given time to be read; Next (or the message box) moves
+// on sooner, Back goes back, and the pause button holds a step still. A stray
+// tap anywhere else does nothing, so an accidental one never skips a step.
 //
 // The eye is led, not told where to look: a lit window in a darkened screen
 // travels from one thing to the next while the canvas glides under it, and the
@@ -20,7 +21,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius, shell } from '@/lib/design-tokens'
 import type { BoardTourHandle } from '@/components/studio/work/board'
-import type { TourPanel, TourStep } from '@/lib/examples/tour-script'
+import { readingTime, type TourPanel, type TourStep } from '@/lib/examples/tour-script'
 
 /** Travel between steps: the canvas glide, and the lit window following it. Unhurried, so the eye can follow. */
 const GLIDE_MS = 1400
@@ -118,6 +119,11 @@ function viewAt(steps: TourStep[], j: number): 'write' | 'flow' | null {
   return null
 }
 
+/** Once a step is readable it stands this much longer than a calm read of its words, then the walk moves on. */
+function dwellMs(step: TourStep): number {
+  return Math.round(readingTime(step.headline, step.lines) * 1.15) + 1200
+}
+
 /** How long a step takes to arrive in words: the headline word by word, then each line. */
 function revealMs(step: TourStep): number {
   return step.headline.split(' ').length * WORD_MS + 700 + step.lines.length * LINE_MS
@@ -157,6 +163,18 @@ export function ExampleTour({
   /** The step has played and been on screen long enough to be read: Next works from here. */
   const [ready, setReady] = useState(false)
   const prevIndex = useRef<number | null>(null)
+  /** Held still by the person (the pause button, or resting on the message box). */
+  const [paused, setPaused] = useState(false)
+  const [resting, setResting] = useState(false)
+  /** Counts each resume, so the bar under Next starts again from empty with the wait. */
+  const [lap, setLap] = useState(0)
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    const on = () => setHidden(document.hidden)
+    on()
+    document.addEventListener('visibilitychange', on)
+    return () => document.removeEventListener('visibilitychange', on)
+  }, [])
   const step = steps[index]
   const last = index === steps.length - 1
 
@@ -274,10 +292,23 @@ export function ExampleTour({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
 
+  // On its own, once the step is readable: unless it is held (paused, or the
+  // pointer is resting on the box), the tab is hidden, or it is the last step,
+  // which waits for a press so a walk never ends unseen. (The preview can hold
+  // a step still with ?tourhold=1, to look at it.)
+  const hold = process.env.NODE_ENV !== 'production' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tourhold')
+  const auto = phase === 'reading' && ready && !last && !paused && !resting && !hidden && !hold && !leaving
+  useEffect(() => {
+    if (!auto || !step) return
+    const id = window.setTimeout(advance, dwellMs(step))
+    return () => window.clearTimeout(id)
+  }, [advance, auto, index, lap, step])
+
   // Keys move on and back as the buttons do; nothing closes it.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tryAdvance() }
+      if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); tryAdvance() }
+      if (e.key === ' ') { e.preventDefault(); setPaused((p) => !p); setLap((n) => n + 1) }
       if (e.key === 'ArrowLeft') { e.preventDefault(); goBack() }
       if (e.key === 'Escape') e.preventDefault()
     }
@@ -357,6 +388,10 @@ export function ExampleTour({
           const overBottom = Math.max(0, r.y + r.h - (vh - ch - 14))
           const overTop = Math.max(0, ch + 14 - r.y)
           c.dataset.edge = overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
+        } else if (r.w > vw * 0.62 && r.h > vh * 0.55) {
+          // Nearly everything is lit (a first, wide look at a page): the words sit low and central, over it.
+          const x = (vw - CARD_W) / 2
+          c.style.transform = `translate(${Math.round(x)}px, ${Math.round(vh - ch - 28)}px)`
         } else {
           const roomRight = vw - 16 - (r.x + r.w + CARD_GAP)
           const roomLeft = r.x - CARD_GAP - 16
@@ -370,7 +405,9 @@ export function ExampleTour({
             // what is lit when it fits there, otherwise over it.
             const x = Math.min(vw - CARD_W - 16, Math.max(16, r.x + r.w / 2 - CARD_W / 2))
             const below = r.y + r.h + CARD_GAP
-            const y = below + ch <= vh - 16 ? below : Math.max(16, r.y - CARD_GAP - ch)
+            const above = r.y - CARD_GAP - ch
+            // Under it when that fits, over its top edge when that does, otherwise low and over it.
+            const y = below + ch <= vh - 16 ? below : above >= 16 ? above : vh - ch - 28
             c.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
           }
         }
@@ -470,6 +507,8 @@ export function ExampleTour({
           className={narrow ? 'tour-sheet' : 'tour-card'}
           data-edge="bottom"
           onClick={(e) => { e.stopPropagation(); tryAdvance() }}
+          onPointerEnter={(e) => { if (e.pointerType === 'mouse') setResting(true) }}
+          onPointerLeave={() => { if (resting) { setResting(false); setLap((n) => n + 1) } }}
           style={narrow ? {
             cursor: ready ? 'pointer' : 'default',
             position: 'absolute', left: 10, right: 10, maxWidth: 480, margin: '0 auto',
@@ -530,6 +569,24 @@ export function ExampleTour({
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 5l-7 7 7 7" /></svg>
                 </button>
               )}
+              {!last && (
+                <button
+                  type="button"
+                  className="tour-btn"
+                  onClick={(e) => { e.stopPropagation(); setPaused((p) => !p); setLap((n) => n + 1) }}
+                  aria-label={paused ? 'Carry on by itself' : 'Pause: stop it moving on by itself'}
+                  aria-pressed={paused}
+                  style={{
+                    width: 34, height: 34, borderRadius: 999, border: `1px solid ${alpha(t.textPrimary, 0.16)}`,
+                    background: paused ? alpha(t.violet, 0.14) : 'transparent', color: paused ? t.violet : t.textSecondary,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  }}
+                >
+                  {paused
+                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M7 4.5v15l12-7.5z" /></svg>
+                    : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><rect x="6" y="4.5" width="4" height="15" rx="1" /><rect x="14" y="4.5" width="4" height="15" rx="1" /></svg>}
+                </button>
+              )}
               {/* On a phone the bars above already say how far in; the count is room it can spare. */}
               <span style={{ ...canvasType.meta, color: alpha(shell.text, 0.4) }}>{narrow ? '' : `${index + 1} of ${steps.length}`}</span>
             </div>
@@ -543,9 +600,17 @@ export function ExampleTour({
                 height: 34, padding: '0 14px 0 16px', borderRadius: 999, border: 'none',
                 background: ready ? t.violet : alpha(t.textPrimary, 0.1), color: ready ? '#fff' : alpha(shell.text, 0.45),
                 fontFamily: fonts.ui, fontSize: 13.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6,
-                cursor: ready ? 'pointer' : 'default',
+                cursor: ready ? 'pointer' : 'default', position: 'relative', overflow: 'hidden',
               }}
             >
+              {/* How long until it moves on by itself: a line filling along the foot of the button. */}
+              {auto && (
+                <span
+                  key={`${index}-${lap}`}
+                  aria-hidden
+                  style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, background: 'rgba(255,255,255,0.75)', animation: `tourFill ${dwellMs(step)}ms linear both` }}
+                />
+              )}
               {last ? 'Done' : 'Next'}
               <svg className={ready ? 'tour-next' : undefined} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 5l7 7-7 7" /></svg>
             </button>

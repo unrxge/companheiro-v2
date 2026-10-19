@@ -27,14 +27,14 @@ const seenHere = (which: TourWhich) => {
 }
 
 export interface ExampleTourDue {
-  /** Due now, with what the person said they make; null while not (or not yet known). */
-  due: { practices: string[] } | null
+  /** Due now, with what the person said they make; null while not (or not yet known). `chainPiece`: walks were switched back on, and the writing page's follows the canvas's. */
+  due: { practices: string[]; chainPiece: boolean } | null
   /** It has started: it will not be played again. */
   markSeen: () => void
 }
 
 export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): ExampleTourDue {
-  const [due, setDue] = useState<{ practices: string[] } | null>(null)
+  const [due, setDue] = useState<{ practices: string[]; chainPiece: boolean } | null>(null)
 
   useEffect(() => {
     if (!ready) return
@@ -43,14 +43,14 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
     let live = true
     fetch('/api/examples/tour', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; pageSeen?: Record<string, boolean>; practices?: unknown }) => {
+      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; pageSeen?: Record<string, boolean>; practices?: unknown; chainPiece?: boolean }) => {
         if (!live) return
         const seen = which === 'piece' ? d.pieceSeen : which === 'checkin' ? d.checkInSeen : which === 'canvas' ? d.seen : d.pageSeen?.[which] ?? true
         if (seen && !forced) {
           try { window.localStorage.setItem(SEEN[which], '1') } catch { /* fine */ }
           return
         }
-        setDue({ practices: Array.isArray(d.practices) ? d.practices.map(String) : [] })
+        setDue({ practices: Array.isArray(d.practices) ? d.practices.map(String) : [], chainPiece: d.chainPiece === true })
       })
       .catch(() => { /* not knowing is not a reason to play it */ })
     return () => { live = false }
@@ -65,4 +65,23 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
   }, [which])
 
   return { due, markSeen }
+}
+
+/**
+ * "Take the tour" in Settings: every walk is due again, for whichever part of
+ * the app is opened next, and the example projects are switched on. This
+ * device forgets what it had seen too. False when it could not be done.
+ */
+export async function rearmWalks(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/examples/tour', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rearm: true }),
+    })
+    if (!res.ok) return false
+    for (const key of Object.values(SEEN)) { try { window.localStorage.removeItem(key) } catch { /* fine */ } }
+    return true
+  } catch {
+    return false
+  }
 }

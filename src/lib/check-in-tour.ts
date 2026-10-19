@@ -65,10 +65,16 @@ const step = (s: Omit<TourStep, 'ms'>): TourStep => ({ ...s, ms: readingTime(s.h
 
 export function checkInTourSteps(): TourStep[] {
   const steps: TourStep[] = [
+    // The whole page first, so the example that follows is seen to happen on a page already known.
+    step({
+      key: 'page', stage: 'start', show: { anchor: 'page' },
+      headline: 'This is the check-in.',
+      lines: ['A quiet page to say what is on your mind, today or any day.'],
+    }),
     step({
       key: 'start', stage: 'start', show: { anchor: 'checkin-start' },
-      headline: 'Say whatever is there today.',
-      lines: ['Out loud or in writing. A sentence is enough.'],
+      headline: 'Say whatever is there, out loud or in writing.',
+      lines: ['Voice or Type. A sentence is enough.'],
     }),
     step({
       key: 'feeling', stage: 'feeling', show: { anchor: ['checkin-scene', 'checkin-thread'] },

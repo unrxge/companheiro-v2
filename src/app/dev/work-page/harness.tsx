@@ -52,7 +52,7 @@ function node(id: string, parent: string | null, position: number, title: string
 }
 
 type MockPlan = 'practice' | 'direction' | 'ended' | 'cancelled' | null
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean; practices: string[] | null }
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean; practices: string[] | null; walks: boolean }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -223,6 +223,12 @@ function installMock(o: Opts) {
       return json(o.practices ? { shown: true, examples: examplesFor(o.practices).map(({ example, matched }) => exampleCard(example, matched)) } : { shown: false, examples: [] })
     }
     if (path === '/api/examples' && method === 'PATCH') return json({ success: true })
+    // ?walks=on: guided walks were switched back on in Settings, so the board opens the first example by itself.
+    if (path === '/api/examples/tour') {
+      if (method === 'POST') return json({ success: true })
+      const again = o.walks
+      return json({ seen: !again, pieceSeen: !again, checkInSeen: true, pageSeen: { home: true, idealab: true, portrait: true }, practices: o.practices ?? [], rearmedAt: again ? 'dev' : null, autoOpen: again, chainPiece: again, signedIn: true })
+    }
     if (path === '/api/idea-lab/conceptualise/draft') return json({ drafts: method === 'GET' ? [{ id: 'd1', phase: 2, messages: [{ role: 'assistant', content: 'What would it cost you to leave that sentence out?' }] }] : [] })
     if (path === '/api/idea-lab/territories') return json({})
     {
@@ -616,7 +622,7 @@ function Inner() {
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
   const plan = (['practice', 'direction', 'ended', 'cancelled'] as const).find((x) => x === params.get('plan')) ?? null
   const practices = params.get('examples') === null ? null : (params.get('examples') ?? '').split(',').filter((p) => p && p !== '1')
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading'), practices }
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading'), practices, walks: params.get('walks') === 'on' }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {
