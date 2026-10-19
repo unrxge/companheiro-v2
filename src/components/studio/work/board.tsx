@@ -40,6 +40,7 @@ import {
   ImageBlock, ItemShell, ITEM_LABEL, NewPieceMenu, NoteBlock, PaletteBlock, PlusMenu, RecorderDialog, RecordingBlock, TaskListBlock, type PlusChoice,
 } from '@/components/studio/work/board-items'
 import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
+import { LinkBlock } from '@/components/studio/work/link-block'
 import { AddFan } from '@/components/studio/work/add-fan'
 import {
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
@@ -199,6 +200,7 @@ export interface BoardActions {
   // ── what else a piece's "+" makes ─────────────────────────────────────────
   addTaskList: (pieceId: string) => Promise<BoardItem>
   addPalette: (pieceId: string) => Promise<BoardItem>
+  addLink: (pieceId: string) => Promise<BoardItem>
   /** These two reject with a sentence fit to show when the file cannot be added. */
   addImage: (pieceId: string, file: Blob) => Promise<BoardItem>
   addRecording: (pieceId: string, file: Blob, opts: { ownVoice: boolean; seconds?: number }) => Promise<BoardItem>
@@ -765,6 +767,11 @@ export function Board({
         remember('adding the palette', () => actions.removeItem(made), made.id)
         return made
       },
+      addLink: async (pieceId) => {
+        const made = await actions.addLink(pieceId)
+        remember('adding the link', () => actions.removeItem(made), made.id)
+        return made
+      },
       addImage: async (pieceId, file) => {
         const made = await actions.addImage(pieceId, file)
         remember('adding the image', () => actions.removeItem(made), made.id)
@@ -1125,11 +1132,11 @@ export function Board({
    *  through it, and opened so it can be named and carried to the others. */
   // What this canvas's "+" offers, and which of those the plan does not carry.
   const choices = useMemo<PlusChoice[]>(
-    () => ['thread', ...(tools.items ? (['tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : [])],
+    () => ['thread', ...(tools.items ? (['tasks', 'link', 'image', 'recording', 'palette'] as PlusChoice[]) : [])],
     [tools.items],
   )
   const lockedChoices = useMemo<PlusChoice[]>(
-    () => [...(tools.threads ? [] : (['thread'] as PlusChoice[])), ...(tools.media ? [] : (['image', 'recording'] as PlusChoice[]))],
+    () => [...(tools.threads ? [] : (['thread'] as PlusChoice[])), ...(tools.media ? [] : (['link', 'image', 'recording', 'palette'] as PlusChoice[]))],
     [tools.threads, tools.media],
   )
 
@@ -1173,8 +1180,11 @@ export function Board({
         made = await act.addImage(first, r.file)
         setWord(null)
       } else if (r.kind === 'palette') made = await act.addPalette(first)
+      else if (r.kind === 'link') made = await act.addLink(first)
       else made = await act.addTaskList(first)
-      const content = r.kind === 'palette'
+      const content = r.kind === 'link'
+        ? { url: r.url, ...(r.title ? { title: r.title } : {}) }
+        : r.kind === 'palette'
         ? { ...(r.title ? { title: r.title } : {}), swatches: r.colours.map((hex) => ({ id: crypto.randomUUID(), hex, name: '' })) }
         : r.kind === 'tasks'
           ? { ...(r.title ? { title: r.title } : {}), tasks: r.tasks.map((title) => ({ id: crypto.randomUUID(), title, done: false })) }
@@ -1255,7 +1265,7 @@ export function Board({
                 open={cornerOpen}
                 onOpen={() => { setMenuLive(false); setMenuFor('corner') }}
                 onClose={() => setMenuFor(null)}
-                available={example ? (['thread', 'tasks', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
+                available={example ? (['thread', 'tasks', 'link', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
                 locked={example ? [] : lockedChoices}
                 inert={example && !menuLive}
                 onPick={(choice) => setAdding(choice)}
@@ -1594,6 +1604,9 @@ export function Board({
                     canRename={canMove}
                     onContent={(content) => act.patchItem(it.id, { content })}
                   />
+                )}
+                {it.kind === 'link' && (
+                  <LinkBlock item={it} disabled={disabled} onContent={(content) => act.patchItem(it.id, { content })} />
                 )}
                 {it.kind === 'note' && (
                   <NoteBlock

@@ -50,13 +50,15 @@ export async function POST(req: NextRequest, { params }: Params) {
   return withAuth(async (auth) => {
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
-    if (typeof body.kind !== 'string' || !KINDS.has(body.kind)) throw badRequest('kind must be image, recording, tasks, palette or note')
+    if (typeof body.kind !== 'string' || !KINDS.has(body.kind)) throw badRequest('kind must be image, recording, tasks, palette, note or link')
     const kind = body.kind as BoardItemKind
 
     const project = await requireProject(auth, id)
     await assertWorkable(auth, project)
 
     let asset_id: string | null = null
+    // Focus makes threads, task lists and notes; pictures, sound, colour and links are Direction's.
+    if (kind === 'palette' || kind === 'link') await assertFeature(auth, 'media')
     if (kind === 'image' || kind === 'recording') {
       await assertFeature(auth, 'media')
       if (!isUuid(body.asset_id)) throw badRequest('asset_id required')

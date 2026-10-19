@@ -43,6 +43,7 @@ const named = (s: string | null | undefined, fallback: string) => one(s) || fall
 function itemWords(item: BoardItem): string[] {
   const c = item.content ?? {}
   if (item.kind === 'image') return one(c.caption) ? [`an image, captioned: “${one(c.caption)}”`] : []
+  if (item.kind === 'link') return c.url ? [`a link${one(c.title) ? `, named “${one(c.title)}”` : ''}: ${c.url}`] : []
   if (item.kind === 'recording') return one(c.title) ? [`a recording, named: “${one(c.title)}”`] : []
   if (item.kind === 'palette') {
     const names = (c.swatches ?? []).map((s) => one(s.name)).filter(Boolean)

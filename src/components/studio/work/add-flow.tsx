@@ -17,6 +17,7 @@ import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, fonts, radius } from '@/lib/design-tokens'
 import { IMAGE_ACCEPT } from '@/lib/studio/image-intake'
 import { PALETTE_SEED, cleanHex } from '@/lib/studio/board-items'
+import { cleanUrl, embedFor } from '@/lib/studio/embed'
 import type { PlusChoice } from '@/components/studio/work/board-items'
 
 export type AddResult =
@@ -25,6 +26,7 @@ export type AddResult =
   | { kind: 'palette'; on: string[]; title: string; colours: string[] }
   | { kind: 'image'; on: string[]; file: File; caption: string }
   | { kind: 'recording'; on: string[]; title: string }
+  | { kind: 'link'; on: string[]; url: string; title: string }
 
 const ASK: Record<PlusChoice, { title: string; question: string }> = {
   thread: { title: 'A new thread', question: 'What keeps coming back?' },
@@ -32,6 +34,7 @@ const ASK: Record<PlusChoice, { title: string; question: string }> = {
   image: { title: 'A new image', question: 'Which picture, and what is it for?' },
   recording: { title: 'A new recording', question: 'What will you call it?' },
   palette: { title: 'A new palette', question: 'Which colours is this in?' },
+  link: { title: 'A new link', question: 'Where does it point?' },
 }
 
 export function AddFlow({ kind, pieces, onCancel, onMake }: {
@@ -55,6 +58,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
     kind === 'thread' ? name.trim().length > 0
     : kind === 'tasks' ? tasks.trim().length > 0
     : kind === 'image' ? !!file
+    : kind === 'link' ? !!cleanUrl(intent)
     : true
 
   const make = () => {
@@ -64,6 +68,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
     else if (kind === 'palette') onMake({ kind, on, title: name.trim(), colours })
     else if (kind === 'image' && file) onMake({ kind, on, file, caption: intent.trim() })
     else if (kind === 'recording') onMake({ kind, on, title: name.trim() })
+    else if (kind === 'link') { const url = cleanUrl(intent); if (url) onMake({ kind, on, url, title: name.trim() }) }
   }
 
   const field: React.CSSProperties = {
@@ -164,6 +169,26 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
                 {preview ? <img src={preview} alt="" style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'cover' }} /> : 'Choose a picture'}
               </button>
               <input value={intent} onChange={(e) => setIntent(e.target.value)} placeholder="A caption (optional)" maxLength={200} style={{ ...field, marginTop: 10 }} />
+            </>
+          )}
+
+          {kind === 'link' && (
+            <>
+              <input autoFocus type="url" inputMode="url" value={intent} onChange={(e) => setIntent(e.target.value)} placeholder="Paste the address: a YouTube or Vimeo video, a Spotify song, a page…" maxLength={2000} style={field} />
+              {intent.trim() && (() => {
+                const url = cleanUrl(intent)
+                const e = url ? embedFor(url) : null
+                return (
+                  <p style={{ ...canvasType.small, fontSize: 12, color: t.textMuted, margin: '8px 0 0' }}>
+                    {!e ? 'That doesn’t look like a web address yet.'
+                      : e.kind === 'video' ? `A video from ${e.host}: it plays here, on the canvas.`
+                      : e.kind === 'audio' ? `Sound from ${e.host}: it plays here, on the canvas.`
+                      : e.kind === 'image' ? 'A picture: it opens here, on the canvas.'
+                      : `A page on ${e.host}: it opens in a new tab.`}
+                  </p>
+                )
+              })()}
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Its name (optional)" maxLength={120} style={{ ...field, marginTop: 10 }} />
             </>
           )}
 

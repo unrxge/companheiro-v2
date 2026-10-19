@@ -412,6 +412,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     editProjectRules: (rules) => void setProjectField({ rules }),
     addTaskList: (pieceId) => board.api.addTasks(pieceId),
     addPalette: (pieceId) => board.api.addPalette(pieceId),
+    addLink: (pieceId) => board.api.addLink(pieceId),
     addImage: (pieceId, file) => board.api.addImage(pieceId, file),
     addRecording: (pieceId, file, opts) => board.api.addRecording(pieceId, file, opts),
     patchItem: (id, patch) => void board.api.patch(id, patch),
@@ -865,7 +866,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         )}
         {planNote && (
           <PlanNote
-            title={planNote === 'talk' ? 'Talking the vision through' : planNote === 'thread' ? 'Threads across your pieces' : 'Images and recordings'}
+            title={planNote === 'talk' ? 'Talking the vision through' : planNote === 'thread' ? 'Threads across your pieces' : 'Images, sound, colour and links'}
             onClose={() => setPlanNote(null)}
             plansLabel={access?.plan === 'ended' ? 'See plans' : 'See Direction'}
           >
@@ -874,7 +875,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
                 ? 'A room for the whole project, opened from its canvas: its vision on one page, and a conversation about who it is for, how it reaches them and where its field is heading. It is part of Direction. The writing assistant inside each piece is yours on every plan.'
                 : planNote === 'thread'
                   ? 'New threads, the things that run through some of your pieces, are part of Direction. The ones already here stay, and a task list can be added on any plan.'
-                  : 'New images and recordings on the canvas are part of Direction. The ones already here stay.'}
+                  : 'New images, recordings, palettes and links on the canvas are part of Direction: a video or a song from the web plays right on the canvas there. The ones already here stay. Threads, task lists and notes are yours on every plan.'}
             </p>
           </PlanNote>
         )}

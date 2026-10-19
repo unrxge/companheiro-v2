@@ -1,5 +1,6 @@
 // Server-side helpers for the canvas's images, recordings and task lists.
 
+import { cleanUrl } from '@/lib/studio/embed'
 import type { AuthedContext } from '@/lib/supabase/route'
 import { badRequest, fromDbError, isFiniteNumber, isRecord, isString, isUuid, notFound } from '@/lib/studio/db'
 import {
@@ -8,7 +9,7 @@ import {
 } from '@/lib/studio/board-items'
 
 export const ITEM_COLS = 'id, user_id, project_id, kind, asset_id, node_ids, board_x, board_y, w, content, created_at, updated_at'
-export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks', 'palette', 'note'])
+export const KINDS: ReadonlySet<string> = new Set(['image', 'recording', 'tasks', 'palette', 'note', 'link'])
 
 const MAX_OWN_TASKS = 100
 
@@ -25,8 +26,9 @@ export function normaliseItem(row: unknown): BoardItem {
 export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemContent {
   if (!isRecord(raw)) return {}
   const out: BoardItemContent = {}
-  if ((kind === 'recording' || kind === 'palette' || kind === 'tasks') && isString(raw.title)) out.title = raw.title.replace(/\s+/g, ' ').trim().slice(0, 120)
+  if ((kind === 'recording' || kind === 'palette' || kind === 'tasks' || kind === 'link') && isString(raw.title)) out.title = raw.title.replace(/\s+/g, ' ').trim().slice(0, 120)
   if (kind === 'image' && isString(raw.caption)) out.caption = raw.caption.replace(/\s+/g, ' ').trim().slice(0, 300)
+  if (kind === 'link' && isString(raw.url)) { const u = cleanUrl(raw.url); if (u) out.url = u }
   if (kind === 'tasks') {
     if (typeof raw.writing_closed === 'boolean') out.writing_closed = raw.writing_closed
     if (typeof raw.rows === 'number' && Number.isFinite(raw.rows)) out.rows = Math.max(2, Math.min(30, Math.round(raw.rows)))

@@ -148,6 +148,7 @@ export default function DevBoardPage() {
     editProjectRules: () => {},
     addTaskList: async (pieceId) => make('tasks', pieceId),
     addPalette: async (pieceId) => make('palette', pieceId),
+    addLink: async (pieceId) => make('link', pieceId),
     addImage: async (pieceId, file) => make('image', pieceId, assetOf('image', file, await imageSizeOf(file))),
     addRecording: async (pieceId, file, opts) =>
       make('recording', pieceId, assetOf('audio', file, { duration_s: opts.seconds ?? 12, own_voice: opts.ownVoice })),

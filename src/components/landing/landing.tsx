@@ -449,8 +449,8 @@ function Holding() {
 // their side, not as a list of what is in the product or steps to follow),
 // a promise about what it will not do, and their plan. Everything named is
 // something the product does today on the plan named. Direction's two come
-// first, then Practice's four (two of which reach into Direction for images
-// and recordings). `/?for=writers` opens on that audience, so a post or a bio
+// first, then Practice's four (two of which reach into Direction for images,
+// recordings and links). `/?for=writers` opens on that audience, so a post or a bio
 // link can land someone on their own case; the Begin link carries
 // `landing=for-…` into sign-up, where the admin page shows which case worked.
 
@@ -497,7 +497,7 @@ const AUDIENCES: Audience[] = [
       'A constraint agreed in week one is still there in month three.',
     ],
     never: 'It never posts, sends or speaks to a client in your name.',
-    footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas.</>,
+    footer: <><PlanLink plan="direction" />. As many projects in progress as you carry, each on its own canvas, with the client’s references playing beside the brief.</>,
   },
   {
     key: 'directors',
@@ -548,7 +548,7 @@ const AUDIENCES: Audience[] = [
       'The passage that would not sit says what you meant.',
     ],
     never: 'It never asks you to aim smaller, and never steers the work toward anyone’s vision but yours.',
-    footer: <><PlanLink plan="practice" />. One project holds as many pieces as it needs: a collection, a series, a book.</>,
+    footer: <><PlanLink plan="practice" />. One project holds as many pieces as it needs, with threads to show what runs through them all.</>,
   },
   {
     key: 'film',
@@ -562,13 +562,13 @@ const AUDIENCES: Audience[] = [
     here: [
       'You know what the piece is about before the first frame.',
       'The treatment, the script and the caption all say the same thing.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, your stills, reference frames and voice notes sit beside the work.</>,
+      <>On <PlanLink plan="direction">Direction</PlanLink>, your stills, reference films and voice notes sit beside the work, and play there.</>,
     ],
     never: 'It never looks at your images or footage, and never measures how a post performed.',
     footer: (
       <>
         <PlanLink plan="practice" />. Shape the idea and write its words;{' '}
-        <PlanLink plan="direction" />. Add images and recordings, and carry as many projects as you shoot.
+        <PlanLink plan="direction" />. Add images, recordings and links to the films you love, and carry as many projects as you shoot.
       </>
     ),
   },
@@ -584,13 +584,13 @@ const AUDIENCES: Audience[] = [
     here: [
       'You talk the song through as easily as you type it.',
       'You find what the song is about before the tune hardens.',
-      <>On <PlanLink plan="direction">Direction</PlanLink>, your recordings sit beside the lyric.</>,
+      <>On <PlanLink plan="direction">Direction</PlanLink>, your demos and the songs you are reaching for sit beside the lyric, and play there.</>,
     ],
     never: 'You can upload recordings, but Companheiro never listens to them. Those are for your ears only.',
     footer: (
       <>
         <PlanLink plan="practice" />. Craft the words and devise the vision;{' '}
-        <PlanLink plan="direction" />. Upload audio recordings and talk to your long-term vision.
+        <PlanLink plan="direction" />. Upload recordings, link the songs that move you, and talk to your long-term vision.
       </>
     ),
   },
@@ -801,7 +801,7 @@ const PLANS = [
       'Define and conceptualise new ideas',
       'Find and hold your vision',
       'Access to the writing suite, with questions when you are stuck',
-      'A task list on your canvas',
+      'Threads that run across your pieces, and task lists, on your canvas',
       'Bring in another by resting one for 14 days',
     ],
   },
@@ -812,8 +812,8 @@ const PLANS = [
     features: [
       `Everything in ${PLAN_LABEL.practice}`,
       'Have access to unlimited active projects',
-      'The full canvas: threads that run across your pieces',
-      'Images and recordings beside your words',
+      'Images, recordings and palettes beside your words',
+      'Links from the web: a video or a song plays right on the canvas',
       'Talk the whole vision through, from its canvas',
     ],
   },

@@ -70,7 +70,7 @@ export function voiceFor(practices: readonly string[], exampleFor: readonly stri
 
 export interface TourPiece { id: string }
 export interface TourThread { id: string; name: string; on: string[] }
-export interface TourItem { id: string; kind: 'image' | 'recording' | 'tasks' | 'palette' | 'note'; on: string[] }
+export interface TourItem { id: string; kind: 'image' | 'recording' | 'tasks' | 'palette' | 'note' | 'link'; on: string[] }
 
 export interface TourInput {
   pieces: TourPiece[]

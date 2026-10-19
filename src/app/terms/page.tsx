@@ -65,12 +65,12 @@ export default function TermsPage() {
         <li>
           <strong>Focus carries two active projects at a time.</strong> Your other projects wait in your Queue, where you can read and export them.
           When both places are taken, making another project active means choosing one of the two to rest: it returns to your Queue for 14 days
-          before it can be made active again. Resting changes nothing inside a project; everything in it is kept as you left it. New threads, images and
-          recordings on a project&rsquo;s canvas, and the conversation about a whole project from its canvas, are part of Direction.
+          before it can be made active again. Resting changes nothing inside a project; everything in it is kept as you left it. New images, recordings, palettes and
+          links on a project&rsquo;s canvas, and the conversation about a whole project from its canvas, are part of Direction.
         </li>
         <li>
           If you move from Direction or the free trial to Focus, or your trial or plan ends, <strong>nothing is deleted</strong>. You choose which
-          projects stay active, up to the number your plan carries; the others wait in your Queue. Threads, images and recordings you already made stay where they are, though new ones
+          projects stay active, up to the number your plan carries; the others wait in your Queue. Images, recordings, palettes and links you already added stay where they are, though new ones
           cannot be added.
         </li>
         <li>

@@ -1,12 +1,12 @@
 // What sits on a project's canvas besides its pieces and threads: images,
-// recordings and task lists (migration 028), palettes (031) and notes (036). The shapes both sides share, and
+// recordings and task lists (migration 028), palettes (031), notes (036) and links (037). The shapes both sides share, and
 // the arithmetic about where those things may go. No React, so it is tested
 // on its own.
 
 import type { AssetView } from '@/lib/studio/types'
 import { WRITING, categoryOf } from '@/lib/studio/task-groups'
 
-export type BoardItemKind = 'image' | 'recording' | 'tasks' | 'palette' | 'note'
+export type BoardItemKind = 'image' | 'recording' | 'tasks' | 'palette' | 'note' | 'link'
 
 /** A note is a thought kept for later, or something to remember to do. */
 export type NoteKind = 'thought' | 'reminder'
@@ -50,6 +50,8 @@ export interface BoardItemContent {
   writing_closed?: boolean
   /** A palette's colours. */
   swatches?: Swatch[]
+  /** A link's address (http or https only). */
+  url?: string
   /** A note's words. */
   text?: string
   /** What kind of note it is. */
@@ -77,7 +79,7 @@ export function asksBeforeRemoving(item: Pick<BoardItem, 'kind' | 'content'>): b
 /** What each part of a content block is when it has never been set. */
 const EMPTY_CONTENT: Required<BoardItemContent> = {
   title: '', caption: '', tasks: [], writing_closed: false, swatches: [], rows: 4,
-  text: '', note: 'thought', done: false, from_check_in: false,
+  text: '', url: '', note: 'thought', done: false, from_check_in: false,
 }
 
 /**
@@ -161,6 +163,7 @@ export const ITEM_WIDTH: Record<BoardItemKind, { base: number; min: number; max:
   recording: { base: 300, min: 300, max: 300 },
   palette: { base: 300, min: 220, max: 560 },
   note: { base: 260, min: 200, max: 440 },
+  link: { base: 300, min: 220, max: 640 },
 }
 export const RECORDING_H = 116
 /** Rows a caption may wrap to before it stops growing. */
@@ -192,7 +195,7 @@ export function captionLimit(innerWidth: number, fontSize: number, hardMax: numb
   return Math.max(24, Math.min(hardMax, Math.floor(perLine * CAPTION_ROWS * 0.9)))
 }
 /** Used before a task list has been measured, and for an image with no known shape. */
-export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H, palette: 128, note: 132 }
+export const FALLBACK_H: Record<BoardItemKind, number> = { image: 240, tasks: 220, recording: RECORDING_H, palette: 128, note: 132, link: 236 }
 const CAPTION_H = 34
 
 export const canResize = (kind: BoardItemKind) => ITEM_WIDTH[kind].min !== ITEM_WIDTH[kind].max

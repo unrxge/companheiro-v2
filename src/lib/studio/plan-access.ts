@@ -49,7 +49,7 @@ export function entitlementsOf(auth: AuthedContext): Promise<Entitlements> {
 type Feature = 'threads' | 'media' | 'visionTalk'
 const FEATURE_LINE: Record<Feature, string> = {
   threads: 'Threads across your pieces are part of Direction.',
-  media: 'Images and recordings are part of Direction.',
+  media: 'Images, recordings, palettes and links are part of Direction.',
   visionTalk: 'Talking the whole vision through is part of Direction.',
 }
 

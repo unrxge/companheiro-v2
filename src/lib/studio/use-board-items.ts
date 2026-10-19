@@ -186,6 +186,8 @@ export function useBoardItems(projectId: string, enabled: boolean) {
 
     addPalette: (nodeId: string | null) => create({ kind: 'palette', node_id: nodeId }),
 
+    addLink: (nodeId: string | null) => create({ kind: 'link', node_id: nodeId }),
+
     addImage: async (nodeId: string | null, file: Blob) => {
       const asset = await upload('image', file, false)
       return create({ kind: 'image', node_id: nodeId, asset_id: asset.id }, asset)

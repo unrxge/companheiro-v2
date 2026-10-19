@@ -5,7 +5,8 @@ import type { Subscription } from './access'
 // and nowhere else. Pure: safe to import from the browser.
 //
 //   trial          everything Direction has, for 30 days (bar deepQuestions)
-//   practice       two projects worked on at a time, in words
+//   practice       two projects worked on at a time: threads, task lists and
+//                  notes on the canvas, but no images, recordings, palettes or links
 //   direction      any number of projects, the canvas tools, the vision talk
 //   ended          a trial that ran out or a plan that was cancelled: the
 //                  work stays (Practice's shape), the companion rests
@@ -23,7 +24,7 @@ export interface Entitlements {
   maxActiveProjects: number | null
   /** New threads across the pieces of a project. */
   threads: boolean
-  /** New images and recordings on the canvas. */
+  /** New images, recordings, palettes and links on the canvas. */
   media: boolean
   /** "Talk about the vision", the conversation about the whole project. */
   visionTalk: boolean
@@ -38,7 +39,7 @@ const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, vision
 /** How many projects Practice (and an ended plan, which keeps its shape) works on at once. */
 export const PRACTICE_ACTIVE_PROJECTS = 2
 
-const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: false, media: false, visionTalk: false, deepQuestions: false } as const
+const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: true, media: false, visionTalk: false, deepQuestions: false } as const
 
 export function entitlementsFor(sub: Subscription | null): Entitlements {
   if (!sub) return { plan: 'unknown', companion: false, ...EVERYTHING }

@@ -43,6 +43,7 @@ export const PLUS_OPTIONS: PlusOption[] = [
   { key: 'tasks', label: 'A task list', hint: 'The writing tasks, and anything else to do', icon: stroke(<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8.5 12l2.2 2.2L15.5 9.5" /></>) },
   { key: 'image', label: 'An image', hint: 'A picture beside the words', icon: stroke(<><rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" /></>) },
   { key: 'recording', label: 'A recording', hint: 'Your voice, or a sound you already have', icon: stroke(<><rect x="9" y="3.5" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" /></>) },
+  { key: 'link', label: 'A link', hint: 'A video, a song or a page from the web', icon: stroke(<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>) },
   { key: 'palette', label: 'A palette', hint: 'The colours this is in', icon: stroke(<><circle cx="12" cy="12" r="8.5" /><circle cx="9" cy="9.5" r="1.2" fill="currentColor" /><circle cx="15" cy="9.5" r="1.2" fill="currentColor" /><circle cx="9.5" cy="15" r="1.2" fill="currentColor" /></>) },
 ]
 
@@ -1308,4 +1309,5 @@ export const ITEM_LABEL: Record<BoardItemKind, string> = {
   tasks: 'this task list',
   palette: 'this palette',
   note: 'this note',
+  link: 'this link',
 }

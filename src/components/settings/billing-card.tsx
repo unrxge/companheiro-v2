@@ -128,7 +128,7 @@ export function BillingCard() {
             <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <div style={label}>{sub?.status === 'trialing' && sub.trial_ends_at ? `Trial — ${daysLeft(sub.trial_ends_at)} days left` : 'Choose a plan'}</div>
               <div style={hint}>
-                Focus for two active projects in words. Direction for many, in any medium, with threads, images and recordings on the canvas.
+                Focus for two active projects, with threads and task lists on the canvas. Direction for many, in any medium, with images, recordings, palettes and links beside them.
               </div>
             </div>
             <div role="radiogroup" aria-label="Billing period" style={{ display: 'inline-flex', gap: 6 }}>
