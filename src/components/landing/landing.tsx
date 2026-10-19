@@ -796,13 +796,11 @@ const PLANS = [
     line: 'For one or two visions at a time, in words.',
     features: [
       'Two active projects at a time',
-      'One project holds as many pieces as it needs',
       'Unlimited personal check-ins',
       'Define and conceptualise new ideas',
       'Find and hold your vision',
-      'Access to the writing suite, with questions when you are stuck',
-      'Threads that run across your pieces, and task lists, on your canvas',
-      'Bring in another by resting one for 14 days',
+      'Access to a full writing suite',
+      'Visually connect threads that run across your pieces, create task lists — all on your canvas',
     ],
   },
   {
@@ -812,8 +810,7 @@ const PLANS = [
     features: [
       `Everything in ${PLAN_LABEL.practice}`,
       'Have access to unlimited active projects',
-      'Images, recordings and palettes beside your words',
-      'Links from the web: a video or a song plays right on the canvas',
+      'Full canvas unlocked: Add images, recordings, colour palettes, and links',
       'Talk the whole vision through, from its canvas',
     ],
   },
