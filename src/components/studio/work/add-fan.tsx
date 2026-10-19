@@ -275,13 +275,14 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
                 background: isHot && !greyed ? shell.text : 'rgba(22,21,19,0.94)',
                 color: isHot && !greyed ? shell.ink : greyed ? alpha(shell.text, 0.38) : shell.text,
                 border: `1px solid ${isHot ? alpha(shell.text, 0.9) : shell.line}`,
-                boxShadow: isHot ? `0 10px 28px rgba(0,0,0,0.5), 0 0 0 6px ${alpha(shell.text, 0.08)}` : '0 6px 18px rgba(0,0,0,0.45)',
-                scale: isHot ? '1.18' : '1',
-                transition: 'scale 160ms cubic-bezier(0.34, 1.56, 0.64, 1), background 140ms ease, color 140ms ease, box-shadow 160ms ease',
+                boxShadow: isHot ? `0 10px 28px rgba(0,0,0,0.5), 0 0 0 5px ${alpha(shell.text, 0.16)}` : '0 6px 18px rgba(0,0,0,0.45)',
+                transition: 'background 140ms ease, color 140ms ease, box-shadow 160ms ease',
                 zIndex: isHot ? 3 : 2,
               }}
             >
-              <span style={{ display: 'flex', transform: 'scale(1.15)' }}>{o.icon}</span>
+              {/* Only what is drawn inside grows when it is the one: the button itself
+                 keeps its size, so a pointer at its edge cannot fall in and out of it. */}
+              <span style={{ display: 'flex', transform: isHot ? 'scale(1.4)' : 'scale(1.15)', transition: 'transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1)', pointerEvents: 'none' }}>{o.icon}</span>
               <span
                 aria-hidden
                 className="fan-label"
