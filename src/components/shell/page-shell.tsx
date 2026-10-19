@@ -234,9 +234,12 @@ export function Card({
   style,
   onClick,
   as = 'div',
+  'data-tour': tour,
 }: {
   children: React.ReactNode
   padding?: number | string
+  /** What a first-visit walk points at, when it points at this card. */
+  'data-tour'?: string
   /** Slightly deeper paper for cards nested inside a card. */
   inner?: boolean
   style?: React.CSSProperties
@@ -247,6 +250,7 @@ export function Card({
   const Tag = as as 'div'
   return (
     <Tag
+      data-tour={tour}
       onClick={onClick}
       style={{
         backgroundColor: inner ? t.cardBgInner : t.cardBg,

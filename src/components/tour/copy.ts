@@ -1,77 +1,87 @@
-// What each tour slide says to this person. The landing page speaks to
-// everyone (slides.tsx); here a part of the app is put in the terms of what
-// they said they make, and the point of each slide is how to get the most out
-// of that part, not how it works (the example walks show that). Their themes
-// are named where the part uses them, never worked into a sentence.
+// The one slide between a new account's questions and the app: a warm
+// handover, not a tour (each part of the app shows itself round the first time
+// it is opened). What it says follows what they said they make. Choosing
+// creative direction or client projects (Direction's people) always reads as
+// professional work, whatever else they chose, so the slide speaks to a
+// studio rather than to personal projects.
 
 import type { Practice } from '@/lib/tour'
-import { practiceFor, type HabitId, type SlideId } from './slides'
 
-interface Words {
-  /** "an essay", "a song": one thing they make. */
-  a: string
-  /** "essays", "songs". */
-  many: string
-  /** What they save from other people. */
-  finds: string
+/** The example project on their board for each practice (lib/examples), by title. */
+const EXAMPLE: Record<Practice, { title: string; kind: string }> = {
+  director: { title: 'Aldermoor: Come Back Different', kind: 'campaign' },
+  client: { title: 'Aurélia Bakery: The Second Shop', kind: 'client project' },
+  songwriter: { title: 'The Age He Was', kind: 'album' },
+  writer: { title: 'Before Anyone Wakes Up', kind: 'collection' },
+  creator: { title: 'The Orange Hours', kind: 'series' },
+  cinematographer: { title: 'The Orange Hours', kind: 'documentary series' },
 }
 
-const WORDS: Record<Practice | 'none', Words> = {
-  writer: { a: 'an essay', many: 'essays', finds: 'an essay, a talk or a post' },
-  songwriter: { a: 'a song', many: 'songs', finds: 'a live session, a lyric or a record' },
-  cinematographer: { a: 'a film', many: 'films', finds: 'a film, a frame or a behind-the-scenes clip' },
-  creator: { a: 'a video', many: 'videos', finds: 'a reel, a video or a post' },
-  client: { a: 'a client project', many: 'client projects', finds: 'a campaign, a film or a reference a client sent' },
-  director: { a: 'a campaign', many: 'campaigns', finds: 'a campaign, a film or a piece of design' },
-  none: { a: 'a piece', many: 'pieces', finds: 'a video, a post or an article' },
+/** What a practice makes, in its own words. */
+const MAKES: Record<Practice, string> = {
+  writer: 'writing',
+  songwriter: 'songs',
+  cinematographer: 'films',
+  creator: 'videos',
+  client: 'client work',
+  director: 'campaigns',
 }
 
-/** ‘A’, ‘B’ and ‘C’. */
-function named(themes: string[]): string {
-  const q = themes.map((t) => `‘${t}’`)
-  return q.length <= 1 ? q.join('') : `${q.slice(0, -1).join(', ')} and ${q[q.length - 1]}`
-}
-const yours = (a: string) => a.replace(/^an? /, 'your ')
+const PRO: Practice[] = ['director', 'client']
 
-export function tourCopy(id: SlideId, practices: Practice[], themes: string[]): { title: string; body: string } | null {
-  const habit = id === 'capture' || id === 'checkin' || id === 'portrait' ? (id as HabitId) : null
-  const w = WORDS[(habit ? practiceFor(habit, practices) : practices[0]) ?? 'none']
-  switch (id) {
-    case 'idea':
-      return {
-        title: 'Start from a question, not a blank page.',
-        body: themes.length
-          ? `Your Idea Lab already holds ${named(themes)}. On a day you sit down without a plan, choose one and you’re given a question worth making ${w.a} from. Ask again until one lands.`
-          : `On a day you sit down without a plan, choose one of your themes in the Idea Lab and you’re given a question worth making ${w.a} from. Ask again until one lands.`,
-      }
-    case 'conceptualise':
-      return {
-        title: 'Give every project its concept first.',
-        body: `A few minutes of questions, and ${yours(w.a)} has a concept: what it is, who it’s for, what it stands on. Everything after leans on it, and when the work drifts, it’s how you find your way back.`,
-      }
-    case 'capture':
-      return {
-        title: 'Keep what moves you, for later.',
-        body: `When ${w.finds} by someone else stops you in your tracks, paste the link and say what caught you. On a day you’re empty, your capture bank is where to start.`,
-      }
-    case 'checkin':
-      return {
-        title: 'Talk it through before you make.',
-        body: `When something is in the way of ${yours(w.a)}, a few minutes in ‘Check-in’ clears room for it. Speak or type, and Companheiro answers. Come when you need it, not every day.`,
-      }
-    case 'portrait':
-      return {
-        title: 'Watch your own patterns appear.',
-        body: `The more ${w.many} you make here, the more ‘Portrait’ shows you how you work: what keeps returning, what actually helps. Read it now and then, and remove anything that isn’t you.`,
-      }
-    default:
-      return null
+/** Direction's people: anyone who named creative direction or client projects. */
+export function isProfessional(practices: Practice[]): boolean {
+  return practices.some((p) => PRO.includes(p))
+}
+
+/** The practice the slide speaks to: a professional one first, otherwise the first they named. */
+function lead(practices: Practice[]): Practice | null {
+  return practices.find((p) => PRO.includes(p)) ?? practices[0] ?? null
+}
+
+function list(words: string[]): string {
+  const w = [...new Set(words)]
+  return w.length <= 1 ? (w[0] ?? '') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`
+}
+
+export interface Handover {
+  eyebrow: string
+  title: string
+  body: string
+  /** Where to start, in order. */
+  steps: { title: string; body: string }[]
+}
+
+export function handover(practices: Practice[], name: string, newAccount: boolean): Handover {
+  const who = lead(practices)
+  const example = who ? EXAMPLE[who] : null
+  const first = newAccount && example
+    ? { title: `Open ${example.title}`, body: `An example ${example.kind} is waiting on your Project Board. Open it first: it shows you round as you go, and nothing you do there can break it.` }
+    : null
+
+  if (isProfessional(practices)) {
+    const what = list(practices.filter((p) => PRO.includes(p)).map((p) => MAKES[p]))
+    return {
+      eyebrow: 'Your studio',
+      title: name ? `Ready when you are, ${name}.` : 'Ready when you are.',
+      body: `Companheiro is set up for professional work: ${what} held to one clear concept from the brief onwards, every deliverable laid out where you can see how it connects, and the whole vision talked through whenever a client pulls it somewhere else.`,
+      steps: [
+        ...(first ? [first] : []),
+        { title: 'Start from the brief', body: 'Bring the job you’re on. A few questions, and it has a concept the whole team can be held to.' },
+        { title: 'Talk the vision through', body: 'When the work drifts or a client pushes, talk it over with something that has read the whole project.' },
+      ],
+    }
+  }
+
+  const what = practices.length ? list(practices.map((p) => MAKES[p])) : 'what you make'
+  return {
+    eyebrow: 'Welcome in',
+    title: name ? `Welcome in, ${name}.` : 'Welcome in.',
+    body: `This is a place for your ${what}: ideas drawn from the themes you just named, a clear concept before you begin, and someone to talk the work through with when it stalls. Each part shows you round the first time you open it.`,
+    steps: [
+      ...(first ? [first] : []),
+      { title: 'Find a question in the Idea Lab', body: 'On a day with no plan, choose one of your themes and start from what it asks.' },
+      { title: 'Check in when something’s in the way', body: 'Say how you are, or leave a thought for a project on the go.' },
+    ],
   }
 }
-
-/** The last slide: a few ways to get the most from the app. */
-export const BEST_VALUE: { title: string; body: string }[] = [
-  { title: 'Keep only a few things active.', body: 'Finish one before you start the next. The rest wait safely in the Queue.' },
-  { title: 'Come back to the concept.', body: 'When the work drifts, read it again before you change anything.' },
-  { title: 'Talk it over when you’re stuck.', body: 'Select the part that won’t come right. It asks; you decide.' },
-]

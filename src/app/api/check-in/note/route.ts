@@ -8,7 +8,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { badRequest, fromDbError, isRecord, isUuid, readJson, requireProject, withAuth } from '@/lib/studio/db'
-import { assertWorkable } from '@/lib/studio/plan-access'
+import { assertFeature, assertWorkable } from '@/lib/studio/plan-access'
 import { cleanContent, ITEM_COLS, normaliseItem } from '@/lib/studio/board-items-db'
 
 export async function POST(req: NextRequest) {
@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     })
     if (!content.text) throw badRequest('There is nothing to keep.')
 
+    // Direction's (and the trial's): on Focus the card is shown greyed and never sends.
+    await assertFeature(auth, 'checkInNotes')
     const project = await requireProject(auth, body.project_id)
     await assertWorkable(auth, project)
 

@@ -18,7 +18,8 @@ test('the two examples never share the screen', () => {
   assert.equal(demoShows('aside').scene, 2)
   assert.equal(demoShows('aside').feeling, false)
   assert.equal(demoShows('aside').reply, false)
-  assert.equal(demoShows('aside').typing?.startsWith('Note for'), true)
+  // Said as being for a project, by name, so the name is not a mystery.
+  assert.equal(demoShows('aside').typing?.startsWith('A thought for my project, The Orange Hours'), true)
   assert.deepEqual(demoShows('understood'), { scene: 2, feeling: false, reply: false, typing: null, offer: 'offered' })
   assert.deepEqual(demoShows('added'), { scene: 2, feeling: false, reply: false, typing: null, offer: 'added' })
   assert.deepEqual(demoShows('end'), { scene: null, feeling: false, reply: false, typing: null, offer: 'none' })
@@ -35,4 +36,6 @@ test('the spoken example is given the time it takes to say', () => {
   assert.ok(DEMO.aside.split(' ').length > 5)
   const aside = checkInTourSteps().find((s) => s.key === 'aside')!
   assert.ok(aside.ms >= SPOKEN_MS + 2600)
+  // Next waits until it has been said.
+  assert.ok((aside.wait ?? 0) >= SPOKEN_MS)
 })

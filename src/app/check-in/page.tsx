@@ -27,6 +27,7 @@ import { Thread } from '@/components/conversation/thread'
 import { WeatherStrip } from '@/components/widgets'
 import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
+import { usePlan } from '@/lib/billing/use-plan'
 
 type CheckInType = 'morning' | 'after_work' | 'evening' | 'moment'
 type EnergyLevel = 'low' | 'medium' | 'high'
@@ -515,6 +516,9 @@ export default function CheckInPage() {
       setBelongsState('failed')
     }
   }
+  // Thoughts left on a project from a check-in are Direction's (and the trial's): on Focus, or with no plan, the card is shown greyed with why.
+  const { plan: entitled } = usePlan()
+  const notesLocked = entitled && !entitled.checkInNotes ? (entitled.plan === 'practice' ? 'practice' as const : 'ended' as const) : null
   const walk = useExampleTour(!isLoadingHistory && messages.length === 0 && noteOffers.length === 0 && inputMode === null, 'checkin')
   const walkSteps = useMemo(() => checkInTourSteps(), [])
   const demo = demoShows(demoStage)
@@ -764,6 +768,7 @@ export default function CheckInPage() {
                 key={offer.id}
                 offer={offer}
                 demo={showingDemo}
+                locked={showingDemo ? null : notesLocked}
                 projects={showingDemo ? [DEMO.project] : projects}
                 onChange={(patch) => changeOffer(offer.id, patch)}
                 onAdd={() => void addNote(offer)}

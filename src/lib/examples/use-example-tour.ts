@@ -10,14 +10,17 @@ import { useCallback, useEffect, useState } from 'react'
 // for looking at it.
 
 /** The canvas's walk, and the writing page's: each played once. */
-export type TourWhich = 'canvas' | 'piece' | 'checkin'
+export type TourWhich = 'canvas' | 'piece' | 'checkin' | 'home' | 'idealab' | 'portrait'
 const SEEN: Record<TourWhich, string> = {
   canvas: 'companheiro.example-tour.seen',
   piece: 'companheiro.example-piece-tour.seen',
   checkin: 'companheiro.check-in-tour.seen',
+  home: 'companheiro.home-tour.seen',
+  idealab: 'companheiro.idea-lab-tour.seen',
+  portrait: 'companheiro.portrait-tour.seen',
 }
 /** What plays a walk again in the preview: ?tour= for the canvas's, ?piecetour= for the writing page's. */
-const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour', checkin: 'tour' }
+const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour', checkin: 'tour', home: 'tour', idealab: 'tour', portrait: 'tour' }
 
 const seenHere = (which: TourWhich) => {
   try { return !!window.localStorage.getItem(SEEN[which]) } catch { return false }
@@ -40,9 +43,9 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
     let live = true
     fetch('/api/examples/tour', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; practices?: unknown }) => {
+      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; pageSeen?: Record<string, boolean>; practices?: unknown }) => {
         if (!live) return
-        const seen = which === 'piece' ? d.pieceSeen : which === 'checkin' ? d.checkInSeen : d.seen
+        const seen = which === 'piece' ? d.pieceSeen : which === 'checkin' ? d.checkInSeen : which === 'canvas' ? d.seen : d.pageSeen?.[which] ?? true
         if (seen && !forced) {
           try { window.localStorage.setItem(SEEN[which], '1') } catch { /* fine */ }
           return

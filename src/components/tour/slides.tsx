@@ -1,10 +1,9 @@
 // The tour's slides: one part of the app each, with a plain headline, when to
 // use it, and a small working copy of the real screen. The landing page shows
-// four (see landing.tsx, Inside); after sign-up the tour shows three, chosen
-// by tourSlides below and said in the person's own terms (copy.ts).
+// four of them (see landing.tsx, Inside). After sign-up there is no feature
+// tour: each part of the app shows itself round the first time it is opened.
 
 import type { Hue } from '@/lib/design-tokens'
-import type { Practice } from '@/lib/tour'
 import { BoardWidget, CaptureWidget, CheckInWidget, ConceptualiseWidget, PortraitWidget, SummonWidget, WritingWidget, type TourWidgetProps } from './widgets'
 
 export type SlideId = 'idea' | 'conceptualise' | 'board' | 'writing' | 'checkin' | 'portrait' | 'capture'
@@ -84,41 +83,3 @@ export const SLIDES: TourSlide[] = [
     Widget: CaptureWidget,
   },
 ]
-
-// ── After sign-up ───────────────────────────────────────────────────────────
-// The Project Board, the canvas, the vision room and the writing page are
-// shown by walking round an example project the first time one is opened
-// (lib/examples/tour-script.ts), so the tour leaves them out. It shows what
-// those walks do not: where an idea comes from (their own themes), why every
-// project starts from its concept, and one habit chosen for the kind of work
-// they said they do. The last slide is how to get the most from the app.
-
-export type HabitId = 'capture' | 'checkin' | 'portrait'
-
-/** The one habit that pays off most for each kind of practice. */
-const HABIT: Record<Practice, HabitId> = {
-  writer: 'portrait',
-  songwriter: 'checkin',
-  cinematographer: 'capture',
-  creator: 'capture',
-  client: 'checkin',
-  director: 'capture',
-}
-
-/** The habit most of their practices share; a tie goes to the one they named first. Talk, when they named none. */
-export function habitFor(practices: Practice[]): HabitId {
-  if (!practices.length) return 'checkin'
-  const count = (h: HabitId) => practices.filter((p) => HABIT[p] === h).length
-  return practices.map((p) => HABIT[p]).reduce((best, h) => (count(h) > count(best) ? h : best))
-}
-
-/** Of the practices they named, the one that habit is chosen for (whose words its slide is said in). */
-export function practiceFor(habit: HabitId, practices: Practice[]): Practice | undefined {
-  return practices.find((p) => HABIT[p] === habit) ?? practices[0]
-}
-
-/** The tour's slides for someone with these practices, in order. */
-export function tourSlides(practices: Practice[]): TourSlide[] {
-  const want: SlideId[] = ['idea', 'conceptualise', habitFor(practices)]
-  return want.map((id) => SLIDES.find((s) => s.id === id)!)
-}

@@ -14,8 +14,8 @@ export function markTourSeen(): void {
 // Asked once, on a new account's first screen, before the tour: a name, an
 // date of birth, what their practice looks like and the themes their work returns to.
 // The themes become their Idea Lab territories (PUT /api/onboarding); the rest
-// is kept in the auth user's metadata and decides which parts of the app the
-// tour shows them (see tourSlides in components/tour/slides.tsx).
+// is kept in the auth user's metadata and in `profiles`, and decides how the
+// handover slide speaks to them (components/tour/copy.ts).
 
 export const PRACTICES = [
   { key: 'writer', label: 'Writer' },
@@ -45,13 +45,6 @@ export function ageFrom(birthdate: string, now = new Date()): number {
   const had = now.getMonth() > mo - 1 || (now.getMonth() === mo - 1 && now.getDate() >= d)
   return now.getFullYear() - y - (had ? 0 : 1)
 }
-
-/** Asked on the Idea slide when questions for their own themes could not be written. About making, whatever the theme. */
-export const GENERAL_QUESTIONS = [
-  'What have you been practising in private, waiting for someone to say you’re allowed to call it your life’s work?',
-  'If you knew the work would outlive you, what would you start making tomorrow morning?',
-  'Which piece have you been saving for the day you’re good enough, and what if that day was today?',
-]
 
 /** As long as a first name is allowed to be: enough for a double name, short enough to sit in Home's greeting. */
 export const MAX_NAME = 24

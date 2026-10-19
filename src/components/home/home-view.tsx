@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion as m } from 'motion/react'
@@ -17,6 +17,10 @@ import { onColor, type as typeRoles, type Mood } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { Working } from '@/components/ui/working'
 import { cleanName } from '@/lib/tour'
+import { usePhone } from '@/lib/use-phone'
+import { ExampleTour } from '@/components/studio/work/example-tour'
+import { useExampleTour } from '@/lib/examples/use-example-tour'
+import { homeTourSteps } from '@/lib/page-tours'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 interface ActivePiece {
@@ -78,6 +82,10 @@ export function HomeView() {
   const [isLoading, setIsLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
   const [name, setName] = useState('')
+  // Known to be staying here (not being sent to their first screen): the walk round Home may play.
+  const [staying, setStaying] = useState(false)
+  const [walked, setWalked] = useState(false)
+  const phone = usePhone()
   const [pieceCounts, setPieceCounts] = useState<{ active: number; queue: number; completed: number } | null>(seen?.counts ?? null)
 
   const [checkIns, setCheckIns] = useState<StoredCheckIn[]>([])
@@ -107,7 +115,7 @@ export function HomeView() {
       .then((d) => {
         if (d && d.onboarded === false) router.replace('/tour')
         // The name they gave on their first screen, cleaned again here in case an older, longer one was stored.
-        else setName(cleanName(d?.profile?.name))
+        else { setName(cleanName(d?.profile?.name)); setStaying(true) }
       })
       .catch(() => {})
   }, [router])
@@ -223,12 +231,14 @@ export function HomeView() {
   const hasWeather = checkIns.length > 0 || writingActivity.some((a) => a.seconds >= 60)
   const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
   const greetingWords = greeting.split(' ')
+  const walk = useExampleTour(staying && !isLoading && !isLoadingCaptures, 'home')
+  const homeSteps = useMemo(() => homeTourSteps(), [])
 
   return (
     <PageShell mood={mood as Mood} intensity={intensity}>
       <PageHeader
         title={
-          <span style={{ display: 'inline-block', overflow: 'hidden', maxWidth: '100%', verticalAlign: 'bottom' }}>
+          <span data-tour="home-greeting" style={{ display: 'inline-block', overflow: 'hidden', maxWidth: '100%', verticalAlign: 'bottom' }}>
             {greetingWords.map((word, i) => (
               <m.span key={i} style={{ display: 'inline-block', whiteSpace: 'nowrap', marginRight: '0.28em' }} initial={{ y: '110%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, delay: 0.15 + i * 0.08, ease: [0.33, 1, 0.68, 1] }}>
                 {word}{name && i === greetingWords.length - 1 ? ',' : ''}
@@ -251,7 +261,7 @@ export function HomeView() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left column */}
           <div className="md:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <Card>
+            <Card data-tour="home-progress">
               <Eyebrow style={{ marginBottom: 16 }}>In progress</Eyebrow>
               {isLoading && !pieceCounts ? (
                 <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
@@ -286,7 +296,7 @@ export function HomeView() {
               </div>
             </Card>
 
-            <div>
+            <div data-tour="home-ideas">
               <Eyebrow style={{ marginBottom: 14 }}>Ideas</Eyebrow>
               <ProportionBar
                 segments={[
@@ -298,7 +308,7 @@ export function HomeView() {
               />
             </div>
 
-            <Card>
+            <Card data-tour="home-weather">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 12 }}>
                 <Eyebrow>Inner weather · 30 days</Eyebrow>
                 <UnderlineLink href="/check-in" color={t.textSecondary} style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>Check in →</UnderlineLink>
@@ -314,6 +324,7 @@ export function HomeView() {
           {/* Right column: capture */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <Card style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <div data-tour="home-capture">
               <Eyebrow>Capture what&apos;s alive</Eyebrow>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
                 {/* The same order and words as the Capture page. */}
@@ -335,8 +346,9 @@ export function HomeView() {
                   {justCaptured ? 'Captured ✓' : 'Capture'}
                 </QuietButton>
               </div>
+              </div>
 
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.divider}`, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div data-tour="home-captures" style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.divider}`, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 {isLoadingCaptures ? (
                   <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
                 ) : recentCaptures.length === 0 ? (
@@ -400,6 +412,16 @@ export function HomeView() {
             <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>Written from your week. You can turn the letter off in Settings.</p>
           </Card>
         </ModalDialog>
+      )}
+      {/* The first visit: a walk round what is on this page. */}
+      {walk.due && !walked && (
+        <ExampleTour
+          steps={homeSteps}
+          phone={phone}
+          label="A short walk round Home"
+          onStep={(st) => { if (st.key === homeSteps[0].key) walk.markSeen() }}
+          onDone={() => { setWalked(true); walk.markSeen() }}
+        />
       )}
     </PageShell>
   )

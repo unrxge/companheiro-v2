@@ -13,7 +13,8 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Card } from '@/components/shell/page-shell'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
-import { type as typeRoles } from '@/lib/design-tokens'
+import { alpha, type as typeRoles } from '@/lib/design-tokens'
+import { openPlans } from '@/lib/billing/use-plan'
 import { NOTE_MAX, type NoteKind } from '@/lib/studio/board-items'
 
 export interface NoteOffer {
@@ -28,12 +29,14 @@ export interface NoteOffer {
 }
 
 export function NoteOfferCard({
-  offer, projects, demo = false, onChange, onAdd, onCheckIn, onLeave,
+  offer, projects, demo = false, locked = null, onChange, onAdd, onCheckIn, onLeave,
 }: {
   offer: NoteOffer
   projects: Array<{ id: string; title: string }>
   /** In the first-visit walk: shown, never pressed. */
   demo?: boolean
+  /** The plan does not carry notes from a check-in (Focus, or a plan that ended): shown as it would be, greyed, with why. */
+  locked?: 'practice' | 'ended' | null
   onChange: (patch: Partial<NoteOffer>) => void
   onAdd: () => void
   /** "This was a check-in": the words go to the companion instead. */
@@ -83,6 +86,8 @@ export function NoteOfferCard({
   return (
     <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} data-tour="checkin-note">
       <Card>
+        {/* What it would have done, greyed and out of reach, then why. */}
+        <div aria-disabled={locked ? true : undefined} inert={!!locked} style={locked ? { opacity: 0.42, filter: 'grayscale(1)', pointerEvents: 'none', userSelect: 'none' } : undefined}>
         <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, margin: 0 }}>You said</p>
         <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textSecondary, margin: '4px 0 14px' }}>&ldquo;{offer.said}&rdquo;</p>
 
@@ -120,13 +125,29 @@ export function NoteOfferCard({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14 }}>
+        {!locked && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14 }}>
           <QuietButton onClick={demo ? undefined : onAdd} disabled={!offer.project_id || !offer.text.trim()} loading={busy} loadingLabel="Adding…">
             Add it
           </QuietButton>
           <GhostButton size="sm" onClick={demo ? undefined : onCheckIn} disabled={busy}>No, this was a check-in</GhostButton>
           <GhostButton size="sm" onClick={demo ? undefined : onLeave} disabled={busy}>Leave it</GhostButton>
+        </div>}
         </div>
+        {locked && (
+          <div role="note" style={{ marginTop: 14, padding: '12px 14px', borderRadius: 12, background: alpha(t.ochre, 0.1), border: `1px solid ${alpha(t.ochre, 0.32)}` }}>
+            <p style={{ ...typeRoles.small, fontWeight: 600, color: t.textPrimary, margin: 0 }}>Leaving thoughts on a project is part of Direction.</p>
+            <p style={{ ...typeRoles.small, color: t.textSecondary, margin: '4px 0 0' }}>
+              {locked === 'practice'
+                ? 'Your free trial has ended, and Focus doesn’t include it. To keep sending thoughts to your projects from a check-in, upgrade to Direction.'
+                : 'Your free trial has ended. To keep sending thoughts to your projects from a check-in, choose Direction.'}
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
+              <QuietButton size="sm" onClick={() => openPlans()}>See Direction</QuietButton>
+              <GhostButton size="sm" onClick={onCheckIn}>Talk it through as a check-in</GhostButton>
+              <GhostButton size="sm" onClick={onLeave}>Leave it</GhostButton>
+            </div>
+          </div>
+        )}
         {offer.state === 'failed' && (
           <p role="alert" style={{ ...typeRoles.small, fontSize: 12, color: t.danger, margin: '10px 0 0' }}>{offer.error || 'That did not save. Try again.'}</p>
         )}

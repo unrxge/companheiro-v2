@@ -46,11 +46,12 @@ export function entitlementsOf(auth: AuthedContext): Promise<Entitlements> {
   return found
 }
 
-type Feature = 'threads' | 'media' | 'visionTalk'
+type Feature = 'threads' | 'media' | 'visionTalk' | 'checkInNotes'
 const FEATURE_LINE: Record<Feature, string> = {
   threads: 'Threads across your pieces are part of Direction.',
   media: 'Images, recordings, palettes and links are part of Direction.',
   visionTalk: 'Talking the whole vision through is part of Direction.',
+  checkInNotes: 'Leaving thoughts on a project from a check-in is part of Direction.',
 }
 
 /** 403 with code `plan_feature` when the plan does not include it. */

@@ -18,13 +18,13 @@ import type { NoteKind } from '@/lib/studio/board-items'
 export const DEMO = {
   feeling: 'Couldn’t sleep again. The presentation went fine, but I keep replaying the one question I fumbled.',
   reply: 'It went fine, and the one moment that didn’t is the one you’re carrying to bed. What did you wish you’d said?',
-  aside: 'Note for The Orange Hours: open episode two on the ferry ramp at first light, not the market.',
+  aside: 'A thought for my project, The Orange Hours: open episode two on the ferry ramp at first light, not the market.',
   note: { text: 'Open episode two on the ferry ramp at first light, not the market.', kind: 'thought' as NoteKind },
   project: { id: 'demo-orange-hours', title: 'The Orange Hours' },
 }
 
 /** The spoken example's timing: the tap, each word, and a moment to settle. */
-export const SPOKEN = { tapMs: 700, wordMs: 170, settleMs: 500 }
+export const SPOKEN = { tapMs: 1100, wordMs: 230, settleMs: 900 }
 /** How long the spoken example takes to say. */
 export const SPOKEN_MS = SPOKEN.tapMs + 300 + DEMO.aside.split(' ').length * SPOKEN.wordMs + SPOKEN.settleMs
 
@@ -82,8 +82,8 @@ export function checkInTourSteps(): TourStep[] {
     }),
     step({
       key: 'aside', stage: 'aside', show: { anchor: ['checkin-scene', 'checkin-start'] },
-      headline: 'Second, a different moment: said on the go.',
-      lines: ['Tap the mic and say it: an idea for a project, or something not to forget.', 'Say which project it is for.'],
+      headline: 'Second, a thought for one of your projects.',
+      lines: ['Tap the mic and say it: an idea for a project, or something not to forget.', 'Name the project it is for. Here, a documentary series called The Orange Hours.'],
     }),
     step({
       key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] },
@@ -92,7 +92,7 @@ export function checkInTourSteps(): TourStep[] {
     }),
     step({
       key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] },
-      headline: 'It waits on the project’s canvas.',
+      headline: 'It waits on that project’s canvas.',
       lines: ['Like a note on the wall, there the next time you open it.'],
     }),
     step({
@@ -101,7 +101,8 @@ export function checkInTourSteps(): TourStep[] {
       lines: ['It works out which one you mean. You never have to choose.'],
     }),
   ]
-  // The second example is said out loud on screen, word by word; its step
-  // stands until it has been heard out and then for the reading.
-  return steps.map((s) => (s.key === 'aside' ? { ...s, ms: s.ms + SPOKEN_MS } : s))
+  // The second example is said out loud on screen, word by word: Next waits
+  // until it has been heard out. The other steps play short page animations
+  // (a card arriving), which the words outlast anyway.
+  return steps.map((s) => (s.key === 'aside' ? { ...s, ms: s.ms + SPOKEN_MS, wait: SPOKEN_MS + 600 } : s))
 }

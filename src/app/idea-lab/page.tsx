@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDictation } from '@/lib/use-dictation'
 import { MicButton } from '@/components/ui/mic-button'
 import Link from 'next/link'
@@ -17,6 +17,10 @@ import { useTerritories } from '@/hooks/useTerritories'
 import { alpha, arcHue, radius, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
 import { WorkingDots } from '@/components/ui/working'
+import { usePhone } from '@/lib/use-phone'
+import { ExampleTour } from '@/components/studio/work/example-tour'
+import { useExampleTour } from '@/lib/examples/use-example-tour'
+import { ideaLabTourSteps } from '@/lib/page-tours'
 
 interface Capture {
   id: string
@@ -64,6 +68,34 @@ export default function IdeaLabPage() {
   const [energyIndex, setEnergyIndex] = useState(2)
   const energyLevel = ENERGY_LEVELS[energyIndex]
   const [impersonal, setImpersonal] = useState(true)
+
+  // The first time "Summon an idea" is opened: a walk round the lens. The energy
+  // slider and the two question modes are seen changing as they are explained,
+  // then put back as the person had them.
+  const phone = usePhone()
+  const [labWalked, setLabWalked] = useState(false)
+  const labSteps = useMemo(() => ideaLabTourSteps(), [])
+  const demoTimers = useRef<number[]>([])
+  const before = useRef<{ energy: number; impersonal: boolean } | null>(null)
+  const stopDemo = () => { demoTimers.current.forEach((x) => window.clearTimeout(x)); demoTimers.current = [] }
+  const playDemo = (stage: string | undefined) => {
+    stopDemo()
+    const was = before.current
+    if (!was) return
+    setEnergyIndex(was.energy)
+    setImpersonal(was.impersonal)
+    const at = (ms: number, f: () => void) => demoTimers.current.push(window.setTimeout(f, ms))
+    if (stage === 'energy') {
+      // Down to Heavy, up to Bright, back where it was: one notch at a time, unhurried.
+      const path = [1, 0, 1, 2, 3, 4, 3, was.energy]
+      path.forEach((v, i) => at(700 + i * 420, () => setEnergyIndex(v)))
+    }
+    if (stage === 'mode') {
+      at(500, () => setImpersonal(true))
+      at(1700, () => setImpersonal(false))
+      at(2900, () => setImpersonal(was.impersonal))
+    }
+  }
   const [captures, setCaptures] = useState<Capture[]>([])
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
   // Questions turned down with "Ask again" since the page opened, most recent
@@ -359,6 +391,8 @@ export default function IdeaLabPage() {
     </button>
   )
 
+  const labWalk = useExampleTour(entry === 'summon' && territoriesLoaded, 'idealab')
+
   return (
     <PageShell mood="ember">
       <style>{`
@@ -461,8 +495,8 @@ export default function IdeaLabPage() {
         </AnimatePresence>
         <div className="idea-lab-grid" inert={entry !== 'summon'} aria-hidden={entry !== 'summon'} style={maskFit ? { maxHeight: maskFit, overflow: 'hidden' } : undefined}>
           {/* ── The Lens ── */}
-          <Card padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div>
+          <Card data-tour="lab-lens" padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div data-tour="lab-movement">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Eyebrow>Movement</Eyebrow>
                 <div style={{ display: 'flex', gap: 10 }}>
@@ -483,7 +517,7 @@ export default function IdeaLabPage() {
 
             <Divider />
 
-            <div>
+            <div data-tour="lab-territory">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Eyebrow>Territory</Eyebrow>
                 <div style={{ display: 'flex', gap: 10 }}>
@@ -561,7 +595,7 @@ export default function IdeaLabPage() {
 
             <Divider />
 
-            <div>
+            <div data-tour="lab-energy">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <Eyebrow>Energy</Eyebrow>
                 <span style={{ ...typeRoles.small, fontSize: 12, fontWeight: 600, color: t.textPrimary }}>{ENERGY_LEVEL_LABELS[energyLevel]}</span>
@@ -575,7 +609,7 @@ export default function IdeaLabPage() {
 
             <Divider />
 
-            <div>
+            <div data-tour="lab-mode">
               <Eyebrow style={{ marginBottom: 12 }}>Question mode</Eyebrow>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderRadius: radius.field, border: `1px solid ${t.inputBorder}`, overflow: 'hidden' }}>
                 {[{ v: true, l: 'Open' }, { v: false, l: 'Charged' }].map(({ v, l }) => (
@@ -591,7 +625,7 @@ export default function IdeaLabPage() {
           </Card>
 
           {/* ── The Stage ── */}
-          <Card padding={0} style={{ display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+          <Card data-tour="lab-stage" padding={0} style={{ display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
             <AnimatePresence mode="wait">
               {!generatedPrompt ? (
                 <m.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'clamp(40px, 8vw, 64px) clamp(20px, 5vw, 52px)', textAlign: 'center', gap: 28 }}>
@@ -714,6 +748,19 @@ export default function IdeaLabPage() {
             )}
           </div>
         </ModalDialog>
+      )}
+      {labWalk.due && !labWalked && entry === 'summon' && (
+        <ExampleTour
+          steps={labSteps}
+          phone={phone}
+          label="A short walk round summoning an idea"
+          onStep={(st) => {
+            if (!before.current) before.current = { energy: energyIndex, impersonal }
+            if (st.key === labSteps[0].key) labWalk.markSeen()
+            playDemo(st.stage)
+          }}
+          onDone={() => { playDemo(undefined); stopDemo(); before.current = null; setLabWalked(true); labWalk.markSeen() }}
+        />
       )}
     </PageShell>
   )

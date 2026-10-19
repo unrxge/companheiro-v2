@@ -7,7 +7,8 @@ import type { Subscription } from './access'
 //   trial          everything Direction has, for 30 days (bar deepQuestions)
 //   practice       two projects worked on at a time: threads, task lists and
 //                  notes on the canvas, but no images, recordings, palettes or links
-//   direction      any number of projects, the canvas tools, the vision talk
+//   direction      any number of projects, the canvas tools, the vision talk,
+//                  thoughts left on a project from a check-in
 //   ended          a trial that ran out or a plan that was cancelled: the
 //                  work stays (Practice's shape), the companion rests
 //   grandfathered  accounts from before billing: everything, for good
@@ -30,16 +31,18 @@ export interface Entitlements {
   visionTalk: boolean
   /** Every Idea Lab question is written by the deep model, from the first one. */
   deepQuestions: boolean
+  /** A thought or reminder said in a check-in can be left on a project's canvas. */
+  checkInNotes: boolean
 }
 
 /** How long a project rests after giving up its place to another. */
 export const REST_DAYS = 14
 
-const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: true } as const
+const EVERYTHING = { maxActiveProjects: null, threads: true, media: true, visionTalk: true, deepQuestions: true, checkInNotes: true } as const
 /** How many projects Practice (and an ended plan, which keeps its shape) works on at once. */
 export const PRACTICE_ACTIVE_PROJECTS = 2
 
-const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: true, media: false, visionTalk: false, deepQuestions: false } as const
+const IN_WORDS = { maxActiveProjects: PRACTICE_ACTIVE_PROJECTS, threads: true, media: false, visionTalk: false, deepQuestions: false, checkInNotes: false } as const
 
 export function entitlementsFor(sub: Subscription | null): Entitlements {
   if (!sub) return { plan: 'unknown', companion: false, ...EVERYTHING }

@@ -17,7 +17,7 @@
 // mood follows the slide and stays in the cool hues (tide, violet, verdant):
 // ember is what the landing page and sign-in look like, and this is inside.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Atmosphere } from '@/components/shell/atmosphere'
@@ -26,9 +26,8 @@ import { PrimaryButton } from '@/components/ui/buttons'
 import { TextArea, TextField } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { fonts, radius, shell, tokensFor, type as typeRoles, type Hue } from '@/lib/design-tokens'
-import { ageFrom, cleanName, GENERAL_QUESTIONS, MAX_NAME, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
-import { BEST_VALUE, tourCopy } from './copy'
-import { tourSlides } from './slides'
+import { ageFrom, cleanName, MAX_NAME, MAX_PRACTICES, MAX_THEMES, MIN_AGE, PRACTICES, THEME_HUES, type Practice, type TourProfile } from '@/lib/tour'
+import { handover } from './copy'
 
 const hues = tokensFor('dark')
 const FADE = 'linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%)'
@@ -54,7 +53,6 @@ export function Tour({
   profile: saved,
   leaving = false,
   error = null,
-  questions = null,
   onAnswered,
   onLeave,
   onAnalytics,
@@ -67,8 +65,6 @@ export function Tour({
   leaving?: boolean
   /** Why leaving did not work, said above the buttons. */
   error?: string | null
-  /** Questions written for each of their themes; null while they are on their way. */
-  questions?: Record<string, string[]> | null
   onAnswered?: (profile: TourProfile, themes: string[]) => void
   onLeave: () => void
   /**
@@ -97,8 +93,7 @@ export function Tour({
     return () => { document.body.style.overflow = was }
   }, [])
 
-  const [slideMood, setSlideMood] = useState<Hue>('violet')
-  const mood: Hue = stage === 'tour' ? slideMood : stage === 'practice' ? 'violet' : 'tide'
+  const mood: Hue = stage === 'tour' ? 'verdant' : stage === 'practice' ? 'violet' : 'tide'
   const practices = answered ? work.practices : saved?.practices ?? []
   const calledName = answered ? cleanName(name) : saved?.name ?? ''
 
@@ -111,18 +106,8 @@ export function Tour({
           <img src="/favicon.svg" alt="" width={20} height={20} />
           Companheiro
         </span>
-        {/* Only once they have said who they are: before that there is nothing to skip to. */}
-        {stage === 'tour' ? (
-          <button
-            type="button"
-            onClick={onLeave}
-            disabled={leaving}
-            className="cursor-pointer rounded-full px-4 transition-colors hover:bg-[rgba(236,233,226,0.06)]"
-            style={{ ...typeRoles.small, fontSize: 14, fontWeight: 500, color: shell.muted, background: 'none', border: 'none', height: 44, marginRight: -16 }}
-          >
-            {firstRun ? 'Skip' : 'Close'}
-          </button>
-        ) : <span style={{ height: 44 }} />}
+        {/* Nothing to skip: the questions come first, and the one slide after them begins the app. */}
+        <span style={{ height: 44 }} />
       </header>
 
       {stage === 'who' && <WhoStep name={name} born={born} onName={setName} onBorn={setBorn} onNext={() => setStage('practice')} />}
@@ -142,15 +127,13 @@ export function Tour({
         />
       )}
       {stage === 'tour' && (
-        <Carousel
+        <Handover
           firstRun={!!firstRun}
           name={calledName}
           practices={practices}
           themes={answered ? work.themes : []}
-          questions={questions}
           leaving={leaving}
           error={error}
-          onMood={setSlideMood}
           onLeave={onLeave}
           onAnalytics={firstRun ? onAnalytics : undefined}
           onQuestions={firstRun ? () => setStage('practice') : undefined}
@@ -415,170 +398,72 @@ function BackArrow() {
 
 // ── The tour: three slides chosen for them, then where to begin ─────────────
 
-/** The last slide's visual: what else is inside, and the themes they gave. */
-/** The last slide's visual: how to get the most from the app, the themes they gave, and the analytics switch. */
-function BestValue({ themes, analytics }: { themes: string[]; analytics?: { on: boolean; set: (on: boolean) => void } }) {
-  const { t } = useTheme()
-  return (
-    <Container padding={12}>
-      <Card padding="6px 18px">
-        {BEST_VALUE.map((v, i) => (
-          <div key={v.title} className="flex gap-3" style={{ padding: '12px 0', borderBottom: i < BEST_VALUE.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
-            <span aria-hidden style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, minWidth: 14 }}>{i + 1}</span>
-            <div>
-              <p style={{ ...typeRoles.h3, color: t.textPrimary }}>{v.title}</p>
-              <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 1 }}>{v.body}</p>
-            </div>
-          </div>
-        ))}
-      </Card>
-      {themes.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1 pt-3.5">
-          <span style={{ ...typeRoles.small, color: t.textSecondary, marginRight: 2 }}>Your Idea Lab opens with</span>
-          {themes.map((th, i) => <Pill key={th} hue={THEME_HUES[i % THEME_HUES.length]}>{th}</Pill>)}
-        </div>
-      )}
-      {/* The one thing to know before beginning: usage analytics are on, what they are, and the switch. The same switch is in Settings. */}
-      {analytics && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1.5 pb-1.5 pt-3.5" style={{ borderTop: themes.length > 0 ? `1px solid ${t.divider}` : 'none', marginTop: themes.length > 0 ? 10 : 0 }}>
-          <p className="min-w-0 flex-[1_1_220px]" style={{ ...typeRoles.small, fontSize: 12, color: t.textSecondary }}>
-            <span style={{ color: t.textPrimary, fontWeight: 500 }}>Share usage analytics.</span>{' '}
-            Which parts of your projects you use, and when. Never what you write, and nothing from your check-ins.
-          </p>
-          <Pill hue={analytics.on ? 'verdant' : 'neutral'} selected={analytics.on} onClick={() => analytics.set(!analytics.on)} size="md">
-            {analytics.on ? 'On' : 'Off'}
-          </Pill>
-        </div>
-      )}
-    </Container>
-  )
-}
-
-function Carousel({
-  firstRun, name, practices, themes, questions, leaving, error, onMood, onLeave, onAnalytics, onQuestions,
+/** The one slide after the questions: a handover into the app, said for what they make. */
+function Handover({
+  firstRun, name, practices, themes, leaving, error, onLeave, onAnalytics, onQuestions,
 }: {
   firstRun: boolean
   name: string
   practices: Practice[]
   themes: string[]
-  questions: Record<string, string[]> | null
   leaving: boolean
   error: string | null
-  onMood: (m: Hue) => void
   onLeave: () => void
   onAnalytics?: (on: boolean | null) => void
-  /** Back from the first slide, to the questions before the tour. */
+  /** Back, to the questions before it. */
   onQuestions?: () => void
 }) {
-  const reduce = useReducedMotion()
-  const track = useRef<HTMLDivElement>(null)
-  const [index, setIndex] = useState(0)
-  const shown = useMemo(() => tourSlides(practices), [practices])
-  // The parts chosen for them, then one on getting the most from it all.
-  const count = shown.length + 1
-  const last = index === count - 1
-  // Usage analytics: on unless they say otherwise here. Arriving at the slide counts as having been told.
+  const { t } = useTheme()
+  const say = useMemo(() => handover(practices, name, firstRun), [practices, name, firstRun])
+  // Usage analytics are named here and can be switched off: arriving counts as having been told.
   const [share, setShare] = useState(true)
-  const toldOnce = useRef(false)
-  useEffect(() => {
-    if (!last || !onAnalytics || toldOnce.current) return
-    toldOnce.current = true
-    onAnalytics(null)
-  }, [last, onAnalytics])
-  // How many times each slide has come up: its widget's key, so it plays from the start on every arrival.
-  const [runs, setRuns] = useState(() => Array.from({ length: count }, () => 0))
-  // Their themes, each with the questions written for it (null until they arrive).
-  const own = useMemo(
-    () => (themes.length ? themes.map((label) => ({ label, questions: questions ? questions[label] ?? GENERAL_QUESTIONS : null })) : undefined),
-    [themes, questions]
-  )
-
-  useEffect(() => {
-    setRuns((r) => r.map((n, i) => (i === index ? n + 1 : n)))
-    onMood(index < shown.length ? shown[index].mood : 'tide')
-    // A slide scrolled down on a short phone goes back to its top once it is left, so every arrival starts at the title.
-    Array.from(track.current?.children ?? []).forEach((el, i) => { if (i !== index) el.scrollTop = 0 })
-  }, [index, shown, onMood])
-
-  const go = useCallback(
-    (i: number) => {
-      const el = track.current
-      if (!el) return
-      const to = Math.max(0, Math.min(count - 1, i))
-      el.scrollTo({ left: to * el.clientWidth, behavior: reduce ? 'auto' : 'smooth' })
-    },
-    [reduce, count]
-  )
-
-  const onScroll = () => {
-    const el = track.current
-    if (!el || !el.clientWidth) return
-    const i = Math.round(el.scrollLeft / el.clientWidth)
-    if (i !== index) setIndex(i)
-  }
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') go(index + 1)
-      if (e.key === 'ArrowLeft') go(index - 1)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [go, index])
-
-  const names = [...shown.map((s) => s.where), 'Begin']
+  useEffect(() => { onAnalytics?.(null) }, [onAnalytics])
   const begin = firstRun ? 'Begin' : 'Done'
-  const back = index > 0 ? () => go(index - 1) : onQuestions
 
   return (
     <>
-      <div
-        ref={track}
-        onScroll={onScroll}
-        role="group"
-        aria-roledescription="carousel"
-        aria-label="How Companheiro works"
-        className="relative z-[1] flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        // A slide taller than a small phone scrolls inside itself; its lower edge fades out, not cuts off.
-        style={{ maskImage: FADE, WebkitMaskImage: FADE }}
-      >
-        {names.map((where, i) => {
-          const s = i < shown.length ? shown[i] : null
-          // Said in their terms; the slide's own words are the landing page's.
-          const say = s ? tourCopy(s.id, practices, themes) ?? s : null
-          return (
-            <section
-              key={where}
-              role="group"
-              aria-roledescription="slide"
-              aria-label={`${i + 1} of ${count}: ${where}`}
-              inert={i !== index}
-              className="flex w-full shrink-0 snap-center snap-always flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {/* Auto margins centre it when there is room (tablet, desktop) and, unlike align-content, never push the top out of reach when there is not. */}
-              <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-7 px-5 pb-8 pt-3 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-16 lg:px-10 lg:pb-7 lg:pt-1">
-                <div>
-                  <p style={{ ...typeRoles.eyebrow, color: hues[s ? s.mood : 'tide'] }}>
-                    <span style={{ color: shell.muted }}>{i + 1} of {count} · </span>{where}
-                  </p>
-                  <h2 className="mt-3.5 lg:mt-2.5" style={TITLE}>{say ? say.title : name ? `Where to begin, ${name}.` : 'Where to begin.'}</h2>
-                  <p className={LEDE} style={LEDE_STYLE}>
-                    {say
-                      ? say.body
-                      : firstRun
-                        // New accounts find example projects on their board, and the first one opened walks them round it.
-                        ? 'Your Project Board has an example project for the kind of work you do. Open it first: it shows you round the canvas and the writing page, and nothing you do there can break it.'
-                        : 'The rest you’ll meet as you need it. Nothing here has to be learned first.'}
-                  </p>
-                  {!s && <p className={LEDE} style={{ ...LEDE_STYLE, color: shell.text }}>Ready to begin?</p>}
+      <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ maskImage: FADE, WebkitMaskImage: FADE }}>
+        <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-7 px-5 pb-8 pt-3 md:my-auto lg:max-w-[1080px] lg:grid-cols-[1fr_minmax(0,440px)] lg:items-center lg:gap-16 lg:px-10 lg:pb-7 lg:pt-1">
+          <div>
+            <p style={{ ...typeRoles.eyebrow, color: hues.verdant }}>{say.eyebrow}</p>
+            <h2 className="mt-3.5 lg:mt-2.5" style={TITLE}>{say.title}</h2>
+            <p className={LEDE} style={LEDE_STYLE}>{say.body}</p>
+          </div>
+          <div className="w-full">
+            <Container padding={12}>
+              <Card padding="6px 18px">
+                <p style={{ ...typeRoles.eyebrow, fontSize: 10, color: t.textMuted, padding: '12px 0 2px' }}>Where to start</p>
+                {say.steps.map((v, i) => (
+                  <div key={v.title} className="flex gap-3" style={{ padding: '12px 0', borderBottom: i < say.steps.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+                    <span aria-hidden style={{ ...typeRoles.small, fontWeight: 600, color: t.textMuted, minWidth: 14 }}>{i + 1}</span>
+                    <div>
+                      <p style={{ ...typeRoles.h3, color: t.textPrimary }}>{v.title}</p>
+                      <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 1 }}>{v.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+              {themes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-1.5 pb-1 pt-3.5">
+                  <span style={{ ...typeRoles.small, color: t.textSecondary, marginRight: 2 }}>Your Idea Lab opens with</span>
+                  {themes.map((th, i) => <Pill key={th} hue={THEME_HUES[i % THEME_HUES.length]}>{th}</Pill>)}
                 </div>
-                <div className="w-full">
-                  {s ? <s.Widget key={runs[i]} active={i === index} own={s.id === 'idea' ? own : undefined} /> : <BestValue themes={themes} analytics={onAnalytics ? { on: share, set: (on) => { setShare(on); onAnalytics(on) } } : undefined} />}
+              )}
+              {/* The one thing to know before beginning: usage analytics are on, what they are, and the switch. The same switch is in Settings. */}
+              {onAnalytics && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1.5 pb-1.5 pt-3.5" style={{ borderTop: themes.length > 0 ? `1px solid ${t.divider}` : 'none', marginTop: themes.length > 0 ? 10 : 0 }}>
+                  <p className="min-w-0 flex-[1_1_220px]" style={{ ...typeRoles.small, fontSize: 12, color: t.textSecondary }}>
+                    <span style={{ color: t.textPrimary, fontWeight: 500 }}>Share usage analytics.</span>{' '}
+                    Which parts of your projects you use, and when. Never what you write, and nothing from your check-ins.
+                  </p>
+                  <Pill hue={share ? 'verdant' : 'neutral'} selected={share} onClick={() => { setShare(!share); onAnalytics(!share) }} size="md">
+                    {share ? 'On' : 'Off'}
+                  </Pill>
                 </div>
-              </div>
-            </section>
-          )
-        })}
+              )}
+            </Container>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -587,45 +472,23 @@ function Carousel({
         </p>
       )}
 
-      {/* One row on a phone, so the slide keeps the height: progress on the left, Back and Next on the right. */}
-      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-between gap-3 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:px-10 lg:pb-8 lg:pt-1">
-        <div className="flex items-center gap-1.5">
-          {names.map((where, i) => (
-            <button
-              key={where}
-              type="button"
-              onClick={() => go(i)}
-              aria-label={`${i + 1} of ${count}: ${where}`}
-              aria-current={i === index ? 'step' : undefined}
-              className={`flex h-11 cursor-pointer items-center transition-[width] duration-300 ${i === index ? 'w-7 lg:w-9' : 'w-4 lg:w-5'}`}
-              style={{ background: 'none', border: 'none', padding: 0 }}
-            >
-              <span style={{ display: 'block', width: '100%', height: 4, borderRadius: 2, backgroundColor: i === index ? shell.text : i < index ? shell.muted : shell.line, transition: 'background-color 0.3s ease' }} />
-            </button>
-          ))}
+      <footer className="relative z-[1] mx-auto flex w-full max-w-[520px] shrink-0 items-center justify-end gap-3 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:max-w-[1080px] lg:px-10 lg:pb-8 lg:pt-1">
+        {onQuestions && (
+          <button
+            type="button"
+            onClick={onQuestions}
+            aria-label="Back to your answers"
+            className="flex h-[40px] w-[42px] shrink-0 cursor-pointer items-center justify-center transition-colors hover:bg-[rgba(236,233,226,0.12)] lg:h-[46px] lg:w-[48px]"
+            style={{ borderRadius: radius.field, border: `1px solid ${shell.line}`, backgroundColor: shell.fill, color: shell.text }}
+          >
+            <BackArrow />
+          </button>
+        )}
+        <div className="lg:hidden">
+          <PrimaryButton size="md" onClick={onLeave} loading={leaving} loadingLabel="One moment…" style={{ minWidth: 104 }}>{begin}</PrimaryButton>
         </div>
-        <div className="flex items-center gap-2 lg:gap-2.5">
-          {back && (
-            <button
-              type="button"
-              onClick={back}
-              aria-label={index > 0 ? 'Back' : 'Back to your answers'}
-              className="flex h-[40px] w-[42px] shrink-0 cursor-pointer items-center justify-center transition-colors hover:bg-[rgba(236,233,226,0.12)] lg:h-[46px] lg:w-[48px]"
-              style={{ borderRadius: radius.field, border: `1px solid ${shell.line}`, backgroundColor: shell.fill, color: shell.text }}
-            >
-              <BackArrow />
-            </button>
-          )}
-          <div className="lg:hidden">
-            <PrimaryButton size="md" onClick={last ? onLeave : () => go(index + 1)} loading={last && leaving} loadingLabel="One moment…" style={{ minWidth: 104 }}>
-              {last ? begin : 'Next'}
-            </PrimaryButton>
-          </div>
-          <div className="hidden lg:block lg:w-[240px]">
-            <PrimaryButton size="lg" full onClick={last ? onLeave : () => go(index + 1)} loading={last && leaving} loadingLabel="Setting up your Idea Lab…">
-              {last ? begin : 'Next'}
-            </PrimaryButton>
-          </div>
+        <div className="hidden lg:block lg:w-[240px]">
+          <PrimaryButton size="lg" full onClick={onLeave} loading={leaving} loadingLabel="Setting up your Idea Lab…">{begin}</PrimaryButton>
         </div>
       </footer>
     </>

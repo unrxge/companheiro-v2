@@ -90,6 +90,12 @@ export type TourAnchor =
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
   // the check-in
   | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added' | 'checkin-scene'
+  // Home
+  | 'home-greeting' | 'home-progress' | 'home-ideas' | 'home-weather' | 'home-capture' | 'home-captures'
+  // the Idea Lab's summoning
+  | 'lab-lens' | 'lab-movement' | 'lab-territory' | 'lab-energy' | 'lab-mode' | 'lab-stage'
+  // the Portrait
+  | 'portrait-checkin' | 'portrait-entry' | 'portrait-list' | 'portrait-forget' | 'portrait-intro'
 
 /** A panel on the writing page the tour opens (or closes, with null). */
 export type TourPanel = 'concept' | 'anchors' | 'assistant'
@@ -116,8 +122,10 @@ export interface TourStep {
   gesture?: 'hold' | 'rest' | 'tap'
   /** On the check-in: which moment of the example conversation is on screen. */
   stage?: string
-  /** How long it stands once it has arrived, for reading. */
+  /** How long it takes to read at a calm pace (a sense of the walk's length; nothing waits on it). */
   ms: number
+  /** How long what the page acts out in this step takes (a voice note being said, say): Next waits for it. */
+  wait?: number
 }
 
 /** Long enough to read twice at a calm pace, never so long it drags. */
