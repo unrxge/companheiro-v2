@@ -102,3 +102,33 @@ export function resolveTerritoryKey(raw: string | null | undefined, slots: Terri
   }
   return best?.key ?? filled[0].key
 }
+
+// Offered in the Idea Lab when someone has named fewer than four themes:
+// inner, expansive ground, the kind the original territories stood on. They
+// are only ever suggestions; pressing one adds it like any theme they type.
+const SUGGESTED_THEMES = [
+  'Creativity & devotion',
+  'Wonder & curiosity',
+  'Slow living',
+  'Belonging & home',
+  'Play & joy',
+  'Love & connection',
+  'Tenderness',
+  'Courage',
+  'Becoming',
+  'Nature & attention',
+  'Faith & meaning',
+]
+
+/** How many themes to suggest: three for none to two named, two for three, none from four. */
+export function suggestionCount(named: number): number {
+  if (named >= 4) return 0
+  return named === 3 ? 2 : 3
+}
+
+/** Suggestions that share no word with a theme they already have. */
+export function suggestedThemes(existing: string[], count: number): string[] {
+  if (count <= 0) return []
+  const words = new Set(existing.join(' ').toLowerCase().split(/[^a-zà-ú]+/).filter((w) => w.length > 3))
+  return SUGGESTED_THEMES.filter((s) => !s.toLowerCase().split(/[^a-zà-ú]+/).some((w) => w.length > 3 && words.has(w))).slice(0, count)
+}

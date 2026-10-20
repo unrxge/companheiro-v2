@@ -13,6 +13,7 @@ import { PhaseDots } from '@/components/widgets'
 import { shell, type as typeRoles, widths } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
 import { BRIEF_HANDOFF_KEY, BRIEF_OPENING, briefStorageKey } from '@/lib/concept-brief'
+import { joiningOpening } from '@/lib/conceptualise-prompt'
 
 interface Draft {
   id: string
@@ -85,7 +86,12 @@ function ConceptualiseContent() {
   const backTo = joiningProject || briefProject ? `/p/${joiningProject || briefProject}` : '/idea-lab'
 
   const [activeQuestion, setActiveQuestion] = useState<string | null>(question)
-  const [messages, setMessages] = useState<ThreadMessage[]>(() => (briefProject ? [{ role: 'assistant', content: BRIEF_OPENING }] : []))
+  // A brief, and a new piece for a project, both open on a line of ours so the
+  // page never starts as an empty chat. The piece's names its project once
+  // the project is read.
+  const [messages, setMessages] = useState<ThreadMessage[]>(() =>
+    briefProject ? [{ role: 'assistant', content: BRIEF_OPENING }] : joiningProject ? [{ role: 'assistant', content: joiningOpening() }] : []
+  )
   // The stages the brief has already asked twice (lib/concept-brief: at most one follow-up a stage, two in all).
   const briefFollowedUp = useRef<number[]>([])
   const [inputText, setInputText] = useState('')
@@ -115,6 +121,20 @@ function ConceptualiseContent() {
   const userScrolledUpRef = useRef(false)
   const programmaticScrollRef = useRef(false)
   const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!joiningProject) return
+    let alive = true
+    fetch(`/api/studio/projects/${joiningProject}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const title = d?.bundle?.project?.title as string | undefined
+        // Only while nothing has been said: the opening is not rewritten under them.
+        if (alive && title) setMessages((prev) => (prev.length === 1 && prev[0].role === 'assistant' ? [{ role: 'assistant', content: joiningOpening(title) }] : prev))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [joiningProject])
 
   useEffect(() => {
     if (briefProject) {
@@ -232,14 +252,14 @@ function ConceptualiseContent() {
     }).catch((err) => console.error('Failed to autosave draft:', err))
   }
 
-  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number, checkInHandoverMode?: boolean, moveOn?: boolean) => {
+  const fetchAIResponse = async (conversationHistory: ThreadMessage[], currentPhase: number, checkInHandoverMode?: boolean) => {
     setIsLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/idea-lab/conceptualise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined, followedUp: briefProject ? briefFollowedUp.current : undefined, moveOn: moveOn || undefined }),
+        body: JSON.stringify({ messages: conversationHistory, phase: currentPhase, seed: seed || undefined, question: activeQuestion || undefined, brought: brought || undefined, checkInHandover: checkInHandoverMode || undefined, projectId: joiningProject || briefProject || undefined, brief: briefProject ? true : undefined, followedUp: briefProject ? briefFollowedUp.current : undefined }),
       })
       if (!res.ok) { setError('Failed to get response'); return }
 
@@ -302,14 +322,6 @@ function ConceptualiseContent() {
     }
     setExistingDrafts((prev) => prev.filter((d) => d.id !== draftId))
   }
-
-  // "Move on": the person decides this part is done. No message of theirs is
-  // added; the next part's first question comes back.
-  const handleMoveOn = async () => {
-    if (isLoading || phase >= 5) return
-    await fetchAIResponse(messages, phase, undefined, true)
-  }
-  const canMoveOn = !briefProject && phase < 5 && !isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages.some((x) => x.role === 'user')
 
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return
@@ -421,11 +433,6 @@ function ConceptualiseContent() {
             <Thread messages={messages} streaming={isLoading}>
               {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>{error}</p>}
             </Thread>
-            {canMoveOn && (
-              <div>
-                <GhostButton size="sm" onClick={handleMoveOn}>Move on to the next part</GhostButton>
-              </div>
-            )}
             {readyToAdvance && phase === 5 && !isLoading && messages.length > 0 && (
               <div>
                 <PrimaryButton onClick={handleDeclare}>{briefProject ? 'Build the core concept' : 'Declare this idea'}</PrimaryButton>

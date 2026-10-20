@@ -15,7 +15,7 @@ import { ModalDialog } from '@/components/ui/modal-dialog'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { useTerritories } from '@/hooks/useTerritories'
 import { alpha, arcHue, radius, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
-import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
+import { customKey, isFilled, MAX_TERRITORY_SLOTS, slotShort, slotLabel, suggestedThemes, suggestionCount, type CustomSlot, type FilledSlot, type TerritorySlot } from '@/lib/territories'
 import { WorkingDots } from '@/components/ui/working'
 import { usePhone } from '@/lib/use-phone'
 import { ExampleTour } from '@/components/studio/work/example-tour'
@@ -250,8 +250,8 @@ export default function IdeaLabPage() {
     if (next) setSelectedTerritoryKeys([])
   }
 
-  const confirmAddTheme = async (index: number) => {
-    const label = newThemeInput.trim()
+  const confirmAddTheme = async (index: number, given?: string) => {
+    const label = (given ?? newThemeInput).trim()
     if (!label) return
     const key = customKey(label)
     const baseSlot: CustomSlot = { type: 'custom', key, label }
@@ -532,9 +532,10 @@ export default function IdeaLabPage() {
                     const isSelected = selectedTerritoryKeys.includes(slot.key)
                     const showX = hoveringTerritoryKey === slot.key || mobileDeleteKey === slot.key
                     return (
-                      <div key={slot.key} style={{ position: 'relative', display: 'inline-flex' }} onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)} onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}>
-                        <span title={slotLabel(slot)}>
-                          <Pill hue={territories.hue(slot.key)} selected={isSelected} onClick={() => handleTerritoryPillClick(slot)} size="md">
+                      <div key={slot.key} style={{ position: 'relative', display: 'inline-flex', maxWidth: '100%' }} onMouseEnter={() => !isTouchDevice && setHoveringTerritoryKey(slot.key)} onMouseLeave={() => !isTouchDevice && setHoveringTerritoryKey(null)}>
+                        <span title={slotLabel(slot)} style={{ maxWidth: '100%' }}>
+                          {/* A long theme wraps onto a second line rather than running off the row. */}
+                          <Pill hue={territories.hue(slot.key)} selected={isSelected} onClick={() => handleTerritoryPillClick(slot)} size="md" style={{ whiteSpace: 'normal', textAlign: 'left', maxWidth: '100%', lineHeight: 1.3 }}>
                             {slotShort(slot)}
                             {(generatingMapKey === slot.key || sortingKeys.includes(slot.key)) && <span style={{ opacity: 0.6 }}>·</span>}
                           </Pill>
@@ -589,6 +590,20 @@ export default function IdeaLabPage() {
                       + Add theme
                     </button>
                   )}
+
+                  {addingInSlot === null && suggestedThemes(territorySlots.filter(isFilled).map(slotLabel), suggestionCount(territorySlots.filter(isFilled).length)).map((label) => (
+                    <button
+                      key={label}
+                      onClick={() => {
+                        const nextIndex = territorySlots.findIndex((s) => s === null)
+                        confirmAddTheme(nextIndex !== -1 ? nextIndex : territorySlots.length, label)
+                      }}
+                      title="A suggestion. Press it to add it as one of your themes."
+                      style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px dashed ${t.textMuted}`, backgroundColor: 'transparent', color: t.textSecondary, fontSize: 12, cursor: 'pointer', lineHeight: 1.3, textAlign: 'left' }}
+                    >
+                      + {label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

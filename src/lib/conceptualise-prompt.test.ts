@@ -39,3 +39,36 @@ test('two companion turns in a row, after Move on, are joined for the model', ()
   assert.equal(m.length, 3)
   assert.equal(m[1].content, 'A reflection.\n\nWho is it for?')
 })
+
+import { joiningNextStage, joiningOpening, parseJoiningCheck } from './conceptualise-prompt'
+
+const check = (settled: number[], doubt = false, surface = false) => ({ settled, doubt, surface })
+
+test('a new piece opens on a line of ours that names its project', () => {
+  assert.match(joiningOpening('The Orange Hours'), /^A new piece for The Orange Hours\./)
+  assert.match(joiningOpening('Untitled'), /^A new piece for this project\./)
+  assert.match(joiningOpening(), /\?$/)
+})
+
+test('a tangible answer moves a new piece on, and what was said in passing is not asked again', () => {
+  assert.deepEqual(joiningNextStage(1, check([1])), { phase: 2, stay: null })
+  // Who it is for came up in the first answer: the audience is skipped.
+  assert.deepEqual(joiningNextStage(2, check([1, 2, 3])), { phase: 4, stay: null })
+  assert.deepEqual(joiningNextStage(4, check([1, 2, 3, 4])), { phase: 5, stay: null })
+})
+
+test('doubt keeps the stage, and so does an answer that stayed on the surface', () => {
+  assert.deepEqual(joiningNextStage(2, check([1, 2], true)), { phase: 2, stay: 'doubt' })
+  assert.deepEqual(joiningNextStage(2, check([1], false, true)), { phase: 2, stay: 'surface' })
+  assert.deepEqual(joiningNextStage(2, check([1])), { phase: 2, stay: null })
+})
+
+test('it never goes back, and the say-back stays the say-back', () => {
+  assert.deepEqual(joiningNextStage(3, check([])), { phase: 3, stay: null })
+  assert.deepEqual(joiningNextStage(5, check([], true)), { phase: 5, stay: null })
+})
+
+test('the check is read defensively', () => {
+  assert.deepEqual(parseJoiningCheck({ settled: [1, 1, 9, '2'], doubt: 'yes' }), { settled: [1, 2], doubt: false, surface: false })
+  assert.deepEqual(parseJoiningCheck(null), { settled: [], doubt: false, surface: false })
+})

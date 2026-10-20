@@ -17,7 +17,10 @@ import {
   parseBriefTurn,
   personFirst,
 } from "@/lib/concept-brief";
-import { BROUGHT_CONTEXT, conceptualisePhaseBlock, conceptualiseStableBlock, hitTurnCap, mergeTurns, MOVE_ON_NOTE, OPENING_NOTE, PHASE_MARKER, settleTurn } from "@/lib/conceptualise-prompt";
+import {
+  BROUGHT_CONTEXT, conceptualisePhaseBlock, conceptualiseStableBlock, hitTurnCap, mergeTurns, OPENING_NOTE, PHASE_MARKER, settleTurn,
+  JOINING_CHECK_SYSTEM, JOINING_CHECK_TOOL, JOINING_TURNS_PER_STAGE, joiningNextStage, joiningStableBlock, joiningStageBlock, parseJoiningCheck,
+} from "@/lib/conceptualise-prompt";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
@@ -43,8 +46,6 @@ interface ConceptualiseRequest {
   brief?: boolean;
   /** With `brief`: the stages already asked twice (lib/concept-brief's follow-ups). */
   followedUp?: number[];
-  /** The person pressed "Move on": no new message, the next phase begins. */
-  moveOn?: boolean;
 }
 
 /**
@@ -64,7 +65,7 @@ async function projectBeingJoined(auth: AuthedContext, projectId: string): Promi
 
   const { data: siblings } = await auth.supabase
     .from("studio_nodes")
-    .select("title")
+    .select("title, core_truth")
     .eq("project_id", projectId)
     .eq("user_id", auth.user.id)
     .is("parent_id", null)
@@ -77,11 +78,15 @@ async function projectBeingJoined(auth: AuthedContext, projectId: string): Promi
         .map((r) => `- ${r.text}`)
     : [];
   const named = (siblings ?? [])
-    .map((n) => (n as { title: string | null }).title?.trim())
-    .filter((x): x is string => !!x);
+    .map((n) => {
+      const { title, core_truth } = n as { title: string | null; core_truth: string | null };
+      const name = title?.trim() || "untitled";
+      return core_truth?.trim() ? `${name} (what it knows: ${core_truth.trim()})` : name;
+    })
+    .filter((x) => x !== "untitled");
 
   return `\nTHIS PIECE IS JOINING A PROJECT THAT ALREADY EXISTS:
-Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is for: ${project.intent}` : ""}${named.length ? `\nThe pieces already in it: ${named.join("; ")}` : ""}${rules.length ? `\nThe rules it works under:\n${rules.join("\n")}` : ""}
+Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is for: ${project.intent}` : ""}${named.length ? `\nThe pieces already in it:\n${named.map((n) => `- ${n}`).join("\n")}` : ""}${rules.length ? `\nThe rules it works under:\n${rules.join("\n")}` : ""}
 
 Hold this as the room the idea is walking into, not as a brief to satisfy. Do not ask how the piece will fit, sit alongside the others, or serve the project — a piece that pulls against the vision is worth having, and the rules are checked separately once it is written down. Use it only to avoid asking what is already settled, and to notice when this idea is really the same one as a piece that exists — if it is, say so plainly, once.`;
 }
@@ -159,6 +164,82 @@ async function briefTurn(
   });
 }
 
+/**
+ * One turn of working out a new piece for a project that already exists.
+ * First a short check (deep model, forced tool call) reads the project and the
+ * conversation and names which stages are already answered; code then picks
+ * the stage this reply asks (lib/conceptualise-prompt's joiningNextStage), so
+ * nothing already said is asked again and a tangible answer moves it on. Then
+ * the reply streams, asking that stage. No companion context: the project is
+ * the context.
+ */
+async function joiningTurn(auth: AuthedContext, messages: Message[], current: number, projectId: string): Promise<Response> {
+  const joining = await projectBeingJoined(auth, projectId);
+  const turns = personFirst(messages) as MessageParam[];
+
+  let phase = current;
+  let stay: "doubt" | "surface" | null = null;
+  if (messages.some((m) => m.role === "user")) {
+    try {
+      const transcript = messages.map((m) => `${m.role === "user" ? "PERSON" : "COMPANION"}: ${m.content.split(PHASE_MARKER).join("").trim()}`).join("\n\n");
+      const res = await anthropic.messages.create({
+        model: pickModel(auth, MODELS.deep),
+        max_tokens: 300,
+        system: JOINING_CHECK_SYSTEM,
+        tools: [JOINING_CHECK_TOOL],
+        tool_choice: { type: "tool", name: JOINING_CHECK_TOOL.name },
+        messages: [{ role: "user", content: `${joining.trim()}\n\nTHE CONVERSATION SO FAR:\n${transcript}\n\nThe conversation is currently on stage ${current}.` }],
+      });
+      logUsage(auth.user.id, "idea-lab/conceptualise", res.model, res.usage, { phase: current, joining: true, check: true });
+      const call = res.content.find((b) => b.type === "tool_use");
+      ({ phase, stay } = joiningNextStage(current, parseJoiningCheck(call && call.type === "tool_use" ? call.input : null)));
+    } catch (err) {
+      console.error("Joining stage check failed:", err);
+    }
+  }
+  // A backstop if the check never lets a stage go.
+  if (phase === current && current < 5 && hitTurnCap(messages, current, JOINING_TURNS_PER_STAGE)) {
+    phase = current + 1;
+    stay = null;
+  }
+
+  const model = pickModel(auth, MODELS.concept);
+  const stable = withLanguage(joiningStableBlock(COMPANION_TONE));
+  const system = (p: number, s: typeof stay) => [
+    { type: "text" as const, text: stable, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } },
+    { type: "text" as const, text: `${joiningStageBlock(p, s)}${joining}` },
+  ];
+
+  return streamClaudeText(
+    auth.user.id,
+    "idea-lab/conceptualise",
+    { model, max_tokens: 400, system: system(phase, stay), messages: [...cacheLastMessage(turns.slice(0, -1)), turns[turns.length - 1]] },
+    async (fullText) => {
+      // Before the say-back a reply has to ask something; if it did not, its
+      // question is written now and sent with it.
+      let nextQuestion = "";
+      if (phase < 5 && !/[?？¿]/.test(fullText)) {
+        try {
+          const res = await anthropic.messages.create({
+            model,
+            max_tokens: 200,
+            system: system(phase, null),
+            messages: [...turns, { role: "assistant", content: fullText.trim() || "…" }, { role: "user", content: OPENING_NOTE }],
+          });
+          logUsage(auth.user.id, "idea-lab/conceptualise", res.model, res.usage, { phase, joining: true, opening: true });
+          const text = res.content.find((b) => b.type === "text");
+          const asked = text && text.type === "text" ? text.text.trim() : "";
+          if (/[?？¿]/.test(asked)) nextQuestion = asked;
+        } catch (err) {
+          console.error("Joining opening question failed:", err);
+        }
+      }
+      return { phase, readyToAdvance: phase === 5, phaseComplete: phase > current, ...(nextQuestion ? { nextQuestion } : {}) };
+    },
+    { phase, joining: true }
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireUser();
@@ -188,13 +269,19 @@ export async function POST(request: NextRequest) {
     }
 
     body.messages = mergeTurns(body.messages);
+
+    // Another piece for a project that already exists: its own, lighter path.
+    if (body.projectId) {
+      return await joiningTurn(auth, body.messages, body.phase, body.projectId);
+    }
+
     const currentPhase = body.phase;
     // Advance now if the previous assistant turn declared the phase complete
     // (the client keeps the marker in history), or if the cap was hit.
     // The marker no longer advances on the next request: the client is told to
     // move on in the same response that carries it (see the meta below), so it
     // already sends the new phase. Only the turn cap advances here.
-    const shouldAdvance = currentPhase < 5 && (body.moveOn === true || hitTurnCap(body.messages, currentPhase));
+    const shouldAdvance = currentPhase < 5 && hitTurnCap(body.messages, currentPhase);
     const nextPhase = shouldAdvance ? Math.min(currentPhase + 1, 5) : currentPhase;
 
     const companionContext = await buildCompanionContext(auth);
@@ -205,7 +292,6 @@ export async function POST(request: NextRequest) {
     // never produce. It is told, and told not to make the piece obedient —
     // a piece that pulls against the vision is worth having, and is checked
     // against the rules when it is saved.
-    const joining = body.projectId ? await projectBeingJoined(auth, body.projectId) : "";
 
     const questionContext = body.question
       ? `\nTHE QUESTION THAT OPENED THIS:\n"${body.question}"\nThis is what the person was responding to when they started. Let it inform the shape of the conversation without quoting it back.`
@@ -230,21 +316,17 @@ export async function POST(request: NextRequest) {
     // genuinely volatile (it changes as the phase advances) so it stays out.
     const stableSystemBlock = conceptualiseStableBlock(COMPANION_TONE, companionContext);
 
-    const volatileSystemBlock = `${conceptualisePhaseBlock(nextPhase)}${questionContext}${broughtContext}${checkInHandoverContext}${joining}`;
+    const volatileSystemBlock = `${conceptualisePhaseBlock(nextPhase)}${questionContext}${broughtContext}${checkInHandoverContext}`;
 
     // body.messages already includes the fresh user turn just typed (the
     // client appends it before calling this route) — cache everything up to
     // but not including it, so the newest, never-reused turn isn't marked.
-    // "Move on" sends no new message: the conversation so far, then a note the
-    // person never sees asking for the next phase's first question.
     const claudeMessages: MessageParam[] =
-      body.moveOn && body.messages.length > 0
-        ? [...cacheLastMessage(body.messages), { role: "user", content: MOVE_ON_NOTE }]
-        : body.messages.length > 0
+      body.messages.length > 0
           ? [...cacheLastMessage(body.messages.slice(0, -1)), body.messages[body.messages.length - 1]]
           : [{ role: "user", content: "I'm here to develop an idea, but I'm starting from scratch." }];
     const model = pickModel(auth, MODELS.concept);
-    const extras = `${questionContext}${broughtContext}${checkInHandoverContext}${joining}`;
+    const extras = `${questionContext}${broughtContext}${checkInHandoverContext}`;
 
     return streamClaudeText(auth.user.id, 
       'idea-lab/conceptualise',
