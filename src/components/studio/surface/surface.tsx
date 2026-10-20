@@ -241,8 +241,57 @@ export function useCanvas(
     const el = ref.current
     if (!el) return
     let from: { x: number; y: number; pan: Point; held: boolean } | null = null
+    // Every finger on the glass, wherever it went down (on a card too): two of
+    // them pinch to zoom and drag the view together, about the point between them.
+    const fingers = new Map<number, Point>()
+    let pinch: { mid: Point; d: number; pan: Point; zoom: number } | null = null
+    const spread = () => {
+      const [a, b] = [...fingers.values()]
+      const box = el.getBoundingClientRect()
+      return {
+        mid: { x: (a.x + b.x) / 2 - box.left, y: (a.y + b.y) / 2 - box.top },
+        d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      }
+    }
+
+    // Seen first, in the capture phase, so a card that keeps its own presses
+    // cannot keep the second finger from the ground.
+    const fingerDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (fingers.size !== 2) return
+      stopGlide()
+      from = null
+      const { mid, d } = spread()
+      pinch = { mid, d, pan: live.current.pan, zoom: live.current.zoom }
+      for (const id of fingers.keys()) { try { el.setPointerCapture(id) } catch { /* already gone */ } }
+      setDragging(true)
+      e.stopPropagation()
+    }
+    const fingerMove = (e: PointerEvent) => {
+      if (!fingers.has(e.pointerId)) return
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (!pinch || fingers.size < 2) return
+      e.stopPropagation()
+      const { mid, d } = spread()
+      const { frame: f, world: w } = live.current
+      const k = clampK(pinch.zoom * (d / pinch.d))
+      const about = zoomAbout(pinch.mid, pinch.pan, pinch.zoom, k)
+      setZoomRaw(k)
+      setPanRaw(clampPan({ x: about.x + (mid.x - pinch.mid.x), y: about.y + (mid.y - pinch.mid.y) }, k, w, f))
+    }
+    const fingerUp = (e: PointerEvent) => {
+      if (!fingers.delete(e.pointerId)) return
+      if (!pinch) return
+      pinch = null
+      // One finger left: it carries on moving the ground from where it is.
+      const [rest] = [...fingers.values()]
+      from = rest ? { x: rest.x, y: rest.y, pan: live.current.pan, held: true } : null
+      if (!rest) setDragging(false)
+    }
 
     const down = (e: PointerEvent) => {
+      if (pinch) return
       if (e.button !== 0 && e.button !== 1) return
       const target = e.target as HTMLElement | null
       const onCard = !!target?.closest('[data-hold]')
@@ -262,7 +311,7 @@ export function useCanvas(
       }
     }
     const move = (e: PointerEvent) => {
-      if (!from) return
+      if (pinch || !from) return
       if (!from.held) {
         if (Math.abs(e.clientX - from.x) < 6 && Math.abs(e.clientY - from.y) < 6) return
         from.held = true
@@ -272,23 +321,36 @@ export function useCanvas(
       settle({ x: from.pan.x + (e.clientX - from.x), y: from.pan.y + (e.clientY - from.y) })
     }
     const up = (e: PointerEvent) => {
+      if (pinch) return
       if (!from) return
       from = null
       setDragging(false)
       if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
     }
 
+    // Safari's own page pinch, which touch-action alone does not always stop.
+    const noPageZoom = (e: Event) => e.preventDefault()
+    el.addEventListener('gesturestart', noPageZoom)
+    el.addEventListener('pointerdown', fingerDown, true)
+    el.addEventListener('pointermove', fingerMove, true)
+    el.addEventListener('pointerup', fingerUp, true)
+    el.addEventListener('pointercancel', fingerUp, true)
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', up)
     el.addEventListener('pointercancel', up)
     return () => {
+      el.removeEventListener('gesturestart', noPageZoom)
+      el.removeEventListener('pointerdown', fingerDown, true)
+      el.removeEventListener('pointermove', fingerMove, true)
+      el.removeEventListener('pointerup', fingerUp, true)
+      el.removeEventListener('pointercancel', fingerUp, true)
       el.removeEventListener('pointerdown', down)
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)
     }
-  }, [ref, settle, stopGlide])
+  }, [ref, settle, stopGlide, clampK])
 
   return useMemo(
     () => ({ pan, zoom, frame, world, dragging, setZoom, glideTo, jumpTo, resetView, panTo: settle }),

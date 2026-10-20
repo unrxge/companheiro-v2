@@ -83,6 +83,16 @@ const WEB_GAP = 46      // space between the cards and the web below them
 // centred on its first two, rather than at 100% on the last one worked on.
 const WIDE_OPEN_AFTER = 3
 const WIDE_OPEN_ZOOM = 0.69
+/**
+ * The size every board is laid out at, whatever the screen. Cards used to be
+ * as wide as the window allowed, but anything put down by hand keeps its own
+ * place, so a board arranged on a computer came apart on a phone: the pieces
+ * still in their lane closed up around their narrower cards while a piece
+ * placed by hand stayed where it was, far off to the side. One size
+ * everywhere, and a screen only changes how far in it looks (the examples
+ * have always worked this way).
+ */
+const BOARD_FRAME = { w: 1440, h: 900 } as const
 // From this many pieces the cards come down in size, so more of the lane is
 // in view at once. Width does most of the work — it is what the lane is
 // measured in, and what made a project of six pieces a long way to walk —
@@ -335,7 +345,7 @@ export function Board({
   // Four pieces or more and the cards come down a size, so more of the lane
   // is in view at once (the person's decision, 2026-10-17).
   const crowded = pieces.length >= CROWDED_AT
-  const sizing = cardFrame ?? frame
+  const sizing = cardFrame ?? BOARD_FRAME
   const fullW = sizing.w ? laneCardWidth(sizing.w, GAP) : 520
   const fullH = sizing.h ? Math.min(560, Math.max(340, sizing.h * 0.5)) : 420
   // Wide enough to take the whole project in one frame when it can, and no
@@ -397,8 +407,10 @@ export function Board({
   const addHelpH = pieces.length === 0 ? 54 : 0
 
   /** A hand placement as it is kept, to where it shows now, and back. */
-  const shown = useCallback((y: number) => Math.max(cardTop, y + shift), [cardTop, shift])
-  const kept = useCallback((at: Point): Point => ({ x: Math.round(at.x), y: Math.max(0, Math.round(at.y - shift)) }), [shift])
+  // Anywhere on the board is a place to put things, the top included (the
+  // title no longer folds open over it); only the board's own edge stops them.
+  const shown = useCallback((y: number) => Math.max(0, y + shift), [shift])
+  const kept = useCallback((at: Point): Point => ({ x: Math.round(at.x), y: Math.max(-shift, Math.round(at.y - shift)) }), [shift])
 
   /**
    * Where a piece is kept, whatever a hand is doing with it this moment.
@@ -892,7 +904,13 @@ export function Board({
     return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
   }, [pieces, pieceSpot, cardW, cardH, frame.w, frame.h, opensWide, phoneZoom, visionAt])
 
-  const canvas = useCanvas(ref, frame, world, { home, initialCentre, initialZoom: phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM : undefined), lookOnly: phone })
+  // A window narrower than the board's own size sees it a little further out,
+  // exactly as it would have looked in a window that size.
+  const fit = frame.w ? Math.min(1, frame.w / (cardFrame ?? BOARD_FRAME).w) : 1
+  const canvas = useCanvas(ref, frame, world, {
+    home, initialCentre, lookOnly: phone,
+    initialZoom: phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM * fit : fit < 1 ? fit : undefined),
+  })
 
   // ── what the example tour can ask of the board ────────────────────────────
   useEffect(() => {
@@ -979,6 +997,8 @@ export function Board({
    */
   const beginDrag = useCallback((
     kind: Drag['kind'], id: string, committed: Point, onDrop: (at: Point) => void,
+    /** Pressed and dragged, it only ever moves the view: the first piece stays where the board begins. */
+    fixed = false,
   ) => (e: React.PointerEvent) => {
     // A phone's canvas moves its own ground under a finger (lookOnly).
     if (phone) return
@@ -1002,7 +1022,7 @@ export function Board({
     let landed = committed
     const target = e.currentTarget as HTMLElement
     // Only something that can be moved lifts; a read-only canvas just pans.
-    const lift = canMove
+    const lift = canMove && !fixed
       ? window.setTimeout(() => {
           if (mode !== 'pressed') return
           mode = 'lifted'
@@ -1030,8 +1050,7 @@ export function Board({
         return
       }
       const now = toWorld({ x: ev.clientX - box.left, y: ev.clientY - box.top }, canvas.pan, canvas.zoom)
-      // Held below the line the pieces start on: the top of the board is not a place to put things.
-      landed = keepBelow({ x: now.x - offset.x, y: now.y - offset.y }, cardTop)
+      landed = keepBelow({ x: now.x - offset.x, y: now.y - offset.y }, 0)
       if (!moved && (Math.abs(landed.x - committed.x) > 3 || Math.abs(landed.y - committed.y) > 3)) {
         moved = true
         target.setPointerCapture(ev.pointerId)
@@ -1051,7 +1070,7 @@ export function Board({
     target.addEventListener('pointermove', onMove)
     target.addEventListener('pointerup', onUp)
     target.addEventListener('pointercancel', onUp)
-  }, [canvas, cardTop, canMove, hintLift, phone])
+  }, [canvas, canMove, hintLift, phone])
 
   /** The corner of an image or a task list, dragged to make it wider or
    *  narrower. Each kind has its own limits (lib/studio/board-items.ts). */
@@ -1447,7 +1466,7 @@ export function Board({
               data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
-                beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)))(e)
+                beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)), i === 0)(e)
               }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
