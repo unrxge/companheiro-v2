@@ -283,6 +283,13 @@ body {
   }
 }
 
+/* The words on the check-in's note card read as a quote, and can still be
+   changed where they stand: a faint ground shows on hover and while typing. */
+.note-offer-words:hover:not([readonly]),
+.note-offer-words:focus {
+  background: color-mix(in srgb, currentColor 7%, transparent) !important;
+}
+
 /* A piece's title on a phone: smaller, and never more than two lines beside
    the back arrow and the theme switch (PageHeader's clampOnPhone). */
 @media (max-width: 719px) {

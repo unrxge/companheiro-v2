@@ -12,7 +12,6 @@ import { motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { Card } from '@/components/shell/page-shell'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
-import { Pill } from '@/components/ui/pill'
 import { alpha, type as typeRoles } from '@/lib/design-tokens'
 import { openPlans } from '@/lib/billing/use-plan'
 import { NOTE_MAX, type NoteKind } from '@/lib/studio/board-items'
@@ -78,23 +77,35 @@ export function NoteOfferCard({
     )
   }
 
-  const field: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', background: t.inputBg, border: `1px solid ${t.inputBorder}`,
-    borderRadius: 12, padding: '10px 12px', color: t.textPrimary, outline: 'none', fontFamily: 'var(--font-geist-sans)',
-  }
-
+  // The same shape as the card that offers to send something from a check-in
+  // to a project: one line saying what it heard, the words, then the choices.
+  // What it understood can be corrected where it is said: the kind and the
+  // project are the sentence's own words, each a quiet choice; the words can
+  // be changed where they stand.
   return (
-    <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} data-tour="checkin-note">
+    <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} data-tour="checkin-note" role="status">
       <Card>
         {/* What it would have done, greyed and out of reach, then why. */}
         <div aria-disabled={locked ? true : undefined} inert={!!locked} style={locked ? { opacity: 0.42, filter: 'grayscale(1)', pointerEvents: 'none', userSelect: 'none' } : undefined}>
-        <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, margin: 0 }}>You said</p>
-        <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textSecondary, margin: '4px 0 14px' }}>&ldquo;{offer.said}&rdquo;</p>
-
-        <p style={{ ...typeRoles.small, color: t.textSecondary, margin: '0 0 8px' }}>
-          {project
-            ? <>I&apos;ll keep this on <strong style={{ fontWeight: 700, color: t.textPrimary }}>{project.title}</strong>{reminder ? ' as a reminder' : ' as a note'}:</>
-            : <>I&apos;ll keep this{reminder ? ' as a reminder' : ' as a note'}. Which project is it for?</>}
+        <p style={{ ...typeRoles.small, color: t.textSecondary, marginBottom: 8 }}>
+          This sounds like{' '}
+          <InlineChoice
+            label="What kind of note"
+            shown={reminder ? 'a reminder' : 'a thought'}
+            value={offer.kind}
+            disabled={demo}
+            options={[{ value: 'thought', label: 'a thought' }, { value: 'reminder', label: 'a reminder' }]}
+            onChange={(v) => onChange({ kind: v as NoteKind })}
+          />{' '}for{' '}
+          <InlineChoice
+            label="Which project"
+            shown={project ? project.title.trim() || 'Untitled' : 'which project?'}
+            value={offer.project_id ?? ''}
+            disabled={demo}
+            placeholder="Choose a project…"
+            options={projects.map((p) => ({ value: p.id, label: p.title.trim() || 'Untitled' }))}
+            onChange={(v) => onChange({ project_id: v || null })}
+          />
         </p>
 
         <textarea
@@ -105,32 +116,20 @@ export function NoteOfferCard({
           maxLength={NOTE_MAX}
           rows={1}
           onChange={(e) => onChange({ text: e.target.value })}
-          style={{ ...field, fontSize: 15, fontWeight: 500, lineHeight: 1.5, resize: 'none', overflow: 'hidden' }}
+          className="note-offer-words"
+          style={{
+            ...typeRoles.quote, fontSize: 15, color: t.textPrimary, display: 'block', width: '100%', boxSizing: 'border-box',
+            background: 'transparent', border: 'none', borderRadius: 8, margin: '0 -6px', padding: '2px 6px',
+            outline: 'none', resize: 'none', overflow: 'hidden', minWidth: 0,
+          }}
         />
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
-          <select
-            aria-label="Which project"
-            value={offer.project_id ?? ''}
-            disabled={demo}
-            onChange={(e) => onChange({ project_id: e.target.value || null })}
-            style={{ ...field, width: 'auto', maxWidth: '100%', padding: '7px 10px', fontSize: 13.5, cursor: 'pointer' }}
-          >
-            <option value="" disabled>Choose a project…</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.title.trim() || 'Untitled'}</option>)}
-          </select>
-          <div role="group" aria-label="What kind of note" style={{ display: 'flex', gap: 6 }}>
-            <Pill hue="neutral" size="md" selected={!reminder} onClick={demo ? undefined : () => onChange({ kind: 'thought' })}>A thought</Pill>
-            <Pill hue="neutral" size="md" selected={reminder} onClick={demo ? undefined : () => onChange({ kind: 'reminder' })}>A reminder</Pill>
-          </div>
-        </div>
-
-        {!locked && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14 }}>
-          <QuietButton onClick={demo ? undefined : onAdd} disabled={!offer.project_id || !offer.text.trim()} loading={busy} loadingLabel="Adding…">
+        {!locked && <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <QuietButton size="sm" onClick={demo ? undefined : onAdd} disabled={!offer.project_id || !offer.text.trim()} loading={busy} loadingLabel="Adding…">
             Add it
           </QuietButton>
-          <GhostButton size="sm" onClick={demo ? undefined : onCheckIn} disabled={busy}>No, this was a check-in</GhostButton>
           <GhostButton size="sm" onClick={demo ? undefined : onLeave} disabled={busy}>Leave it</GhostButton>
+          <GhostButton size="sm" onClick={demo ? undefined : onCheckIn} disabled={busy}>It was a check-in</GhostButton>
         </div>}
         </div>
         {locked && (
@@ -153,5 +152,39 @@ export function NoteOfferCard({
         )}
       </Card>
     </m.div>
+  )
+}
+
+
+/**
+ * A word in a sentence that can be changed: shown as the sentence's own bold
+ * words with a small mark under them, a native choice laid unseen over it (so
+ * a phone opens its own picker, and the line keeps the sentence's size).
+ */
+function InlineChoice({ label, shown, value, options, placeholder, disabled, onChange }: {
+  label: string
+  shown: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  placeholder?: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  const { t } = useTheme()
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'baseline', gap: 3, whiteSpace: 'nowrap', maxWidth: '100%' }}>
+      <strong style={{ fontWeight: 700, color: t.textPrimary, textDecoration: 'underline dotted', textDecorationColor: t.textMuted, textUnderlineOffset: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</strong>
+      <svg aria-hidden width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, alignSelf: 'center' }}><path d="M6 9l6 6 6-6" /></svg>
+      <select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: disabled ? 'default' : 'pointer', appearance: 'none', border: 'none' }}
+      >
+        {placeholder && <option value="" disabled>{placeholder}</option>}
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </span>
   )
 }
