@@ -93,6 +93,8 @@ const WIDE_OPEN_ZOOM = 0.69
  * have always worked this way).
  */
 const BOARD_FRAME = { w: 1440, h: 900 } as const
+/** The furthest out a board opens to show the whole project; any further and it opens on its first pieces instead. */
+const FIT_FLOOR = 0.2
 // From this many pieces the cards come down in size, so more of the lane is
 // in view at once. Width does most of the work — it is what the lane is
 // measured in, and what made a project of six pieces a long way to walk —
@@ -882,8 +884,37 @@ export function Board({
   // the project above it in view: opened zoomed out on two cards, a phone
   // showed the middle of both and the start of neither.
   const phoneZoom = phone && frame.w ? Math.max(ZOOM.min, Math.min(1, (frame.w - 28) / cardW)) : null
+  /**
+   * The whole project in one look: the title, every piece and everything
+   * hanging off them, fitted to the window as the board opens (the person's
+   * decision, 2026-10-20). Past a point (a long project at a size too small
+   * to read) it stops trying, and the board opens the way it did before.
+   */
+  const whole = useMemo(() => {
+    if (!frame.w || pieces.length === 0) return null
+    const rects: Box[] = [
+      { x: visionAt.x, y: visionAt.y, w: visionW, h: visionH },
+      ...pieces.map((p, i) => ({ ...pieceSpot(p, i), w: cardW, h: cardH })),
+      ...boxes,
+    ]
+    const x0 = Math.min(...rects.map((r) => r.x))
+    const y0 = Math.min(...rects.map((r) => r.y))
+    const x1 = Math.max(...rects.map((r) => r.x + r.w))
+    const y1 = Math.max(...rects.map((r) => r.y + r.h))
+    // Room left by the page's header above and the controls along the bottom.
+    const top = 76
+    const bottom = phone ? 150 : 96
+    const side = phone ? 14 : 48
+    const k = Math.min(1, (frame.w - side * 2) / (x1 - x0), (frame.h - top - bottom) / (y1 - y0))
+    if (k < FIT_FLOOR) return null
+    return { k, centre: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 + (bottom - top) / 2 / k } }
+    // Worked out for the way in only; `boxes` settles as heights are measured.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame.w, frame.h, pieces.length > 0])
+
   const initialCentre = useMemo<Point | null>(() => {
     if (!frame.w) return null
+    if (whole) return whole.centre
     if (phoneZoom) {
       const id = opensWide ? pieces[0]?.id : openOn.current
       const i = Math.max(0, pieces.findIndex((p) => p.id === id))
@@ -902,14 +933,14 @@ export function Board({
     if (i === -1) return null
     const spot = pieceSpot(pieces[i], i)
     return { x: spot.x + cardW / 2, y: spot.y + cardH / 2 }
-  }, [pieces, pieceSpot, cardW, cardH, frame.w, frame.h, opensWide, phoneZoom, visionAt])
+  }, [pieces, pieceSpot, cardW, cardH, frame.w, frame.h, opensWide, phoneZoom, visionAt, whole])
 
   // A window narrower than the board's own size sees it a little further out,
   // exactly as it would have looked in a window that size.
   const fit = frame.w ? Math.min(1, frame.w / (cardFrame ?? BOARD_FRAME).w) : 1
   const canvas = useCanvas(ref, frame, world, {
     home, initialCentre, lookOnly: phone,
-    initialZoom: phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM * fit : fit < 1 ? fit : undefined),
+    initialZoom: whole?.k ?? phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM * fit : fit < 1 ? fit : undefined),
   })
 
   // ── what the example tour can ask of the board ────────────────────────────

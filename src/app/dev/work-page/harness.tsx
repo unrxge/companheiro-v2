@@ -52,7 +52,7 @@ function node(id: string, parent: string | null, position: number, title: string
 }
 
 type MockPlan = 'practice' | 'direction' | 'ended' | 'cancelled' | null
-interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; carried: boolean; plan: MockPlan; over: boolean; reading: boolean; practices: string[] | null; walks: boolean }
+interface Opts { text: string; concept: boolean; board: boolean; sectioned: boolean; slow: boolean; pieces: boolean; many: number; carried: boolean; plan: MockPlan; over: boolean; reading: boolean; practices: string[] | null; walks: boolean }
 
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -136,6 +136,10 @@ function installMock(o: Opts) {
       node('node-2', null, 1, 'The Room I Never Used', '', paragraphs('Every house I have lived in had a room I never used, kept for a guest who never came.'), { intent: 'A song about rooms kept for later.' }),
       node('node-3', null, 2, 'Before Opening', '', paragraphs('Empty café chairs, stacked, waiting for a day to start.'), { intent: 'Photographs of things waiting to be used.' }),
     )
+  }
+  // &many=N: a long project, N pieces in all, for how the board opens on one.
+  for (let i = o.pieces ? 3 : 1; i < o.many; i++) {
+    nodes.push(node(`node-m${i}`, null, i, `Piece ${i + 1}`, '', paragraphs('A few lines to stand for the writing.'), { intent: '' }))
   }
   // Rules and proposals, the same lifecycle as lib/studio/rule-proposals.ts.
   // ?carried=1: something sent from a check-in, waiting on the project.
@@ -622,7 +626,7 @@ function Inner() {
   const text = on('empty') ? '' : on('long') || on('sectioned') ? LONG : IDEA
   const plan = (['practice', 'direction', 'ended', 'cancelled'] as const).find((x) => x === params.get('plan')) ?? null
   const practices = params.get('examples') === null ? null : (params.get('examples') ?? '').split(',').filter((p) => p && p !== '1')
-  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), carried: on('carried'), plan, over: on('over'), reading: on('reading'), practices, walks: params.get('walks') === 'on' }
+  const opts: Opts = { text, concept: on('concept'), board: on('board'), sectioned: on('sectioned'), slow: on('slow'), pieces: on('pieces'), many: Math.max(0, Math.min(30, Number(params.get('many') ?? 0) || 0)), carried: on('carried'), plan, over: on('over'), reading: on('reading'), practices, walks: params.get('walks') === 'on' }
   if (typeof window !== 'undefined') installMock(opts)
   // ?view=home reproduces Home's header (the only page with the settings gear) to check the sheet against the dock.
   if (params.get('view') === 'home') {

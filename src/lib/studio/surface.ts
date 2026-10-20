@@ -11,7 +11,7 @@ export interface World { w: number; h: number }
 export interface Point { x: number; y: number }
 export interface Frame { w: number; h: number }
 
-export const ZOOM = { min: 0.4, max: 1.5, step: 0.12 } as const
+export const ZOOM = { min: 0.2, max: 1.5, step: 0.12 } as const
 
 export function clampZoom(k: number): number {
   return Math.min(ZOOM.max, Math.max(ZOOM.min, k))
