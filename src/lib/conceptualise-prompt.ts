@@ -155,7 +155,7 @@ What is this piece, and what part of the whole does it carry?`
 export const JOINING_STAGES: Record<number, string> = {
   1: `WHAT THIS PIECE IS. What this piece is and which part of the project it carries.`,
   2: `WHERE IT GOES. What this piece reaches that the project's other pieces do not: its own angle, turn or corner of the whole.`,
-  3: `WHO MEETS IT. Who this piece is for and what they come away with. If the project already says who its work is for, and nothing they have said suggests this piece is for someone else, this stage is already answered.`,
+  3: `WHO MEETS IT. Who this piece is for and what they come away with.`,
   4: `WHAT IT KNOWS. In a line, the one thing this piece knows or shows. Its own, not the project's core truth said again.`,
   5: `SAYING IT BACK. Two or three plain sentences: what this piece is, who it is for, what it knows, in their words and the project's terms. No question.`,
 }
@@ -173,15 +173,22 @@ HOW YOU ASK
 - Never ask about form, medium, length, timing, what happens next, or whether they are ready.`
 }
 
-/** The stage this reply asks, and why it is still there if it has not moved. */
-export function joiningStageBlock(phase: number, stay: 'doubt' | 'surface' | null): string {
+/**
+ * The stage this reply asks, and why it is still there if it has not moved.
+ * `earlier`: what they already said about this stage before reaching it, not
+ * yet enough on its own, so the question builds on it rather than starting over.
+ */
+export function joiningStageBlock(phase: number, stay: 'doubt' | 'surface' | null, earlier = ''): string {
   const why =
     stay === 'doubt'
       ? '\nThey sound unsure, or are asking for help with this. Stay with it: meet that plainly and briefly, then ask one small question that helps them find it.'
       : stay === 'surface'
         ? '\nTheir answer to this stayed on the surface (it could describe almost any piece). Ask one plain question into what they said, one layer down.'
         : ''
-  return `CURRENT STAGE:\n${JOINING_STAGES[phase]}${why}`
+  const built = earlier && phase < 5
+    ? `\nThey already touched on this earlier: "${earlier}". Do not ask it from scratch, and do not ask them to repeat it. Name that briefly as the foundation, then ask about what it still leaves open.`
+    : ''
+  return `CURRENT STAGE:\n${JOINING_STAGES[phase]}${built}${why}`
 }
 
 export const JOINING_CHECK_SYSTEM = `You read a conversation in which someone is adding a new piece to a creative project they already have, and decide how far it has got. You do not reply to them.
@@ -192,9 +199,11 @@ There are four stages to answer before the piece is said back:
 3. Who it is for and what they come away with.
 4. What it knows: the one thing it shows, in a line.
 
-A stage is answered when something tangible has been said about it for this piece: a layer below the surface, specific enough to write from. It does not have to reach the root; the project already has one. It can be answered anywhere in the conversation, including in passing while they were talking about something else, and by what the project already says: if the project already says who its work is for and nothing they said suggests this piece is for someone else, stage 3 is answered.
+A stage is answered when it has had enough attention for this piece: something tangible, a layer below the surface, specific enough to write that part of the piece's concept from. It does not have to reach the root; the project already has one. It can be answered anywhere in the conversation, including while they were talking about something else, but only if what they said there really covers it.
 
-Not answered: nothing has been said about it yet, or only generic words that could describe almost any piece ("it's about life", "for everyone", "it'll be powerful").
+Use discernment. A stage that was only mentioned in passing (a name for the audience, a phrase about where it goes) is touched, not answered: list it under mentioned with what they said, so the conversation can build on it when it gets there. What the project already says is a foundation for this piece, never an answer on its own.
+
+Not answered: nothing has been said about it yet, only generic words that could describe almost any piece ("it's about life", "for everyone", "it'll be powerful"), or a passing mention without the depth that stage needs.
 
 Also say whether their latest message sounds unsure or asks for help (doubt), and whether their latest answer stayed on the surface (surface).
 
@@ -206,20 +215,31 @@ export const JOINING_CHECK_TOOL = {
   input_schema: {
     type: 'object' as const,
     properties: {
-      settled: { type: 'array', items: { type: 'integer', minimum: 1, maximum: 4 }, description: 'Every stage from 1 to 4 already answered, by the conversation or the project.' },
+      settled: { type: 'array', items: { type: 'integer', minimum: 1, maximum: 4 }, description: 'Every stage from 1 to 4 already answered with enough depth in the conversation.' },
+      mentioned: {
+        type: 'array',
+        description: 'Stages touched on but not yet answered with enough depth, each with what they said about it, in their words (a sentence at most).',
+        items: { type: 'object', properties: { stage: { type: 'integer', minimum: 1, maximum: 4 }, said: { type: 'string' } }, required: ['stage', 'said'] },
+      },
       doubt: { type: 'boolean', description: 'Their latest message sounds unsure, or asks for help or reassurance with the piece.' },
       surface: { type: 'boolean', description: 'Their latest answer stayed on the surface: generic words that could describe almost any piece.' },
     },
-    required: ['settled', 'doubt', 'surface'],
+    required: ['settled', 'mentioned', 'doubt', 'surface'],
   },
 }
 
-export type JoiningCheck = { settled: number[]; doubt: boolean; surface: boolean }
+export type JoiningCheck = { settled: number[]; doubt: boolean; surface: boolean; mentioned?: Record<number, string> }
 
 export function parseJoiningCheck(input: unknown): JoiningCheck {
   const raw = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
   const settled = (Array.isArray(raw.settled) ? raw.settled : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 4)
-  return { settled: [...new Set(settled)], doubt: raw.doubt === true, surface: raw.surface === true }
+  const mentioned: Record<number, string> = {}
+  for (const m of Array.isArray(raw.mentioned) ? raw.mentioned : []) {
+    const stage = Number((m as { stage?: unknown })?.stage)
+    const said = String((m as { said?: unknown })?.said ?? '').trim().slice(0, 300)
+    if (Number.isInteger(stage) && stage >= 1 && stage <= 4 && said && !settled.includes(stage)) mentioned[stage] = said
+  }
+  return { settled: [...new Set(settled)], doubt: raw.doubt === true, surface: raw.surface === true, ...(Object.keys(mentioned).length ? { mentioned } : {}) }
 }
 
 /**

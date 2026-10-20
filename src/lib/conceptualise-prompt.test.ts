@@ -40,7 +40,7 @@ test('two companion turns in a row, after Move on, are joined for the model', ()
   assert.equal(m[1].content, 'A reflection.\n\nWho is it for?')
 })
 
-import { joiningNextStage, joiningOpening, parseJoiningCheck } from './conceptualise-prompt'
+import { joiningNextStage, joiningOpening, joiningStageBlock, parseJoiningCheck } from './conceptualise-prompt'
 
 const check = (settled: number[], doubt = false, surface = false) => ({ settled, doubt, surface })
 
@@ -66,6 +66,16 @@ test('doubt keeps the stage, and so does an answer that stayed on the surface', 
 test('it never goes back, and the say-back stays the say-back', () => {
   assert.deepEqual(joiningNextStage(3, check([])), { phase: 3, stay: null })
   assert.deepEqual(joiningNextStage(5, check([], true)), { phase: 5, stay: null })
+})
+
+test('a stage only mentioned earlier is carried forward to build on, not counted as answered', () => {
+  const c = parseJoiningCheck({ settled: [1], mentioned: [{ stage: 3, said: 'people who cleaned offices like I did' }, { stage: 1, said: 'x' }], doubt: false, surface: false })
+  assert.deepEqual(c.mentioned, { 3: 'people who cleaned offices like I did' })
+  assert.deepEqual(joiningNextStage(3, c), { phase: 3, stay: null })
+  const block = joiningStageBlock(3, null, c.mentioned![3])
+  assert.match(block, /already touched on this earlier: "people who cleaned offices like I did"/)
+  assert.match(block, /Do not ask it from scratch/)
+  assert.doesNotMatch(joiningStageBlock(3, null), /touched on/)
 })
 
 test('the check is read defensively', () => {

@@ -179,6 +179,7 @@ async function joiningTurn(auth: AuthedContext, messages: Message[], current: nu
 
   let phase = current;
   let stay: "doubt" | "surface" | null = null;
+  let mentioned: Record<number, string> = {};
   if (messages.some((m) => m.role === "user")) {
     try {
       const transcript = messages.map((m) => `${m.role === "user" ? "PERSON" : "COMPANION"}: ${m.content.split(PHASE_MARKER).join("").trim()}`).join("\n\n");
@@ -192,7 +193,9 @@ async function joiningTurn(auth: AuthedContext, messages: Message[], current: nu
       });
       logUsage(auth.user.id, "idea-lab/conceptualise", res.model, res.usage, { phase: current, joining: true, check: true });
       const call = res.content.find((b) => b.type === "tool_use");
-      ({ phase, stay } = joiningNextStage(current, parseJoiningCheck(call && call.type === "tool_use" ? call.input : null)));
+      const check = parseJoiningCheck(call && call.type === "tool_use" ? call.input : null);
+      ({ phase, stay } = joiningNextStage(current, check));
+      mentioned = check.mentioned ?? {};
     } catch (err) {
       console.error("Joining stage check failed:", err);
     }
@@ -207,7 +210,7 @@ async function joiningTurn(auth: AuthedContext, messages: Message[], current: nu
   const stable = withLanguage(joiningStableBlock(COMPANION_TONE));
   const system = (p: number, s: typeof stay) => [
     { type: "text" as const, text: stable, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } },
-    { type: "text" as const, text: `${joiningStageBlock(p, s)}${joining}` },
+    { type: "text" as const, text: `${joiningStageBlock(p, s, mentioned[p] ?? "")}${joining}` },
   ];
 
   return streamClaudeText(
