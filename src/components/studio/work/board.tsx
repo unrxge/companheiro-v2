@@ -301,7 +301,9 @@ export function Board({
   const [openThread, setOpenThread] = useState<string | null>(null)
   /** The thread or item just made from a "+", so only that one grows out of it. */
   const [born, setBorn] = useState<string | null>(null)
-  const [visionOpen, setVisionOpen] = useState(false)
+  // The project's purpose and rules no longer fold open on the canvas: they are read
+  // and changed in the vision room and on the writing page's core concept.
+  const visionOpen = false
   /** The corner's "+" menu, open ('corner') or not. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
   /** Opened by the example tour: shown as it is in a project of one's own, not greyed. */
@@ -1369,7 +1371,7 @@ export function Board({
             intent={project.intent}
             rules={project.rules}
             expanded={visionOpen}
-            onToggle={() => setVisionOpen((v) => !v)}
+            onToggle={() => {}}
             onRename={act.renameProject}
             onEditIntent={act.editProjectIntent}
             onEditRules={act.editProjectRules}

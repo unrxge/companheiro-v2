@@ -127,26 +127,6 @@ export function VisionBlock({
             {title || 'Untitled project'}
           </h1>
         )}
-        <button
-          type="button"
-          aria-label={expanded ? 'Hide what this is for' : 'What this is for, and the rules that catch you'}
-          aria-expanded={expanded}
-          onClick={onToggle}
-          style={{
-            width: 28, height: 28, borderRadius: 999, padding: 0, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            border: 'none', background: expanded ? shell.fillHover : 'transparent',
-            color: shell.muted,
-          }}
-        >
-          <svg
-            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: expanded ? 'rotate(180deg)' : undefined, transition: 'transform 200ms ease' }}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
         {coreConceptHref && (
           <button
             type="button"
