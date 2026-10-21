@@ -171,6 +171,12 @@ body {
   outline: none;
   line-height: 1.8;
 }
+/* The part being written in already shows it: the green bar beside it. The
+   page-wide focus ring (it matches any [tabindex]) would draw a second,
+   square one around the words. It is a text field, left out like the others. */
+.write-section-editor .ProseMirror:focus-visible {
+  outline: none !important;
+}
 .write-section-editor .ProseMirror p,
 .write-section-editor .ProseMirror h1,
 .write-section-editor .ProseMirror h2,
