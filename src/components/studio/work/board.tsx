@@ -1248,6 +1248,23 @@ export function Board({
     }
   }, [act, actions, pieces, say])
 
+  // On a phone nothing can be moved, so the view goes to what was just made
+  // rather than leave it somewhere off the screen.
+  useEffect(() => {
+    if (!born || !phone) return
+    const id = window.setTimeout(() => {
+      const it = items.find((x) => x.id === born)
+      const hub = hubs.find((th) => th.id === born)
+      const at = it ? { ...itemAt(it), w: itemW(it), h: itemH(it) } : hub ? { ...hubAt(hub), w: HUB_W, h: HUB_H } : null
+      if (!at) return
+      const k = Math.max(canvas.zoom, Math.min(1, (frame.w - 40) / at.w))
+      canvas.glideTo({ x: at.x + at.w / 2, y: at.y + at.h / 2 }, k)
+    }, 120)
+    return () => window.clearTimeout(id)
+    // Once, when it is born; its place settles in the few frames after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [born, phone])
+
   // the entrance plays once; after that it is just a block on the board
   useEffect(() => {
     if (!born) return
@@ -1310,10 +1327,12 @@ export function Board({
             )}
             {phone && <PhoneBanner />}
             {/* The one way to make something new: bottom right, glowing, so
-               the eye finds it. Not on a phone, where the canvas is for
-               looking, except on an example, which shows what it would offer. */}
-            {(!disabled || example) && (!phone || example) && (
+               the eye finds it. On a phone too: adding is the one thing a phone
+               may change on the board (the person's exception, 2026-10-21);
+               where it lands, the board decides. */}
+            {(!lockedForPlan || example) && (
               <AddFan
+                compact={phone}
                 open={cornerOpen}
                 onOpen={() => { setMenuLive(false); setMenuFor('corner') }}
                 onClose={() => setMenuFor(null)}
@@ -1949,7 +1968,7 @@ function UndoButton({ next, onUndo }: { next: string | null; onUndo: () => void 
 // ── what the board says while you are connecting ────────────────────────────
 
 /**
- * Said on a phone, where the board can be looked at but not arranged: once
+ * Said on a phone, where the board can be looked at and added to but not arranged: once
  * in this browser, for a few seconds, and gone at a tap. Said every time and
  * for good, it was a box sitting over the bottom of every canvas.
  */
@@ -1987,7 +2006,7 @@ function PhoneBanner() {
         <path d="M11 18h2" />
       </svg>
       <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.4, color: shell.text }}>
-        View only on a phone. Tap a piece to open it.
+        Two fingers to look around. Tap a piece to open it, or + to add something.
       </span>
     </div>
   )

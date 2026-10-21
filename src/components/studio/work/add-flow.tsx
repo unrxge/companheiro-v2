@@ -80,8 +80,20 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
 
   return (
     <Portal>
+      {/* On a phone the keyboard takes the bottom half: the dialog stands at
+         the top, and its buttons are a thumb's size. */}
+      <style>{`
+        @media (max-width: 719px) {
+          .add-flow-backdrop { align-items: flex-start !important; padding: max(14px, env(safe-area-inset-top)) 12px 12px !important; }
+          .add-flow-card { padding: 18px !important; }
+          .add-flow-card .add-flow-chip { padding: 9px 14px !important; }
+          .add-flow-card .add-flow-actions button { flex: 1; padding-top: 12px !important; padding-bottom: 12px !important; }
+          .add-flow-card input, .add-flow-card textarea { font-size: 16px !important; }
+        }
+      `}</style>
       <div
         role="presentation"
+        className="add-flow-backdrop"
         onClick={onCancel}
         style={{
           position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -92,6 +104,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
           role="dialog"
           aria-modal="true"
           aria-label={ASK[kind].title}
+          className="add-flow-card"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
           style={{
@@ -206,6 +219,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
                     <button
                       key={p.id}
                       type="button"
+                      className="add-flow-chip"
                       aria-pressed={chosen}
                       onClick={() => setOn((cur) => (chosen ? cur.filter((x) => x !== p.id) : [...cur, p.id]))}
                       style={{
@@ -227,7 +241,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+          <div className="add-flow-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
             <button type="button" onClick={onCancel} style={{ ...canvasType.small, fontSize: 13, padding: '9px 14px', borderRadius: radius.field, cursor: 'pointer', border: `1px solid ${alpha(t.textPrimary, 0.16)}`, background: 'transparent', color: t.textSecondary }}>
               Cancel
             </button>

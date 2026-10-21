@@ -23,10 +23,11 @@ import { alpha, shell } from '@/lib/design-tokens'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { PLUS_OPTIONS, type PlusChoice } from '@/components/studio/work/board-items'
 
-const SIZE = 68
-const BUBBLE = 50
-/** The gap between one choice and the next, up the stack. */
-const STEP = BUBBLE + 12
+/** The "+" and its choices: full size, and a size down on a phone, where six of them have to stand up the side of a short screen. */
+const DIMS = {
+  full: { size: 68, bubble: 50, gap: 12 },
+  compact: { size: 58, bubble: 46, gap: 9 },
+} as const
 /** How long the choices take to fly back into the button. */
 const CLOSE_MS = 420
 /** A press held this long opens the fan for sliding onto a choice. */
@@ -34,7 +35,7 @@ const HOLD_MS = 180
 /** How near the pointer comes before the "+" starts to notice it. */
 const NOTICE = 180
 
-export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick, onLocked }: {
+export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick, onLocked, compact = false }: {
   open: boolean
   onOpen: (live: boolean) => void
   onClose: () => void
@@ -44,8 +45,13 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
   inert: boolean
   onPick: (choice: PlusChoice) => void
   onLocked: (choice: PlusChoice) => void
+  /** A phone: a size down all round. */
+  compact?: boolean
 }) {
   const { t } = useTheme()
+  const { size: SIZE, bubble: BUBBLE, gap } = DIMS[compact ? 'compact' : 'full']
+  /** The gap between one choice and the next, up the stack. */
+  const STEP = BUBBLE + gap
   const options = PLUS_OPTIONS.filter((o) => available.includes(o.key))
   // Stacked straight up from the "+", the first choice nearest it.
   const at = options.map((_, i) => ({ x: 0, y: -(i + 1) * STEP - (SIZE - BUBBLE) / 2 }))
