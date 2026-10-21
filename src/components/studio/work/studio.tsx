@@ -464,7 +464,7 @@ export function Studio({
             borderRadius: radius.widget, padding: '12px 14px', textAlign: 'left',
           }}
         >
-          {sectioned ? '+ Another part' : '+ Break this into parts'}
+          + Add another section
         </button>
       )}
 
