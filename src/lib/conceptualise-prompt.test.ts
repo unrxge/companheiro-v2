@@ -40,7 +40,7 @@ test('two companion turns in a row, after Move on, are joined for the model', ()
   assert.equal(m[1].content, 'A reflection.\n\nWho is it for?')
 })
 
-import { joiningNextStage, joiningOpening, joiningStageBlock, parseJoiningCheck } from './conceptualise-prompt'
+import { JOINING_CHECK_SYSTEM, joiningNextStage, joiningOpening, joiningStableBlock, joiningStageBlock, parseJoiningCheck } from './conceptualise-prompt'
 
 const check = (settled: number[], doubt = false, surface = false) => ({ settled, doubt, surface })
 
@@ -81,4 +81,9 @@ test('a stage only mentioned earlier is carried forward to build on, not counted
 test('the check is read defensively', () => {
   assert.deepEqual(parseJoiningCheck({ settled: [1, 1, 9, '2'], doubt: 'yes' }), { settled: [1, 2], doubt: false, surface: false })
   assert.deepEqual(parseJoiningCheck(null), { settled: [], doubt: false, surface: false })
+})
+
+test('a new piece is asked in the project\'s terms, and a confirmation against the project counts', () => {
+  assert.match(joiningStableBlock('TONE'), /Frame the question with the project/)
+  assert.match(JOINING_CHECK_SYSTEM, /a confirmation against the project is a real answer/)
 })

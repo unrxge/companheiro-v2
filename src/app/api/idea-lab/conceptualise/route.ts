@@ -65,7 +65,7 @@ async function projectBeingJoined(auth: AuthedContext, projectId: string): Promi
 
   const { data: siblings } = await auth.supabase
     .from("studio_nodes")
-    .select("title, core_truth")
+    .select("title, core_truth, intent, emotional_journey")
     .eq("project_id", projectId)
     .eq("user_id", auth.user.id)
     .is("parent_id", null)
@@ -79,9 +79,16 @@ async function projectBeingJoined(auth: AuthedContext, projectId: string): Promi
     : [];
   const named = (siblings ?? [])
     .map((n) => {
-      const { title, core_truth } = n as { title: string | null; core_truth: string | null };
+      // What each piece already knows, stands for and takes its audience
+      // through: what a new piece's questions are framed against.
+      const { title, core_truth, intent, emotional_journey } = n as { title: string | null; core_truth: string | null; intent: string | null; emotional_journey: string | null };
       const name = title?.trim() || "untitled";
-      return core_truth?.trim() ? `${name} (what it knows: ${core_truth.trim()})` : name;
+      const parts = [
+        core_truth?.trim() ? `what it knows: ${core_truth.trim()}` : "",
+        intent?.trim() ? `what it stands for: ${intent.trim().slice(0, 300)}` : "",
+        emotional_journey?.trim() ? `the journey its audience goes through: ${emotional_journey.trim().replace(/\n+/g, " / ").slice(0, 400)}` : "",
+      ].filter(Boolean);
+      return parts.length ? `${name} (${parts.join("; ")})` : name;
     })
     .filter((x) => x !== "untitled");
 
