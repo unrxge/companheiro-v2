@@ -10,7 +10,7 @@
 // through a thread, the first few tasks of a list, the colours of a palette,
 // the picture and its caption, a recording's name (the recorder does the rest).
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Portal } from '@/components/ui/portal'
 import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -53,6 +53,24 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const picker = useRef<HTMLInputElement | null>(null)
+  // The capture bank, for a link: what was saved with an address can be put on the canvas.
+  const [bank, setBank] = useState<Array<{ id: string; url: string; title: string; note: string }>>([])
+  useEffect(() => {
+    if (kind !== 'link') return
+    let live = true
+    fetch('/api/idea-lab/captures')
+      .then((r) => (r.ok ? r.json() : { captures: [] }))
+      .then((d: { captures?: Array<{ id: string; url?: string | null; raw_input?: string; unpacked?: string; link_context?: string | null }> }) => {
+        if (!live) return
+        setBank((d.captures ?? []).filter((c) => c.url && cleanUrl(c.url)).map((c) => ({
+          id: c.id, url: c.url as string,
+          title: (c.raw_input ?? '').replace(/\s+/g, ' ').trim().slice(0, 90),
+          note: (c.link_context ?? c.unpacked ?? '').replace(/\s+/g, ' ').trim().slice(0, 90),
+        })))
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [kind])
 
   const ready =
     kind === 'thread' ? name.trim().length > 0
@@ -202,6 +220,41 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
                 )
               })()}
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Its name (optional)" maxLength={120} style={{ ...field, marginTop: 10 }} />
+              {bank.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <span style={label}>From your capture bank</span>
+                  <div
+                    style={{
+                      display: 'flex', gap: 8, overflowX: 'auto', margin: '0 -4px', padding: '2px 4px 6px', scrollSnapType: 'x proximity',
+                      scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+                    }}
+                  >
+                    {bank.map((c) => {
+                      const on = intent === c.url
+                      let host = ''
+                      try { host = new URL(c.url).hostname.replace(/^www\./, '') } catch { /* shown without */ }
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => { setIntent(c.url); if (!name.trim() && c.title) setName(c.title) }}
+                          style={{
+                            flex: '0 0 auto', width: 168, height: 72, boxSizing: 'border-box', padding: '9px 12px', textAlign: 'left', cursor: 'pointer', scrollSnapAlign: 'start',
+                            borderRadius: radius.field, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4,
+                            border: `1px solid ${on ? t.textPrimary : alpha(t.textPrimary, 0.14)}`, background: on ? alpha(t.textPrimary, 0.1) : alpha(t.textPrimary, 0.04), color: t.textPrimary,
+                          }}
+                        >
+                          <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {c.title || c.note || host}
+                          </span>
+                          <span style={{ ...canvasType.chip, color: t.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{host}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

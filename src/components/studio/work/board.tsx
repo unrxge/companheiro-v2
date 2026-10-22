@@ -95,6 +95,9 @@ const WIDE_OPEN_ZOOM = 0.69
 const BOARD_FRAME = { w: 1440, h: 900 } as const
 /** The furthest out a board opens to show the whole project; any further and it opens on its first pieces instead. */
 const FIT_FLOOR = 0.2
+/** How a phone opens: the zoom, and where the first card's top-left corner stands (pixels in from the left, share of the height down). */
+const PHONE_ZOOM = 0.53
+const PHONE_CARD_AT = { x: 40, y: 0.31 } as const
 // From this many pieces the cards come down in size, so more of the lane is
 // in view at once. Width does most of the work — it is what the lane is
 // measured in, and what made a project of six pieces a long way to walk —
@@ -883,7 +886,10 @@ export function Board({
   // A phone opens on one card, as wide as the screen allows, with the title of
   // the project above it in view: opened zoomed out on two cards, a phone
   // showed the middle of both and the start of neither.
-  const phoneZoom = phone && frame.w ? Math.max(ZOOM.min, Math.min(1, (frame.w - 28) / cardW)) : null
+  // (2026-10-22, the person's own framing: the first card at about half size, its
+  // left edge a little in from the screen's, running off the right so it reads as
+  // a lane, the title above it, the whole sitting a third of the way down.)
+  const phoneZoom = phone && frame.w ? PHONE_ZOOM : null
   /**
    * The whole project in one look: the title, every piece and everything
    * hanging off them, fitted to the window as the board opens (the person's
@@ -914,13 +920,15 @@ export function Board({
 
   const initialCentre = useMemo<Point | null>(() => {
     if (!frame.w) return null
-    if (whole) return whole.centre
+    if (whole && !phone) return whole.centre
     if (phoneZoom) {
-      const id = opensWide ? pieces[0]?.id : openOn.current
-      const i = Math.max(0, pieces.findIndex((p) => p.id === id))
-      const spot = pieces[i] ? pieceSpot(pieces[i], i) : visionAt
-      // the top of the board (the title) just under the page's own header
-      return { x: spot.x + cardW / 2, y: visionAt.y - 12 + (frame.h / 2 - 72) / phoneZoom }
+      const spot = pieces[0] ? pieceSpot(pieces[0], 0) : { x: visionAt.x, y: cardTop }
+      // The point of the board under the middle of the screen, so that the
+      // first card's top-left corner lands at PHONE_CARD_AT.
+      return {
+        x: spot.x + (frame.w / 2 - PHONE_CARD_AT.x) / phoneZoom,
+        y: spot.y + (frame.h / 2 - frame.h * PHONE_CARD_AT.y) / phoneZoom,
+      }
     }
     if (opensWide) {
       const a = pieceSpot(pieces[0], 0)
@@ -940,7 +948,7 @@ export function Board({
   const fit = frame.w ? Math.min(1, frame.w / (cardFrame ?? BOARD_FRAME).w) : 1
   const canvas = useCanvas(ref, frame, world, {
     home, initialCentre, lookOnly: phone,
-    initialZoom: whole?.k ?? phoneZoom ?? (opensWide ? WIDE_OPEN_ZOOM * fit : fit < 1 ? fit : undefined),
+    initialZoom: phoneZoom ?? whole?.k ?? (opensWide ? WIDE_OPEN_ZOOM * fit : fit < 1 ? fit : undefined),
   })
 
   // ── what the example tour can ask of the board ────────────────────────────

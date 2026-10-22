@@ -149,6 +149,11 @@ export function CompanionLauncher({
         /* A menu opened from a card low on the screen drops to where this
            stands, and its last rows were underneath it. It steps aside. */
         body:has([data-canvas-menu]) .companion-launcher { opacity: 0; pointer-events: none; }
+        /* On a phone's canvas it stands in the bottom row beside the "+" (which
+           holds the right), at the left rather than the middle. */
+        @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
+          body:has([data-add-fan]) .companion-launcher { left: 14px !important; transform: none !important; padding: 12px 18px; gap: 8px; }
+        }
       `}</style>
       <button
         type="button"

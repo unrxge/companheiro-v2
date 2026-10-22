@@ -171,7 +171,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
       <style>{`
         .add-fan { right: 24px; bottom: 24px; }
         @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
-          .add-fan { right: 18px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 18px); }
+          .add-fan { right: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px - 6px); }
         }
         @keyframes addSweep { to { transform: rotate(360deg); } }
         @keyframes addArrive { 0% { opacity: 0; transform: rotate(-120deg); } 35% { opacity: 1; } 100% { opacity: 0.35; transform: rotate(600deg); } }
@@ -237,6 +237,7 @@ export function AddFan({ open, onOpen, onClose, available, locked, inert, onPick
       <div
         ref={root}
         className="add-fan"
+        data-add-fan
         data-hold
         style={{ position: 'absolute', zIndex: 42, width: SIZE, height: SIZE }}
       >
