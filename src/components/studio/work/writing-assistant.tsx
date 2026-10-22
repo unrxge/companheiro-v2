@@ -178,9 +178,20 @@ export function useWritingAssistant({
     }
   }, [active, busy, flushDistillation, input, lines, nodeId, onClearSelection, onProposedEdit, parts, selection])
 
+  // A fresh conversation for a different reason: what was said is sent off to
+  // the portrait first (as when leaving the piece), then forgotten here, so
+  // none of it is sent to the model again.
+  const clear = useCallback(() => {
+    if (busy) return
+    flushDistillation(messagesRef.current, true)
+    distilledUpTo.current = 0
+    setMessages([])
+    setInput('')
+  }, [busy, flushDistillation])
+
   const dropProposal = useCallback((id: string) => setProposals((prev) => prev.filter((p) => p.id !== id)), [])
 
-  return { messages, input, setInput, busy, active, send, proposals, dropProposal }
+  return { messages, input, setInput, busy, active, send, clear, proposals, dropProposal }
 }
 
 export function AssistantPanel({
@@ -194,7 +205,7 @@ export function AssistantPanel({
   disabled?: boolean
 }) {
   const { t } = useTheme()
-  const { messages, input, setInput, busy, active, send, proposals, dropProposal } = chat
+  const { messages, input, setInput, busy, active, send, clear, proposals, dropProposal } = chat
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   const inputRef = useRef('')
@@ -238,6 +249,21 @@ export function AssistantPanel({
           Focused on: <span style={{ color: t.textSecondary }}>{active.title || 'this part'}</span>{active.is_locked && ' (locked)'}
         </p>
       ) : null}
+
+      {messages.length > 0 && !disabled && (
+        <button
+          type="button"
+          onClick={clear}
+          disabled={busy}
+          title="Forget this conversation and start a new one"
+          style={{
+            ...canvasType.chip, alignSelf: 'flex-end', flexShrink: 0, padding: '2px 0', background: 'none', border: 'none',
+            color: t.textMuted, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1,
+          }}
+        >
+          ＋ New conversation
+        </button>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.length === 0 && (
