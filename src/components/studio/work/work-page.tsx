@@ -377,7 +377,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const isExampleProject = access?.reason === 'example'
   const boardActions: BoardActions = useMemo(() => ({
     openPiece: (id, from) => goNode(id, from),
-    addPiece: (x) => void api.addNode(null).then((made) => {
+    // "Start it now" on a project that has a concept: the new piece carries it.
+    addPiece: (x) => void api.addNode(null, null, { adoptConcept: !!(project?.settings?.concept?.core_truth || roots.some((r) => r.core_truth?.trim())) }).then((made) => {
       // Something stands at the end of the lane: the new piece goes past it.
       if (made && x !== null) void api.editNode(made.id, { board_x: x })
     }),
@@ -387,13 +388,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     conceptualisePiece: (x) => router.push(
       `/idea-lab/conceptualise?project=${projectId}${x === null ? '' : `&at=${Math.round(x)}`}`,
     ),
-    // Offered once the project has a concept: its own when it was worked out
-    // as a project of several pieces, or the one its first piece was made from.
-    ...(project?.settings?.concept?.core_truth || roots.some((r) => r.core_truth?.trim()) ? {
-      adoptPiece: (x: number | null) => void api.addNode(null, null, { adoptConcept: true }).then((made) => {
-        if (made && x !== null) void api.editNode(made.id, { board_x: x })
-      }),
-    } : {}),
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),

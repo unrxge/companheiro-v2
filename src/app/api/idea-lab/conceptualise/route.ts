@@ -57,7 +57,7 @@ interface ConceptualiseRequest {
 async function projectBeingJoined(auth: AuthedContext, projectId: string): Promise<string> {
   const { data: project } = await auth.supabase
     .from("studio_projects")
-    .select("title, intent, rules")
+    .select("title, intent, rules, settings")
     .eq("id", projectId)
     .eq("user_id", auth.user.id)
     .maybeSingle();
@@ -92,8 +92,14 @@ async function projectBeingJoined(auth: AuthedContext, projectId: string): Promi
     })
     .filter((x) => x !== "untitled");
 
+  // The project's own concept, as it reads now, when it was worked out as a project of several pieces.
+  const own = (project.settings as { concept?: { core_truth?: string; intent?: string; emotional_journey?: string } } | null)?.concept;
+  const projectConcept = own?.core_truth
+    ? `\nThe project's concept: what it knows: ${own.core_truth}${own.intent ? `; what it stands for: ${own.intent}` : ""}${own.emotional_journey ? `; the journey its audience goes through: ${own.emotional_journey.replace(/\n+/g, " / ").slice(0, 400)}` : ""}`
+    : "";
+
   return `\nTHIS PIECE IS JOINING A PROJECT THAT ALREADY EXISTS:
-Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is for: ${project.intent}` : ""}${named.length ? `\nThe pieces already in it:\n${named.map((n) => `- ${n}`).join("\n")}` : ""}${rules.length ? `\nThe rules it works under:\n${rules.join("\n")}` : ""}
+Project: ${project.title || "untitled"}${project.intent ? `\nWhat the project is for: ${project.intent}` : ""}${projectConcept}${named.length ? `\nThe pieces already in it:\n${named.map((n) => `- ${n}`).join("\n")}` : ""}${rules.length ? `\nThe rules it works under:\n${rules.join("\n")}` : ""}
 
 Hold this as the room the idea is walking into, not as a brief to satisfy. Do not ask how the piece will fit, sit alongside the others, or serve the project — a piece that pulls against the vision is worth having, and the rules are checked separately once it is written down. Use it only to avoid asking what is already settled, and to notice when this idea is really the same one as a piece that exists — if it is, say so plainly, once.`;
 }

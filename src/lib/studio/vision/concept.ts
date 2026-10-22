@@ -67,6 +67,7 @@ export async function editConcept(
     const { error } = await auth.supabase.from('studio_nodes').update({ [args.field]: next }).eq('id', piece.id).eq('user_id', auth.user.id)
     if (error) throw fromDbError(error)
     if (args.field === 'intent') await followConviction(auth, projectId, was, next)
+    await followProjectConcept(auth, projectId, piece.id, args.field, was, next)
   }
   await changeVision(auth, projectId, (now) => {
     const after = args.also ? args.also(now) : now
@@ -91,6 +92,37 @@ async function followConviction(auth: AuthedContext, projectId: string, was: str
   if (theirs && theirs !== was) return
   const { error } = await auth.supabase.from('studio_projects').update({ intent: next }).eq('id', projectId).eq('user_id', auth.user.id)
   if (error) throw fromDbError(error)
+}
+
+/**
+ * A project worked out as "a project of several pieces" keeps its own concept
+ * (settings.concept), and its pieces start out carrying it. A change made on a
+ * piece that still carries the project's words for that part is a change to
+ * the project's concept: the project's copy moves, and so does every other
+ * piece still carrying those same words, so whatever reads the project's
+ * concept next reads the new one. A piece whose words there are already its
+ * own changes alone. The conviction also moves the project's "what it is
+ * for" when that still read the same.
+ */
+async function followProjectConcept(auth: AuthedContext, projectId: string, nodeId: string, field: ConceptField, was: string, next: string): Promise<void> {
+  const { data: project } = await auth.supabase.from('studio_projects').select('settings, intent').eq('id', projectId).eq('user_id', auth.user.id).maybeSingle()
+  const settings = ((project as { settings: Record<string, unknown> | null } | null)?.settings ?? {}) as Record<string, unknown>
+  const concept = settings.concept as Record<string, unknown> | undefined
+  if (!concept || String(concept[field] ?? '').trim() !== was) return
+
+  const { error } = await auth.supabase.from('studio_projects')
+    .update({
+      settings: { ...settings, concept: { ...concept, [field]: next, at: nowIso() } },
+      ...(field === 'intent' && ((project as { intent: string | null }).intent ?? '').trim() === was ? { intent: next } : {}),
+    })
+    .eq('id', projectId).eq('user_id', auth.user.id)
+  if (error) throw fromDbError(error)
+
+  const { error: piecesErr } = await auth.supabase.from('studio_nodes')
+    .update({ [field]: next })
+    .eq('project_id', projectId).eq('user_id', auth.user.id).is('parent_id', null)
+    .neq('id', nodeId).eq(field, was)
+  if (piecesErr) throw fromDbError(piecesErr)
 }
 
 /** Replaces a piece's open threads as a whole: one per line. Returns them as they now read. */
