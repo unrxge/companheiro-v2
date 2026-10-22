@@ -68,9 +68,9 @@ function BeginButton() {
   return (
     <Link
       href={href}
-      className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[var(--bone)] px-6 py-3 text-[15px] font-semibold text-[var(--ink)] transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+      className="group inline-flex items-center gap-2 rounded-full bg-[var(--bone)] px-6 py-3 text-[15px] font-semibold text-[var(--ink)] transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
     >
-      Begin
+      Try it now, no card needed
       <ArrowRight size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
     </Link>
   )
@@ -280,7 +280,7 @@ function Hero() {
         </p>
         <div className={`${ENTER_TEXT} delay-[390ms] mt-8 flex flex-wrap items-center gap-x-5 gap-y-3`}>
           <BeginButton />
-          <p className="text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
+          <p className="text-[13px] text-[var(--muted)]">30 days free.</p>
         </div>
       </div>
 
@@ -601,9 +601,9 @@ function AudienceBegin({ audience }: { audience: Audience }) {
   return (
     <Link
       href={href}
-      className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[var(--bone)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ink)] transition-[transform,opacity] duration-300 hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
+      className="group inline-flex items-center gap-2 rounded-full bg-[var(--bone)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ink)] transition-[transform,opacity] duration-300 hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
     >
-      Begin
+      Try it now, no card needed
       <ArrowRight size={15} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
     </Link>
   )
@@ -881,7 +881,7 @@ function PlanCard({ plan, billing, lead }: { plan: (typeof PLANS)[number]; billi
 }
 
 const PRICING_FACTS = [
-  { title: '30 days free', body: 'No card needed to start, and everything in Direction to try.' },
+  { title: '30 days free', body: 'Everything in Direction to try, for the whole month.' },
   // Every line here must be something the product actually does today.
   { title: 'Cancel whenever', body: 'From Settings, in a moment. A full refund if you cancel within 14 days of your first payment.' },
   { title: 'Your work stays yours', body: 'If you stop paying, everything you made stays readable and exportable.' },
@@ -965,7 +965,7 @@ function FinalCta() {
         <div className="mt-10">
           <BeginButton />
         </div>
-        <p className="mt-5 text-[13px] text-[var(--muted)]">30 days free. No card needed.</p>
+        <p className="mt-5 text-[13px] text-[var(--muted)]">30 days free.</p>
       </Reveal>
     </section>
   )
