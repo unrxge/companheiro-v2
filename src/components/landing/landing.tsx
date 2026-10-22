@@ -603,7 +603,7 @@ function AudienceBegin({ audience }: { audience: Audience }) {
       href={href}
       className="group inline-flex items-center gap-2 rounded-full bg-[var(--bone)] px-5 py-2.5 text-[14px] font-semibold text-[var(--ink)] transition-[transform,opacity] duration-300 hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
     >
-      Try it now, no card needed
+      Try it now
       <ArrowRight size={15} strokeWidth={2} className="transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
     </Link>
   )
