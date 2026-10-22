@@ -377,20 +377,17 @@ export function PartLines({ lines, onAdd, onRemove }: {
  * on its way (Write · Reimagine · Test · Post · Reflect).
  */
 export function PieceFooter({
-  projectId, nodeId, words, canShape, canPlace, canDivide, sectioned, busy, note, onShape, onPlace, onDivide, onLeave, journey = true,
+  projectId, nodeId, words, canShape, canPlace, busy, note, onShape, onPlace, onLeave, journey = true,
 }: {
   projectId: string
   nodeId: string
   words: number
   canShape: boolean
   canPlace: boolean
-  canDivide: boolean
-  sectioned: boolean
-  busy: 'shape' | 'place' | 'divide' | null
+  busy: 'shape' | 'place' | null
   note: string | null
   onShape: () => void
   onPlace: () => void
-  onDivide: () => void
   /** Saves what's been typed; awaited before the ribbon carries you to another step. */
   onLeave: () => Promise<void>
   /** The Write · Reimagine · Test · Post · Reflect ribbon. Off for an example, whose later steps have nothing behind them. */
@@ -399,7 +396,7 @@ export function PieceFooter({
   const { t } = useTheme()
   return (
     <div style={{ maxWidth: widths.reading, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {(canShape || canPlace || canDivide) && (
+      {(canShape || canPlace) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 16px' }}>
           {canShape && (
             <GhostButton size="sm" onClick={onShape} loading={busy === 'shape'} loadingLabel="Shaping…">
@@ -409,11 +406,6 @@ export function PieceFooter({
           {canPlace && (
             <GhostButton size="sm" onClick={onPlace} loading={busy === 'place'} loadingLabel="Placing…">
               Place it in the sections
-            </GhostButton>
-          )}
-          {canDivide && (
-            <GhostButton size="sm" onClick={onDivide} loading={busy === 'divide'} loadingLabel="Dividing…">
-              {sectioned ? 'Redistribute across the sections' : 'Divide into sections'}
             </GhostButton>
           )}
         </div>

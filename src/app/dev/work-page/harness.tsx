@@ -558,7 +558,7 @@ function installMock(o: Opts) {
         },
       }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
-    if ((path === '/api/write/sections/seed' || path === '/api/write/sections/divide' || path === '/api/write/sections/ingest') && method === 'POST') snap('restructure', true)
+    if ((path === '/api/write/sections/seed' || path === '/api/write/sections/ingest') && method === 'POST') snap('restructure', true)
     if (path === '/api/write/sections/ingest' && method === 'POST') return write(() => {
       const root = nodes.find((n) => n.id === body.node_id)!
       const text = plain(root.body)
@@ -579,15 +579,6 @@ function installMock(o: Opts) {
       const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
       beats.forEach(([title, beat], i) => nodes.push(node(`seed-${++seq}`, body.node_id, i, title, beat, '')))
       return json({ sections: sectionsOf(body.node_id), suggestions: beats.map(() => '') })
-    })
-    if (path === '/api/write/sections/divide' && method === 'POST') return write(() => {
-      const root = nodes.find((n) => n.id === body.node_id)!
-      const text = plain(root.body)
-      for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].parent_id === root.id) nodes.splice(i, 1)
-      const chunks = text.split(/\n{2,}/).filter(Boolean)
-      ;(chunks.length > 1 ? chunks : [text]).forEach((c, i) => nodes.push(node(`div-${++seq}`, root.id, i, ['Arrival', 'The pull', 'Settling'][i] ?? `Section ${i + 1}`, '', c)))
-      resync(root.id)
-      return json({ sections: sectionsOf(root.id) })
     })
     if (path === '/api/studio/projects/demo/nodes' && method === 'POST') return write(() => {
       const kids = nodes.filter((n) => n.parent_id === (body.parent_id ?? null))

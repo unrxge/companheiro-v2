@@ -1,4 +1,4 @@
-// Server-side helpers for the write routes (seed, divide, ingest, anchor
+// Server-side helpers for the write routes (seed, ingest, anchor
 // lines, and the flattened draft that Test reads).
 // A "piece" is a root studio_node (parent_id null); what the Write page called
 // its sections are that node's children, ordered by position, the same rows

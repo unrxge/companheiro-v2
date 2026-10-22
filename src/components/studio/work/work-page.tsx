@@ -195,7 +195,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     setRail('concept')
   }, [access?.reason, isRootPiece, node, narrow])
   const tools = usePieceTools(isRootPiece && node ? node.id : null)
-  const [shaping, setShaping] = useState<'shape' | 'place' | 'divide' | null>(null)
+  const [shaping, setShaping] = useState<'shape' | 'place' | null>(null)
   const [shapeNote, setShapeNote] = useState<string | null>(null)
   const studio = useRef<StudioHandle | null>(null)
   const stacked = useStackedLayout()
@@ -334,22 +334,14 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     await board.api.remove(item.id)
   }, [board.api])
 
-  /** Shaping, placing and dividing are routes that write the parts themselves, so the tree is read again afterwards. */
-  const reshape = useCallback(async (kind: 'shape' | 'place' | 'divide', pieceId: string, alreadyParts = false) => {
+  /** Shaping and placing are routes that write the parts themselves, so the tree is read again afterwards. */
+  const reshape = useCallback(async (kind: 'shape' | 'place', pieceId: string) => {
     if (shaping) return
-    if (kind === 'divide' && alreadyParts) {
-      const ok = await confirm({
-        title: 'Cut the draft along its beats?',
-        body: 'The words stay exactly as they are, in order. The parts are cut again, so their names, and where fragments were placed, start over.',
-        confirmLabel: 'Divide',
-      })
-      if (!ok) return
-    }
     setShaping(kind)
     setShapeNote(null)
     try {
       await studio.current?.flush()
-      const res = await fetch(`/api/write/sections/${kind === 'shape' ? 'seed' : kind === 'place' ? 'ingest' : 'divide'}`, {
+      const res = await fetch(`/api/write/sections/${kind === 'shape' ? 'seed' : 'ingest'}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: pieceId }),
       })
       const data = await res.json().catch(() => ({}))
@@ -1013,13 +1005,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               words={words}
               canShape={!readOnly && node.children.length === 0 && words === 0 && !!(node.emotional_journey || node.core_truth || node.intent)}
               canPlace={!readOnly && node.children.length === 0 && words > 0 && !!node.emotional_journey?.trim()}
-              canDivide={!readOnly && words > 30 && !node.children.some((c) => c.is_locked) && !(node.children.length === 0 && !!node.emotional_journey?.trim())}
-              sectioned={node.children.length > 0}
               busy={shaping}
               note={shapeNote}
               onShape={() => void reshape('shape', node.id)}
               onPlace={() => void reshape('place', node.id)}
-              onDivide={() => void reshape('divide', node.id, node.children.length > 0)}
               onLeave={saveBeforeLeaving}
               journey={!example}
             />
