@@ -561,7 +561,6 @@ export function PaletteBlock({
             aria-label={sw.name ? `${sw.name}, ${sw.hex}` : sw.hex}
             disabled={disabled}
             onClick={(e) => { e.stopPropagation(); setOpen(open === sw.id ? null : sw.id) }}
-            onPointerDown={(e) => e.stopPropagation()}
             style={{
               width: size, height: size, borderRadius: 10, padding: 0, flexShrink: 0,
               background: sw.hex, cursor: disabled ? 'default' : 'pointer',
@@ -576,7 +575,6 @@ export function PaletteBlock({
             aria-label="Add a colour"
             title="Add a colour"
             onClick={(e) => { e.stopPropagation(); add() }}
-            onPointerDown={(e) => e.stopPropagation()}
             style={{
               width: size, height: size, borderRadius: 10, padding: 0, flexShrink: 0, cursor: 'pointer',
               background: 'transparent', border: `1px dashed ${alpha(t.textPrimary, 0.3)}`, color: t.textMuted,
@@ -771,7 +769,6 @@ export function RecordingBlock({
           type="button"
           aria-label={playing ? 'Pause' : 'Play'}
           onClick={(e) => { e.stopPropagation(); toggle() }}
-          onPointerDown={(e) => e.stopPropagation()}
           disabled={!asset?.url}
           style={{
             width: 34, height: 34, borderRadius: '50%', flexShrink: 0, border: 'none', cursor: asset?.url ? 'pointer' : 'default',

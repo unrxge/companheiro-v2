@@ -14,7 +14,6 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { embedFor, type Embed } from '@/lib/studio/embed'
 import type { BoardItem, BoardItemContent } from '@/lib/studio/board-items'
 
-const stop = { onPointerDown: (e: React.PointerEvent) => e.stopPropagation() }
 
 function Glyph({ kind }: { kind: Embed['kind'] }) {
   const p = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
@@ -48,7 +47,6 @@ export function LinkBlock({ item, disabled, onContent }: {
       <button
         type="button"
         onClick={act}
-        {...stop}
         aria-label={`${verb}: ${name}`}
         style={{
           position: 'relative', display: 'block', width: '100%', aspectRatio: e.kind === 'page' ? '3 / 1' : '16 / 9', padding: 0, border: 'none', borderRadius: radius.field, overflow: 'hidden',
@@ -84,7 +82,7 @@ export function LinkBlock({ item, disabled, onContent }: {
           href={url || undefined}
           target="_blank"
           rel="noopener noreferrer"
-          {...stop}
+          draggable={false}
           onClick={(ev) => ev.stopPropagation()}
           style={{ ...canvasType.chip, color: t.textMuted, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
