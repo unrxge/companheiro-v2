@@ -57,7 +57,11 @@ function logged(now: VisionState, change: Omit<ConceptChange, 'id' | 'at'>): Vis
 export async function editConcept(
   auth: AuthedContext,
   projectId: string,
-  args: { nodeId: string; field: ConceptField; text: string; source: ConceptChange['source']; also?: (now: VisionState) => VisionState },
+  args: {
+    nodeId: string; field: ConceptField; text: string; source: ConceptChange['source']; also?: (now: VisionState) => VisionState
+    /** 'piece': this piece alone, even where it still carries the project's concept. Otherwise a part still shared with the project changes the project's too. */
+    scope?: 'piece' | 'project'
+  },
 ): Promise<string> {
   const piece = await requirePiece(auth, projectId, args.nodeId)
   const next = clean(args.text, LIMIT[args.field], args.field === 'emotional_journey')
@@ -67,7 +71,7 @@ export async function editConcept(
     const { error } = await auth.supabase.from('studio_nodes').update({ [args.field]: next }).eq('id', piece.id).eq('user_id', auth.user.id)
     if (error) throw fromDbError(error)
     if (args.field === 'intent') await followConviction(auth, projectId, was, next)
-    await followProjectConcept(auth, projectId, piece.id, args.field, was, next)
+    if (args.scope !== 'piece') await followProjectConcept(auth, projectId, piece.id, args.field, was, next)
   }
   await changeVision(auth, projectId, (now) => {
     const after = args.also ? args.also(now) : now

@@ -12,7 +12,7 @@ import { assertFeature, assertProjectIdWorkable } from '@/lib/studio/plan-access
 import { conversationsReady, findConversation } from '@/lib/studio/vision/conversations'
 import { rethinkConcept } from '@/lib/studio/vision/rethink'
 import { loadCanvas, visionOf } from '@/lib/studio/vision/store'
-import { splitSources } from '@/lib/studio/vision/types'
+import { splitSources, type SharedConcept } from '@/lib/studio/vision/types'
 
 export const maxDuration = 120
 
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const vision = visionOf(project.settings)
     const result = await rethinkConcept(auth, {
       projectId: project.id,
+      shared: (project.settings?.concept as SharedConcept | undefined) ?? null,
       intent: project.intent || '',
       conversation,
       vision,

@@ -523,21 +523,26 @@ function ChangeCard({
 }) {
   const { t } = useTheme()
   const [text, setText] = useState(change.to)
-  const [busy, setBusy] = useState<'apply' | 'decline' | null>(null)
+  const [busy, setBusy] = useState<'apply' | 'project' | 'decline' | null>(null)
   const [failed, setFailed] = useState(false)
   const now = (piece[change.field] ?? '').trim()
+  // The piece still carries the project's own concept here, so the change can
+  // be the piece's alone or the whole project's: the one it reads as first.
+  const both = change.reach
+    ? (change.reach === 'project' ? (['project', 'piece'] as const) : (['piece', 'project'] as const))
+    : null
   const journey = change.field === 'emotional_journey' || change.field === 'open_threads'
 
-  const answer = async (action: 'apply' | 'decline') => {
+  const answer = async (action: 'apply' | 'decline', scope?: 'piece' | 'project') => {
     if (busy) return
-    setBusy(action)
+    setBusy(action === 'apply' && scope ? (scope === 'project' ? 'project' : 'apply') : action)
     setFailed(false)
     try {
       const res = await fetch(`/api/studio/projects/${projectId}/concept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify(action === 'apply' ? { action, id: change.id, text } : { action, id: change.id }),
+        body: JSON.stringify(action === 'apply' ? { action, id: change.id, text, ...(scope ? { scope } : {}) } : { action, id: change.id }),
       })
       // Already answered elsewhere counts as answered here too.
       if (!res.ok && res.status !== 409) throw new Error('failed')
@@ -566,9 +571,18 @@ function ChangeCard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: radius.widget, background: alpha(t.violet, 0.08), border: `1px solid ${alpha(t.violet, 0.3)}` }}>
-      <span style={{ ...canvasType.chip, color: t.violet }}>
-        Change the core concept? <span style={{ color: t.textMuted }}>· {piece.title} · {offeredLabel(change.field)}</span>
-      </span>
+      {both ? (
+        <span style={{ ...canvasType.small, color: t.textSecondary }}>
+          {both[0] === 'project'
+            ? <>This sounds like it changes the concept of the <strong style={{ fontWeight: 700 }}>whole project</strong></>
+            : <>This sounds like it changes the concept of <strong style={{ fontWeight: 700 }}>{piece.title}</strong></>}
+          <span style={{ color: t.textMuted }}> · {offeredLabel(change.field)}</span>
+        </span>
+      ) : (
+        <span style={{ ...canvasType.chip, color: t.violet }}>
+          Change the core concept? <span style={{ color: t.textMuted }}>· {piece.title} · {offeredLabel(change.field)}</span>
+        </span>
+      )}
       {now && (
         <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, whiteSpace: 'pre-line', textDecoration: 'line-through', textDecorationColor: alpha(t.textPrimary, 0.25) }}>
           {now}
@@ -589,7 +603,11 @@ function ChangeCard({
       {change.reason && <p style={{ ...canvasType.small, color: t.textSecondary, margin: 0 }}>{change.reason}</p>}
       {change.quote && <p style={{ ...canvasType.small, color: t.textMuted, margin: 0, fontStyle: 'italic' }}>You said: “{change.quote}”</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {chip('Change it', () => void answer('apply'), true, busy === 'apply')}
+        {both
+          ? both.map((scope, i) => (
+              <span key={scope}>{chip(scope === 'project' ? 'Change the whole project' : `Change ${piece.title || 'this piece'} only`, () => void answer('apply', scope), i === 0, busy === (scope === 'project' ? 'project' : 'apply'))}</span>
+            ))
+          : chip('Change it', () => void answer('apply'), true, busy === 'apply')}
         {chip('Not this', () => void answer('decline'), false, busy === 'decline')}
         {failed && <span style={{ ...canvasType.small, color: t.ember }}>That did not save. Try again.</span>}
       </div>

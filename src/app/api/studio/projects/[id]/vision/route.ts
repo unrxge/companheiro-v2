@@ -37,7 +37,7 @@ import { LENS_NOTE, VISION_ROLE } from '@/lib/studio/vision/prompts'
 import { keptText, loadCanvas, visionOf } from '@/lib/studio/vision/store'
 import {
   cleanSources, isLens, splitSources, withSources,
-  type VisionMessage, type VisionPayload,
+  type SharedConcept, type VisionMessage, type VisionPayload,
 } from '@/lib/studio/vision/types'
 
 // Thinking, and up to three searches, before the first word: longer than a
@@ -192,6 +192,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     const linesHeard: Promise<Heard> = hearVision(auth, {
       projectId: project.id,
+      shared: (project.settings?.concept as SharedConcept | undefined) ?? null,
       text: message,
       intent: project.intent || '',
       vision,

@@ -24,7 +24,7 @@ import { parseJsonObject } from '@/lib/studio/talk/sort'
 import { isVerbatim, normalise } from '@/lib/studio/talk/verbatim'
 import { changeVision } from './store'
 import type { PieceForHearing } from './hear'
-import type { OfferedField, PendingChange, VisionState } from './types'
+import { reachOf, type OfferedField, type PendingChange, type SharedConcept, type VisionState } from './types'
 
 const PART: Record<string, OfferedField> = { core_truth: 'core_truth', conviction: 'intent', journey: 'emotional_journey', open_threads: 'open_threads' }
 /** Waiting at once after a rethink: every part of a couple of pieces. */
@@ -51,7 +51,8 @@ For every part you return, "quote" is the person's own words from the conversati
 "piece" is the title exactly as listed under THE PIECES.
 
 Output JSON only, no prose, no code fence:
-{"changes": [{"piece": "…", "part": "core_truth" | "conviction" | "journey" | "open_threads", "to": "…", "reason": "…", "quote": "…"}]}`
+{"changes": [{"piece": "…", "part": "core_truth" | "conviction" | "journey" | "open_threads", "to": "…", "reason": "…", "quote": "…", "reach": "piece" | "project"}]}
+"reach" says which it reads as: "project" when it is true of the whole project (what all of it is for, everyone it is for, what every piece holds), "piece" when it is about this piece alone or sets it apart from the rest.`
 
 export interface RethinkResult {
   changes: PendingChange[]
@@ -67,6 +68,8 @@ export async function rethinkConcept(
     pieces: PieceForHearing[]
     conversation: Array<{ role: 'person' | 'companion'; text: string }>
     vision: VisionState
+    /** The project's own concept, to tell a part still shared with it from a piece's own. */
+    shared?: SharedConcept
   },
 ): Promise<RethinkResult> {
   const theirs = args.conversation.filter((m) => m.role === 'person').map((m) => m.text)
@@ -128,7 +131,8 @@ export async function rethinkConcept(
     const key = `${piece.id}:${field}`
     if (seen.has(key)) continue
     seen.add(key)
-    out.push({ id: crypto.randomUUID(), node_id: piece.id, field, to, reason, quote, at })
+    const reach = reachOf(c.reach, args.shared ?? null, field, String(now))
+    out.push({ id: crypto.randomUUID(), node_id: piece.id, field, to, reason, quote, at, ...(reach ? { reach } : {}) })
   }
   if (out.length === 0) return { changes: [], nothing: true }
 

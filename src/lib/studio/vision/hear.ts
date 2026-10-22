@@ -27,7 +27,7 @@ import { nowIso } from '@/lib/studio/db'
 import { firstText, parseJsonObject } from '@/lib/studio/talk/sort'
 import { isVerbatim, normalise } from '@/lib/studio/talk/verbatim'
 import { changeVision } from './store'
-import type { ConceptField, KeptLine, PendingChange, VisionState } from './types'
+import { reachOf, type ConceptField, type KeptLine, type PendingChange, type SharedConcept, type VisionState } from './types'
 
 /** Changes waiting at once, the same ceiling a rethink uses (rethink.ts). */
 const RETHINK_MAX = 8
@@ -77,7 +77,8 @@ Quote them. Every "quote" must be their exact words, copied character for charac
 Skip anything that restates a line under ALREADY KEPT, WAITING FOR THEM, or TURNED DOWN, or an open thread a piece already has.
 
 At most two under heard. Output exactly:
-{"heard": [{"kind": "decision" | "open", "piece": "…", "line": "…", "why": "…", "quote": "…"}], "changes": [{"piece": "…", "part": "core_truth" | "conviction" | "journey", "to": "…", "quote": "…"}]}`
+{"heard": [{"kind": "decision" | "open", "piece": "…", "line": "…", "why": "…", "quote": "…"}], "changes": [{"piece": "…", "part": "core_truth" | "conviction" | "journey", "to": "…", "quote": "…", "reach": "piece" | "project"}]}
+"reach" says which it reads as: "project" when it is true of the whole project (what all of it is for, everyone it is for, what every piece holds), "piece" when it is about this piece alone or sets it apart from the rest.`
 
 function piecesText(pieces: PieceForHearing[]): string {
   if (pieces.length === 0) return '(no pieces yet)'
@@ -103,6 +104,8 @@ export async function hearVision(
   auth: AuthedContext,
   args: {
     projectId: string; text: string; intent: string; vision: VisionState; pieces: PieceForHearing[]
+    /** The project's own concept, to tell a part still shared with it from a piece's own. */
+    shared?: SharedConcept
     /** The exchanges just before this one, oldest first: a realisation often builds over several. */
     before?: Array<{ role: 'person' | 'companion'; text: string }>
   },
@@ -194,7 +197,8 @@ export async function hearVision(
     const piece = args.pieces.find((p) => p.id === node)
     const now = (piece?.[field] ?? '').trim()
     if (normalise(now) === normalise(to) || known.has(normalise(to))) continue
-    changes.push({ id: crypto.randomUUID(), node_id: node, field, to, quote, at })
+    const reach = reachOf(c.reach, args.shared ?? null, field, now)
+    changes.push({ id: crypto.randomUUID(), node_id: node, field, to, quote, at, ...(reach ? { reach } : {}) })
   }
 
   if (lines.length === 0 && changes.length === 0) return { lines, changes }

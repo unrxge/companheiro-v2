@@ -91,3 +91,14 @@ test('a new piece is asked in the project\'s terms, and a confirmation against t
 test('the conversation holds a body of work as one idea', () => {
   assert.match(conceptualiseStableBlock('TONE', ''), /never break it into parts or ask which part comes first/)
 })
+
+import { reachOf } from './studio/vision/types'
+
+test('a heard change offers the whole project only where the piece still carries the project\'s concept', () => {
+  const shared = { core_truth: 'Rest is not idleness.' }
+  assert.equal(reachOf('project', shared, 'core_truth', 'Rest is not idleness.'), 'project')
+  assert.equal(reachOf('anything', shared, 'core_truth', 'Rest is not idleness.'), 'piece')
+  assert.equal(reachOf('project', shared, 'core_truth', 'This piece has its own.'), undefined)
+  assert.equal(reachOf('project', null, 'core_truth', 'Rest is not idleness.'), undefined)
+  assert.equal(reachOf('project', shared, 'open_threads', 'x'), undefined)
+})

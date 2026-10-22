@@ -89,6 +89,21 @@ export interface PendingChange {
   /** What they said, word for word. */
   quote: string
   at: string
+  /** Set only when the piece still carries the project's own concept for this
+   *  part (settings.concept), so the change could be this piece's alone or the
+   *  whole project's: which one it reads as, offered first. */
+  reach?: 'piece' | 'project'
+}
+
+/** What the listeners need of the project's own concept to tell a shared part from a piece's own. */
+export type SharedConcept = Partial<Record<'core_truth' | 'intent' | 'emotional_journey', string>> | null
+
+/** The lean, when the part is still the project's; nothing when it is already the piece's own. */
+export function reachOf(raw: unknown, shared: SharedConcept, field: string, now: string): 'piece' | 'project' | undefined {
+  if (!shared || field === 'open_threads') return undefined
+  const theirs = (shared as Record<string, string | undefined>)[field]
+  if (!theirs || theirs.trim() !== now.trim()) return undefined
+  return raw === 'project' ? 'project' : 'piece'
 }
 
 /** What a project keeps about its vision (studio_projects.settings.vision). */

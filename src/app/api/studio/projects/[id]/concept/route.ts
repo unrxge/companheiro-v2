@@ -5,7 +5,8 @@
 //   { action: 'add_thread', node_id, text, from }            an open thread written in
 //   { action: 'remove_thread', node_id, text, from }         no longer a question
 //   { action: 'settle_thread', node_id, text, answer, why?, from }  answered: it leaves the open threads and is kept as decided
-//   { action: 'apply', id, text? }                           a change heard in the vision room's talk, accepted (Direction)
+//   { action: 'apply', id, text?, scope? }                   a change heard in the vision room's talk, accepted (Direction);
+//                                                            scope 'piece' keeps it to that piece where it still carries the project's concept
 //   { action: 'decline', id }                                not this; never offered again (Direction)
 //   { action: 'apply_all' }                                  every change waiting, accepted as offered (Direction)
 // `from` is 'room' or 'concept': which side it was made on, kept with the date.
@@ -72,8 +73,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           nodeId = pending.node_id
           const words = body.action === 'apply' && text.trim() ? text : pending.to
           const done = (now: VisionState) => ({ ...now, pending_changes: now.pending_changes.filter((c) => c.id !== pending.id) })
+          // One change answered: the scope they chose. All at once: each as it was offered first.
+          const scope = body.action === 'apply' ? (body.scope === 'piece' ? 'piece' : body.scope === 'project' ? 'project' : undefined) : pending.reach
           if (pending.field === 'open_threads') await setOpenThreads(auth, project.id, { nodeId, text: words, source: 'talk', also: done })
-          else await editConcept(auth, project.id, { nodeId, field: pending.field, text: words, source: 'talk', also: done })
+          else await editConcept(auth, project.id, { nodeId, field: pending.field, text: words, source: 'talk', also: done, scope })
         }
         break
       }
