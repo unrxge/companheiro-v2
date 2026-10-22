@@ -87,3 +87,7 @@ test('a new piece is asked in the project\'s terms, and a confirmation against t
   assert.match(joiningStableBlock('TONE'), /Frame the question with the project/)
   assert.match(JOINING_CHECK_SYSTEM, /a confirmation against the project is a real answer/)
 })
+
+test('the conversation holds a body of work as one idea', () => {
+  assert.match(conceptualiseStableBlock('TONE', ''), /never break it into parts or ask which part comes first/)
+})

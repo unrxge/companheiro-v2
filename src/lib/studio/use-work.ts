@@ -127,8 +127,8 @@ export function useWork(projectId: string) {
       await guard(() => work.patchProject(projectId, patch))
     },
 
-    addNode: async (parentId: string | null, afterId?: string | null) => {
-      const res = await guard(() => work.createNode(projectId, { parent_id: parentId, after_id: afterId ?? null }))
+    addNode: async (parentId: string | null, afterId?: string | null, opts?: { adoptConcept?: boolean }) => {
+      const res = await guard(() => work.createNode(projectId, { parent_id: parentId, after_id: afterId ?? null, ...(opts?.adoptConcept ? { adopt_concept: true } : {}) }))
       if (!res) return null
       setTree((prev) => ({ ...prev, nodes: [...prev.nodes, res.node] }))
       return res.node

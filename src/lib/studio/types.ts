@@ -21,8 +21,22 @@ export interface ProjectSettings {
   carried?: CarriedThought[]
   /** When it last gave up its place in Active (lib/studio/plan-access.ts). */
   left_active_at?: string
+  /** The concept of the whole project, when it was worked out as a project of
+   *  several pieces rather than one piece (the Idea Lab's core concept, "A
+   *  project of several pieces"). A new piece can take it as its own. */
+  concept?: ProjectConcept
   /** Set only on the example projects (lib/examples), which are never stored: who made it, for the banner. */
   example?: { key: string; who: string; note?: string }
+}
+
+/** A project-wide core concept: the same parts a piece's concept has. */
+export interface ProjectConcept {
+  core_truth: string
+  /** The conviction. */
+  intent: string
+  emotional_journey: string
+  open_threads: string[]
+  at: string
 }
 
 /** The person's own words from a check-in, sent to a project and not yet answered. */

@@ -197,6 +197,7 @@ function CoreConceptContent() {
         brought_idea: existingProjectId && !newPiece ? null : sessionStorage.getItem('brought_idea'),
         project_id: existingProjectId,
         new_piece: newPiece || undefined,
+        scope: newPiece ? undefined : sections.phase1.content.scope === 'project' ? 'project' : 'piece',
         board_x: newPiece && standsAt ? Number(standsAt) : undefined,
       }
       const res = await fetch('/api/idea-lab/core-concept/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(documentData) })
@@ -375,6 +376,23 @@ function CoreConceptContent() {
                   )}
                 </div>
               </div>
+              {!newPiece && (
+                <div>
+                  <Eyebrow style={{ marginBottom: 10 }}>This concept is for</Eyebrow>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {([['piece', 'One piece'], ['project', 'A project of several pieces']] as const).map(([value, label]) => (
+                      <Pill key={value} hue="neutral" selected={(p1.content.scope === 'project' ? 'project' : 'piece') === value} onClick={p1.status === 'confirmed' ? undefined : () => handleEditContent('phase1', 'scope', value)} size="md">
+                        {label}
+                      </Pill>
+                    ))}
+                  </div>
+                  <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 8 }}>
+                    {p1.content.scope === 'project'
+                      ? 'The whole project carries this concept. Pieces you add later can take it as their own.'
+                      : 'One piece of work. You can still add more pieces later, each with its own concept or this one.'}
+                  </p>
+                </div>
+              )}
               {p1.status !== 'confirmed' && <QuietButton onClick={() => handleConfirmSection('phase1')} full disabled={!p1.content.one_sentence || !p1.content.arc}>Confirm</QuietButton>}
             </div>
           )}

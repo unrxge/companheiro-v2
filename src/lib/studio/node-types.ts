@@ -111,6 +111,8 @@ export interface CreateNodeRequest {
   stands_whole?: boolean
   /** Insert after this sibling; appended when absent. */
   after_id?: string | null
+  /** A new piece that takes the project's concept as its own (top level only). */
+  adopt_concept?: boolean
 }
 
 export interface PatchNodeRequest {

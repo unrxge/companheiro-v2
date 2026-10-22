@@ -144,15 +144,25 @@ function useDismiss(onClose: () => void) {
  * need working out — someone adding the next chapter already knows what it
  * is — so starting it now is the plain first choice, not the afterthought.
  */
-export function NewPieceMenu({ onStart, onConceptualise, onClose }: {
+export function NewPieceMenu({ onStart, onConceptualise, onAdopt, onClose }: {
   onStart: () => void
   onConceptualise: () => void
+  /** Offered when the project already has a concept a new piece can take as its own. */
+  onAdopt?: () => void
   onClose: () => void
 }) {
   const ref = useDismiss(onClose)
   return (
     <div ref={ref}>
       <MenuShell label="Add a piece">
+        {onAdopt && (
+          <MenuRow
+            icon={stroke(<><rect x="4" y="4" width="11" height="11" rx="2" /><rect x="9" y="9" width="11" height="11" rx="2" /></>)}
+            label="Use the project's concept"
+            hint="A new piece that carries the concept you already have"
+            onClick={onAdopt}
+          />
+        )}
         <MenuRow
           icon={stroke(<><path d="M4 20h16" /><path d="M14.5 4.5l5 5L8 21H3v-5z" /></>)}
           label="Start it now"

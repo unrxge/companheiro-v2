@@ -72,12 +72,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateR
       systemPrompt = `You are distilling the core idea from a conceptualisation conversation. Your task is to:
 1. Generate a one-sentence idea statement that captures the essence of what they want to create
 2. Infer the arc (Breakaway, Beginning, Expansion, Integration) based on the conversation
-3. Name the theme this particular piece is about, in your own words: a short phrase of one to five words, in sentence case (for example "Chasing validation" or "The weight of inheritance"). Let the piece itself decide it. Do not reach for a category, a pillar, or a stock label — the person may be exploring something far from anything they have made before.
+3. Decide what the concept is for. "project" when they describe a body of work in several pieces (a series, an album, a campaign, a collection, a run of essays); "piece" when it is one piece of work, or when it is unclear.
+4. Name the theme this particular piece is about, in your own words: a short phrase of one to five words, in sentence case (for example "Chasing validation" or "The weight of inheritance"). Let the piece itself decide it. Do not reach for a category, a pillar, or a stock label — the person may be exploring something far from anything they have made before.
 
 Return as JSON:
 {
   "one_sentence": "...",
   "arc": "Breakaway" | "Beginning" | "Expansion" | "Integration",
+  "scope": "piece" | "project",
   "thematic_territory": "<the theme, one to five words>"
 }`;
 

@@ -192,6 +192,8 @@ export interface BoardActions {
   /** Works the piece out in conversation first, and makes it at the end of
    *  that. Leaves this page. */
   conceptualisePiece: (x: number | null) => void
+  /** Makes a piece that takes the project's concept as its own. Absent when the project has no concept yet. */
+  adoptPiece?: (x: number | null) => void
   removePiece: (piece: TreeNode) => void
   renamePiece: (id: string, title: string) => void
   reorder: (ids: string[]) => void
@@ -1760,6 +1762,7 @@ export function Board({
               <NewPieceMenu
                 onStart={() => { setAskingNewPiece(false); act.addPiece(newPieceX) }}
                 onConceptualise={() => { setAskingNewPiece(false); act.conceptualisePiece(newPieceX) }}
+                onAdopt={act.adoptPiece ? () => { setAskingNewPiece(false); act.adoptPiece!(newPieceX) } : undefined}
                 onClose={() => setAskingNewPiece(false)}
               />
             )}

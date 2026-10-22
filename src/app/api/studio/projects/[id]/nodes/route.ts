@@ -55,6 +55,32 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
     }
 
+    // "Use the project's concept": the new piece starts with the concept the
+    // project already has as its own. The project's own when it was worked out
+    // as a project of several pieces; otherwise the first piece's, which for a
+    // project made from one concept is the same thing.
+    let concept: Record<string, unknown> = {}
+    if (body.adopt_concept === true && parentId === null) {
+      const own = project.settings?.concept
+      if (own && own.core_truth) {
+        concept = { intent: own.intent, core_truth: own.core_truth, emotional_journey: own.emotional_journey, open_threads: own.open_threads ?? [] }
+      } else {
+        const { data: first, error: firstErr } = await auth.supabase
+          .from('studio_nodes')
+          .select('intent, core_truth, emotional_journey, open_threads')
+          .eq('project_id', project.id)
+          .eq('user_id', auth.user.id)
+          .is('parent_id', null)
+          .not('core_truth', 'is', null)
+          .order('position', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        if (firstErr) throw fromDbError(firstErr)
+        if (first) concept = first as Record<string, unknown>
+      }
+      if (!concept.core_truth) throw badRequest('this project has no concept to take yet')
+    }
+
     const { data, error } = await auth.supabase
       .from('studio_nodes')
       .insert({
@@ -65,7 +91,13 @@ export async function POST(req: NextRequest, { params }: Params) {
         title: body.title === undefined ? '' : clampText(body.title, 'title', 'title'),
         intent: body.intent === undefined ? '' : clampText(body.intent, 'intent', 'intent'),
         beat: body.beat === undefined ? '' : clampText(body.beat, 'beat', 'beat'),
-        stands_whole: body.stands_whole === true,
+        stands_whole: body.stands_whole === true || !!concept.core_truth,
+        ...(concept.core_truth ? {
+          intent: String(concept.intent ?? ''),
+          core_truth: String(concept.core_truth),
+          emotional_journey: String(concept.emotional_journey ?? ''),
+          open_threads: Array.isArray(concept.open_threads) ? concept.open_threads : [],
+        } : {}),
       })
       .select(NODE_COLS)
       .single()

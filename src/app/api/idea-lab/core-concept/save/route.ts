@@ -32,6 +32,29 @@ interface SaveRequest {
   new_piece?: boolean;
   /** Where the new piece stands, when the end of the lane was taken up. */
   board_x?: number | null;
+  /** What the concept is for: one piece, or a project of several pieces. A
+   *  project's concept is also kept on the project (settings.concept), so a
+   *  new piece can take it as its own. */
+  scope?: "piece" | "project";
+}
+
+/** A project-wide concept, from what was locked. */
+function projectConcept(body: SaveRequest, threads: string[]) {
+  return {
+    core_truth: body.core_truth ?? "",
+    intent: body.conviction_statement ?? "",
+    emotional_journey: body.emotional_journey ?? "",
+    open_threads: threads,
+    at: new Date().toISOString(),
+  };
+}
+
+/** Keeps the project's own concept beside its other settings, and shows its board even with one piece. */
+async function keepProjectConcept(supabase: Awaited<ReturnType<typeof createRouteClient>>, userId: string, projectId: string, concept: ReturnType<typeof projectConcept>) {
+  const { data } = await supabase.from("studio_projects").select("settings").eq("id", projectId).eq("user_id", userId).maybeSingle();
+  const settings = { ...((data?.settings as Record<string, unknown> | null) ?? {}), concept, board: true };
+  const { error } = await supabase.from("studio_projects").update({ settings }).eq("id", projectId).eq("user_id", userId);
+  if (error) console.error("Keeping the project's concept failed (non-fatal):", error);
 }
 
 interface SaveResponse {
@@ -166,6 +189,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     }
 
     const projectId = projectData.id as string;
+    if (body.scope === "project") await keepProjectConcept(supabase, userId, projectId, projectConcept(body, openThreadsArray));
     if (stage === "active") await claimActivePlace(auth, { id: projectId, resting_until: null }).catch(() => {});
 
     // The back-and-forth that shaped this, kept for re-reading from the board.
@@ -441,6 +465,7 @@ async function completeExistingProject(
     intent: body.conviction_statement,
   };
   if (body.conversation_history.length > 1) update.conceptualisation_log = body.conversation_history;
+  if (body.scope === "project") await keepProjectConcept(supabase, user.id, projectId, projectConcept(body, toThreadArray(body.open_threads)));
   let { error: projectError } = await supabase.from("studio_projects").update(update).eq("id", projectId).eq("user_id", userId);
   if (projectError && update.conceptualisation_log) {
     delete update.conceptualisation_log; // migration 023 not applied yet

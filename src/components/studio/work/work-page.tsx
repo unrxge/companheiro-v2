@@ -387,6 +387,13 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     conceptualisePiece: (x) => router.push(
       `/idea-lab/conceptualise?project=${projectId}${x === null ? '' : `&at=${Math.round(x)}`}`,
     ),
+    // Offered once the project has a concept: its own when it was worked out
+    // as a project of several pieces, or the one its first piece was made from.
+    ...(project?.settings?.concept?.core_truth || roots.some((r) => r.core_truth?.trim()) ? {
+      adoptPiece: (x: number | null) => void api.addNode(null, null, { adoptConcept: true }).then((made) => {
+        if (made && x !== null) void api.editNode(made.id, { board_x: x })
+      }),
+    } : {}),
     removePiece: (piece) => void removeNode(piece),
     renamePiece: (id, title) => void api.editNode(id, { title }),
     reorder: (ids) => void api.reorderRoots(ids),
@@ -435,7 +442,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         }
       },
     } : {}),
-  }), [isExampleProject, api, board.api, board.items, goNode, goThread, makeConstraint, projectId, removeItem, removeNode, roots, router, setProjectField, tree.threads])
+  }), [isExampleProject, api, board.api, board.items, goNode, goThread, makeConstraint, projectId, removeItem, removeNode, roots, router, setProjectField, tree.threads, project?.settings?.concept?.core_truth])
 
   // Every project has a canvas, a single piece of writing included: threads
   // go under it and more pieces beside it. The Project Board always opens that
