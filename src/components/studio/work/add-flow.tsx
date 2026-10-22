@@ -118,6 +118,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
           padding: 16, background: 'rgba(10,9,8,0.72)', backdropFilter: 'blur(6px)',
         }}
       >
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, display: "flex", flexDirection: "column", gap: 10, maxHeight: "calc(100dvh - 32px)", minHeight: 0 }}>
         <div
           role="dialog"
           aria-modal="true"
@@ -126,7 +127,7 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
           style={{
-            width: '100%', maxWidth: 460, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto',
+            width: '100%', flex: '0 1 auto', minHeight: 0, overflowY: 'auto',
             padding: 22, borderRadius: radius.card, background: t.containerBg, boxShadow: t.containerShadow,
           }}
         >
@@ -220,41 +221,6 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
                 )
               })()}
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Its name (optional)" maxLength={120} style={{ ...field, marginTop: 10 }} />
-              {bank.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <span style={label}>From your capture bank</span>
-                  <div
-                    style={{
-                      display: 'flex', gap: 8, overflowX: 'auto', margin: '0 -4px', padding: '2px 4px 6px', scrollSnapType: 'x proximity',
-                      scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
-                    }}
-                  >
-                    {bank.map((c) => {
-                      const on = intent === c.url
-                      let host = ''
-                      try { host = new URL(c.url).hostname.replace(/^www\./, '') } catch { /* shown without */ }
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          aria-pressed={on}
-                          onClick={() => { setIntent(c.url); if (!name.trim() && c.title) setName(c.title) }}
-                          style={{
-                            flex: '0 0 auto', width: 168, height: 72, boxSizing: 'border-box', padding: '9px 12px', textAlign: 'left', cursor: 'pointer', scrollSnapAlign: 'start',
-                            borderRadius: radius.field, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4,
-                            border: `1px solid ${on ? t.textPrimary : alpha(t.textPrimary, 0.14)}`, background: on ? alpha(t.textPrimary, 0.1) : alpha(t.textPrimary, 0.04), color: t.textPrimary,
-                          }}
-                        >
-                          <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                            {c.title || c.note || host}
-                          </span>
-                          <span style={{ ...canvasType.chip, color: t.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{host}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
             </>
           )}
 
@@ -310,6 +276,41 @@ export function AddFlow({ kind, pieces, onCancel, onMake }: {
               {kind === 'recording' ? 'Next: record' : 'Add it'}
             </button>
           </div>
+        </div>
+          {/* The capture bank, as the Idea Lab shows it but shorter: just the
+             words, one row to slide through, under the box it fills. */}
+          {kind === 'link' && bank.length > 0 && (
+            <div className="add-flow-bank" style={{ flexShrink: 0, padding: '12px 14px 14px', borderRadius: radius.card, background: t.containerBg, boxShadow: t.containerShadow }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <span style={{ ...canvasType.label, color: t.textMuted }}>Capture bank</span>
+                <span style={{ ...canvasType.chip, color: t.textMuted }}>{bank.length} {bank.length === 1 ? 'item' : 'items'}</span>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', margin: '0 -2px', padding: '2px', scrollSnapType: 'x proximity', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                  {bank.map((c) => {
+                    const on = intent === c.url
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => { setIntent(c.url); if (!name.trim() && c.title) setName(c.title) }}
+                        style={{
+                          flex: '0 0 auto', width: 156, height: 54, boxSizing: 'border-box', padding: '8px 11px', textAlign: 'left', cursor: 'pointer', scrollSnapAlign: 'start',
+                          borderRadius: radius.widget, border: `1px solid ${on ? t.textPrimary : 'transparent'}`, background: on ? alpha(t.textPrimary, 0.12) : t.cardBgInner, color: t.textPrimary,
+                        }}
+                      >
+                        <span style={{ ...canvasType.small, fontSize: 12.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {c.title || c.note || c.url}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {bank.length > 2 && <div aria-hidden style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 44, background: `linear-gradient(to right, transparent, ${t.containerBg})`, pointerEvents: 'none' }} />}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Portal>
