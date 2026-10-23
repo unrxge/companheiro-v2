@@ -77,8 +77,21 @@ export async function loadTree(auth: AuthedContext, projectId: string): Promise<
   const { data, error } = await auth.supabase.rpc('studio_tree', { p_project_id: projectId })
   if (error) throw fromDbError(error)
   const payload = (data ?? {}) as Partial<TreePayload>
+  const nodes = (payload.nodes ?? []).map(normaliseNode)
+  // Which pieces have been looked back on, so a piece among others can show
+  // as completed on its own.
+  const rootIds = nodes.filter((n) => !n.parent_id).map((n) => n.id)
+  let reflected = new Set<string>()
+  if (rootIds.length > 0) {
+    const { data: logs } = await auth.supabase
+      .from('studio_post_publication_logs')
+      .select('node_id')
+      .eq('user_id', auth.user.id)
+      .in('node_id', rootIds)
+    reflected = new Set(((logs as Array<{ node_id: string }> | null) ?? []).map((l) => l.node_id))
+  }
   return {
-    nodes: (payload.nodes ?? []).map(normaliseNode),
+    nodes: nodes.map((n) => (reflected.has(n.id) ? { ...n, reflected: true } : n)),
     threads: (payload.threads ?? []).map(normaliseThread),
     tags: payload.tags ?? [],
     open_checks: payload.open_checks ?? [],

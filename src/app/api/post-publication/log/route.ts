@@ -104,14 +104,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         );
       }
 
-      // A project is finished when every one of its pieces is, not when one is:
-      // a piece published among others leaves the project where it is.
+      // A piece is completed on its own once it has been posted and reflected
+      // on. The project is finished when every one of its pieces is, not when
+      // one is: a piece completed among others leaves the project where it is.
       const { data: roots, error: rootsError } = await supabase
         .from("studio_nodes")
-        .select("status")
+        .select("id")
         .eq("project_id", nodeData.project_id)
         .eq("user_id", userId)
         .is("parent_id", null);
+      const { data: reflections } = rootsError
+        ? { data: null }
+        : await supabase
+            .from("studio_post_publication_logs")
+            .select("node_id")
+            .eq("user_id", userId)
+            .in("node_id", (roots ?? []).map((r) => r.id));
+      const reflected = new Set((reflections ?? []).map((l) => l.node_id));
       if (rootsError) {
         console.error("Error reading the project's pieces:", rootsError);
         return NextResponse.json(
@@ -119,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
           { status: 500 }
         );
       }
-      if ((roots ?? []).some((r) => r.status !== "done")) {
+      if ((roots ?? []).some((r) => !reflected.has(r.id))) {
         return NextResponse.json({ success: true });
       }
 

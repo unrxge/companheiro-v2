@@ -71,7 +71,8 @@ export function PieceCard({
   const words = extentOf(node)
   // The same words /api/studio/projects uses for a project of one piece.
   const step = journeyStepFromStage(
-    node.status === 'done' ? 'executing'
+    node.reflected ? 'posted'
+      : node.status === 'done' ? 'executing'
       : node.short_form_script ? 'translating'
       : node.status === 'drafted' ? 'writing'
       : 'conceptualising',

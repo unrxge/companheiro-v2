@@ -49,6 +49,8 @@ export interface WorkNode {
   short_form_goals: string | null
   open_threads: string[] | null
   short_form_script: string | null
+  /** A reflection has been written for this piece: it has been posted and looked back on. Set by the tree read, never stored. */
+  reflected?: boolean
   /** Per-part AI edit lock in Write mode's Studio (distinct from the
    *  project-level assistant write-lock in user_settings). */
   is_locked: boolean
