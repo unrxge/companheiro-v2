@@ -214,14 +214,14 @@ export function PieceCard({
           padding: compact ? `8px ${pad}px 14px` : '10px 24px 16px', ...canvasType.chip, color: t.textMuted,
         }}
       >
-        {!barsOnly && <span>{compact ? words.toLocaleString() : `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`}</span>}
-        {!showStage && node.children.length > 0 && <span>{node.children.length} parts</span>}
-        {!barsOnly && node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
         {showStage && (
           <div style={{ flex: 1, minWidth: 60 }}>
             <StageRibbon step={step} compact />
           </div>
         )}
+        {!barsOnly && <span>{compact ? words.toLocaleString() : `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`}</span>}
+        {!showStage && node.children.length > 0 && <span>{node.children.length} parts</span>}
+        {!barsOnly && node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
 
         {/* Begin/Resume writing: the plain way into the piece, kept on the right so it never competes with the counts. */}
         {!barsOnly && <button
