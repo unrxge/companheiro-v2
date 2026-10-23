@@ -1546,6 +1546,7 @@ export function Board({
                 dimmed={Boolean(armedOn && armedOn.has(piece.id))}
                 targeted={targeted}
                 disabled={disabled}
+                showStage={pieces.length > 1}
                 onOpen={(el) => act.openPiece(piece.id, el)}
                 onRename={(title) => act.renamePiece(piece.id, title)}
                 onRemove={() => act.removePiece(piece)}

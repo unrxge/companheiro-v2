@@ -13,9 +13,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { useNoHover } from '@/lib/use-phone'
+import { useNoHover, usePhone } from '@/lib/use-phone'
+import { StageRibbon } from '@/components/widgets/stage-ribbon'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, fonts, radius } from '@/lib/design-tokens'
+import { alpha, fonts, journeyStepFromStage, radius } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
 import { extentOf, previewOf } from '@/lib/studio/tree'
 
@@ -33,6 +34,7 @@ export function PieceCard({
   dimmed = false,
   targeted = false,
   disabled = false,
+  showStage = false,
 }: {
   node: TreeNode
   width: number
@@ -50,10 +52,13 @@ export function PieceCard({
   /** Waiting to be picked as the other end of a connection. */
   targeted?: boolean
   disabled?: boolean
+  /** One of several pieces in a project: where this piece is on its journey, as bars only. */
+  showStage?: boolean
 }) {
   const { t } = useTheme()
   const [hover, setHover] = useState(false)
   const noHover = useNoHover()
+  const phone = usePhone()
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState(node.title)
   const field = useRef<HTMLInputElement | null>(null)
@@ -64,6 +69,15 @@ export function PieceCard({
 
   const preview = previewOf(node, 1500)
   const words = extentOf(node)
+  // The same words /api/studio/projects uses for a project of one piece.
+  const step = journeyStepFromStage(
+    node.status === 'done' ? 'executing'
+      : node.short_form_script ? 'translating'
+      : node.status === 'drafted' ? 'writing'
+      : 'conceptualising',
+  )
+  // On a phone the bars are all the foot holds.
+  const barsOnly = showStage && phone
   // Everything that has a size of its own comes down together, so a narrow
   // card is the same card smaller and not the wide one squeezed.
   const pad = compact ? 16 : 24
@@ -199,24 +213,29 @@ export function PieceCard({
           padding: compact ? `8px ${pad}px 14px` : '10px 24px 16px', ...canvasType.chip, color: t.textMuted,
         }}
       >
-        <span>{compact ? words.toLocaleString() : `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`}</span>
-        {node.children.length > 0 && <span>{node.children.length} parts</span>}
-        {node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
+        {!barsOnly && <span>{compact ? words.toLocaleString() : `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`}</span>}
+        {!showStage && node.children.length > 0 && <span>{node.children.length} parts</span>}
+        {!barsOnly && node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
+        {showStage && (
+          <div style={{ flex: 1, minWidth: 60 }}>
+            <StageRibbon step={step} compact />
+          </div>
+        )}
 
         {/* Begin/Resume writing: the plain way into the piece, kept on the right so it never competes with the counts. */}
-        <button
+        {!barsOnly && <button
           type="button"
           data-hold
           onClick={(e) => { e.stopPropagation(); onOpen(card.current) }}
           aria-label={`${words > 0 ? 'Resume' : 'Begin'} writing ${node.title || 'this piece'}`}
           style={{
-            marginLeft: 'auto', flexShrink: 0, ...canvasType.chip, fontSize: 12, fontWeight: 600,
+            marginLeft: showStage ? 0 : 'auto', flexShrink: 0, ...canvasType.chip, fontSize: 12, fontWeight: 600,
             padding: compact ? '6px 10px' : '6px 12px', borderRadius: radius.field, cursor: 'pointer',
             border: `1px solid ${alpha(t.tide, 0.4)}`, background: alpha(t.tide, 0.1), color: t.tide,
           }}
         >
           {compact ? (words > 0 ? 'Resume' : 'Begin') : (words > 0 ? 'Resume writing' : 'Begin writing')}
-        </button>
+        </button>}
       </div>
     </div>
   )
