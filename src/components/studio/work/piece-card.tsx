@@ -224,7 +224,7 @@ export function PieceCard({
         {!barsOnly && node.status === 'done' && <span style={{ color: t.verdant }}>Done</span>}
 
         {/* Begin/Resume writing: the plain way into the piece, kept on the right so it never competes with the counts. */}
-        {!barsOnly && <button
+        {!barsOnly && !node.reflected && <button
           type="button"
           data-hold
           onClick={(e) => { e.stopPropagation(); onOpen(card.current) }}
