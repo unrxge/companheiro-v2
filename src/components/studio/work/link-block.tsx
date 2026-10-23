@@ -77,14 +77,14 @@ export function LinkBlock({ item, disabled, onContent }: {
         </span>
       </button>
       <div style={{ minWidth: 0 }}>
-        <div style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={name}>{name}</div>
+        <div style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary, overflowWrap: 'anywhere' }} title={name}>{name}</div>
         <a
           href={url || undefined}
           target="_blank"
           rel="noopener noreferrer"
           draggable={false}
           onClick={(ev) => ev.stopPropagation()}
-          style={{ ...canvasType.chip, color: t.textMuted, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{ ...canvasType.chip, color: t.textMuted, textDecoration: 'none', display: 'block', overflowWrap: 'anywhere' }}
         >
           {e.host || url} ↗
         </a>

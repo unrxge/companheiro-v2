@@ -163,7 +163,7 @@ export const ITEM_WIDTH: Record<BoardItemKind, { base: number; min: number; max:
   recording: { base: 300, min: 300, max: 300 },
   palette: { base: 300, min: 220, max: 560 },
   note: { base: 260, min: 200, max: 440 },
-  link: { base: 300, min: 220, max: 640 },
+  link: { base: 300, min: 120, max: 640 },
 }
 export const RECORDING_H = 116
 /** Rows a caption may wrap to before it stops growing. */
