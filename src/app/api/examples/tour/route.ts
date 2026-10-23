@@ -37,16 +37,30 @@ export async function GET() {
   }
 }
 
-// POST { which } — they have now. POST { rearm: true } — every walk is due again (Settings → Take the tour).
+// POST { which } — they have now. POST { rearm: 'home' | 'checkin' | 'idealab' | 'board' | 'portrait' } — that part's walk is due again (Settings → Take the tour).
+/** The seen-flags each part of the app keeps (the board has two: the canvas's and the writing page's). */
+const REARM: Record<string, string[]> = {
+  home: ['home_seen_at'],
+  checkin: ['check_in_seen_at'],
+  idealab: ['idea_lab_seen_at'],
+  portrait: ['portrait_seen_at'],
+  board: ['seen_at', 'piece_seen_at'],
+}
 export async function POST(request: Request) {
   try {
     const auth = await requireUser()
     if (!auth) return new NextResponse(null, { status: 204 })
     const body = (await request.json().catch(() => ({}))) as { which?: unknown; rearm?: unknown }
-    if (body.rearm === true) {
-      // "Take the tour" in Settings: every walk is due again, and the example projects are on so the board has one to open.
+    if (typeof body.rearm === 'string' && body.rearm in REARM) {
+      // "Take the tour" in Settings, for the one part of the app they chose: only that walk is due again.
+      // The Project Board's also needs an example to open, so the examples are put on for it.
+      const kept = { ...((auth.user.user_metadata?.example_tour ?? {}) as Record<string, unknown>) }
+      for (const f of REARM[body.rearm]) delete kept[f]
       const now = new Date().toISOString()
-      const { error } = await auth.supabase.auth.updateUser({ data: { example_tour: { rearmed_at: now }, examples: { on: true, changed_at: now } } })
+      // A part chosen later replaces one chosen earlier that was never opened.
+      if (body.rearm === 'board') kept.rearmed_at = now
+      else delete kept.rearmed_at
+      const { error } = await auth.supabase.auth.updateUser({ data: { example_tour: kept, ...(body.rearm === 'board' ? { examples: { on: true, changed_at: now } } : {}) } })
       if (error) {
         console.error('example tour rearm error:', error)
         return NextResponse.json({ success: false }, { status: 500 })

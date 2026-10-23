@@ -149,8 +149,8 @@ export function ExampleTour({
   phone: boolean
   /** The vision room, as the tour reaches it: opened out of the button, a half shown, closed again. */
   onRoom?: (move: RoomMove, from: { x: number; y: number } | null) => void
-  /** Played to the end. */
-  onDone: () => void
+  /** Played to the end, or left early with the X (`exited`). */
+  onDone: (exited?: boolean) => void
 }) {
   const { t } = useTheme()
   const reduce = useReducedMotion() ?? false
@@ -193,6 +193,17 @@ export function ExampleTour({
     setLeaving(true)
     window.setTimeout(onDone, reduce ? 0 : 420)
   }, [board, onDone, reduce])
+
+  // The X (and Escape): out at any step, with whatever the walk opened put back.
+  const exit = useCallback(() => {
+    if (leaving) return
+    if (roomOpenAt(steps, index)) onRoom?.('close', null)
+    if (panelAt(steps, index)) onPanel?.(null)
+    if (viewAt(steps, index) === 'flow') onView?.('write')
+    board?.current?.light(null)
+    setLeaving(true)
+    window.setTimeout(() => onDone(true), reduce ? 0 : 420)
+  }, [board, index, leaving, onDone, onPanel, onRoom, onView, reduce, steps])
 
   const advance = useCallback(() => {
     if (leaving) return
@@ -310,11 +321,11 @@ export function ExampleTour({
       if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); tryAdvance() }
       if (e.key === ' ') { e.preventDefault(); setPaused((p) => !p); setLap((n) => n + 1) }
       if (e.key === 'ArrowLeft') { e.preventDefault(); goBack() }
-      if (e.key === 'Escape') e.preventDefault()
+      if (e.key === 'Escape') { e.preventDefault(); exit() }
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [tryAdvance, goBack])
+  }, [tryAdvance, goBack, exit])
 
   // The canvas is not to be panned or zoomed out from under the walk.
   const root = useRef<HTMLDivElement | null>(null)
@@ -523,7 +534,20 @@ export function ExampleTour({
             border: `1px solid ${alpha(t.textPrimary, 0.1)}`, boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
           }}
         >
-          <Progress count={steps.length} at={index} reading={phase === 'reading'} colour={t.violet} track={alpha(t.textPrimary, 0.12)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Progress count={steps.length} at={index} reading={phase === 'reading'} colour={t.violet} track={alpha(t.textPrimary, 0.12)} />
+            </div>
+            <button
+              type="button"
+              className="tour-btn"
+              onClick={(e) => { e.stopPropagation(); exit() }}
+              aria-label="Leave the walk"
+              style={{ width: 28, height: 28, margin: '-8px -8px -8px 0', borderRadius: 999, border: 'none', background: 'transparent', color: t.textMuted, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
           <div aria-live="polite" style={{ minHeight: narrow ? 56 : 112, marginTop: narrow ? 10 : 14 }}>
             {phase === 'reading' && (
               <div key={step.key} className={dir === 'back' ? 'tour-step-back' : 'tour-step-on'}>

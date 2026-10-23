@@ -16,7 +16,7 @@ import { radius, type as typeRoles } from '@/lib/design-tokens'
 import { LEGAL_PAGES } from '@/lib/legal'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 import { forgetOpened } from '@/lib/studio/opened'
-import { rearmWalks } from '@/lib/examples/use-example-tour'
+import { rearmWalks, type WalkPlace } from '@/lib/examples/use-example-tour'
 
 /** Gear button for a page header. Opens the sheet. */
 export function SettingsButton() {
@@ -44,7 +44,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [analytics, setAnalytics] = useState<boolean | null>(null)
   // The example projects under Active on the Project Board; null until the answer arrives.
   const [examples, setExamples] = useState<boolean | null>(null)
-  const [walksBusy, setWalksBusy] = useState(false)
+  const [walksBusy, setWalksBusy] = useState<WalkPlace | null>(null)
   const [walksOn, setWalksOn] = useState(false)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -83,14 +83,14 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const turnWalksOn = async () => {
-    setWalksBusy(true)
-    setError(null)
+  // The one part they chose: only its walk is switched back on, then they are taken there to see it.
+  const takeWalk = async (place: WalkPlace, href: string) => {
+    setWalksBusy(place)
     try {
-      if (await rearmWalks()) { setExamples(true); setWalksOn(true) }
-      else setError('The walks could not be switched on. Try again in a moment.')
+      if (await rearmWalks(place)) { setWalksOn(false); onClose(); router.push(href) }
+      else { setWalksOn(false); setError('That walk could not be switched on. Try again in a moment.') }
     } finally {
-      setWalksBusy(false)
+      setWalksBusy(null)
     }
   }
 
@@ -206,9 +206,9 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           <div style={row}>
             <div>
               <div style={label}>Guided walks</div>
-              <div style={hint}>Switch the short walks back on. Each part of the app shows you round the next time you open it.</div>
+              <div style={hint}>A short walk round one part of the app, whichever you choose.</div>
             </div>
-            <GhostButton size="sm" onClick={turnWalksOn} loading={walksBusy} loadingLabel="Switching on…">Take the tour</GhostButton>
+            <GhostButton size="sm" onClick={() => { setError(null); setWalksOn(true) }}>Take the tour</GhostButton>
           </div>
           <Divider />
           <div style={row}>
@@ -271,39 +271,40 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         </nav>
         <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'right' }}>{saving ? 'Saving…' : ' '}</p>
       </div>
-      {walksOn && <WalksOn onClose={() => setWalksOn(false)} onGo={(href) => { setWalksOn(false); onClose(); router.push(href) }} />}
+      {walksOn && <WalksOn busy={walksBusy} onClose={() => setWalksOn(false)} onPick={takeWalk} />}
     </ModalDialog>
   )
 }
 
-const WALK_PLACES: { href: string; title: string; body: string }[] = [
-  { href: '/home', title: 'Home', body: 'What is on the page, and your capture bank.' },
-  { href: '/check-in', title: 'Check-in', body: 'Saying how you are, or leaving a thought on a project.' },
-  { href: '/idea-lab', title: 'Idea Lab', body: 'Summoning a question: movement, energy, open or charged.' },
-  { href: '/project-board', title: 'Project Board', body: 'Opens an example made for what you do, and walks you through it.' },
-  { href: '/portrait', title: 'Portrait', body: 'How a pattern gets from a check-in to here.' },
+const WALK_PLACES: { place: WalkPlace; href: string; title: string; body: string }[] = [
+  { place: 'home', href: '/home', title: 'Home', body: 'What is on the page, and your capture bank.' },
+  { place: 'checkin', href: '/check-in', title: 'Check-in', body: 'Saying how you are, or leaving a thought on a project.' },
+  { place: 'idealab', href: '/idea-lab', title: 'Idea Lab', body: 'Summoning a question: movement, energy, open or charged.' },
+  { place: 'board', href: '/project-board', title: 'Project Board', body: 'Opens an example made for what you do, and walks you through it.' },
+  { place: 'portrait', href: '/portrait', title: 'Portrait', body: 'How a pattern gets from a check-in to here.' },
 ]
 
-/** Said after "Take the tour": the walks are on, and where to start. */
-function WalksOn({ onClose, onGo }: { onClose: () => void; onGo: (href: string) => void }) {
+/** "Take the tour": which part of the app would they like a walk round? Only that one is switched on. */
+function WalksOn({ busy, onClose, onPick }: { busy: WalkPlace | null; onClose: () => void; onPick: (place: WalkPlace, href: string) => void }) {
   const { t } = useTheme()
   return (
     <ModalDialog
       onClose={onClose}
-      title="Guided walks are on"
+      title="Which part would you like a walk round?"
       maxWidth="480px"
-      footer={<div style={{ display: 'flex', justifyContent: 'flex-end' }}><GhostButton size="sm" onClick={onClose}>I’ll find my own way</GhostButton></div>}
+      footer={<div style={{ display: 'flex', justifyContent: 'flex-end' }}><GhostButton size="sm" onClick={onClose}>Not now</GhostButton></div>}
     >
       <p style={{ ...typeRoles.ui, fontSize: 15, lineHeight: 1.6, color: t.textSecondary, margin: 0 }}>
-        The next time you open any part of Companheiro, a short walk shows you round it. Pick whichever you would like a hand with:
+        Choose one and it takes you there with a short walk. Nothing else changes: the other parts stay as they are.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
         {WALK_PLACES.map((p) => (
           <button
             key={p.href}
             type="button"
-            onClick={() => onGo(p.href)}
-            style={{ textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: radius.field, border: `1px solid ${t.divider}`, background: t.cardBgInner, color: t.textPrimary }}
+            onClick={() => onPick(p.place, p.href)}
+            disabled={busy !== null}
+            style={{ textAlign: 'left', cursor: busy ? 'progress' : 'pointer', opacity: busy && busy !== p.place ? 0.5 : 1, padding: '12px 14px', borderRadius: radius.field, border: `1px solid ${t.divider}`, background: t.cardBgInner, color: t.textPrimary }}
           >
             <span style={{ ...typeRoles.h3, display: 'block' }}>{p.title} →</span>
             <span style={{ ...typeRoles.small, display: 'block', color: t.textSecondary, marginTop: 2 }}>{p.body}</span>

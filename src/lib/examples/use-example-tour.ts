@@ -67,19 +67,24 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
   return { due, markSeen }
 }
 
+/** The parts of the app a walk can be asked for again from Settings. */
+export type WalkPlace = 'home' | 'checkin' | 'idealab' | 'board' | 'portrait'
+const PLACE_KEYS: Record<WalkPlace, TourWhich[]> = { home: ['home'], checkin: ['checkin'], idealab: ['idealab'], portrait: ['portrait'], board: ['canvas', 'piece'] }
+
 /**
- * "Take the tour" in Settings: every walk is due again, for whichever part of
- * the app is opened next, and the example projects are switched on. This
- * device forgets what it had seen too. False when it could not be done.
+ * "Take the tour" in Settings, for the one part of the app they chose: its walk
+ * is due again, the next time it is opened (the board's also switches the
+ * example projects on). This device forgets having seen it too. False when it
+ * could not be done.
  */
-export async function rearmWalks(): Promise<boolean> {
+export async function rearmWalks(place: WalkPlace): Promise<boolean> {
   try {
     const res = await fetch('/api/examples/tour', {
       method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rearm: true }),
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rearm: place }),
     })
     if (!res.ok) return false
-    for (const key of Object.values(SEEN)) { try { window.localStorage.removeItem(key) } catch { /* fine */ } }
+    for (const which of PLACE_KEYS[place]) { try { window.localStorage.removeItem(SEEN[which]) } catch { /* fine */ } }
     return true
   } catch {
     return false
