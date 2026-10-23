@@ -114,9 +114,9 @@ const HUB_W = 236
 const HUB_H = 104
 const HUB_GAP = 30
 /** How long a block is held still before it lifts and can be moved. */
-const LIFT_MS = 220
-/** How far a press travels before it is a look around rather than a click. */
-const PAN_SLOP = 5
+const LIFT_MS = 150
+/** How far a press travels before it is a look around rather than a click. A little room, so a hand that wobbles while holding still does not turn the hold into a pan. */
+const PAN_SLOP = 8
 const LIFT_HINT = 'companheiro.lift-hint.seen'
 /** How far back a block falls while something else is being followed. */
 const DIMMED = 0.22
