@@ -360,6 +360,7 @@ function Board() {
   const header = (
     <PageHeader
       title="Project Board"
+      subtitle="Drag a project between Queue, Active and Completed, or use the ⋯ menu on its card."
       actions={
         <IconButton onClick={newIdea} ariaLabel="New idea">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

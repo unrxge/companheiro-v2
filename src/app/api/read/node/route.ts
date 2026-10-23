@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     if (projectError) console.error('Project query error:', projectError)
     if (reflectionError) console.error('Reflection query error:', reflectionError)
 
-    const stage = project?.shelf_stage === 'completed'
+    const stage = project?.shelf_stage === 'completed' || reflection
       ? 'posted'
       : node.status === 'done'
         ? 'executing'

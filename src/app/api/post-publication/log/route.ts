@@ -104,7 +104,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         );
       }
 
-      // Publishing gives up the project's place in Active, same as dragging
+      // A project is finished when every one of its pieces is, not when one is:
+      // a piece published among others leaves the project where it is.
+      const { data: roots, error: rootsError } = await supabase
+        .from("studio_nodes")
+        .select("status")
+        .eq("project_id", nodeData.project_id)
+        .eq("user_id", userId)
+        .is("parent_id", null);
+      if (rootsError) {
+        console.error("Error reading the project's pieces:", rootsError);
+        return NextResponse.json(
+          { success: false, error: "Failed to update project" },
+          { status: 500 }
+        );
+      }
+      if ((roots ?? []).some((r) => r.status !== "done")) {
+        return NextResponse.json({ success: true });
+      }
+
+      // Publishing the last piece gives up the project's place in Active, same as dragging
       // it to Completed (lib/studio/plan-access.ts reads when that happened).
       const { data: projectRow } = await supabase
         .from("studio_projects")
