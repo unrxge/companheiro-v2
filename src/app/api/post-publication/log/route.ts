@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { settingsOnLeaving } from "@/lib/studio/plan-access";
+import { cleanFeelings, cleanSaidIt, cleanText, continuationLines } from "@/lib/reflection";
 
+// The reflection a person writes on a finished piece. Every answer is
+// optional: an empty one still marks the piece done. `thread` is no longer
+// asked; old rows keep theirs.
 interface LogRequest {
   piece_id?: string;
   node_id?: string;
-  thread: string;
-  what_it_opened: string;
-  unresolved: string;
-  natural_continuations: string;
+  thread?: string;
+  what_it_opened?: string;
+  unresolved?: string;
+  natural_continuations?: string;
+  said_it?: string | null;
+  felt?: string[];
 }
 
 interface LogResponse {
@@ -40,11 +46,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
     const userId = userData.user.id;
     const now = new Date().toISOString();
 
-    // Split natural_continuations into array
-    const continuationsArray = body.natural_continuations
-      .split('\n')
-      .map((line: string) => line.trim())
-      .filter((line: string) => line.length > 0);
+    const thread = cleanText(body.thread);
+    const whatItOpened = cleanText(body.what_it_opened);
+    const unresolved = cleanText(body.unresolved);
+    const continuationsArray = continuationLines(cleanText(body.natural_continuations));
+    const saidIt = cleanSaidIt(body.said_it);
+    const felt = cleanFeelings(body.felt);
 
     // Node/thread-model path (Phase 4 of the Project Board -> Studio
     // migration): studio_post_publication_logs instead of
@@ -54,18 +61,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
     // ideas.status. No idea-status equivalent exists on the node/thread
     // model, so that third update is simply not needed here.
     if (body.node_id) {
-      const { error: logError } = await supabase
+      const row = {
+        user_id: userId,
+        node_id: body.node_id,
+        thread,
+        what_it_opened: whatItOpened,
+        unresolved,
+        natural_continuations: continuationsArray,
+      };
+      let { error: logError } = await supabase
         .from("studio_post_publication_logs")
-        .insert([
-          {
-            user_id: userId,
-            node_id: body.node_id,
-            thread: body.thread,
-            what_it_opened: body.what_it_opened,
-            unresolved: body.unresolved,
-            natural_continuations: continuationsArray,
-          },
-        ]);
+        .insert([{ ...row, said_it: saidIt, felt }]);
+      // Migration 038 (said_it, felt) not applied yet: keep what the older columns can hold.
+      if (logError && /said_it|felt/i.test(logError.message ?? "")) {
+        ({ error: logError } = await supabase.from("studio_post_publication_logs").insert([row]));
+      }
 
       if (logError) {
         console.error("Error inserting studio post-publication log:", logError);
@@ -104,8 +114,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         );
       }
 
-      // A piece is completed on its own once it has been posted and reflected
-      // on. The project is finished when every one of its pieces is, not when
+      // A piece is completed on its own once it has been reflected on,
+      // and the project is finished when every one of its pieces is, not when
       // one is: a piece completed among others leaves the project where it is.
       const { data: roots, error: rootsError } = await supabase
         .from("studio_nodes")
@@ -132,7 +142,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         return NextResponse.json({ success: true });
       }
 
-      // Publishing the last piece gives up the project's place in Active, same as dragging
+      // Finishing the last piece gives up the project's place in Active, same as dragging
       // it to Completed (lib/studio/plan-access.ts reads when that happened).
       const { data: projectRow } = await supabase
         .from("studio_projects")
@@ -169,9 +179,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
         {
           user_id: userId,
           piece_id: body.piece_id,
-          thread: body.thread,
-          what_it_opened: body.what_it_opened,
-          unresolved: body.unresolved,
+          thread,
+          what_it_opened: whatItOpened,
+          unresolved,
           natural_continuations: continuationsArray,
         },
       ]);

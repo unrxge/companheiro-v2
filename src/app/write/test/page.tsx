@@ -159,7 +159,7 @@ function TestContent() {
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 6 }}>
-              <PrimaryButton href={`/post-publication?node_id=${nodeId}`}>Post it →</PrimaryButton>
+              <PrimaryButton href={`/reflect?node_id=${nodeId}`}>Look back on it →</PrimaryButton>
               <GhostButton onClick={runTest} loading={isLoading}>Test again</GhostButton>
             </div>
           </div>

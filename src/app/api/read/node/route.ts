@@ -18,7 +18,8 @@ import { requireUser } from '@/lib/supabase/route'
 // journey step; it calls journeyStepFromStage(piece.stage) exactly as it
 // does for a `pieces` row. `posted_at` reads studio_projects.completed_at,
 // set by /api/post-publication/log's node_id branch alongside
-// shelf_stage = 'completed'.
+// shelf_stage = 'completed'. A reflection is the person looking back on the
+// piece once it is done, whether or not it was ever shared.
 
 interface Reflection {
   id: string
@@ -26,6 +27,8 @@ interface Reflection {
   what_it_opened: string | null
   unresolved: string | null
   natural_continuations: string[] | null
+  said_it?: string | null
+  felt?: string[] | null
   created_at: string
 }
 
@@ -50,22 +53,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Piece not found' }, { status: 404 })
     }
 
-    const [{ data: project, error: projectError }, { data: reflection, error: reflectionError }] = await Promise.all([
+    const readReflection = async (cols: string) =>
+      supabase
+        .from('studio_post_publication_logs')
+        .select(cols)
+        .eq('node_id', nodeId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    const [{ data: project, error: projectError }, firstTry] = await Promise.all([
       supabase
         .from('studio_projects')
         .select('arc, thematic_territory, shelf_stage, completed_at')
         .eq('id', node.project_id)
         .eq('user_id', user.id)
         .single(),
-      supabase
-        .from('studio_post_publication_logs')
-        .select('id, thread, what_it_opened, unresolved, natural_continuations, created_at')
-        .eq('node_id', nodeId)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      readReflection('id, thread, what_it_opened, unresolved, natural_continuations, said_it, felt, created_at'),
     ])
+    // Migration 038 (said_it, felt) not applied yet: read what the older columns hold.
+    const second = firstTry.error && /said_it|felt/i.test(firstTry.error.message ?? '')
+      ? await readReflection('id, thread, what_it_opened, unresolved, natural_continuations, created_at')
+      : null
+    const reflection = (second ?? firstTry).data as unknown as Reflection | null
+    const reflectionError = (second ?? firstTry).error
 
     if (projectError) console.error('Project query error:', projectError)
     if (reflectionError) console.error('Reflection query error:', reflectionError)
@@ -96,7 +108,7 @@ export async function GET(request: NextRequest) {
         stage,
         posted_at: project?.completed_at ?? null,
         created_at: node.created_at,
-        reflection: (reflection ?? null) as Reflection | null,
+        reflection: reflection ?? null,
       },
     })
   } catch (error) {

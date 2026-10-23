@@ -9,6 +9,7 @@ import { Pill } from '@/components/ui/pill'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { JourneyNav, JourneyNavNode, JourneyCurve } from '@/components/widgets'
 import { useTerritories } from '@/hooks/useTerritories'
+import { SAID_IT } from '@/lib/reflection'
 import { arcHue, journeyStepFromStage, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
 
@@ -17,6 +18,8 @@ interface Reflection {
   what_it_opened: string | null
   unresolved: string | null
   natural_continuations: string[] | null
+  said_it?: string | null
+  felt?: string[] | null
   created_at: string
 }
 
@@ -85,7 +88,7 @@ function ReadContent() {
       <PageHeader
         eyebrow="Reading room"
         title={piece?.title ?? 'Reading room'}
-        subtitle={piece ? `${piece.posted_at ? `Posted ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not yet posted'} · ${words.toLocaleString()} words` : undefined}
+        subtitle={piece ? `${piece.posted_at ? `Finished ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not finished yet'} · ${words.toLocaleString()} words` : undefined}
         back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/project-board') : '/project-board'}
         actions={
           piece ? (
@@ -142,11 +145,21 @@ function ReadContent() {
               )}
               <Card>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <Eyebrow>Reflection</Eyebrow>
-                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : <UnderlineLink href={nodeId ? `/post-publication?node_id=${piece.id}` : `/post-publication?piece_id=${piece.id}`} color={t.ember}>Write it →</UnderlineLink>}
+                  <Eyebrow>Looking back</Eyebrow>
+                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : <UnderlineLink href={nodeId ? `/reflect?node_id=${piece.id}` : `/reflect?piece_id=${piece.id}`} color={t.ember}>Look back on it →</UnderlineLink>}
                 </div>
                 {piece.reflection ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {SAID_IT.find((s) => s.key === piece.reflection?.said_it) && (
+                      <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>
+                        {SAID_IT.find((s) => s.key === piece.reflection?.said_it)?.line}
+                      </p>
+                    )}
+                    {(piece.reflection.felt ?? []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {(piece.reflection.felt ?? []).map((f) => <Pill key={f} hue="violet">{f}</Pill>)}
+                      </div>
+                    )}
                     {piece.reflection.thread && (
                       <div>
                         <Eyebrow style={{ marginBottom: 4, fontSize: 10 }}>Thread</Eyebrow>
@@ -155,7 +168,7 @@ function ReadContent() {
                     )}
                     {piece.reflection.what_it_opened && (
                       <div>
-                        <Eyebrow style={{ marginBottom: 4, fontSize: 10 }}>What it opened</Eyebrow>
+                        <Eyebrow style={{ marginBottom: 4, fontSize: 10 }}>In your words</Eyebrow>
                         <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>{piece.reflection.what_it_opened}</p>
                       </div>
                     )}
@@ -177,7 +190,7 @@ function ReadContent() {
                     )}
                   </div>
                 ) : (
-                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>No reflection logged yet. What it opened and what it left open are what feed the next idea.</p>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>Nothing looked back on yet. It takes a few minutes and every question can be skipped. What you say it left open can start your next idea.</p>
                 )}
               </Card>
             </div>

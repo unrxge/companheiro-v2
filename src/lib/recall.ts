@@ -50,7 +50,7 @@ export async function recallEchoes(
   if (!query) return ''
 
   try {
-    // Finished pieces are whole-piece nodes marked done (post-publication
+    // Finished pieces are whole-piece nodes marked done (reflection
     // sets that). studio_nodes has no fts column, so the search runs on
     // core_truth directly; PostgREST wraps a text column in to_tsvector.
     // The reflections table is the Studio one: migration 009 copied the old

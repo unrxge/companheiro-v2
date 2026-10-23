@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       workLines.length || posted.length ? `WORK THIS WEEK:\n${[...workLines, ...posted].join('\n')}` : 'WORK THIS WEEK: nothing written.',
       captures?.length ? `CAPTURES (${captures.length}):\n${captures.map((c) => `- ${c.raw_input.slice(0, 140)} [${c.arc ?? ''}]`).join('\n')}` : 'CAPTURES: none.',
       checkIns?.length ? `CHECK-INS (${checkIns.length}):\n${checkIns.map((c) => `- ${c.energy} energy, "${c.inner_weather}", ${c.arc_texture}: ${c.raw_entry.slice(0, 160)}`).join('\n')}` : 'CHECK-INS: none this week.',
-      reflections?.length ? `REFLECTIONS AFTER PUBLISHING:\n${reflections.map((r) => `- thread "${r.thread}"; unresolved: ${r.unresolved}`).join('\n')}` : '',
+      reflections?.length ? `REFLECTIONS ON FINISHED PIECES:\n${reflections.map((r) => `- ${[r.thread ? `thread "${r.thread}"` : '', r.unresolved ? `left open: ${r.unresolved}` : ''].filter(Boolean).join('; ') || 'looked back on a finished piece'}`).join('\n')}` : '',
       formatPortraitForPrompt(portrait),
     ]
       .filter(Boolean)

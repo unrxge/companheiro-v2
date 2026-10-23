@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
     return [
       // The Shape step (Translate) was removed; old links land on Test, query string kept.
       { source: "/write/translate", destination: "/write/test", permanent: false },
+      // Reimagine was removed (it generated the work for the person); the step before it is Test.
+      { source: "/write/reimagine", destination: "/write/test", permanent: false },
+      // "Post" became Reflect: looking back on a finished piece, whether or not it was ever shared.
+      { source: "/post-publication", destination: "/reflect", permanent: false },
       // Sign-up lives on the same page as sign-in. Old links and the landing's
       // Begin buttons still point here; any attribution in the query string
       // (utm_*, ref, via, landing) is carried over. Done here rather than in a

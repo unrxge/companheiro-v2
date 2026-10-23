@@ -157,7 +157,7 @@ const PARTS: { label: string; of: (c: ProjectStory['counts']) => number }[] = [
   { label: 'Talk about the vision', of: (c) => c.visionTurns },
   { label: 'Companion inside a piece', of: (c) => c.partTurns },
   { label: 'Rules checked against the writing', of: (c) => c.ruleChecks },
-  { label: 'Reflections after posting', of: (c) => c.reflections },
+  { label: 'Reflections on finished pieces', of: (c) => c.reflections },
 ]
 
 function Person({ data }: { data: PersonData }) {

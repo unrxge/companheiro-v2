@@ -19,7 +19,7 @@ export function bodyPatch(html: string): { body: string; extent: number } {
 // Recomputes the root node's `body` as the ordered concatenation of its
 // children's bodies, joined by blank lines — the studio_nodes equivalent of
 // lib/write-sections.ts's resyncPieceDraft, kept so every downstream
-// consumer (translate, reimagine, chat context, word count, Test) keeps
+// consumer (chat context, word count, Test) keeps
 // reading the root's body and stays child-node-unaware. Same HTML-in,
 // plain-text-out shape: children store Tiptap HTML, the flattened cache does
 // not (it never did, as pieces.substack_draft).

@@ -10,21 +10,17 @@ export function journeyHref(step: JourneyStep, pieceId: string): string {
       return `/project-board?piece_id=${pieceId}`
     case 'write':
       return `/write?piece_id=${pieceId}`
-    // Reimagine only exists for pieces on the node model; a legacy piece stays on Write.
-    case 'reimagine':
-      return `/write?piece_id=${pieceId}`
     case 'test':
       return `/write/test?piece_id=${pieceId}`
-    case 'post':
-      return `/post-publication?piece_id=${pieceId}`
+    // The Reflect page sends anyone who has already reflected on to the Reading room.
     case 'reflect':
-      return `/read?piece_id=${pieceId}`
+      return `/reflect?piece_id=${pieceId}`
   }
 }
 
 /**
  * The piece journey as navigation: every step is a link. Used in the header
- * of Write, Reimagine, Test, Post and the Reading room, so
+ * of Write, Test, Reflect and the Reading room, so
  * the back half of the loop is always one tap away.
  */
 export function JourneyNav({ pieceId, step, compact = false }: { pieceId: string; step: JourneyStep; compact?: boolean }) {
@@ -39,8 +35,8 @@ export function writeHrefForNode({ projectId, nodeId }: { projectId: string | nu
 /**
  * Where each journey step lives for a piece created through the node/thread
  * model (Phase 3 of the Project Board -> Studio migration, extended in
- * Phase 4) — a root studio_node rather than a `pieces` row. All six steps
- * are clickable now that /post-publication and /read understand node_id too.
+ * Phase 4) — a root studio_node rather than a `pieces` row. All four steps
+ * are clickable now that /reflect and /read understand node_id too.
  */
 export function journeyHrefForNode(
   step: JourneyStep,
@@ -51,14 +47,10 @@ export function journeyHrefForNode(
       return projectId ? `/p/${projectId}` : null
     case 'write':
       return writeHrefForNode({ projectId, nodeId })
-    case 'reimagine':
-      return `/write/reimagine?node_id=${nodeId}`
     case 'test':
       return `/write/test?node_id=${nodeId}`
-    case 'post':
-      return `/post-publication?node_id=${nodeId}`
     case 'reflect':
-      return `/read?node_id=${nodeId}`
+      return `/reflect?node_id=${nodeId}`
   }
 }
 

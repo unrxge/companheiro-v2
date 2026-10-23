@@ -6,10 +6,10 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { fonts, JOURNEY_LABELS, PIECE_JOURNEY, type JourneyStep } from '@/lib/design-tokens'
 
 /**
- * Where a piece is in its six-step journey. Compact on cards (bars only),
+ * Where a piece is in its four-step journey. Compact on cards (bars only),
  * full on writing screens (bars + labels), and when `hrefFor` is given each
- * step becomes a link — this is the navigation between Write, Reimagine, Test,
- * Post and Reflect, which is what re-joins the orphaned screens to the loop.
+ * step becomes a link — this is the navigation between Write, Test and
+ * Reflect, which is what re-joins the orphaned screens to the loop.
  */
 export function StageRibbon({
   step,

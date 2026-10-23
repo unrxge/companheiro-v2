@@ -137,15 +137,13 @@ export const columnHue: Record<BoardColumn, Hue> = {
   completed: 'violet',
 }
 
-/** The six steps every piece walks. `stage` in the DB maps onto these. */
-export const PIECE_JOURNEY = ['concept', 'write', 'reimagine', 'test', 'post', 'reflect'] as const
+/** The four steps every piece walks. `stage` in the DB maps onto these. */
+export const PIECE_JOURNEY = ['concept', 'write', 'test', 'reflect'] as const
 export type JourneyStep = (typeof PIECE_JOURNEY)[number]
 export const JOURNEY_LABELS: Record<JourneyStep, string> = {
   concept: 'Concept',
   write: 'Write',
-  reimagine: 'Reimagine',
   test: 'Test',
-  post: 'Post',
   reflect: 'Reflect',
 }
 /** DB `pieces.stage` → journey step. */
@@ -156,11 +154,11 @@ export function journeyStepFromStage(stage: string | null | undefined): JourneyS
       return 'concept'
     case 'writing':
       return 'write'
-    // Shape (translate/reimagine) was removed; a piece that reached it has been tested.
+    // Shape (translate) and Reimagine were removed; a piece that reached them has been tested.
     case 'translating':
       return 'test'
+    // Done but not yet looked back on, or looked back on: both are the last step.
     case 'executing':
-      return 'post'
     case 'posted':
       return 'reflect'
     default:

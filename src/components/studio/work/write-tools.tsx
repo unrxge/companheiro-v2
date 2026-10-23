@@ -374,7 +374,7 @@ export function PartLines({ lines, onAdd, onRemove }: {
 
 /**
  * Under the writing: shaping the piece into sections, where the piece stands
- * on its way (Write · Reimagine · Test · Post · Reflect).
+ * on its way (Write · Test · Reflect).
  */
 export function PieceFooter({
   projectId, nodeId, words, canShape, canPlace, busy, note, onShape, onPlace, onLeave, journey = true,
@@ -390,7 +390,7 @@ export function PieceFooter({
   onPlace: () => void
   /** Saves what's been typed; awaited before the ribbon carries you to another step. */
   onLeave: () => Promise<void>
-  /** The Write · Reimagine · Test · Post · Reflect ribbon. Off for an example, whose later steps have nothing behind them. */
+  /** The Write · Test · Reflect ribbon. Off for an example, whose later steps have nothing behind them. */
   journey?: boolean
 }) {
   const { t } = useTheme()
