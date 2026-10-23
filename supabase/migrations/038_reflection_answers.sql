@@ -1,3 +1,5 @@
+-- SUPERSEDED by 039 (feeling): the chip-based reflection these two columns belonged to
+-- lasted a day; nothing reads or writes them any more.
 -- The reflection on a finished piece (studio_post_publication_logs) gains two
 -- light answers: whether the piece said what its person set out to say, and
 -- how they feel now it is done. Both nullable and additive; the four older

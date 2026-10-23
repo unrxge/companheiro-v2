@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { settingsOnLeaving } from "@/lib/studio/plan-access";
-import { cleanFeelings, cleanSaidIt, cleanText, continuationLines } from "@/lib/reflection";
+import { cleanText, continuationLines } from "@/lib/reflection";
 
 // The reflection a person writes on a finished piece. Every answer is
 // optional: an empty one still marks the piece done. `thread` is no longer
@@ -13,8 +13,7 @@ interface LogRequest {
   what_it_opened?: string;
   unresolved?: string;
   natural_continuations?: string;
-  said_it?: string | null;
-  felt?: string[];
+  feeling?: string;
 }
 
 interface LogResponse {
@@ -50,8 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
     const whatItOpened = cleanText(body.what_it_opened);
     const unresolved = cleanText(body.unresolved);
     const continuationsArray = continuationLines(cleanText(body.natural_continuations));
-    const saidIt = cleanSaidIt(body.said_it);
-    const felt = cleanFeelings(body.felt);
+    const feeling = cleanText(body.feeling);
 
     // Node/thread-model path (Phase 4 of the Project Board -> Studio
     // migration): studio_post_publication_logs instead of
@@ -61,6 +59,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
     // ideas.status. No idea-status equivalent exists on the node/thread
     // model, so that third update is simply not needed here.
     if (body.node_id) {
+      // Looking back on a piece happens once, and finishing it is what it does:
+      // a piece that already has its reflection is not given a second one.
+      const { data: already } = await supabase
+        .from("studio_post_publication_logs")
+        .select("id")
+        .eq("node_id", body.node_id)
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (already) {
+        return NextResponse.json({ success: false, error: "already reflected" }, { status: 409 });
+      }
+
       const row = {
         user_id: userId,
         node_id: body.node_id,
@@ -71,9 +82,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
       };
       let { error: logError } = await supabase
         .from("studio_post_publication_logs")
-        .insert([{ ...row, said_it: saidIt, felt }]);
-      // Migration 038 (said_it, felt) not applied yet: keep what the older columns can hold.
-      if (logError && /said_it|felt/i.test(logError.message ?? "")) {
+        .insert([{ ...row, feeling }]);
+      // Migration 039 (feeling) not applied yet: keep what the older columns can hold.
+      if (logError && /feeling/i.test(logError.message ?? "")) {
         ({ error: logError } = await supabase.from("studio_post_publication_logs").insert([row]));
       }
 
@@ -170,6 +181,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<LogRespon
       }
 
       return NextResponse.json({ success: true });
+    }
+
+    const { data: alreadyLogged } = await supabase
+      .from("post_publication_logs")
+      .select("id")
+      .eq("piece_id", body.piece_id)
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (alreadyLogged) {
+      return NextResponse.json({ success: false, error: "already reflected" }, { status: 409 });
     }
 
     // Insert into post_publication_logs

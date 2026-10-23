@@ -131,8 +131,11 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const [proposal, setProposal] = useState<ProposedEdit | null>(null)
 
   const goNode = useCallback((id: string, from?: HTMLElement | null) => {
+    // A finished piece opens on the finished piece, not on its writing.
+    const finished = roots.find((r) => r.id === id)?.reflected
+    if (finished) { router.push(`/read?node_id=${id}`); return }
     go(`/p/${projectId}/n/${id}`, 'in', from)
-  }, [go, projectId])
+  }, [go, projectId, roots, router])
   const goThread = useCallback((id: string) => router.push(`/p/${projectId}/thread/${id}`), [projectId, router])
   const goProject = useCallback((from?: HTMLElement | null) => {
     go(`/p/${projectId}`, 'out', from)
@@ -536,11 +539,23 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
 
   useEffect(() => {
     if (state.status !== 'ready' || !singlePieceNode) return
-    router.replace(`/p/${projectId}/n/${singlePieceNode.id}`)
+    router.replace(singlePieceNode.reflected ? `/read?node_id=${singlePieceNode.id}` : `/p/${projectId}/n/${singlePieceNode.id}`)
   }, [state.status, singlePieceNode, projectId, router])
 
+  // A piece that has been looked back on is finished, and opens on the finished
+  // piece with what they said about it. Editing it afterwards is allowed, but it
+  // is asked for (edit=1, from the finished piece's own "Keep editing").
+  // Read in the browser: this page is a static shell and cannot know its query string any earlier.
+  const [editingFinished, setEditingFinished] = useState<boolean | null>(null)
+  useEffect(() => { setEditingFinished(new URLSearchParams(window.location.search).get('edit') === '1') }, [])
+  const finishedPiece = state.status === 'ready' && isRootPiece && !!node?.reflected && !example
+  const opensFinished = finishedPiece && editingFinished !== true
+  useEffect(() => {
+    if (finishedPiece && editingFinished === false && node) router.replace(`/read?node_id=${node.id}`)
+  }, [finishedPiece, editingFinished, node, router])
+
   // ── loading and error ─────────────────────────────────────────────────────
-  if (state.status === 'loading') {
+  if (state.status === 'loading' || opensFinished || (state.status === 'ready' && !!singlePieceNode?.reflected)) {
     return (
       <>
         <CanvasStage header={<StageHeader onUp={goShelf} upLabel={`Back to ${LEVELS.shelf.name}`} upText={LEVELS.shelf.name} />}>

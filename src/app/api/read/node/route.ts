@@ -27,8 +27,7 @@ interface Reflection {
   what_it_opened: string | null
   unresolved: string | null
   natural_continuations: string[] | null
-  said_it?: string | null
-  felt?: string[] | null
+  feeling?: string | null
   created_at: string
 }
 
@@ -70,10 +69,10 @@ export async function GET(request: NextRequest) {
         .eq('id', node.project_id)
         .eq('user_id', user.id)
         .single(),
-      readReflection('id, thread, what_it_opened, unresolved, natural_continuations, said_it, felt, created_at'),
+      readReflection('id, thread, what_it_opened, unresolved, natural_continuations, feeling, created_at'),
     ])
-    // Migration 038 (said_it, felt) not applied yet: read what the older columns hold.
-    const second = firstTry.error && /said_it|felt/i.test(firstTry.error.message ?? '')
+    // Migration 039 (feeling) not applied yet: read what the older columns hold.
+    const second = firstTry.error && /feeling/i.test(firstTry.error.message ?? '')
       ? await readReflection('id, thread, what_it_opened, unresolved, natural_continuations, created_at')
       : null
     const reflection = (second ?? firstTry).data as unknown as Reflection | null

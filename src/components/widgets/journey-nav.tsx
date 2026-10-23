@@ -45,8 +45,9 @@ export function journeyHrefForNode(
   switch (step) {
     case 'concept':
       return projectId ? `/p/${projectId}` : null
+    // The ribbon's Write is a person choosing to write: for a finished piece that is "keep editing".
     case 'write':
-      return writeHrefForNode({ projectId, nodeId })
+      return `${writeHrefForNode({ projectId, nodeId })}${projectId ? '?' : '&'}edit=1`
     case 'test':
       return `/write/test?node_id=${nodeId}`
     case 'reflect':

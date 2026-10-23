@@ -186,7 +186,7 @@ export function projectStories(rows: Rows, now = Date.now()): ProjectStory[] {
         ['vision', 'Talked about the vision', earliest(said.filter((m) => !m.node_id).map((m) => m.created_at)), 'talk about the vision'],
         ['companion', 'Talked with the companion inside a piece', earliest(said.filter((m) => m.node_id).map((m) => m.created_at)), 'the companion inside a piece'],
         ['finished', 'Finished', finished ? p.completed_at ?? p.updated_at : null, ''],
-        ['reflected', 'Reflected after posting', earliest((reflections.get(p.id) ?? []).map((r) => r.created_at)), ''],
+        ['reflected', 'Looked back on it', earliest((reflections.get(p.id) ?? []).map((r) => r.created_at)), ''],
       ]
       const done = happened.filter((h): h is [string, string, string, string] => !!h[2]).sort((a, b) => a[2].localeCompare(b[2]))
       const steps = done.map(([key, label, at], j) => ({

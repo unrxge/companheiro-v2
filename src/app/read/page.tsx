@@ -9,7 +9,7 @@ import { Pill } from '@/components/ui/pill'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { JourneyNav, JourneyNavNode, JourneyCurve } from '@/components/widgets'
 import { useTerritories } from '@/hooks/useTerritories'
-import { SAID_IT } from '@/lib/reflection'
+import { ReflectionLogView } from '@/components/widgets/reflection-log'
 import { arcHue, journeyStepFromStage, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
 
@@ -18,8 +18,7 @@ interface Reflection {
   what_it_opened: string | null
   unresolved: string | null
   natural_continuations: string[] | null
-  said_it?: string | null
-  felt?: string[] | null
+  feeling?: string | null
   created_at: string
 }
 
@@ -81,18 +80,18 @@ function ReadContent() {
   if (!pieceId && !nodeId) return null
 
   const words = (piece?.substack_draft ?? '').trim().split(/\s+/).filter(Boolean).length
-  const openThreads = [piece?.reflection?.unresolved, ...(piece?.reflection?.natural_continuations ?? [])].filter(Boolean) as string[]
 
   return (
     <PageShell mood={piece ? arcHue[piece.arc] ?? 'violet' : 'violet'} maxWidth={860}>
       <PageHeader
-        eyebrow="Reading room"
-        title={piece?.title ?? 'Reading room'}
+        eyebrow="Finished"
+        title={piece?.title ?? 'Finished piece'}
         subtitle={piece ? `${piece.posted_at ? `Finished ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not finished yet'} · ${words.toLocaleString()} words` : undefined}
         back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/project-board') : '/project-board'}
         actions={
           piece ? (
             <>
+              {nodeId && piece.project_id && <GhostButton size="sm" href={`/p/${piece.project_id}/n/${piece.id}?edit=1`}>Keep editing</GhostButton>}
               {piece.short_form_script && <GhostButton size="sm" onClick={() => copy('script')}>{copied === 'script' ? 'Copied' : 'Copy script'}</GhostButton>}
               <QuietButton size="sm" onClick={() => copy('md')}>{copied === 'md' ? 'Copied' : 'Copy as Markdown'}</QuietButton>
             </>
@@ -146,51 +145,20 @@ function ReadContent() {
               <Card>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <Eyebrow>Looking back</Eyebrow>
-                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : <UnderlineLink href={nodeId ? `/reflect?node_id=${piece.id}` : `/reflect?piece_id=${piece.id}`} color={t.ember}>Look back on it →</UnderlineLink>}
+                  {piece.reflection ? <Pill hue="violet">{new Date(piece.reflection.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Pill> : nodeId ? <UnderlineLink href={`/reflect?node_id=${piece.id}`} color={t.ember}>Look back on it →</UnderlineLink> : null}
                 </div>
                 {piece.reflection ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {SAID_IT.find((s) => s.key === piece.reflection?.said_it) && (
-                      <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>
-                        {SAID_IT.find((s) => s.key === piece.reflection?.said_it)?.line}
-                      </p>
-                    )}
-                    {(piece.reflection.felt ?? []).length > 0 && (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {(piece.reflection.felt ?? []).map((f) => <Pill key={f} hue="violet">{f}</Pill>)}
-                      </div>
-                    )}
-                    {piece.reflection.thread && (
-                      <div>
-                        <Eyebrow style={{ marginBottom: 4, fontSize: 10 }}>Thread</Eyebrow>
-                        <p style={{ ...typeRoles.ui, fontSize: 14, fontWeight: 500, color: t.textPrimary }}>{piece.reflection.thread}</p>
-                      </div>
-                    )}
-                    {piece.reflection.what_it_opened && (
-                      <div>
-                        <Eyebrow style={{ marginBottom: 4, fontSize: 10 }}>In your words</Eyebrow>
-                        <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>{piece.reflection.what_it_opened}</p>
-                      </div>
-                    )}
-                    {openThreads.length > 0 && (
-                      <div>
-                        <Eyebrow style={{ marginBottom: 6, fontSize: 10, color: t.ember }}>Still open</Eyebrow>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {openThreads.map((th, i) => (
-                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', border: `2px solid ${t.ember}`, flexShrink: 0, marginTop: 6 }} />
-                              <div style={{ flex: 1 }}>
-                                <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{th}</p>
-                                <UnderlineLink href={`/idea-lab/conceptualise?seed=${encodeURIComponent(th)}`} color={t.textMuted}>Develop this →</UnderlineLink>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <ReflectionLogView
+                    log={{
+                      thread: piece.reflection.thread,
+                      feeling: piece.reflection.feeling,
+                      opened: piece.reflection.what_it_opened,
+                      unresolved: piece.reflection.unresolved,
+                      next: piece.reflection.natural_continuations ?? [],
+                    }}
+                  />
                 ) : (
-                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>Nothing looked back on yet. It takes a few minutes and every question can be skipped. What you say it left open can start your next idea.</p>
+                  <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textSecondary }}>Nothing looked back on yet. It is a short conversation, and every question can be skipped.</p>
                 )}
               </Card>
             </div>

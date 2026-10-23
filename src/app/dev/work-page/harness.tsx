@@ -260,7 +260,7 @@ function installMock(o: Opts) {
       const mine = shelf.find((x) => x.id === 'demo')
       const reason = !limited ? null : mine?.shelf_stage !== 'active' ? 'not_active' : active.length > max ? 'over_limit' : null
       const access = { plan: ent.plan, limit: ent.maxActiveProjects, workable: reason === null, reason, active: limited ? active : [], resting_until: null, threads: ent.threads, media: ent.media, visionTalk: ent.visionTalk, companion: ent.companion }
-      return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried, vision: { kept: visionKept, changes: visionChanges, pending_changes: visionPending } } }, tree: { nodes, threads, tags, open_checks: openChecks }, access })
+      return json({ project: { ...project(o.text, o.board || o.pieces, o.concept), shelf_stage: mine?.shelf_stage ?? 'active', rules: projectRules, settings: { ...project(o.text, o.board || o.pieces, o.concept).settings, carried, vision: { kept: visionKept, changes: visionChanges, pending_changes: visionPending } } }, tree: { nodes: new URLSearchParams(location.search).get('finished') ? nodes.map((n) => (n.id === 'node-1' ? { ...n, reflected: true } : n)) : nodes, threads, tags, open_checks: openChecks }, access })
     }
     if (path === '/api/studio/projects/demo/items') {
       if (method === 'GET') return json({ ready: true, items, assets: [], tasks })

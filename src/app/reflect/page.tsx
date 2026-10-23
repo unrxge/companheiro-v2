@@ -1,32 +1,48 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
-import { useDictation } from '@/lib/use-dictation'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useDictation } from '@/lib/use-dictation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { GhostButton, PrimaryButton, QuietButton } from '@/components/ui/buttons'
-import { Pill } from '@/components/ui/pill'
-import { TextArea } from '@/components/ui/field'
 import { MicButton } from '@/components/ui/mic-button'
-import { UnderlineLink } from '@/components/ui/underline-link'
-import { JourneyNav, JourneyNavNode } from '@/components/widgets'
+import { Thread, type ThreadMessage } from '@/components/conversation/thread'
+import { ReflectionLogView } from '@/components/widgets/reflection-log'
+import { JourneyNavNode } from '@/components/widgets'
+import { readTextStream } from '@/lib/stream-client'
 import { shell, type as typeRoles } from '@/lib/design-tokens'
 import { Working, WorkingDots } from '@/components/ui/working'
 import {
-  FEELINGS, MAX_FEELINGS, SAID_IT, continuationLines, emptyAnswers, hasAnyAnswer, toLogBody,
-  type ReflectionAnswers,
+  REFLECT_CORRECTION_ASK, THEMES, emptyHeard, emptyLog, hasAnyLog, logFromHeard, nextTheme, reflectOpening, toLogBody,
+  type Heard, type ReflectionLog,
 } from '@/lib/reflection'
 
-interface PieceData {
-  title: string
-  core_truth: string
-  project_id: string | null
+type Stage = 'talking' | 'writing' | 'review' | 'saving'
+
+interface Saved {
+  messages: ThreadMessage[]
+  heard: Heard
+  phase: number
+  followedUp: number[]
+  skipped: number[]
+  stage: Stage
+  log: ReflectionLog | null
 }
 
-type TextField = 'remembered' | 'unresolved' | 'next'
+interface TurnMeta { phase: number; done: boolean; heard: Heard; followedUp: number[] }
 
-/** Looking back on a finished piece, one question at a time. Nothing here asks whether it was shared. */
+const saveKey = (nodeId: string) => `reflect:${nodeId}`
+/** After the microphone stops, the last words are still being punctuated for a moment. */
+const SETTLE_MS = 1800
+
+/**
+ * Looking back on a finished piece: the last stage. A short spoken
+ * conversation (dictation only), the companion saying back what it heard and
+ * asking the next thing, until four things are covered or skipped; then what
+ * was said is written up as the reflection log, shown, and kept. Keeping it
+ * finishes the piece, once. Nothing here asks whether it was shared.
+ */
 function ReflectContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -34,297 +50,296 @@ function ReflectContent() {
   const pieceId = searchParams.get('piece_id')
   const nodeId = searchParams.get('node_id')
 
-  const [piece, setPiece] = useState<PieceData | null>(null)
+  const [piece, setPiece] = useState<{ title: string; project_id: string | null } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [messages, setMessages] = useState<ThreadMessage[]>([])
+  const [heard, setHeard] = useState<Heard>(emptyHeard)
+  const [phase, setPhase] = useState(1)
+  const [followedUp, setFollowedUp] = useState<number[]>([])
+  const [skipped, setSkipped] = useState<number[]>([])
+  const [stage, setStage] = useState<Stage>('talking')
+  const [log, setLog] = useState<ReflectionLog | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [settling, setSettling] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [step, setStep] = useState(0)
-  const [kept, setKept] = useState<ReflectionAnswers | null>(null)
-  const [answers, setAnswers] = useState<ReflectionAnswers>(emptyAnswers)
-  const [focusedField, setFocusedField] = useState<TextField | null>(null)
-  const focusedFieldRef = useRef<TextField | null>(null)
-  focusedFieldRef.current = focusedField
-  const answersRef = useRef(answers)
-  answersRef.current = answers
-  // Dictation lands in the last focused box, so the mic can sit above them.
-  const lastFieldRef = useRef<TextField>('remembered')
+  const [transcript, setTranscript] = useState('')
+  const [supported, setSupported] = useState<boolean | null>(null)
+  const transcriptRef = useRef('')
+  transcriptRef.current = transcript
+  const endRef = useRef<HTMLDivElement | null>(null)
 
-  const { isRecording, interimText, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
-      const field = focusedFieldRef.current ?? lastFieldRef.current
-      setAnswers((prev) => {
-        const cur = prev[field] || ''
-        return { ...prev, [field]: cur + (cur && !cur.endsWith(' ') ? ' ' : '') + text }
-      })
+      setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
-    getContext: () => (answersRef.current[focusedFieldRef.current ?? lastFieldRef.current] || '').slice(-80),
+    getContext: () => transcriptRef.current.slice(-80),
   })
 
   useEffect(() => {
-    if (!pieceId && !nodeId) {
-      router.push('/project-board')
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }
+    setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
+  }, [])
+
+  // ── loading, and picking up where it was left ──
+  useEffect(() => {
+    if (!nodeId) {
+      // Pieces from before the node model have no conversation to hold: they are read, not reflected on.
+      router.replace(pieceId ? `/read?piece_id=${pieceId}` : '/project-board')
       return
     }
-    const url = nodeId ? `/api/read/node?node_id=${nodeId}` : `/api/project-board/piece?id=${pieceId}`
-    fetch(url)
+    fetch(`/api/read/node?node_id=${nodeId}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.success) return
-        // Someone who has already looked back is shown it, not asked again.
+        // A piece is looked back on once. After that it is shown, not asked again.
         if (data.piece.reflection) {
-          router.replace(nodeId ? `/read?node_id=${nodeId}` : `/read?piece_id=${pieceId}`)
+          router.replace(`/read?node_id=${nodeId}`)
           return
         }
-        setPiece({
-          title: data.piece.title,
-          core_truth: data.piece.core_truth || '',
-          project_id: data.piece.project_id ?? null,
-        })
+        setPiece({ title: data.piece.title, project_id: data.piece.project_id ?? null })
+        let saved: Saved | null = null
+        try {
+          saved = JSON.parse(localStorage.getItem(saveKey(nodeId)) ?? 'null') as Saved | null
+        } catch { /* nothing kept */ }
+        if (saved && Array.isArray(saved.messages) && saved.messages.length > 0) {
+          setMessages(saved.messages)
+          setHeard(saved.heard ?? emptyHeard())
+          setPhase(saved.phase ?? 1)
+          setFollowedUp(saved.followedUp ?? [])
+          setSkipped(saved.skipped ?? [])
+          setLog(saved.log ?? null)
+          setStage(saved.stage === 'review' && saved.log ? 'review' : 'talking')
+        } else {
+          setMessages([{ role: 'assistant', content: reflectOpening(data.piece.title || '') }])
+        }
       })
       .catch((err) => console.error('Failed to fetch piece:', err))
       .finally(() => setIsLoading(false))
-  }, [pieceId, nodeId, router])
+  }, [nodeId, pieceId, router])
 
-  const finish = async () => {
-    if (!pieceId && !nodeId) return
-    setIsSubmitting(true)
+  // What has been said survives a refresh or a closed tab until the piece is finished.
+  useEffect(() => {
+    if (!nodeId || messages.length === 0) return
+    const saved: Saved = { messages, heard, phase, followedUp, skipped, stage: stage === 'review' ? 'review' : 'talking', log }
+    try { localStorage.setItem(saveKey(nodeId), JSON.stringify(saved)) } catch { /* private mode */ }
+  }, [nodeId, messages, heard, phase, followedUp, skipped, stage, log])
+
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [messages.length, busy, stage])
+
+  const plain = (list: ThreadMessage[]) => list.map((m) => ({ role: m.role, content: m.content }))
+
+  // ── writing it up ──
+  const writeUp = async (list: ThreadMessage[], heardNow: Heard, skippedNow: number[]) => {
+    setStage('writing')
     setError(null)
+    if (!list.some((m) => m.role === 'user')) {
+      setLog(emptyLog())
+      setStage('review')
+      return
+    }
     try {
-      const body = toLogBody(answers)
-      const res = await fetch('/api/post-publication/log', {
+      const res = await fetch('/api/reflect/distill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nodeId ? { node_id: nodeId, ...body } : { piece_id: pieceId, ...body }),
+        body: JSON.stringify({ node_id: nodeId, messages: plain(list), heard: heardNow, skipped: skippedNow }),
       })
       const data = await res.json()
-      if (data.success) setKept(answers)
-      else setError("That didn't save. Your answers are still here; try again?")
-    } catch (err) {
-      console.error('Failed to submit:', err)
-      setError("That didn't save. Your answers are still here; try again?")
+      setLog((data.log as ReflectionLog) ?? logFromHeard(heardNow))
+    } catch {
+      setLog(logFromHeard(heardNow))
+    }
+    setStage('review')
+  }
+
+  // ── a turn: what they said, what was heard, what comes next ──
+  const send = async () => {
+    if (busy || settling) return
+    if (isRecording) {
+      setSettling(true)
+      stopRecording()
+      await new Promise((r) => setTimeout(r, SETTLE_MS))
+      setSettling(false)
+    }
+    const words = transcriptRef.current.trim()
+    if (!words || !nodeId) return
+    const withUser: ThreadMessage[] = [...messages, { role: 'user', content: words }]
+    setMessages(withUser)
+    setTranscript('')
+    clearInterim()
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/reflect/turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ node_id: nodeId, messages: plain(withUser), phase, followedUp, skipped, heard }),
+      })
+      if (!res.ok) throw new Error('no answer')
+      const { text, meta } = await readTextStream<TurnMeta>(res, () => {})
+      if (!text || !meta) throw new Error('no answer')
+      const withReply: ThreadMessage[] = [...withUser, { role: 'assistant', content: text }]
+      setMessages(withReply)
+      setHeard(meta.heard)
+      setFollowedUp(meta.followedUp)
+      setPhase(meta.phase)
+      if (meta.done) await writeUp(withReply, meta.heard, skipped)
+    } catch {
+      // Nothing is lost: what they said goes back to be sent again, or the question skipped.
+      setMessages(messages)
+      setTranscript(words)
+      setError("That didn't come through. Send it again, or skip this one.")
     } finally {
-      setIsSubmitting(false)
+      setBusy(false)
     }
   }
 
-  if (!pieceId && !nodeId) return null
+  // ── skipping: no model, no wait ──
+  const skip = async () => {
+    if (busy || settling) return
+    if (isRecording) stopRecording()
+    setTranscript('')
+    clearInterim()
+    setError(null)
+    if (phase === 0) {
+      // Skipping the "anything to change?" keeps the write-up as it was.
+      setStage('review')
+      return
+    }
+    const nextSkipped = [...skipped, phase]
+    setSkipped(nextSkipped)
+    const { theme } = nextTheme(heard, { phase: 0, followedUp, skipped: nextSkipped })
+    if (theme === null) {
+      await writeUp(messages, heard, nextSkipped)
+      return
+    }
+    setMessages((prev) => [...prev, { role: 'assistant', content: THEMES[theme - 1].ask }])
+    setPhase(theme)
+  }
 
-  const readHref = nodeId ? `/read?node_id=${nodeId}` : `/read?piece_id=${pieceId}`
-  const STEPS = 4
-  const last = step === STEPS - 1
-  const target = focusedField ?? lastFieldRef.current
-  const toggleFeeling = (f: string) =>
-    setAnswers((a) => ({
-      ...a,
-      felt: a.felt.includes(f) ? a.felt.filter((x) => x !== f) : a.felt.length < MAX_FEELINGS ? [...a.felt, f] : a.felt,
-    }))
-  const bind = (key: TextField) => ({
-    onFocus: () => { setFocusedField(key); lastFieldRef.current = key },
-    onBlur: () => setFocusedField(null),
-  })
-  const micRow = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-      <MicButton recording={isRecording} onToggle={handleRecordToggle} size={40} />
-      <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, margin: 0 }}>
-        {isRecording ? `Listening${interimText ? ` · ${interimText}` : ''}` : 'You can say it out loud instead.'}
-      </p>
-    </div>
-  )
+  // ── review: keep it, or say more ──
+  const sayMore = () => {
+    setStage('talking')
+    setPhase(0)
+    setTranscript('')
+    setError(null)
+    setMessages((prev) => [...prev, { role: 'assistant', content: REFLECT_CORRECTION_ASK }])
+  }
 
-  const question = (text: string, hint?: string) => (
-    <div style={{ marginBottom: 18 }}>
-      <h2 style={{ ...typeRoles.h2, fontSize: 21, lineHeight: 1.3, color: t.textPrimary, margin: 0 }}>{text}</h2>
-      {hint && <p style={{ ...typeRoles.small, color: t.textMuted, margin: '8px 0 0' }}>{hint}</p>}
-    </div>
-  )
+  const keep = async () => {
+    if (!nodeId || !log) return
+    setStage('saving')
+    setError(null)
+    try {
+      const res = await fetch('/api/post-publication/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ node_id: nodeId, ...toLogBody(log) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      // 409: it was already kept (another tab); either way the piece is finished.
+      if (data.success || res.status === 409) {
+        try { localStorage.removeItem(saveKey(nodeId)) } catch { /* nothing */ }
+        router.push(`/read?node_id=${nodeId}`)
+        return
+      }
+      setError("That didn't save. What you said is still here; try again?")
+    } catch {
+      setError("That didn't save. What you said is still here; try again?")
+    }
+    setStage('review')
+  }
+
+  if (!nodeId) return null
+
+  const talking = stage === 'talking'
+  const shownTranscript = transcript + (interimText ? (transcript && !transcript.endsWith(' ') ? ' ' : '') + interimText : '')
+  const waiting = busy || settling
 
   return (
     <PageShell mood="violet" maxWidth={760}>
       <PageHeader
         eyebrow="Reflect"
         title={piece?.title || 'Reflect'}
-        subtitle="A few minutes to look back on it. Every question can be skipped."
+        subtitle="A short conversation to look back on it. You speak your answers, and you can skip any question."
         size="md"
-        back={nodeId ? `/write/test?node_id=${nodeId}` : `/write/test?piece_id=${pieceId}`}
+        back={`/write/test?node_id=${nodeId}`}
       />
 
       <Container>
         <div style={{ marginBottom: 22 }}>
-          {nodeId ? <JourneyNavNode projectId={piece?.project_id ?? null} nodeId={nodeId} step="reflect" /> : <JourneyNav pieceId={pieceId!} step="reflect" />}
+          <JourneyNavNode projectId={piece?.project_id ?? null} nodeId={nodeId} step="reflect" />
         </div>
 
         {isLoading ? (
           <Working size="sm" label="Loading…" patientNote={null} color={t.textMuted} />
         ) : !piece ? (
           <p style={{ ...typeRoles.small, color: t.textMuted }}>That piece could not be found.</p>
-        ) : kept ? (
-          <Card>
-            <Eyebrow style={{ marginBottom: 12 }}>Kept</Eyebrow>
-            <h2 style={{ ...typeRoles.h2, fontSize: 21, lineHeight: 1.3, color: t.textPrimary, margin: '0 0 16px' }}>
-              {hasAnyAnswer(kept) ? 'Here is what you said about it.' : 'Marked as done. Nothing to add is a fine answer.'}
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {SAID_IT.find((s) => s.key === kept.said_it) && (
-                <p style={{ ...typeRoles.ui, fontSize: 15, fontWeight: 500, color: t.textPrimary, margin: 0 }}>
-                  {SAID_IT.find((s) => s.key === kept.said_it)?.line}
-                </p>
-              )}
-              {kept.felt.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {kept.felt.map((f) => <Pill key={f} hue="violet">{f}</Pill>)}
-                </div>
-              )}
-              {kept.remembered.trim() && (
-                <p style={{ ...typeRoles.quote, fontSize: 16, color: t.textSecondary, margin: 0, whiteSpace: 'pre-wrap' }}>{kept.remembered.trim()}</p>
-              )}
-              {(kept.unresolved.trim() || kept.next.trim()) && (
-                <div>
-                  <Eyebrow style={{ marginBottom: 8, color: t.ember }}>Still open</Eyebrow>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[kept.unresolved.trim(), ...continuationLines(kept.next)].filter(Boolean).map((line, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', border: `2px solid ${t.ember}`, flexShrink: 0, marginTop: 6 }} />
-                        <div style={{ flex: 1 }}>
-                          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, margin: 0 }}>{line}</p>
-                          <UnderlineLink href={`/idea-lab/conceptualise?seed=${encodeURIComponent(line)}`} color={t.textMuted}>Develop this →</UnderlineLink>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: 22 }}>
-              <PrimaryButton href={readHref}>Open it in the reading room →</PrimaryButton>
-            </div>
-          </Card>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <Card>
-              <div role="progressbar" aria-valuemin={1} aria-valuemax={STEPS} aria-valuenow={step + 1} aria-label="Where you are" style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
-                {Array.from({ length: STEPS }).map((_, i) => (
-                  <span key={i} style={{ height: 3, flex: 1, borderRadius: 2, background: i <= step ? t.violet : t.divider, transition: 'background 200ms ease' }} />
-                ))}
-              </div>
+              <Thread messages={messages} streaming={busy} align="left" />
 
-              {step === 0 && (
-                <>
-                  {piece.core_truth && (
-                    <div style={{ marginBottom: 20 }}>
-                      <Eyebrow style={{ marginBottom: 8 }}>What you set out to say</Eyebrow>
-                      <p style={{ ...typeRoles.quote, fontSize: 18, color: t.textPrimary, margin: 0 }}>{piece.core_truth}</p>
-                    </div>
+              {stage === 'writing' && (
+                <div style={{ marginTop: 22 }}>
+                  <Working size="sm" label="Putting what you said together…" patientNote={null} color={t.textMuted} />
+                </div>
+              )}
+
+              {(stage === 'review' || stage === 'saving') && log && (
+                <div style={{ marginTop: 26, paddingTop: 22, borderTop: `1px solid ${t.divider}` }}>
+                  <Eyebrow style={{ marginBottom: 14 }}>Here is what you said</Eyebrow>
+                  {hasAnyLog(log) ? (
+                    <ReflectionLogView log={{ feeling: log.feeling, opened: log.opened, unresolved: log.unresolved, next: log.next }} />
+                  ) : (
+                    <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary, margin: 0 }}>Nothing to add. That is a fine way to finish.</p>
                   )}
-                  {question(piece.core_truth ? 'Did it say it?' : 'Did it say what you meant it to?', 'Your own call. Nobody is grading it.')}
-                  <div role="radiogroup" aria-label="Did it say it?" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {SAID_IT.map((s) => (
-                      <Pill
-                        key={s.key}
-                        size="md"
-                        hue="violet"
-                        selected={answers.said_it === s.key}
-                        onClick={() => setAnswers((a) => ({ ...a, said_it: a.said_it === s.key ? null : s.key }))}
-                      >
-                        {s.label}
-                      </Pill>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 24 }}>
+                    <PrimaryButton onClick={() => void keep()} loading={stage === 'saving'} loadingLabel="Keeping…">Keep this and finish the piece</PrimaryButton>
+                    <GhostButton size="sm" onClick={sayMore} disabled={stage === 'saving'}>Not quite, let me say more</GhostButton>
                   </div>
-                </>
-              )}
-
-              {step === 1 && (
-                <>
-                  {question('How does it sit with you now that it is done?', `Pick up to ${MAX_FEELINGS}, or none. Some of these are hard ones, and that is allowed.`)}
-                  <div role="group" aria-label="How it sits with you" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {FEELINGS.map((f) => (
-                      <Pill
-                        key={f}
-                        size="md"
-                        hue="violet"
-                        selected={answers.felt.includes(f)}
-                        onClick={() => toggleFeeling(f)}
-                      >
-                        {f}
-                      </Pill>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {step === 2 && (
-                <>
-                  {question(
-                    answers.said_it === 'other' ? 'What did it turn into instead?' : 'What do you want to remember about making it?',
-                    'A line is enough. The moment it turned, something that surprised you, what it cost or gave back.',
-                  )}
-                  {micRow}
-                  <TextArea
-                    voice
-                    value={answers.remembered}
-                    onChange={(v) => { clearInterim(); setAnswers((a) => ({ ...a, remembered: v })) }}
-                    {...bind('remembered')}
-                    placeholder="Whatever comes first."
-                    ariaLabel="What you want to remember"
-                    minRows={3}
-                    maxHeight={260}
-                  />
-                </>
-              )}
-
-              {step === 3 && (
-                <>
-                  {question('Did it leave anything open?', 'What you write here is kept with the piece. Each line gets a “Develop this” link, so it can be where your next idea starts.')}
-                  {micRow}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    <div>
-                      <Eyebrow style={{ marginBottom: 8 }}>Left open</Eyebrow>
-                      <TextArea
-                        voice
-                        value={answers.unresolved}
-                        onChange={(v) => { clearInterim(); setAnswers((a) => ({ ...a, unresolved: v })) }}
-                        {...bind('unresolved')}
-                        placeholder="A question it didn't answer, a part that isn't settled."
-                        ariaLabel="What it left open"
-                        minRows={2}
-                        maxHeight={200}
-                      />
-                    </div>
-                    <div>
-                      <Eyebrow style={{ marginBottom: 8 }}>Something you now want to make</Eyebrow>
-                      <TextArea
-                        voice
-                        value={answers.next}
-                        onChange={(v) => { clearInterim(); setAnswers((a) => ({ ...a, next: v })) }}
-                        {...bind('next')}
-                        placeholder="One idea per line."
-                        ariaLabel="What you now want to make"
-                        minRows={2}
-                        maxHeight={200}
-                      />
-                    </div>
-                  </div>
-                </>
+                  <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, margin: '12px 0 0' }}>
+                    Keeping it marks the piece as finished and keeps this with it. You can still edit the piece afterwards.
+                  </p>
+                </div>
               )}
 
               {error && <p role="alert" style={{ ...typeRoles.small, color: t.danger, margin: '16px 0 0' }}>{error}</p>}
+              <div ref={endRef} />
+            </Card>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
-                {step > 0 && <GhostButton size="sm" onClick={() => setStep((s) => s - 1)} disabled={isSubmitting}>Back</GhostButton>}
-                <div style={{ flex: 1 }} />
-                {last ? (
-                  <PrimaryButton onClick={() => void finish()} loading={isSubmitting} loadingLabel="Keeping…">Keep this</PrimaryButton>
+            {talking && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                {supported === false ? (
+                  <p style={{ ...typeRoles.small, color: t.textMuted, textAlign: 'center', maxWidth: 420, margin: 0 }}>
+                    This browser can&rsquo;t listen. Speaking works in Chrome, Edge and Safari. You can skip every question and still finish the piece.
+                  </p>
                 ) : (
                   <>
-                    <GhostButton size="sm" onClick={() => setStep((s) => s + 1)}>Skip</GhostButton>
-                    <QuietButton onClick={() => setStep((s) => s + 1)}>Next</QuietButton>
+                    <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={waiting} size={76} />
+                    <p aria-live="polite" style={{ ...typeRoles.eyebrow, color: t.textMuted, margin: 0 }}>
+                      {isRecording ? 'Listening. Tap again when you are done.' : shownTranscript ? 'Ready when you are' : 'Tap, then speak'}
+                    </p>
+                    {shownTranscript && (
+                      <p style={{ ...typeRoles.ui, fontSize: 16, lineHeight: 1.65, color: t.textPrimary, margin: 0, maxWidth: 560, textAlign: 'center', whiteSpace: 'pre-wrap' }}>
+                        {shownTranscript}
+                      </p>
+                    )}
+                    {transcript.trim() && !isRecording && (
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <QuietButton onClick={() => void send()} loading={waiting} loadingLabel="Sending…">Send</QuietButton>
+                        <GhostButton size="sm" onClick={() => { setTranscript(''); clearInterim() }} disabled={waiting}>Start again</GhostButton>
+                      </div>
+                    )}
+                    {isRecording && transcript.trim() && (
+                      <QuietButton onClick={() => void send()} loading={waiting} loadingLabel="Sending…">Send</QuietButton>
+                    )}
                   </>
                 )}
+                <GhostButton size="sm" onClick={() => void skip()} disabled={waiting}>
+                  {phase === 0 ? 'Never mind, keep it as it is' : 'Skip this question'}
+                </GhostButton>
               </div>
-            </Card>
-            <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, margin: 0, textAlign: 'center' }}>
-              {isRecording || focusedField ? `Speaking into: ${target === 'remembered' ? 'what you want to remember' : target === 'unresolved' ? 'what it left open' : 'what you want to make next'}. ` : ''}
-              Keeping this marks the piece as done. Skip everything and it still does.
-            </p>
+            )}
           </div>
         )}
       </Container>
