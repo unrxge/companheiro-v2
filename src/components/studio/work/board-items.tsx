@@ -847,7 +847,7 @@ export function TaskListBlock({
   const [large, setLarge] = useState(false)
   useEffect(() => { if (autoOpen) setLarge(true) }, [autoOpen])
   const own = item.content.tasks ?? []
-  const listName = item.content.title?.trim() || 'Tasks'
+  const listName = 'Task list'
   const ids = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
   const mine = tasks.filter((x) => ids.has(x.node_id))
   const writing = mine.filter(isWritingTask)

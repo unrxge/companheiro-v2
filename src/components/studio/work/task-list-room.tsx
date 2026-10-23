@@ -6,8 +6,7 @@
 // "Task list" in the "+" puts one on the canvas and opens it here, with nothing
 // asked first. From the top:
 //
-//   · its name (optional) and where it stands: the whole project, or the pieces
-//     it is on. Tapping a piece's name puts the list on it or takes it off.
+//   · where it stands: the whole project, or one piece (one choice)
 //   · the project's own tasks, the ones that belong to no piece
 //   · then each piece's tasks, in the order the pieces stand
 //
@@ -51,7 +50,7 @@ export function TaskListRoom({
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [moving, setMoving] = useState<string | null>(null)
   const own = item.content.tasks ?? []
-  const listName = item.content.title?.trim() || 'Tasks'
+  const listName = 'Task list'
   const whole = item.node_ids.length === 0
   const scopeIds = new Set(scope.map((p) => p.id))
   const mine = tasks.filter((x) => scopeIds.has(x.node_id))
@@ -122,19 +121,8 @@ export function TaskListRoom({
       <ModalDialog onClose={onClose} title={listName} subtitle={sub} maxWidth="720px">
         <style>{ROOMY_CSS}</style>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* its name, how far along it is, and which pieces it is on */}
+          {/* where it stands, and how far along it is */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {!disabled && (
-              <input
-                aria-label="Name this task list"
-                defaultValue={item.content.title ?? ''}
-                placeholder="Name this list (optional): Launch, Edit pass, Research…"
-                maxLength={80}
-                onBlur={(e) => { const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v !== (item.content.title ?? '')) onContent({ title: v }) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                style={{ ...field, background: 'transparent', border: `1px dashed ${alpha(t.textPrimary, 0.18)}` }}
-              />
-            )}
             {allPieces.length > 0 && (
               <div>
                 <span style={{ ...canvasType.label, color: t.textMuted, display: 'block', margin: '0 0 7px' }}>This list is on</span>
@@ -148,7 +136,7 @@ export function TaskListRoom({
                         type="button"
                         disabled={disabled}
                         aria-pressed={on}
-                        onClick={() => onScope(on ? item.node_ids.filter((x) => x !== p.id) : [...item.node_ids, p.id])}
+                        onClick={() => onScope([p.id])}
                         style={chip(on)}
                       >
                         {p.title.trim() || 'Untitled'}
