@@ -28,12 +28,15 @@ export function Progress({ done, total, width = 72 }: { done: number; total: num
 }
 
 /** One task in the larger view: a roomy row with a round tick, softly lit when pointed at. */
-export function RoomyRow({ title, done, disabled, onToggle, onRemove }: {
+export function RoomyRow({ title, done, disabled, onToggle, onRemove, onMove, moving }: {
   title: string
   done: boolean
   disabled: boolean
   onToggle: () => void
   onRemove?: () => void
+  /** Offers to move the task to another place; `moving` shows it is being offered. */
+  onMove?: () => void
+  moving?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -60,6 +63,19 @@ export function RoomyRow({ title, done, disabled, onToggle, onRemove }: {
           {title}
         </span>
       </button>
+      {onMove && !disabled && (
+        <button
+          type="button"
+          className={moving ? undefined : 'tg-x'}
+          aria-label={`Move “${title}”`}
+          aria-expanded={!!moving}
+          title="Move to…"
+          onClick={onMove}
+          style={{ flexShrink: 0, width: 28, height: 28, marginTop: 5, padding: 0, border: 'none', borderRadius: 8, background: moving ? alpha(t.textPrimary, 0.1) : 'transparent', color: moving ? t.textPrimary : t.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 9h14M15 5l4 4-4 4M19 15H5M9 11l-4 4 4 4" /></svg>
+        </button>
+      )}
       {onRemove && !disabled && (
         <button
           type="button"

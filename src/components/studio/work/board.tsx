@@ -1210,7 +1210,7 @@ export function Board({
   /** The corner's "+" has been pressed and asks what to make. */
   const cornerOpen = menuFor !== null
   /** What is being made, while the dialog asks what is in it. */
-  const [adding, setAdding] = useState<PlusChoice | null>(null)
+  const [adding, setAdding] = useState<Exclude<PlusChoice, 'tasks'> | null>(null)
   /** A recording named and placed, waiting to be recorded. */
   const [recordFor, setRecordFor] = useState<{ on: string[]; title: string } | null>(null)
 
@@ -1347,7 +1347,8 @@ export function Board({
                 available={example ? (['thread', 'tasks', 'link', 'image', 'recording', 'palette'] as PlusChoice[]) : choices}
                 locked={example ? [] : lockedChoices}
                 inert={example && !menuLive}
-                onPick={(choice) => setAdding(choice)}
+                // A task list is made and opened at once: no questions first.
+                onPick={(choice) => { if (choice === 'tasks') void make({ kind: 'tasks', on: [], title: '', tasks: [] }); else setAdding(choice) }}
                 onLocked={(choice) => act.onLocked(choice)}
               />
             )}
@@ -1699,6 +1700,9 @@ export function Board({
                   <TaskListBlock
                     item={it}
                     pieces={piecesFor(it)}
+                    allPieces={pieces.map((p) => ({ id: p.id, title: p.title }))}
+                    autoOpen={born === it.id}
+                    onScope={(ids) => act.patchItem(it.id, { node_ids: ids })}
                     tasks={tasks}
                     disabled={disabled}
                     rowsShown={resizing?.id === it.id ? resizing.rows : undefined}

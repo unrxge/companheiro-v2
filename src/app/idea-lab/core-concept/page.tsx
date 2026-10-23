@@ -9,7 +9,6 @@ import { TextArea } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
-import { TaskGroups, type GroupTask } from '@/components/studio/work/task-groups'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
 import { BRIEF_HANDOFF_KEY, briefStorageKey } from '@/lib/concept-brief'
@@ -95,10 +94,6 @@ function CoreConceptContent() {
   const [isSaving, setIsSaving] = useState(false)
   const [showConversation, setShowConversation] = useState(false)
   // Came via "Skip to the core concept": there's no conversation to go back to.
-  const [showTaskReview, setShowTaskReview] = useState(false)
-  const [tasks, setTasks] = useState<GroupTask[]>([])
-  const [projectId, setProjectId] = useState<string | null>(null)
-  const [nodeId, setNodeId] = useState<string | null>(null)
 
   // ?project=<id>: building the core concept later, for a project started
   // via "Skip to writing". It is drawn from the brief just taken for it, or
@@ -214,10 +209,10 @@ function CoreConceptContent() {
         // A new piece opens on its own writing page: `?write=1` only takes a
         // project into writing when it holds a single piece, and this one is
         // joining others.
-        if (newPiece && data.node_id) { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
+        if (newPiece && data.node_id) router.push(`/p/${data.project_id}/n/${data.node_id}`)
         else if (existingProjectId) router.push(`/p/${existingProjectId}?write=1`)
         else if (bringIdeaFlow) router.push(`/p/${data.project_id}?write=1`)
-        else { setProjectId(data.project_id); setNodeId(data.node_id); setTasks(data.tasks || []); setShowTaskReview(true) }
+        else router.push(`/p/${data.project_id}?write=1`)
       } else setError(data.error || 'Failed to save document')
     } catch (err) {
       console.error('Save error:', err)
@@ -225,35 +220,6 @@ function CoreConceptContent() {
     } finally {
       setIsSaving(false)
     }
-  }
-
-  const handleDeleteTask = async (task: GroupTask) => {
-    if (!nodeId) return
-    setTasks((prev) => prev.filter((x) => x.id !== task.id))
-    try {
-      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.id }) })
-      const data = await res.json()
-      if (!data.success) setError('Failed to remove that task')
-    } catch { setError('Failed to remove that task') }
-  }
-
-  const handleToggleTask = async (task: GroupTask) => {
-    if (!nodeId) return
-    const status = task.status === 'complete' ? 'pending' : 'complete'
-    setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, status } : x)))
-    try {
-      await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.id, status }) })
-    } catch { /* stays as ticked on screen; the writing page reloads the truth */ }
-  }
-
-  const handleAddTask = async (title: string, category: string) => {
-    if (!nodeId) return
-    try {
-      const res = await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type: 'creation', category }) })
-      const data = await res.json()
-      if (data.success && data.task) setTasks((prev) => [...prev, data.task])
-      else setError('Failed to add task')
-    } catch { setError('Failed to add task') }
   }
 
   const allConfirmed = Object.values(sections).every((s) => s.status === 'confirmed')
@@ -297,34 +263,6 @@ function CoreConceptContent() {
   )
 
   const bareStyle: React.CSSProperties = { fontSize: 14, lineHeight: 1.65 }
-
-  // ── Task review ──
-  if (showTaskReview && projectId) {
-    return (
-      <PageShell mood="ember" maxWidth={760}>
-        <PageHeader
-          eyebrow="Idea Lab"
-          title="Where to start"
-          subtitle={tasks.length > 0
-            ? 'A few ways into the writing, drawn from your concept. They are suggestions, not requirements: remove any that don’t help, and add your own.'
-            : 'Your concept is concrete enough to start writing from. Add tasks of your own if you want them.'}
-          size="md"
-        />
-        <Container>
-          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, marginBottom: 12 }}>{error}</p>}
-          <Card>
-            <TaskGroups tasks={tasks} onToggle={handleToggleTask} onAdd={handleAddTask} onRemove={handleDeleteTask} />
-          </Card>
-          <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, marginTop: 12 }}>
-            Anything beyond the writing (research, artwork, release) is yours to plan. A new category keeps it separate from the writing.
-          </p>
-          <div style={{ marginTop: 20 }}>
-            <PrimaryButton onClick={() => router.push(newPiece && nodeId ? `/p/${projectId}/n/${nodeId}` : `/p/${projectId}?write=1`)} full size="lg">Begin</PrimaryButton>
-          </div>
-        </Container>
-      </PageShell>
-    )
-  }
 
   return (
     <PageShell mood="ember" maxWidth={900}>

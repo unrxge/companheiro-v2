@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import type { User } from "@supabase/supabase-js";
 import { checkNodeAgainstRules } from "@/lib/studio/rule-check";
-import { generateTasks } from "@/lib/generate-tasks";
-import { insertTasks, type TaskRow } from "@/lib/studio/tasks-db";
-import { WRITING } from "@/lib/studio/task-groups";
+import type { TaskRow } from "@/lib/studio/tasks-db";
 import { generatePoeticTitle } from "@/lib/generate-poetic-title";
 import { distillPortrait } from "@/lib/portrait";
 import { assertProjectIdWorkable, claimActivePlace, stageForNewProject } from "@/lib/studio/plan-access";
@@ -256,44 +254,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
     const nodeId = nodeData.id as string;
     console.log('Root node created successfully:', nodeId)
 
-    // Run portrait distillation and task generation in parallel — both are
-    // independent of each other and were previously sequential, adding ~2s
-    // to every save. distillPortrait never blocks on failure.
+    // No tasks are drawn up from the concept (the person's decision): the writing
+    // tasks are theirs to make, on the canvas or the writing page.
     const conversationText = body.conversation_history
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n\n");
-    const [, suggestedTasks] = await Promise.all([
-      distillPortrait(
-        { supabase, user: userData.user },
-        "conceptualise",
-        `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
-      ),
-      generateTasks(userId, {
-        one_sentence: body.one_sentence,
-        arc: normalisedArc,
-        conviction_statement: body.conviction_statement,
-        emotional_journey: body.emotional_journey,
-        core_truth: body.core_truth,
-        open_threads: openThreadsArray,
-      }),
-    ])
-
-    // Generated tasks are only ever the writing, so they all sit under Writing.
-    let insertedTasks: TaskRow[] = []
-    if (suggestedTasks.length > 0) {
-      const { tasks: made, error: tasksError } = await insertTasks(
-        { supabase, user: { id: userId } },
-        suggestedTasks.map((task, index) => ({ project_id: projectId, node_id: nodeId, title: task.title, category: WRITING, order: index }))
-      )
-      if (tasksError) console.error("Error inserting tasks:", tasksError)
-      else insertedTasks = made.map((t) => ({ ...t, category: t.category ?? WRITING }))
-    }
+    await distillPortrait(
+      { supabase, user: userData.user },
+      "conceptualise",
+      `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
+    )
 
     return NextResponse.json({
       success: true,
       project_id: projectId,
       node_id: nodeId,
-      tasks: insertedTasks,
+      tasks: [],
     })
   } catch (error) {
     console.error("Core concept save error:", error);
@@ -393,31 +369,11 @@ async function addPieceToProject(
   const nodeId = nodeData.id as string;
 
   const conversationText = body.conversation_history.map((m) => `${m.role}: ${m.content}`).join("\n\n");
-  const [, suggestedTasks] = await Promise.all([
-    distillPortrait(
-      auth,
-      "conceptualise",
-      `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
-    ),
-    generateTasks(userId, {
-      one_sentence: body.one_sentence,
-      arc: normaliseArc(body.arc),
-      conviction_statement: body.conviction_statement,
-      emotional_journey: body.emotional_journey,
-      core_truth: body.core_truth,
-      open_threads: openThreadsArray,
-    }),
-  ]);
-
-  let insertedTasks: TaskRow[] = [];
-  if (suggestedTasks.length > 0) {
-    const { tasks: made, error: tasksError } = await insertTasks(
-      { supabase, user: { id: userId } },
-      suggestedTasks.map((task, index) => ({ project_id: projectId, node_id: nodeId, title: task.title, category: WRITING, order: index }))
-    );
-    if (tasksError) console.error("Error inserting tasks for the new piece:", tasksError);
-    else insertedTasks = made.map((t) => ({ ...t, category: t.category ?? WRITING }));
-  }
+  await distillPortrait(
+    auth,
+    "conceptualise",
+    `${conversationText}\n\nConviction: ${body.conviction_statement}\nEmotional journey: ${body.emotional_journey}`
+  );
 
   // What this piece is meant to be, read against the rules the project is
   // already working under — the same boundary a concept arriving late meets.
@@ -430,7 +386,7 @@ async function addPieceToProject(
     }
   }
 
-  return NextResponse.json({ success: true, project_id: projectId, node_id: nodeId, tasks: insertedTasks });
+  return NextResponse.json({ success: true, project_id: projectId, node_id: nodeId, tasks: [] });
 }
 
 // The core concept arriving after the fact: fills the project's lens and
