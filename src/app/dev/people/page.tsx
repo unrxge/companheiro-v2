@@ -52,7 +52,6 @@ const ANA: Rows = {
     { project_id: 'p2', node_id: 'n2', role: 'person', created_at: at(2) },
   ],
   studio_rule_checks: [{ project_id: 'p1', created_at: at(20) }, { project_id: 'p1', created_at: at(18) }],
-  studio_anchor_lines: [{ project_id: 'p1', created_at: at(25) }, { project_id: 'p2', created_at: at(3) }],
   studio_post_publication_logs: [{ node_id: 'n1', created_at: at(10) }],
   writing_activity: [0, 1, 2, 4, 5, 7, 9, 13, 16, 21, 26, 30, 33, 35].map((d, i) => ({ user_id: 'ana', date: dateOf(d), seconds: 900 + ((i * 7) % 5) * 600 })),
 }

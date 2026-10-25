@@ -2,7 +2,7 @@
 //
 // The rule it keeps: every word the person put on the canvas is read, and
 // nothing else is. That means what the project is for, its rules, each
-// piece's purpose and core concept, the fragments kept for it, tasks, what
+// piece's purpose and core concept, tasks, what
 // runs across the pieces, and the words written ON an image, a recording or a
 // palette (a caption, a name). It does not mean the image, the recording, or
 // the writing inside a piece: a piece's own prose never passes through here,
@@ -23,8 +23,6 @@ export interface CanvasSource {
   items: BoardItem[]
   /** Every piece's tasks (studio_tasks). */
   tasks: ProjectTask[]
-  /** Lines kept for a piece or one of its parts (studio_anchor_lines). */
-  fragments: Array<{ node_id: string | null; text: string }>
 }
 
 export interface CanvasRead {
@@ -68,9 +66,9 @@ function part(node: TreeNode, depth: number): string {
 }
 
 export function canvasText(src: CanvasSource): CanvasRead {
-  const { project, roots, threads, tags, items, tasks, fragments } = src
+  const { project, roots, threads, tags, items, tasks } = src
   const threadName = new Map(threads.map((t) => [t.id, named(t.name, 'an unnamed thread')]))
-  // A fragment or a task may hang on a part; it is told under the piece that part sits in.
+  // A task may hang on a part; it is told under the piece that part sits in.
   const rootOf = new Map<string, string>()
   for (const root of roots) for (const n of flatten([root])) rootOf.set(n.id, root.id)
 
@@ -100,9 +98,6 @@ export function canvasText(src: CanvasSource): CanvasRead {
 
     if (root.children.length) bits.push(`   its parts, in order:\n${root.children.map((c) => part(c, 0)).join('\n')}`)
 
-    const kept = fragments.filter((f) => f.node_id && rootOf.get(f.node_id) === root.id && one(f.text))
-    if (kept.length) bits.push(`   fragments kept for it:\n${kept.map((f) => `     “${one(f.text)}”`).join('\n')}`)
-
     const mine = tasks.filter((t) => rootOf.get(t.node_id) === root.id && one(t.title))
     if (mine.length) bits.push(`   tasks:\n${mine.map((t) => `     [${t.status === 'complete' ? 'x' : ' '}] ${one(t.title)}${t.category ? ` (${one(t.category)})` : ''}`).join('\n')}`)
 
@@ -129,9 +124,6 @@ export function canvasText(src: CanvasSource): CanvasRead {
     })
     out.push(`WHAT RUNS ACROSS THE PIECES:\n${lines.join('\n')}`)
   }
-
-  const loose = fragments.filter((f) => !(f.node_id && rootOf.has(f.node_id)) && one(f.text))
-  if (loose.length) out.push(`FRAGMENTS KEPT FOR THE PROJECT:\n${loose.map((f) => `“${one(f.text)}”`).join('\n')}`)
 
   const alone = items.filter((it) => !it.node_ids.some((id) => rootOf.has(id))).flatMap(itemWords)
   if (alone.length) out.push(`STANDING ON ITS OWN ON THE CANVAS:\n${alone.map((w) => `- ${w}`).join('\n')}`)

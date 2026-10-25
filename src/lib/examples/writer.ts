@@ -73,10 +73,6 @@ export const writer: ExampleSource = {
         { title: 'Cut the paragraph about work. It’s the one place I’m complaining', category: 'Writing', done: true },
         { title: 'Decide whether Ana reads it first', category: 'Sharing' },
       ],
-      fragments: [
-        { text: 'I am tired in a way sleep doesn’t fix.', part: 'hp-honest' },
-        { text: 'Everyone I love is upstairs, asleep, and for one hour I’m the only one keeping watch.', part: 'hp-house' },
-      ],
     },
     {
       key: 'the-drawer',
@@ -115,11 +111,6 @@ export const writer: ExampleSource = {
         { title: 'Ask Rui if he still has the photo of us playing at the Crown', category: 'Finding things' },
         { title: 'End on the notebook, not on a lesson', category: 'Writing' },
       ],
-      fragments: [
-        { text: 'Write something.', part: 'dr-list' },
-        { text: 'Forty minutes from anything blue.', part: 'dr-reasons' },
-        { text: 'None of it is dead. It’s waiting to see if I come back.' },
-      ],
     },
     {
       key: 'tired-version',
@@ -137,10 +128,6 @@ export const writer: ExampleSource = {
       tasks: [
         { title: 'Write down what Mia said on Tuesday before I lose the exact words', category: 'Writing' },
         { title: 'Notice for one week: what time do I stop being any good?', category: 'Noticing' },
-      ],
-      fragments: [
-        { text: 'She’s stopped asking me to play after dinner. She asks Ana now.' },
-        { text: 'They get what’s left of me.' },
       ],
     },
   ],

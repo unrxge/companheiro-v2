@@ -31,13 +31,13 @@ import { appearancesOf, findNode, newRule, pathTo, rulesInForce, wordCount } fro
 import { Board, type BoardActions, type BoardTourHandle } from '@/components/studio/work/board'
 import { Studio, type StudioHandle } from '@/components/studio/work/studio'
 import { ThreadRead } from '@/components/studio/work/thread-read'
-import { Companion, type ProposedEdit } from '@/components/studio/work/companion'
+import { Companion } from '@/components/studio/work/companion'
 import { CompanionLauncher, Drawer, PART_TOOLS, PIECE_TOOLS, Rail, RAIL_TOOLS, type RailKey } from '@/components/studio/work/rail'
 import { VisionRoom, type RoomOrigin } from '@/components/studio/work/vision-room'
 import { visionOf } from '@/lib/studio/vision/state'
 import { CheckCard, RuleList } from '@/components/studio/work/rules'
 import { Empty, InlineField, Label, TitleField, Trail, useNarrow, useRoomBeside, useStackedLayout } from '@/components/studio/work/bits'
-import { AnchorsPanel, ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
+import { ConceptPanel, PieceFooter, TasksPanel, isWritingTask, usePieceTools } from '@/components/studio/work/write-tools'
 import { AssistantPanel, useWritingAssistant } from '@/components/studio/work/writing-assistant'
 import { useWritingTimeTracker } from '@/lib/use-writing-time'
 import { HistoryPanel } from '@/components/studio/work/history-panel'
@@ -119,16 +119,14 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
   const roomBeside = useRoomBeside()
-  // A phone-width window: an open panel covers the page, and the rail,
-  // the section marks and the storyline all share the one bottom corner.
+  // A phone-width window: an open panel covers the page, and the rail's
+  // tools stand along the bottom, over the Dock.
   const narrow = useNarrow()
-  const [storylineOpen, setStorylineOpen] = useState(false)
 
-  // What's highlighted right now in the piece being written, and any change
-  // to the text the writing assistant was asked for — the thread connecting
-  // Studio (which owns the editors) and the assistant (which owns the request).
+  // What's highlighted right now in the piece being written — the thread
+  // connecting Studio (which owns the editors) and the assistant (which asks
+  // about it). What the assistant writes stays in its own conversation.
   const [selection, setSelection] = useState<{ nodeId: string; text: string } | null>(null)
-  const [proposal, setProposal] = useState<ProposedEdit | null>(null)
 
   const goNode = useCallback((id: string, from?: HTMLElement | null) => {
     // A finished piece opens on the finished piece, not on its writing.
@@ -211,9 +209,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     parts: node && isRootPiece ? (node.children.length > 0 ? node.children : [node]) : [],
     activePartId,
     selection,
-    lines: tools.lines,
-    onProposedEdit: setProposal,
-    onClearSelection: () => setSelection(null),
   })
   // Time spent writing feeds the Inner Weather strip on days with no check-in.
   useWritingTimeTracker(focus.kind === 'node' && !!node)
@@ -251,14 +246,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     setChecking(false)
     if (res.checks.length === 0) setCheckNote(res.reason ?? 'Nothing collided.')
     else setRail(null)
-  }, [api])
-
-  /** Finishing a piece or part is a boundary: it is read against the rules in
-   *  force, quietly. A question only appears if something collides; the
-   *  server skips the reading entirely when no rules apply. */
-  const editNodeAtBoundary = useCallback(async (id: string, patch: Partial<TreeNode>) => {
-    await api.editNode(id, patch)
-    if (patch.status === 'done') void api.runCheck(id)
   }, [api])
 
   /** Amending retires the old wording wherever it lives and puts the new one in
@@ -359,18 +346,13 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         ))
       }
       await api.refresh()
-      await tools.reloadLines()
-      if (kind === 'place') {
-        setShapeNote(data.type === 'loose'
-          ? 'Your notes are now fragments, placed in the sections that suit them.'
-          : 'Your draft has been placed across the sections drawn from its emotional journey.')
-      }
+      if (kind === 'place') setShapeNote('Your draft has been placed across the sections drawn from its emotional journey.')
     } catch {
       setShapeNote('That did not work. Try again in a moment.')
     } finally {
       setShaping(null)
     }
-  }, [api, confirm, shaping, tools])
+  }, [api, confirm, shaping])
 
   /** Everything typed is saved first, so Test reads the draft as it stands. */
   const saveBeforeLeaving = useCallback(async () => {
@@ -460,7 +442,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       projectId={projectId}
       thought={thought}
       pieces={roots.map((r) => ({ id: r.id, title: r.title }))}
-      asFragment={!canThread}
+      asNote={!canThread}
       disabled={readOnly}
       onAnswered={() => { setAnsweredCarried((prev) => [...prev, thought.id]); void api.refresh() }}
     />
@@ -639,7 +621,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
 
   const companionDrawer = (
     <>
-    <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)} sheet={sheeted}>
+    <Drawer open={rail !== null} title={railTitle} onClose={() => setRail(null)} sheet={sheeted} aboveBar={focus.kind === 'node'}>
       {rail === 'intent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <InlineField
@@ -720,16 +702,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             {pieceRulesBlock}
           </section>
         </div>
-      )}
-
-      {rail === 'anchors' && scopeNode && (
-        <AnchorsPanel
-          lines={tools.lines}
-          parts={scopeNode.children.map((c, i) => ({ id: c.id, label: c.title || `Part ${i + 1}` }))}
-          onAdd={(text) => tools.addLine(text)}
-          onRemove={(id) => void tools.removeLine(id)}
-          disabled={readOnly}
-        />
       )}
 
       {rail === 'tasks' && (
@@ -927,7 +899,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Container
         padding={26}
         style={{
-          // A phone holds no margin for the tools: they are a row under the title there.
+          // A phone holds no margin for the tools: they are a row along the bottom, over the Dock, there.
           paddingRight: rail && roomBeside ? 478 : narrow ? undefined : 70,
           // ...and the last words can be scrolled clear of the section marks and the Dock.
           paddingBottom: sheeted ? 'calc(50vh + 96px)' : narrow ? 'calc(150px + env(safe-area-inset-bottom))' : undefined,
@@ -956,15 +928,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             />
             {focus.kind === 'node' && node && (
               <div className="piece-bar-tools">
-                {narrow && !sheeted && (
-                  <Rail
-                    inline
-                    open={rail}
-                    onOpen={setRail}
-                    tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
-                    counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
-                  />
-                )}
                 <div className="piece-bar-switch" data-tour="view-switch">
                   <ViewSwitch view={view} onChange={setView} />
                 </div>
@@ -985,7 +948,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               node={node}
               threads={tree.threads}
               flow={view === 'flow'}
-              onEdit={editNodeAtBoundary}
+              onEdit={(id, patch) => api.editNode(id, patch)}
               onAdd={(afterId) =>
                 node.children.length > 0
                   ? void api.addNode(node.id, afterId)
@@ -995,21 +958,14 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               onReorder={(ids) => void api.reorder(node.id, ids)}
               onEditBeat={(id, beat) => void api.editNode(id, { beat })}
               onOpenThread={goThread}
-              onFinished={() => goProject()}
               onSelectionChange={setSelection}
-              proposal={proposal}
-              onProposalHandled={() => setProposal(null)}
               onFocusChange={setActivePartId}
               placeholders={suggestions}
-              lines={tools.lines}
-              onAddLine={(text, partId) => void tools.addLine(text, partId)}
-              onRemoveLine={(id) => void tools.removeLine(id)}
               handle={studio}
               // Saved first, so the history compares against what's actually on the page.
               onHistory={() => void Promise.resolve(studio.current?.flush()).then(() => setHistoryOpen(true))}
               // On a phone a panel fills the screen down to where the marks sit.
               dockHidden={sheeted || (narrow && rail !== null)}
-              onStorylineOpen={setStorylineOpen}
               disabled={readOnly}
             />
             </div>
@@ -1049,9 +1005,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       <Rail
         open={rail}
         onOpen={setRail}
-        hidden={focus.kind === 'thread' || sheeted || narrow}
+        hidden={focus.kind === 'thread' || sheeted}
+        bar={narrow}
         tools={isRootPiece ? PIECE_TOOLS : PART_TOOLS}
-        counts={{ rules: liveRuleCount, anchors: tools.lines.length, tasks: pendingTasks }}
+        counts={{ rules: liveRuleCount, tasks: pendingTasks }}
       />
       {companionDrawer}
       {pieceTouring && (

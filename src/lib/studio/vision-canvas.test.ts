@@ -44,7 +44,6 @@ function source(): CanvasSource {
       item('i5', 'palette', [], { swatches: [{ id: 's', hex: '#C86A3A', name: 'kettle copper' }] }),
     ],
     tasks: [{ id: 'k1', node_id: 'Arrival', title: 'Find the first line', type: 'creation', status: 'pending', is_writing_related: true, category: 'Writing' }],
-    fragments: [{ node_id: 'Arrival', text: 'Usefulness only looks like being alive' }, { node_id: null, text: 'A line for the whole project' }],
   }
 }
 
@@ -55,7 +54,7 @@ test('every word written on the canvas reaches the companion', () => {
     'Rest is not the absence of worth', 'Being needed is not being alive', 'The pull', 'First person only',
     'A song about rooms kept for later', 'Waiting: Things kept for later', 'the kettle', 'absent from: Room',
     'The window at seven', 'Hummed melody', 'Call the venue', 'kettle copper',
-    'Find the first line', 'Usefulness only looks like being alive', 'A line for the whole project',
+    'Find the first line',
   ]) assert.ok(text.includes(said), `missing: ${said}`)
 })
 
@@ -66,13 +65,11 @@ test('the writing inside a piece, retired rules and a hex code never do', () => 
   assert.ok(!text.includes('#C86A3A'))
 })
 
-test('a fragment or task on a part is told under the piece that part sits in', () => {
+test('a task on a part is told under the piece that part sits in', () => {
   const { text } = canvasText(source())
   const morning = text.indexOf('1. Morning')
   const room = text.indexOf('2. Room')
-  const fragment = text.indexOf('Usefulness only looks like being alive')
   const task = text.indexOf('Find the first line')
-  assert.ok(morning < fragment && fragment < room)
   assert.ok(morning < task && task < room)
 })
 

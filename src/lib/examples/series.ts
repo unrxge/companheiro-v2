@@ -75,10 +75,6 @@ export const series: ExampleSource = {
         { title: 'Three vertical cuts: the cold open, the hose, “never been on one in the day”', category: 'Publish', done: true },
         { title: 'Send Sr. Armando the link and a printed still', category: 'Release', done: true },
       ],
-      fragments: [
-        { text: 'I’ve never been on one in the day.', part: 'tr-daylight' },
-        { text: 'You don’t light the night. You find where it’s already lit.' },
-      ],
     },
     {
       key: 'ward',
@@ -119,7 +115,6 @@ export const series: ExampleSource = {
         { title: 'Written sign-off on the final cut from the hospital’s comms team', category: 'Release' },
         { title: 'Write the episode description. No adjectives about “heroes”', category: 'Writing' },
       ],
-      fragments: [{ text: 'Three is the hour people let go.', part: 'wd-3am' }],
     },
     {
       key: 'lamps',
@@ -153,10 +148,6 @@ export const series: ExampleSource = {
         { title: 'Test the FX3 at ISO 12800 under LED and under sodium. Does the noise read as grain?', category: 'Shoot', done: true },
         { title: 'Book the 35mm f/1.4 again, and the 85', category: 'Shoot' },
         { title: 'Questions for Sr. Augusto: the first lamp he ever changed, and the one he never will', category: 'Writing' },
-      ],
-      fragments: [
-        { text: 'He says goodnight to every lamp before he switches it off.' },
-        { text: 'Amber to white in four seconds. The whole series in one swap.', part: 'lp-swap' },
       ],
     },
     {

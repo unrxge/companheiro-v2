@@ -4,17 +4,15 @@
 // shape of the work and never its prose; this one reads the part being
 // written and what comes before it, and helps with the words. It has no
 // modes: it guides with questions and other ways of seeing the passage, and
-// writes only when told to (an example in the talk, or, when asked to change
-// the text itself, a pending edit to accept or reject). The rules are in
-// lib/writing-assistant-rules.ts.
+// writes only when told to, and then only in the talk: nothing it writes is
+// ever placed in the draft. The rules are in lib/writing-assistant-rules.ts.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { Label } from '@/components/studio/work/bits'
-import { ProposalCard, type ProposedEdit } from '@/components/studio/work/companion'
+import { ProposalCard } from '@/components/studio/work/companion'
 import type { RuleProposal } from '@/lib/studio/rule-proposals'
-import type { AnchorLine } from '@/components/studio/work/write-tools'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
 import { alpha, radius } from '@/lib/design-tokens'
@@ -30,7 +28,6 @@ const DISTILL_BATCH = 8
 const DISTILL_HIDDEN_MIN = 4
 
 interface ChatMeta {
-  proposedEdit?: { section_id: string; content: string; anchor_text: string | null }
   truncated?: boolean
   proposals?: RuleProposal[]
 }
@@ -39,7 +36,7 @@ export type WritingChat = ReturnType<typeof useWritingAssistant>
 
 /** The conversation lives above the panel, so it survives switching tools and parts. */
 export function useWritingAssistant({
-  projectId, nodeId, parts, activePartId, selection, lines, onProposedEdit, onClearSelection,
+  projectId, nodeId, parts, activePartId, selection,
 }: {
   projectId: string
   nodeId: string | null
@@ -47,9 +44,6 @@ export function useWritingAssistant({
   parts: TreeNode[]
   activePartId: string | null
   selection: { nodeId: string; text: string } | null
-  lines: AnchorLine[]
-  onProposedEdit: (edit: ProposedEdit) => void
-  onClearSelection: () => void
 }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -110,19 +104,18 @@ export function useWritingAssistant({
 
     const say = (content: string) => setMessages([...next, { role: 'assistant', content }])
     try {
-      const linesOf = (id: string) => lines.filter((l) => l.section_id === id).map((l) => l.text)
       // The model only ever sees plain prose, never the editor's markup.
       const activeSection = active
         ? {
             id: active.id, label: active.title || null, intended_emotion: active.beat || null,
-            content: htmlToPlainText(active.body), is_locked: active.is_locked, anchor_lines: linesOf(active.id),
+            content: htmlToPlainText(active.body),
           }
         : null
       const preceding = active
         ? parts
             .filter((p) => p.position < active.position)
             .sort((a, b) => a.position - b.position)
-            .map((p) => ({ label: p.title || null, content: htmlToPlainText(p.body), anchor_lines: linesOf(p.id) }))
+            .map((p) => ({ label: p.title || null, content: htmlToPlainText(p.body) }))
         : []
       const selected = active && selection?.nodeId === active.id ? selection.text : null
 
@@ -139,7 +132,7 @@ export function useWritingAssistant({
       say('')
       let result: { text: string; meta: ChatMeta | null }
       try {
-        result = await readTextStream<ChatMeta>(res, say, ['<proposed_edit>'])
+        result = await readTextStream<ChatMeta>(res, say)
       } catch (err) {
         // The stream can die partway; what came through stays, marked as cut off.
         console.error('Chat stream ended early:', err)
@@ -159,11 +152,6 @@ export function useWritingAssistant({
           return last?.role === 'assistant' ? [...prev.slice(0, -1), { ...last, content: `${last.content}\n\n— ran out of room there, cut short mid-thought` }] : prev
         })
       }
-      const proposed = result.meta?.proposedEdit
-      if (proposed) {
-        onProposedEdit({ node_id: proposed.section_id, content: proposed.content, anchor_text: proposed.anchor_text })
-        onClearSelection()
-      }
       if (result.text) flushDistillation([...next, { role: 'assistant', content: result.text }])
     } catch (err) {
       console.error('Failed to send chat message:', err)
@@ -176,7 +164,7 @@ export function useWritingAssistant({
     } finally {
       setBusy(false)
     }
-  }, [active, busy, flushDistillation, input, lines, nodeId, onClearSelection, onProposedEdit, parts, selection])
+  }, [active, busy, flushDistillation, input, nodeId, parts, selection])
 
   // A fresh conversation for a different reason: what was said is sent off to
   // the portrait first (as when leaving the piece), then forgotten here, so
@@ -246,7 +234,7 @@ export function AssistantPanel({
         </div>
       ) : active ? (
         <p style={{ ...canvasType.chip, color: t.textMuted, margin: 0, flexShrink: 0 }}>
-          Focused on: <span style={{ color: t.textSecondary }}>{active.title || 'this part'}</span>{active.is_locked && ' (locked)'}
+          Focused on: <span style={{ color: t.textSecondary }}>{active.title || 'this part'}</span>
         </p>
       ) : null}
 
@@ -275,8 +263,8 @@ export function AssistantPanel({
           </div>
         )}
         {messages.map((m, i) => {
-          // While a reply is on its way the dots trail it: before the first word,
-          // between words, and while a proposed edit streams in unseen.
+          // While a reply is on its way the dots trail it: before the first word
+          // and between words.
           const waiting = busy && m.role === 'assistant' && i === messages.length - 1
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

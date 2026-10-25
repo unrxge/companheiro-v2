@@ -93,13 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestRespo
     if (!root) return NextResponse.json({ ...empty, error: 'Piece not found' }, { status: 404 })
     const piece = { ...root, substack_draft: htmlToPlainText(root.body || ''), conviction_statement: root.intent }
 
-    // Scoped by project_id, same caveat as write/sections' anchor-line read:
-    // if a project ever holds more than one root piece, this isn't scoped
-    // any narrower than that (studio_anchor_lines has no per-piece column).
-    const [{ data: anchorLines }, companionContext] = await Promise.all([
-      supabase.from('studio_anchor_lines').select('text').eq('project_id', root.project_id).eq('user_id', user.id),
-      buildCompanionContext(auth),
-    ])
+    const companionContext = await buildCompanionContext(auth)
 
     const draft = (piece.substack_draft || '').trim()
     if (!draft) {
@@ -109,18 +103,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestRespo
       })
     }
 
-    const anchorText =
-      anchorLines && anchorLines.length > 0
-        ? anchorLines.map((l) => `- "${l.text}"`).join('\n')
-        : '(none)'
-
     const systemPrompt = `You are Companheiro, testing a finished draft against what the writer set out to make. Read the draft COLD and unbiased — judge only from the words on the page, not from the intentions.
 
 ${COMPANION_TONE}
 
 ${companionContext ? companionContext + '\n\n' : ''}Return THREE things as JSON:
 
-1. "coverage": go through what they wanted in this piece — the items in their ETHOS and each of their ANCHOR LINES — and for each, judge from the ACTUAL draft text whether it "landed", "partial", or "missing". Give a short, specific note grounded in the text (quote or point to where). One entry per distinct intended thing.
+1. "coverage": go through what they wanted in this piece — the items in their ETHOS, and what the CONVICTION and CORE TRUTH commit it to — and for each, judge from the ACTUAL draft text whether it "landed", "partial", or "missing". Give a short, specific note grounded in the text (quote or point to where). One entry per distinct intended thing. Only what they actually wrote down is something they wanted: a field marked "(none)" or "(not written)" is not a thing to find missing, and never an entry of its own.
 
 2. "emotional_journey": read the draft cold. "verdict" = does the intended emotional arc actually land, in your honest read of the text? "drift" = the single clearest place it drifts from that arc, or "" if it holds.
 
@@ -148,9 +137,6 @@ WHAT THEY SET OUT TO MAKE (ethos): ${piece.writing_ethos || '(not written)'}
 CONVICTION: ${piece.conviction_statement || '(none)'}
 CORE TRUTH: ${piece.core_truth || '(none)'}
 INTENDED EMOTIONAL JOURNEY: ${piece.emotional_journey || '(none)'}
-
-ANCHOR LINES (precious lines they wanted in):
-${anchorText}
 
 THE DRAFT:
 """

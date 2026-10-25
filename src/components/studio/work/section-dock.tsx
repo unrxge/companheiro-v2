@@ -10,11 +10,13 @@
 // panel that rises above the bar instead. Picking a part in it scrolls the
 // writing view to that part and focuses it; nothing here ever navigates
 // anywhere, because the writing module only ever has the one page.
+//
+// A computer's. Below the Dock's breakpoint (a phone, a narrow window) it is
+// not shown: the bottom of the screen there belongs to the rail's tools.
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion as m } from 'motion/react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { useDockAway } from '@/components/shell/page-shell'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { Storyline } from '@/components/studio/work/storyline'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -49,7 +51,6 @@ export function SectionDock({
 }) {
   const { t } = useTheme()
   const [expanded, setExpanded] = useState(false)
-  const dockAway = useDockAway()
   useEffect(() => {
     onExpanded?.(expanded)
     return () => { if (expanded) onExpanded?.(false) }
@@ -64,24 +65,16 @@ export function SectionDock({
   return (
     <div
       className="section-dock"
-      data-dock-away={dockAway || undefined}
       style={{
         position: 'fixed', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
       }}
     >
-      {/* Below the Dock's breakpoint the Dock is along the bottom too (44px
-         seats, 4px padding, max(14px, safe area) off the edge — dock.tsx),
-         and this was underneath it at the top of the page. It stands above
-         the Dock there and comes down when the Dock steps away. The marks
-         are a finger's size on a phone. */}
       <style>{`
-        .section-dock { bottom: 16px; transition: bottom .2s ease; }
+        .section-dock { bottom: 16px; }
         .section-dock-mark { width: 24px; height: 24px; }
         @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
-          .section-dock { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 54px + 10px); }
-          .section-dock[data-dock-away] { bottom: max(14px, env(safe-area-inset-bottom)); }
-          .section-dock-mark { width: 34px; height: 34px; }
+          .section-dock { display: none !important; }
         }
       `}</style>
       <AnimatePresence initial={false}>

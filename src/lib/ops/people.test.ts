@@ -70,7 +70,6 @@ const rows = {
     { project_id: 'p1', node_id: 'n1a', role: 'person', created_at: '2026-09-11T10:00:00Z' },
   ],
   studio_rule_checks: [{ project_id: 'p1', created_at: '2026-09-12T10:00:00Z' }],
-  studio_anchor_lines: [{ project_id: 'p1', created_at: '2026-09-12T10:00:00Z' }],
   studio_post_publication_logs: [{ node_id: 'n1', created_at: '2026-09-22T10:00:00Z' }],
   writing_activity: [
     { user_id: 'u', date: '2026-10-10', seconds: 1800 },
@@ -95,7 +94,7 @@ test('a finished project tells how it came to be, in order, with the days betwee
   assert.deepEqual(first.untouched, ['recordings'])
   assert.deepEqual(
     { ...first.counts },
-    { pieces: 1, parts: 2, words: 750, threads: 1, tasks: 2, tasksDone: 1, images: 1, recordings: 0, taskLists: 1, anchorLines: 1, conceptEdits: 1, visionTurns: 1, partTurns: 1, ruleChecks: 1, reflections: 1 },
+    { pieces: 1, parts: 2, words: 750, threads: 1, tasks: 2, tasksDone: 1, images: 1, recordings: 0, taskLists: 1, conceptEdits: 1, visionTurns: 1, partTurns: 1, ruleChecks: 1, reflections: 1 },
   )
   assert.deepEqual(first.words.map((w) => w.words), [300, 750])
 })

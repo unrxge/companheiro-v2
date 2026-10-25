@@ -8,13 +8,10 @@ import { logUsage } from '@/lib/usage-log'
 import { snapshotPiece } from '@/lib/studio/revisions'
 import { nodeGate } from "@/lib/studio/plan-access";
 
-// Discerns whether the user's brought text is a full draft or loose fragments,
-// then either distributes the draft across the emotional-journey sections
-// (child studio_nodes under node_id) or creates anchor lines from the
-// individual sentences.
-//
-// Full draft: ≥100 words OR ≥2 non-trivial paragraphs
-// Loose text: everything else (notes, sentence fragments, scattered lines)
+// Places a brought draft across the emotional-journey sections (child
+// studio_nodes under node_id). Only a full draft can be placed (>=100 words
+// or >=2 non-trivial paragraphs); notes and loose lines are refused, since
+// there is nowhere to keep them.
 
 function isFullDraft(text: string): boolean {
   const words = text.trim().split(/\s+/).filter((w) => w.length > 0).length
@@ -23,14 +20,6 @@ function isFullDraft(text: string): boolean {
     .split(/\n\n+/)
     .filter((p) => p.trim().split(/\s+/).length >= 8).length
   return words >= 100 || paragraphs >= 2
-}
-
-// Extract individual sentences/phrases from loose text.
-function extractLines(text: string): string[] {
-  return text
-    .split(/[\n.!?]+/)
-    .map((s) => s.trim().replace(/^[-–—•*]\s*/, ''))
-    .filter((s) => s.length > 2 && s.split(/\s+/).length >= 2)
 }
 
 interface SectionRow {
@@ -131,6 +120,10 @@ export async function POST(req: NextRequest) {
 
     const draft = (piece.body || '').trim()
     if (!draft) return NextResponse.json({ error: 'No draft to ingest' }, { status: 400 })
+    // Notes and loose lines have nowhere to go: only a draft can be placed across sections.
+    if (!isFullDraft(draft)) {
+      return NextResponse.json({ error: 'This reads as notes rather than a draft, so there is nothing to place across sections yet.' }, { status: 400 })
+    }
 
     // The piece as it was before its draft was placed, kept in its history.
     await snapshotPiece(auth, node_id, 'restructure', { force: true })
@@ -153,26 +146,25 @@ export async function POST(req: NextRequest) {
 
     // ── Discern ─────────────────────────────────────────────────────────────
 
-    if (isFullDraft(draft)) {
-      // Full draft path — distribute prose across emotional-journey sections.
-      // The model is only ever asked WHICH SECTION each paragraph belongs
-      // to (by number), never to retype the draft — every paragraph that
-      // lands in the database is the writer's own original substring, never
-      // a model-echoed copy of it. Output shrinks from a full retyped draft
-      // (thousands of tokens) to a small id-per-paragraph map.
-      const sectionList = sections
-        .map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion || 'n/a'})`)
-        .join('\n')
+    // Full draft path — distribute prose across emotional-journey sections.
+    // The model is only ever asked WHICH SECTION each paragraph belongs
+    // to (by number), never to retype the draft — every paragraph that
+    // lands in the database is the writer's own original substring, never
+    // a model-echoed copy of it. Output shrinks from a full retyped draft
+    // (thousands of tokens) to a small id-per-paragraph map.
+    const sectionList = sections
+      .map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion || 'n/a'})`)
+      .join('\n')
 
-      const paragraphs: string[] = (draft as string)
-        .split(/\n{2,}/)
-        .map((p: string) => p.trim())
-        .filter((p: string) => p.length > 0)
+    const paragraphs: string[] = (draft as string)
+      .split(/\n{2,}/)
+      .map((p: string) => p.trim())
+      .filter((p: string) => p.length > 0)
 
-      const distResponse = await anthropic.messages.create({
-        model: MODELS.fast,
-        max_tokens: 500,
-        system: withLanguage(`You place a writer's existing paragraphs into the emotional journey sections of their piece. The writer's words are sacred — you are only choosing WHICH SECTION each paragraph belongs to, never rewriting, summarising, or reordering anything.
+    const distResponse = await anthropic.messages.create({
+      model: MODELS.fast,
+      max_tokens: 500,
+      system: withLanguage(`You place a writer's existing paragraphs into the emotional journey sections of their piece. The writer's words are sacred — you are only choosing WHICH SECTION each paragraph belongs to, never rewriting, summarising, or reordering anything.
 
 Rules:
 - Assign each numbered paragraph to the section id whose emotional beat it most closely serves.
@@ -181,120 +173,59 @@ Rules:
 - Every paragraph number must appear exactly once.
 
 Return ONLY JSON: { "placements": { "0": "section_id", "1": "section_id", ... } }`),
-        messages: [
-          {
-            role: 'user',
-            content: `Sections (in reading order):
+      messages: [
+        {
+          role: 'user',
+          content: `Sections (in reading order):
 ${sectionList}
 
 Paragraphs to place (each may be truncated for length — place by its gist, not its full wording):
 ${paragraphs.map((p: string, i: number) => `${i}: "${p.length > 300 ? p.slice(0, 300) + '…' : p}"`).join('\n')}`,
-          },
-        ],
-      })
+        },
+      ],
+    })
 
-      logUsage(auth.user.id, 'write/sections/ingest:distribute', distResponse.model, distResponse.usage)
+    logUsage(auth.user.id, 'write/sections/ingest:distribute', distResponse.model, distResponse.usage)
 
-      const distBlock = distResponse.content.find((b) => b.type === 'text')
-      if (!distBlock || distBlock.type !== 'text') {
-        return NextResponse.json({ error: 'Failed to distribute draft' }, { status: 500 })
-      }
-
-      const distCleaned = distBlock.text.replace(/```json\n?|\n?```/g, '').trim()
-      const distParsed = JSON.parse(distCleaned) as { placements?: Record<string, string> }
-      const placements = distParsed.placements || {}
-
-      // Group paragraphs by assigned section, in original order — only the
-      // model's OWN section-index choices are used, never its text, so this
-      // reconstructs each section from verbatim, untouched original prose.
-      const validIds = new Set(sections.map((s) => s.id))
-      const bySection = new Map<string, string[]>()
-      paragraphs.forEach((p: string, i: number) => {
-        const placed = placements[String(i)]
-        const target = placed && validIds.has(placed) ? placed : sections[0]?.id
-        if (!target) return
-        const list = bySection.get(target) || []
-        list.push(p)
-        bySection.set(target, list)
-      })
-
-      const finalSections = await Promise.all(
-        sections.map(async (s) => {
-          const assignedParagraphs = bySection.get(s.id)
-          const newContent = assignedParagraphs ? assignedParagraphs.join('\n\n') : s.content
-          if (newContent !== s.content) {
-            await supabase
-              .from('studio_nodes')
-              .update({ body: newContent })
-              .eq('id', s.id)
-              .eq('user_id', user.id)
-          }
-          return { ...s, content: newContent }
-        })
-      )
-
-      return NextResponse.json({ type: 'draft', sections: finalSections })
-    } else {
-      // Loose text path — extract sentences and create anchor lines.
-      const lines = extractLines(draft)
-      if (lines.length === 0) {
-        return NextResponse.json({ type: 'loose', sections, anchorLines: [] })
-      }
-
-      // Single batch placement call for all lines
-      let placements: Record<string, string> = {}
-      if (sections.length > 0) {
-        try {
-          const placeResponse = await anthropic.messages.create({
-            model: MODELS.fast,
-            max_tokens: 400,
-            system: `Map each numbered line to the section id that best fits it emotionally. Return ONLY JSON: { "placements": { "0": "section_id", "1": "section_id", ... } }`,
-            messages: [
-              {
-                role: 'user',
-                content: `Lines:
-${lines.map((l, i) => `${i}: "${l}"`).join('\n')}
-
-Sections:
-${sections.map((s) => `id: ${s.id} | "${s.label}" (emotion: ${s.intended_emotion || 'n/a'})`).join('\n')}`,
-              },
-            ],
-          })
-          logUsage(auth.user.id, 'write/sections/ingest:place-lines', placeResponse.model, placeResponse.usage)
-          const placeBlock = placeResponse.content.find((b) => b.type === 'text')
-          if (placeBlock && placeBlock.type === 'text') {
-            const placeCleaned = placeBlock.text.replace(/```json\n?|\n?```/g, '').trim()
-            const placeParsed = JSON.parse(placeCleaned) as { placements?: Record<string, string> }
-            placements = placeParsed.placements || {}
-          }
-        } catch {
-          // placement is best-effort; fall through to unplaced
-        }
-      }
-
-      // Insert all anchor lines
-      const anchorRows = lines.map((line, i) => {
-        const sectionId = placements[String(i)] || null
-        const matchedSection = sectionId ? sections.find((s) => s.id === sectionId) : null
-        return {
-          user_id: user.id,
-          project_id: piece.project_id,
-          node_id: matchedSection ? matchedSection.id : null,
-          text: line,
-        }
-      })
-
-      const { data: insertedLines } = await supabase
-        .from('studio_anchor_lines')
-        .insert(anchorRows)
-        .select('id, node_id, text')
-
-      return NextResponse.json({
-        type: 'loose',
-        sections,
-        anchorLines: (insertedLines || []).map((l) => ({ id: l.id, section_id: l.node_id, text: l.text })),
-      })
+    const distBlock = distResponse.content.find((b) => b.type === 'text')
+    if (!distBlock || distBlock.type !== 'text') {
+      return NextResponse.json({ error: 'Failed to distribute draft' }, { status: 500 })
     }
+
+    const distCleaned = distBlock.text.replace(/```json\n?|\n?```/g, '').trim()
+    const distParsed = JSON.parse(distCleaned) as { placements?: Record<string, string> }
+    const placements = distParsed.placements || {}
+
+    // Group paragraphs by assigned section, in original order — only the
+    // model's OWN section-index choices are used, never its text, so this
+    // reconstructs each section from verbatim, untouched original prose.
+    const validIds = new Set(sections.map((s) => s.id))
+    const bySection = new Map<string, string[]>()
+    paragraphs.forEach((p: string, i: number) => {
+      const placed = placements[String(i)]
+      const target = placed && validIds.has(placed) ? placed : sections[0]?.id
+      if (!target) return
+      const list = bySection.get(target) || []
+      list.push(p)
+      bySection.set(target, list)
+    })
+
+    const finalSections = await Promise.all(
+      sections.map(async (s) => {
+        const assignedParagraphs = bySection.get(s.id)
+        const newContent = assignedParagraphs ? assignedParagraphs.join('\n\n') : s.content
+        if (newContent !== s.content) {
+          await supabase
+            .from('studio_nodes')
+            .update({ body: newContent })
+            .eq('id', s.id)
+            .eq('user_id', user.id)
+        }
+        return { ...s, content: newContent }
+      })
+    )
+
+    return NextResponse.json({ type: 'draft', sections: finalSections })
   } catch (err) {
     console.error('ingest error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

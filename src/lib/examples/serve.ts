@@ -109,9 +109,6 @@ export function answerExample(method: string, segments: string[], query: URLSear
     const [route] = rest
     const piece = pieceOf(built, subjectId)
     if (!piece) return missing
-    if (route === 'anchor-lines') {
-      return ok({ anchorLines: built.lines.filter((l) => piece.has(l.node_id)).map((l) => ({ id: l.id, section_id: l.node_id, text: l.text })) })
-    }
     if (route === 'history') return ok({ piece_id: subjectId, revisions: [], current: [] })
     return missing
   }

@@ -89,7 +89,7 @@ export type TourAnchor =
   | 'page'
   | 'launcher' | 'vision-page' | 'vision-talk' | 'add-button'
   // the writing page
-  | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-anchors' | 'rail-assistant'
+  | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-assistant'
   // the check-in
   | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added' | 'checkin-scene'
   // Home
@@ -100,7 +100,7 @@ export type TourAnchor =
   | 'portrait-checkin' | 'portrait-entry' | 'portrait-list' | 'portrait-forget' | 'portrait-intro'
 
 /** A panel on the writing page the tour opens (or closes, with null). */
-export type TourPanel = 'concept' | 'anchors' | 'assistant'
+export type TourPanel = 'concept' | 'assistant'
 
 export interface TourStep {
   key: string
@@ -280,13 +280,6 @@ export function pieceTourSteps(input: { practices: readonly string[]; exampleFor
       lines: ['Its core concept, open while you work.', 'So the middle never forgets the start.'],
       show: { anchor: ['rail-concept', 'rail-panel'] },
       panel: 'concept',
-    }),
-    step({
-      key: 'fragments',
-      headline: 'Lines worth keeping, kept.',
-      lines: ['A phrase that came too early. One for later.', 'Each waits by the piece it belongs to.'],
-      show: { anchor: ['rail-anchors', 'rail-panel'] },
-      panel: 'anchors',
     }),
     step({
       key: 'assistant',

@@ -19,7 +19,6 @@ export const COLUMNS = {
   studio_board_items: 'project_id, kind, created_at',
   studio_vision_messages: 'project_id, node_id, role, created_at',
   studio_rule_checks: 'project_id, created_at',
-  studio_anchor_lines: 'project_id, created_at',
   studio_post_publication_logs: 'node_id, created_at',
   writing_activity: 'user_id, date, seconds',
 } as const
@@ -125,7 +124,6 @@ export interface ProjectStory {
     images: number
     recordings: number
     taskLists: number
-    anchorLines: number
     conceptEdits: number
     visionTurns: number
     partTurns: number
@@ -150,7 +148,6 @@ export function projectStories(rows: Rows, now = Date.now()): ProjectStory[] {
   const items = by(rows.studio_board_items, 'project_id')
   const talk = by(rows.studio_vision_messages, 'project_id')
   const checks = by(rows.studio_rule_checks, 'project_id')
-  const anchors = by(rows.studio_anchor_lines, 'project_id')
   const history = by((rows.studio_piece_revisions ?? []).map((r) => ({ ...r, project_id: projectOfNode.get(r.piece_id) })), 'project_id')
   const reflections = by((rows.studio_post_publication_logs ?? []).map((r) => ({ ...r, project_id: projectOfNode.get(r.node_id) })), 'project_id')
 
@@ -225,7 +222,6 @@ export function projectStories(rows: Rows, now = Date.now()): ProjectStory[] {
           images: kinds('image').length,
           recordings: kinds('recording').length,
           taskLists: kinds('tasks').length,
-          anchorLines: (anchors.get(p.id) ?? []).length,
           conceptEdits: (concept.get(p.id) ?? []).filter((c) => c.origin === 'edit').length,
           visionTurns: said.filter((m) => !m.node_id).length,
           partTurns: said.filter((m) => m.node_id).length,

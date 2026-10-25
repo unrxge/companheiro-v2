@@ -4,15 +4,18 @@
 //
 // A piece and all its parts on one surface, each part a box you write straight
 // into. This is the writing module from the main app, carried over: the focused
-// box takes a quiet border, one shared toolbar follows the caret, a part can be
-// locked, and flow view strips the chrome so the whole thing reads as prose.
+// box takes a quiet border, one shared toolbar follows the caret, and flow view
+// strips the chrome so the whole thing reads as prose. Nothing is ever placed
+// in the text but what the person types: the assistant's words stay in its
+// own conversation.
 //
-// The map used to be a separate page you switched to. It's a floating dock
-// now (section-dock.tsx), bottom and centred, the toolbar's own mirror image
-// — collapsed, it is just a row of marks for where the parts are; its arrow
-// opens the same storyline above itself. Picking a part there scrolls this
-// page to it and focuses it — it was never a door to another page, and now
-// it can't pretend to be one.
+// The map used to be a separate page you switched to. On a computer it's a
+// floating dock now (section-dock.tsx), bottom and centred, the toolbar's own
+// mirror image — collapsed, it is just a row of marks for where the parts are;
+// its arrow opens the same storyline above itself. Picking a part there
+// scrolls this page to it and focuses it — it was never a door to another
+// page, and now it can't pretend to be one. On a phone it is left out, and the
+// bottom of the screen is the rail's tools.
 //
 // Everything about the vision — what it is for, the rules, the threads, the
 // companion — lives on the rail, because this column belongs to the work.
@@ -24,12 +27,9 @@ import { SectionEditor, SectionToolbar, type SectionSelection } from '@/componen
 import { SectionDock } from '@/components/studio/work/section-dock'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius, widths } from '@/lib/design-tokens'
-import { ensureHtml, plainTextToHtml } from '@/lib/rich-text'
+import { ensureHtml } from '@/lib/rich-text'
 import type { Thread, TreeNode } from '@/lib/studio/node-types'
-import type { ProposedEdit } from '@/components/studio/work/companion'
 import { InlineField, ThreadChips } from '@/components/studio/work/bits'
-import { PartLines, type AnchorLine } from '@/components/studio/work/write-tools'
-import { GhostButton, QuietButton } from '@/components/ui/buttons'
 
 const SAVE_AFTER_MS = 900
 
@@ -52,23 +52,14 @@ export function Studio({
   onReorder,
   onEditBeat,
   onOpenThread,
-  onFinished,
   /** Bubbles the live text selection up, so the companion can offer to
-   *  focus a suggestion on exactly what's highlighted. */
+   *  focus its help on exactly what's highlighted. */
   onSelectionChange,
-  /** A proposal the companion produced, handed back down to be materialised
-   *  as a pending edit. Cleared by calling onProposalHandled once consumed. */
-  proposal,
-  onProposalHandled,
-  lines = [],
-  onAddLine,
-  onRemoveLine,
   onFocusChange,
   placeholders,
   handle,
   onHistory,
   dockHidden = false,
-  onStorylineOpen,
   disabled = false,
 }: {
   node: TreeNode
@@ -81,15 +72,7 @@ export function Studio({
   onReorder: (ids: string[]) => void
   onEditBeat: (id: string, beat: string) => void
   onOpenThread: (id: string) => void
-  /** Called when the whole piece is marked done — the way back out. */
-  onFinished?: () => void
   onSelectionChange?: (selection: { nodeId: string; text: string } | null) => void
-  proposal?: ProposedEdit | null
-  onProposalHandled?: () => void
-  /** Anchor lines, by the part they were placed in. */
-  lines?: AnchorLine[]
-  onAddLine?: (text: string, partId: string) => void
-  onRemoveLine?: (id: string) => void
   /** Which part the caret is in, as it changes. */
   onFocusChange?: (partId: string) => void
   /** Guidance to show in an empty part, by part id. */
@@ -99,8 +82,6 @@ export function Studio({
   onHistory?: () => void
   /** Leaves the part dock out while something else is using the bottom of the screen. */
   dockHidden?: boolean
-  /** The storyline panel over the section marks opened or closed. */
-  onStorylineOpen?: (open: boolean) => void
   disabled?: boolean
 }) {
   const { t } = useTheme()
@@ -108,7 +89,6 @@ export function Studio({
   const sectioned = node.children.length > 0
 
   const [focused, setFocused] = useState<string | null>(null)
-  const [openLines, setOpenLines] = useState<string | null>(null)
   const [, bump] = useState(0)
   const editors = useRef<Record<string, Editor | null>>({})
   const articles = useRef<Record<string, HTMLElement | null>>({})
@@ -126,89 +106,9 @@ export function Studio({
     window.setTimeout(() => { editors.current[partId]?.commands.focus() }, 350)
   }, [])
 
-  // The live selection, kept by exact range (not just text) so a proposal
-  // that comes back for it can be spliced into precisely the right spot —
-  // and re-checked against the anchor text before it lands, in case the
-  // passage changed underneath it while the companion was thinking.
-  const selection = useRef<(SectionSelection & { partId: string }) | null>(null)
-  const [pendingWhole, setPendingWhole] = useState<{ partId: string; content: string } | null>(null)
-  const [pendingInline, setPendingInline] = useState<{ partId: string; range: { from: number; to: number }; originalText: string } | null>(null)
-
   const handleSelection = useCallback((partId: string, sel: SectionSelection | null) => {
-    selection.current = sel ? { ...sel, partId } : null
     onSelectionChange?.(sel ? { nodeId: partId, text: sel.text } : null)
   }, [onSelectionChange])
-
-  // Materialises a proposal the moment it arrives: an anchored one is spliced
-  // directly into the document, wrapped in a highlight mark; a whole-part
-  // rewrite has nowhere in the text to anchor to, so it shows as a preview
-  // card instead. Either way nothing is persisted until Approve runs.
-  useEffect(() => {
-    if (!proposal) return
-    // A locked part is never touched, whoever is asking.
-    if (parts.find((p) => p.id === proposal.node_id)?.is_locked) { onProposalHandled?.(); return }
-    const editor = editors.current[proposal.node_id]
-    if (editor && proposal.anchor_text && selection.current?.partId === proposal.node_id) {
-      const { from, to } = selection.current
-      const currentText = editor.state.doc.textBetween(from, to, '\n\n').trim()
-      if (currentText === proposal.anchor_text.trim()) {
-        editor.chain().focus().insertContentAt({ from, to }, { type: 'text', text: proposal.content, marks: [{ type: 'pendingEdit' }] }).run()
-        setPendingInline({ partId: proposal.node_id, range: { from, to: from + proposal.content.length }, originalText: currentText })
-        bump((n) => n + 1)
-      } else {
-        // The highlighted passage changed since the request was sent —
-        // refuse to guess where a fragment-only edit belongs.
-        console.error('Highlighted passage changed since the request was sent; declining to show the proposal inline')
-      }
-    } else if (editor) {
-      setPendingWhole({ partId: proposal.node_id, content: proposal.content })
-    }
-    onProposalHandled?.()
-    // Only the proposal identity should re-trigger this — re-running it on
-    // every selection/editor churn would re-materialise a stale proposal.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposal])
-
-  const persist = useCallback((id: string, html: string) => {
-    void latestEdit.current(id, { body: html })
-  }, [])
-
-  const approveInline = useCallback(() => {
-    if (!pendingInline) return
-    const { partId, range } = pendingInline
-    const editor = editors.current[partId]
-    if (!editor) return
-    editor.chain().focus().setTextSelection(range).unsetMark('pendingEdit').run()
-    const html = editor.getHTML()
-    setPendingInline(null)
-    persist(partId, html)
-  }, [pendingInline, persist])
-
-  const rejectInline = useCallback(() => {
-    if (!pendingInline) return
-    const { partId, range, originalText } = pendingInline
-    const editor = editors.current[partId]
-    if (!editor) return
-    // A plain-text insertion bordering a marked span inherits that mark by
-    // default (ProseMirror's stored-marks behaviour) — explicitly clearing
-    // it on the restored range is what actually removes the highlight.
-    const restoredEnd = range.from + originalText.length
-    editor.chain().focus().insertContentAt(range, originalText).setTextSelection({ from: range.from, to: restoredEnd }).unsetMark('pendingEdit').run()
-    const html = editor.getHTML()
-    setPendingInline(null)
-    persist(partId, html)
-  }, [pendingInline, persist])
-
-  const approveWhole = useCallback(() => {
-    if (!pendingWhole) return
-    const { partId, content } = pendingWhole
-    const editor = editors.current[partId]
-    if (!editor) return
-    editor.chain().focus().setContent(plainTextToHtml(content), false).run()
-    const html = editor.getHTML()
-    setPendingWhole(null)
-    persist(partId, html)
-  }, [pendingWhole, persist])
 
   const flushAll = useCallback(() => {
     for (const [id, html] of Object.entries(pending.current)) {
@@ -254,37 +154,6 @@ export function Studio({
     }, SAVE_AFTER_MS)
   }, [])
 
-  /** Marking done is reversible and never locks anything. Finishing the whole
-   *  piece is also the way out of it: everything typed lands first, then the
-   *  mark, then the climb back to the board. */
-  const finish = useCallback(async (part: TreeNode) => {
-    const reopening = part.status === 'done'
-    if (timers.current[part.id]) { clearTimeout(timers.current[part.id]); delete timers.current[part.id] }
-    const typed = pending.current[part.id]
-    if (typed !== undefined) {
-      delete pending.current[part.id]
-      await latestEdit.current(part.id, { body: typed })
-    }
-    await latestEdit.current(part.id, { status: reopening ? 'open' : 'done' })
-    if (!reopening && !sectioned && onFinished) onFinished()
-  }, [onFinished, sectioned])
-
-  /** One control for a sectioned part: finishing it also seals it, reopening does both in reverse. */
-  const sealPart = useCallback(async (part: TreeNode) => {
-    const sealing = !part.is_locked
-    if (timers.current[part.id]) { clearTimeout(timers.current[part.id]); delete timers.current[part.id] }
-    const typed = pending.current[part.id]
-    if (typed !== undefined) {
-      delete pending.current[part.id]
-      await latestEdit.current(part.id, { body: typed })
-    }
-    if (sealing) {
-      if (pendingWhole?.partId === part.id) setPendingWhole(null)
-      if (pendingInline?.partId === part.id) setPendingInline(null)
-    }
-    await latestEdit.current(part.id, { status: sealing ? 'done' : 'open', is_locked: sealing })
-  }, [pendingWhole, pendingInline])
-
   const flushOne = useCallback((id: string) => {
     if (timers.current[id]) { clearTimeout(timers.current[id]); delete timers.current[id] }
     const next = pending.current[id]
@@ -295,22 +164,24 @@ export function Studio({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: widths.reading, margin: '0 auto', width: '100%' }}>
-      {/* A part's own controls are small text and marks, which a mouse can
-         hit. On a phone each is a finger's size, and deleting stands apart
-         from the tick beside it. The toolbar there scrolls sideways without
+      {/* Deleting a part is a small mark, which a mouse can hit. On a phone it
+         is a finger's size. The toolbar there scrolls sideways without
          drawing a scrollbar across the first line of the page. */}
       <style>{`
         .part-action { padding: 2px 3px; }
-        /* Beside the name on a wide page, as if this wrapper were not there. */
-        .part-actions { display: contents; }
         .part-toolbar { scrollbar-width: none; }
         .part-toolbar::-webkit-scrollbar { display: none; }
         @media (max-width: 719px) {
-          .part-action { min-width: 36px; min-height: 36px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; }
-          /* A row of their own under the name, deleting at the far end of it. */
-          .part-actions { display: flex; flex: 1 1 100%; align-items: center; gap: 4px; margin: -6px 0 0 -6px; }
-          .part-action-apart { margin-left: auto; }
-          .part-toolbar-row { margin-bottom: 8px; }
+          .part-action { min-width: 36px; min-height: 36px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; margin-right: -8px; }
+          .part-toolbar-row { margin-bottom: 4px; }
+        }
+        /* A field is never drawn under 16px on a small screen (globals.css:
+           Safari zooms into anything smaller), so the name, which is meant to
+           be as small as the number beside it, is set at 16px and drawn at
+           10: five eighths, from its left edge, in a box a third wider. */
+        @media screen and (max-width: 768px) {
+          .part-title { overflow: hidden; }
+          .part-title input, .part-title textarea { width: 160% !important; transform: scale(0.625); transform-origin: left center; }
         }
       `}</style>
       {!disabled && (
@@ -320,7 +191,7 @@ export function Studio({
         // rather than fixed — it starts in flow, right below the header, so
         // it can never land on top of it the way a hard-coded fixed offset
         // could on a page whose header height isn't this component's to know.
-        <div className="part-toolbar-row" style={{ position: 'sticky', top: 12, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div className="part-toolbar-row" style={{ position: 'sticky', top: 8, zIndex: 5, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           <div
             className="part-toolbar"
             style={{
@@ -328,7 +199,7 @@ export function Studio({
               // own — coal in dark mode, the same near-black as before, but
               // bone in light mode instead of that same near-black showing
               // through as a wrong, too-dark pill on a light page.
-              pointerEvents: 'auto', display: 'flex', padding: '6px 10px', borderRadius: 999,
+              pointerEvents: 'auto', display: 'flex', padding: '3px 6px', borderRadius: 999,
               background: alpha(t.cardBg, 0.86), backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
               border: `1px solid ${t.divider}`, boxShadow: t.shadow,
               maxWidth: 'calc(100vw - 24px)', overflowX: 'auto',
@@ -341,7 +212,6 @@ export function Studio({
 
       {parts.map((part, i) => {
         const isFocused = focused === part.id
-        const partLines = lines.filter((l) => l.section_id === part.id)
         return (
           <article
             key={part.id}
@@ -361,61 +231,29 @@ export function Studio({
                 {sectioned && (
                   <span style={{ ...canvasType.chip, color: t.textMuted, flexShrink: 0 }}>{i + 1}</span>
                 )}
-                <div style={{ flex: 1, minWidth: 90 }}>
+                <div className="part-title" style={{ flex: 1, minWidth: 90 }}>
                   <InlineField
                     ariaLabel="The name of this part"
                     value={part.title}
                     placeholder={sectioned ? 'Untitled part' : 'Untitled'}
                     disabled={disabled}
                     onCommit={(title) => void onEdit(part.id, { title })}
-                    style={{ ...canvasType.label, color: t.textSecondary, letterSpacing: '0.08em' }}
+                    // The same size as the number beside it: the name is a
+                    // label for the part, not a heading over the writing.
+                    style={{ ...canvasType.chip, color: t.textSecondary }}
                   />
                 </div>
                 <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />
-                {!disabled && (
-                  <div className="part-actions">
-                    {sectioned && onAddLine && (
-                      <HeaderAction
-                        label="The fragments placed in this part"
-                        tone={openLines === part.id ? t.textPrimary : t.textMuted}
-                        onClick={() => setOpenLines(openLines === part.id ? null : part.id)}
-                      >
-                        Fragments{partLines.length > 0 ? ` (${partLines.length})` : ''}
-                      </HeaderAction>
-                    )}
-                    {sectioned ? (
-                      <HeaderAction
-                        label={part.is_locked ? 'Finished and locked: nothing edits it. Click to reopen' : 'Finish this part and lock it'}
-                        tone={part.is_locked ? t.danger : t.verdant}
-                        onClick={() => void sealPart(part)}
-                      >
-                        {part.is_locked ? <LockIcon /> : <CheckIcon />}
-                      </HeaderAction>
-                    ) : (
-                      <HeaderAction
-                        label={part.status === 'done' ? 'This is done — reopen it' : 'Mark it done and go back out'}
-                        tone={part.status === 'done' ? t.verdant : t.textMuted}
-                        onClick={() => void finish(part)}
-                      >
-                        {part.status === 'done' ? 'Done' : 'Mark done'}
-                      </HeaderAction>
-                    )}
-                    {sectioned && (
-                      <HeaderAction label="Delete this part" apart onClick={() => onRemove(part)}>✕</HeaderAction>
-                    )}
-                  </div>
+                {!disabled && sectioned && (
+                  <HeaderAction label="Delete this part" onClick={() => onRemove(part)}>✕</HeaderAction>
                 )}
               </header>
-            )}
-
-            {!flow && sectioned && openLines === part.id && onAddLine && onRemoveLine && (
-              <PartLines lines={partLines} onAdd={(text) => onAddLine(text, part.id)} onRemove={onRemoveLine} />
             )}
 
             <div style={{ padding: flow ? '0 16px' : '0 16px 10px', fontSize: 17 }}>
               <SectionEditor
                 content={ensureHtml(part.body)}
-                editable={!disabled && !part.is_locked}
+                editable={!disabled}
                 placeholder={placeholders?.[part.id] || (i === 0 ? 'Write…' : '')}
                 onChange={(html) => change(part.id, html)}
                 onFocus={() => { setFocused(part.id); onFocusChange?.(part.id) }}
@@ -423,32 +261,9 @@ export function Studio({
                 onReady={(editor) => { editors.current[part.id] = editor }}
                 onTransaction={() => bump((n) => n + 1)}
                 onSelectionChange={(sel) => handleSelection(part.id, sel)}
-                textColor={part.is_locked ? t.textSecondary : t.textPrimary}
+                textColor={t.textPrimary}
                 className={flow && i > 0 ? 'flow-continued' : undefined}
               />
-              {pendingInline?.partId === part.id && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-                  <span style={{ ...canvasType.chip, color: t.tide }}>A suggested rewrite is highlighted above</span>
-                  <QuietButton size="sm" onClick={approveInline}>Approve</QuietButton>
-                  <GhostButton size="sm" onClick={rejectInline}>Reject</GhostButton>
-                </div>
-              )}
-              {pendingWhole?.partId === part.id && (
-                <div
-                  style={{
-                    marginTop: 10, padding: 14, borderRadius: radius.widget,
-                    background: alpha(t.tide, 0.07), border: `1px solid ${alpha(t.tide, 0.3)}`,
-                    display: 'flex', flexDirection: 'column', gap: 10,
-                  }}
-                >
-                  <span style={{ ...canvasType.chip, color: t.tide }}>A suggested rewrite of this whole part</span>
-                  <p style={{ ...canvasType.body, color: t.textSecondary, margin: 0, whiteSpace: 'pre-wrap' }}>{pendingWhole.content}</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <QuietButton size="sm" onClick={approveWhole}>Approve</QuietButton>
-                    <GhostButton size="sm" onClick={() => setPendingWhole(null)}>Reject</GhostButton>
-                  </div>
-                </div>
-              )}
             </div>
           </article>
         )
@@ -478,7 +293,6 @@ export function Studio({
           onEditBeat={onEditBeat}
           onOpenThread={onOpenThread}
           onRemove={onRemove}
-          onExpanded={onStorylineOpen}
           disabled={disabled}
         />
       )}
@@ -486,28 +300,12 @@ export function Studio({
   )
 }
 
-const iconProps = {
-  width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
-  strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, style: { display: 'block' },
-} as const
-
-function CheckIcon() {
-  return <svg {...iconProps}><path d="M3 8.5l3.2 3.2L13 4.6" /></svg>
-}
-
-function LockIcon() {
-  return <svg {...iconProps}><rect x="3.5" y="7" width="9" height="6.5" rx="1.4" /><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" /></svg>
-}
-
 function HeaderAction({
-  label, onClick, children, tone, apart = false,
+  label, onClick, children,
 }: {
   label: string
   onClick: () => void
   children: React.ReactNode
-  tone?: string
-  /** Kept a little way from its neighbours on a phone (deleting, beside the tick). */
-  apart?: boolean
 }) {
   const { t } = useTheme()
   return (
@@ -516,9 +314,9 @@ function HeaderAction({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={apart ? 'part-action part-action-apart' : 'part-action'}
+      className="part-action"
       style={{
-        ...canvasType.chip, color: tone ?? t.textMuted, background: 'none',
+        ...canvasType.chip, color: t.textMuted, background: 'none',
         border: 'none', cursor: 'pointer', flexShrink: 0,
       }}
     >

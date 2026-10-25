@@ -19,14 +19,11 @@ interface ActiveSection {
   label: string | null;
   intended_emotion: string | null;
   content: string;
-  is_locked: boolean;
-  anchor_lines?: string[];
 }
 
 interface PrecedingSection {
   label: string | null;
   content: string;
-  anchor_lines?: string[];
 }
 
 interface ChatRequest {
@@ -116,34 +113,19 @@ export async function POST(request: NextRequest) {
     const lockedUntil = settingsData?.assistant_write_locked_until ?? null;
     const isLocked = !!lockedUntil && new Date(lockedUntil).getTime() > Date.now();
     const selectedText = body.selected_text || null;
-    // A change to the text can be offered as a pending edit only into an open, focused section.
-    const canEdit = !!section && !section.is_locked && !isLocked;
 
-    const precedingSections = (body.preceding_sections || []).filter(
-      (s) => s.content?.trim() || (s.anchor_lines && s.anchor_lines.length > 0)
-    );
+    const precedingSections = (body.preceding_sections || []).filter((s) => s.content?.trim());
     const precedingBlock =
       precedingSections.length > 0
         ? `THE PIECE SO FAR (everything already written before this section, in order — read it before you say or propose anything, and match its established tone, voice, and storyline; do not restate or repeat it):
 ${precedingSections
-  .map((s, i) => {
-    const anchorPart =
-      s.anchor_lines && s.anchor_lines.length > 0
-        ? `\nAnchor lines allocated here: ${s.anchor_lines.map((l) => `"${l}"`).join("; ")}`
-        : "";
-    return `[${s.label || `Section ${i + 1}`}]\n${s.content || "(not written yet)"}${anchorPart}`;
-  })
+  .map((s, i) => `[${s.label || `Section ${i + 1}`}]\n${s.content || "(not written yet)"}`)
   .join("\n\n")}`
         : "Nothing has been written before this section yet — it's the opening.";
 
     const sectionBlock = section
       ? `THE SECTION THEY'RE FOCUSED ON RIGHT NOW:
 Label: ${section.label || "(untitled)"}${section.intended_emotion ? `\nIntended feeling: ${section.intended_emotion}` : ""}
-Locked: ${section.is_locked ? "yes — you may discuss it but must NOT propose changes to it" : "no"}${
-          section.anchor_lines && section.anchor_lines.length > 0
-            ? `\nAnchor lines allocated here (precious to them — weave these in naturally, never ignore or drop them):\n${section.anchor_lines.map((l) => `- "${l}"`).join("\n")}`
-            : ""
-        }
 Current text:
 """
 ${section.content || "(empty)"}
@@ -158,8 +140,6 @@ ${selectedText}
       : "They aren't focused on a specific section right now — keep it general.";
 
     const editInstructions = assistantRules({
-      canPlace: canEdit,
-      whyNot: !section ? "no-section" : section.is_locked ? "locked-section" : undefined,
       selectedText,
       lockedUntil: isLocked ? lockedUntil : null,
     });
@@ -290,26 +270,14 @@ ${editInstructions}`;
         ],
         messages,
       },
-      async (fullText) => {
+      async () => {
         const meta: Record<string, unknown> = {};
         meta.proposals = await Promise.race([
           proposalPromise,
           new Promise<RuleProposal[]>((resolve) => setTimeout(() => resolve([]), 10_000)),
         ]);
-        if (!canEdit || !section) return meta;
-        const match = fullText.match(/<proposed_edit>\s*([\s\S]*?)\s*<\/proposed_edit>/);
-        if (!match) return meta;
-        return {
-          ...meta,
-          proposedEdit: {
-            section_id: section.id,
-            content: match[1],
-            // When a passage was highlighted, the model was instructed to
-            // return only that passage's replacement — the client splices it
-            // back in at the highlight rather than replacing the section.
-            anchor_text: selectedText || null,
-          },
-        };
+        // Whatever it writes stays in the conversation; nothing is placed in the draft.
+        return meta;
       }
 ,
       {

@@ -27,13 +27,6 @@ interface Line {
   text: string
 }
 
-export interface ProposedEdit {
-  node_id: string
-  content: string
-  /** The highlighted passage it replaces — null means a whole-part rewrite. */
-  anchor_text: string | null
-}
-
 export function Companion({
   projectId,
   nodeId,

@@ -47,8 +47,6 @@ export interface ExamplePiece {
   tasks?: Array<{ title: string; category: string; done?: boolean }>
   /** Days since it was last worked on, when it should differ from the usual (the canvas opens on the latest). */
   touchedDaysAgo?: number
-  /** Lines kept for it. `part` places one in a part by its key. */
-  fragments?: Array<{ text: string; part?: string }>
 }
 
 /**

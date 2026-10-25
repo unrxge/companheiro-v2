@@ -43,8 +43,9 @@ export function journeyHrefForNode(
   { projectId, nodeId }: { projectId: string | null; nodeId: string }
 ): string | null {
   switch (step) {
+    // The core concept as it was locked: the piece's own, or its project's when it has none.
     case 'concept':
-      return projectId ? `/p/${projectId}` : null
+      return projectId ? `/idea-lab/core-concept/view?project=${projectId}&node=${nodeId}` : null
     // The ribbon's Write is a person choosing to write: for a finished piece that is "keep editing".
     case 'write':
       return `${writeHrefForNode({ projectId, nodeId })}${projectId ? '?' : '&'}edit=1`

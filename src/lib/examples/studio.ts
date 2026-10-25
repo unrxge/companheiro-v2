@@ -64,10 +64,6 @@ export const studio: ExampleSource = {
         { title: 'Present the strategy to Teresa and Sr. Joaquim at the counter, not in an office', category: 'Client', done: true },
         { title: 'Invoice phase one (strategy)', category: 'Admin', done: true },
       ],
-      fragments: [
-        { text: 'Not new. Just more.', part: 'st-positioning' },
-        { text: 'Bread for the street, since 1964.' },
-      ],
     },
     {
       key: 'wordmark',
@@ -135,7 +131,6 @@ export const studio: ExampleSource = {
         { title: 'Write six more lines for the band, in her voice, not mine', category: 'Writing' },
         { title: 'Sr. Joaquim’s yes on “1964” living on the bottom of the bag', category: 'Client', done: true },
       ],
-      fragments: [{ text: 'Still warm? Eat the end on the way home.', part: 'pk-band' }],
     },
     {
       key: 'shopfront',

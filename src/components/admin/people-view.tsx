@@ -152,7 +152,6 @@ const PARTS: { label: string; of: (c: ProjectStory['counts']) => number }[] = [
   { label: 'Images on the canvas', of: (c) => c.images },
   { label: 'Recordings on the canvas', of: (c) => c.recordings },
   { label: 'Task lists on the canvas', of: (c) => c.taskLists },
-  { label: 'Anchor lines', of: (c) => c.anchorLines },
   { label: 'Changes to the core concept', of: (c) => c.conceptEdits },
   { label: 'Talk about the vision', of: (c) => c.visionTurns },
   { label: 'Companion inside a piece', of: (c) => c.partTurns },

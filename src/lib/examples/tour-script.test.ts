@@ -84,7 +84,7 @@ test('the browser\'s note of what each example is for matches the examples thems
 
 test('the walk round a piece is short, says why, and ends back in the words', () => {
   const steps = pieceTourSteps({ practices: ['songwriter'], exampleFor: ['director'] })
-  assert.deepEqual(steps.map((s) => s.key), ['page', 'write', 'concept', 'fragments', 'assistant', 'flow', 'end'])
+  assert.deepEqual(steps.map((s) => s.key), ['page', 'write', 'concept', 'assistant', 'flow', 'end'])
   // A wide first look, then narrowing: the first step lights the whole page.
   assert.deepEqual(steps[0].show, { anchor: 'page' })
   assert.ok(tourLength(steps) < 32_000, `reads in under 32s (${tourLength(steps)})`)

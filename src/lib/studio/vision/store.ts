@@ -52,24 +52,22 @@ export interface Canvas extends CanvasRead {
 }
 
 /**
- * Every written thing on this project's canvas. Four reads, all of this one
- * project: the tree, the canvas items, the tasks, the fragments. A table that
+ * Every written thing on this project's canvas. Three reads, all of this one
+ * project: the tree, the canvas items, the tasks. A table that
  * is not there yet (the canvas items before migration 028) reads as empty.
  */
 export async function loadCanvas(auth: AuthedContext, project: Project): Promise<Canvas> {
-  const [tree, itemsRes, tasksRes, fragmentsRes] = await Promise.all([
+  const [tree, itemsRes, tasksRes] = await Promise.all([
     loadTree(auth, project.id),
     auth.supabase.from('studio_board_items').select(ITEM_COLS).eq('project_id', project.id).eq('user_id', auth.user.id).order('created_at', { ascending: true }),
     readTasks(auth, { project_id: project.id }),
-    auth.supabase.from('studio_anchor_lines').select('node_id, text').eq('project_id', project.id).eq('user_id', auth.user.id).order('created_at', { ascending: true }),
   ])
   const roots = buildTree(tree.nodes, tree.tags, tree.threads.map((x) => x.id))
   const items: BoardItem[] = itemsRes.error ? [] : ((itemsRes.data as unknown[] | null) ?? []).map(normaliseItem)
   const tasks = tasksRes.tasks.filter((t) => !!t.node_id) as unknown as ProjectTask[]
-  const fragments = fragmentsRes.error ? [] : ((fragmentsRes.data as Array<{ node_id: string | null; text: string }> | null) ?? [])
   const read = canvasText({
     project: { title: project.title, intent: project.intent ?? '', rules: project.rules ?? [], arc: project.arc, thematic_territory: project.thematic_territory },
-    roots, threads: tree.threads, tags: tree.tags, items, tasks, fragments,
+    roots, threads: tree.threads, tags: tree.tags, items, tasks,
   })
   return { ...read, roots, signature: canvasSignature(read.text) }
 }

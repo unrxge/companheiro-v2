@@ -12,6 +12,7 @@ import {
   badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
 import { assertWorkable, entitlementsOf } from '@/lib/studio/plan-access'
+import { cleanContent } from '@/lib/studio/board-items-db'
 import type { ThreadHue } from '@/lib/studio/node-types'
 import type { CarriedThought } from '@/lib/studio/types'
 
@@ -33,16 +34,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!card) throw badRequest('that card is gone')
 
     let threadId: string | null = null
-    let fragment = false
-    // Without threads (Practice), their words are kept as a fragment instead:
-    // the same thing a line saved from the writing page is.
+    let note = false
+    // Without threads (Practice), their words are kept on the canvas as a note instead.
     if (action === 'accept' && !(await entitlementsOf(auth)).threads) {
       await assertWorkable(auth, project)
+      const content = cleanContent('note', { text: card.text.slice(0, 4000), note: 'thought', from_check_in: true })
       const { error } = await auth.supabase
-        .from('studio_anchor_lines')
-        .insert({ user_id: auth.user.id, project_id: project.id, node_id: null, text: card.text.slice(0, 4000) })
+        .from('studio_board_items')
+        .insert({ user_id: auth.user.id, project_id: project.id, kind: 'note', asset_id: null, node_ids: [], content })
       if (error) throw fromDbError(error)
-      fragment = true
+      note = true
     } else if (action === 'accept') {
       await assertWorkable(auth, project)
       const [{ count }, { data: roots }] = await Promise.all([
@@ -81,6 +82,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       .eq('id', project.id)
       .eq('user_id', auth.user.id)
     if (saveErr) throw fromDbError(saveErr)
-    return NextResponse.json({ thread_id: threadId, fragment })
+    return NextResponse.json({ thread_id: threadId, note })
   })
 }

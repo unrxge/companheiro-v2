@@ -1,7 +1,7 @@
 'use client'
 
 // The Write page's own tools, on the writing page: the core concept, the
-// tasks, the lines a writer wants placed, and what comes after the draft.
+// tasks, and what comes after the draft.
 // They read and write through the same routes the Write page uses.
 
 import { useCallback, useEffect, useState } from 'react'
@@ -12,7 +12,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Label } from '@/components/studio/work/bits'
 import { canvasType } from '@/lib/studio/canvas-tokens'
-import { alpha, radius, type as typeRoles, widths } from '@/lib/design-tokens'
+import { alpha, type as typeRoles, widths } from '@/lib/design-tokens'
 import type { TreeNode } from '@/lib/studio/node-types'
 import { TaskGroups } from '@/components/studio/work/task-groups'
 import { WRITING, categoryOf } from '@/lib/studio/task-groups'
@@ -20,7 +20,6 @@ import { ConversationLogModal, type ConversationLogMessage } from '@/components/
 import { changeConcept, ConceptMirror } from '@/components/studio/work/concept-mirror'
 import { EMPTY_VISION, type VisionState } from '@/lib/studio/vision/types'
 
-export interface AnchorLine { id: string; section_id: string | null; text: string }
 export interface PieceTask {
   id: string
   title: string
@@ -36,34 +35,20 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' }
 /** Under Writing: generated tasks, and anything the person added there. */
 export const isWritingTask = (task: PieceTask) => categoryOf(task) === WRITING
 
-/** A piece's tasks and anchor lines, loaded once for the piece on screen. */
+/** A piece's tasks, loaded once for the piece on screen. */
 export function usePieceTools(nodeId: string | null) {
   const [tasks, setTasks] = useState<PieceTask[]>([])
-  const [lines, setLines] = useState<AnchorLine[]>([])
-
-  const reloadLines = useCallback(async () => {
-    if (!nodeId) return
-    try {
-      const res = await fetch(`/api/write/anchor-lines?node_id=${nodeId}`)
-      const data = await res.json()
-      if (Array.isArray(data.anchorLines)) setLines(data.anchorLines)
-    } catch (err) {
-      console.error('Failed to load anchor lines:', err)
-    }
-  }, [nodeId])
 
   useEffect(() => {
     setTasks([])
-    setLines([])
     if (!nodeId) return
     let live = true
     fetch(`/api/studio/nodes/${nodeId}/tasks`)
       .then((r) => r.json())
       .then((d) => { if (live && Array.isArray(d.tasks)) setTasks(d.tasks) })
       .catch((err) => console.error('Failed to load tasks:', err))
-    void reloadLines()
     return () => { live = false }
-  }, [nodeId, reloadLines])
+  }, [nodeId])
 
   const toggleTask = useCallback(async (task: PieceTask) => {
     if (!nodeId) return
@@ -97,35 +82,7 @@ export function usePieceTools(nodeId: string | null) {
     }
   }, [nodeId])
 
-  const addLine = useCallback(async (text: string, sectionId?: string) => {
-    if (!nodeId || !text.trim()) return
-    try {
-      const res = await fetch('/api/write/anchor-lines', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ node_id: nodeId, text: text.trim(), section_id: sectionId }) })
-      const data = await res.json()
-      if (data.anchorLine) setLines((prev) => [...prev, data.anchorLine])
-    } catch (err) {
-      console.error('Failed to add anchor line:', err)
-    }
-  }, [nodeId])
-
-  const removeLine = useCallback(async (id: string) => {
-    setLines((prev) => prev.filter((l) => l.id !== id))
-    try {
-      await fetch('/api/write/anchor-lines', { method: 'DELETE', headers: JSON_HEADERS, body: JSON.stringify({ id }) })
-    } catch (err) {
-      console.error('Failed to delete anchor line:', err)
-    }
-  }, [])
-
-  return { tasks, lines, toggleTask, addTask, removeTask, addLine, removeLine, reloadLines }
-}
-
-function useFieldStyle(): React.CSSProperties {
-  const { t } = useTheme()
-  return {
-    ...canvasType.small, color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`,
-    borderRadius: radius.field, padding: '8px 10px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-  }
+  return { tasks, toggleTask, addTask, removeTask }
 }
 
 // ── the core concept ─────────────────────────────────────────────────────────
@@ -250,122 +207,6 @@ export function TasksPanel({ tasks, onToggle, onAdd, onRemove, disabled = false 
         Ways into the work, not a list the piece has to satisfy. Keep what helps and remove the rest.
       </p>
       <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} disabled={disabled} />
-    </div>
-  )
-}
-
-// ── anchor lines ─────────────────────────────────────────────────────────────
-
-export function AnchorsPanel({ lines, parts, onAdd, onRemove, disabled = false }: {
-  lines: AnchorLine[]
-  parts: Array<{ id: string; label: string }>
-  onAdd: (text: string) => Promise<void>
-  onRemove: (id: string) => void
-  /** Read, never changed: the lines are shown with nothing to add or remove them by. */
-  disabled?: boolean
-}) {
-  const { t } = useTheme()
-  const field = useFieldStyle()
-  const [draft, setDraft] = useState('')
-  const [placing, setPlacing] = useState(false)
-  const labelOf = (id: string | null) => parts.find((p) => p.id === id)?.label ?? 'Not placed yet'
-
-  const add = async () => {
-    const text = draft.trim()
-    if (!text || placing) return
-    setPlacing(true)
-    await onAdd(text)
-    setDraft('')
-    setPlacing(false)
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
-        Lines, images and half-thoughts kept for this piece before they have a place in it. Each one is set in the part it belongs to, so it is there when you reach that part.
-      </p>
-      {!disabled && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <textarea
-          aria-label="A fragment"
-          value={draft}
-          rows={5}
-          placeholder="A line, an image, a half-thought you don’t want to lose. Drop it here, however unfinished. We’ll find the section it belongs in, and the writing assistant will help you work it into the prose."
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void add() } }}
-          style={{ ...field, width: '100%', resize: 'none' }}
-        />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="key-hint" style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
-          <GhostButton size="sm" onClick={() => void add()} disabled={!draft.trim()} loading={placing} loadingLabel="Placing…">
-            Add
-          </GhostButton>
-        </div>
-      </div>}
-      {lines.length === 0 ? (
-        <p style={{ ...canvasType.small, color: t.textMuted, margin: 0 }}>No fragments yet.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {lines.map((line) => (
-            <li key={line.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ ...canvasType.small, fontSize: 14, color: t.textSecondary, fontStyle: 'italic', lineHeight: 1.5 }}>“{line.text}”</span>
-                {!disabled && (
-                  <button
-                    type="button"
-                    aria-label="Remove this line"
-                    onClick={() => onRemove(line.id)}
-                    style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              <span style={{ ...canvasType.chip, color: t.textMuted }}>{labelOf(line.section_id)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-/** One part's own lines, under its header: what is placed here, and a place to add another. */
-export function PartLines({ lines, onAdd, onRemove }: {
-  lines: AnchorLine[]
-  onAdd: (text: string) => void
-  onRemove: (id: string) => void
-}) {
-  const { t } = useTheme()
-  const field = useFieldStyle()
-  const [draft, setDraft] = useState('')
-  const add = () => {
-    const text = draft.trim()
-    if (!text) return
-    onAdd(text)
-    setDraft('')
-  }
-  return (
-    <div style={{ margin: '4px 0 6px 16px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, borderRadius: radius.widget, background: alpha(t.textPrimary, 0.04) }}>
-      {lines.length === 0 ? (
-        <span style={{ ...canvasType.chip, color: t.textMuted }}>No fragments placed here yet.</span>
-      ) : (
-        lines.map((line) => (
-          <div key={line.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ ...canvasType.small, color: t.textSecondary, fontStyle: 'italic' }}>“{line.text}”</span>
-            <button type="button" aria-label="Remove this line" onClick={() => onRemove(line.id)} style={{ ...canvasType.chip, color: t.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}>✕</button>
-          </div>
-        ))
-      )}
-      <textarea
-        aria-label="Add a line to this part"
-        value={draft}
-        rows={2}
-        placeholder="Add a line to this part…"
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); add() } }}
-        style={{ ...field, width: '100%', resize: 'none' }}
-      />
-      <span className="key-hint key-hint-alone" style={{ ...canvasType.chip, color: t.textMuted }}>⌘↵ to add</span>
     </div>
   )
 }

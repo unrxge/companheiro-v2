@@ -9,6 +9,7 @@ import { TextArea } from '@/components/ui/field'
 import { Pill } from '@/components/ui/pill'
 import { ConversationLogModal } from '@/components/conversation/conversation-log-modal'
 import { JourneyCurve } from '@/components/widgets'
+import { DashedList } from '@/components/widgets/dashed-list'
 import { arcHue, radius, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { Working } from '@/components/ui/working'
 import { BRIEF_HANDOFF_KEY, briefStorageKey } from '@/lib/concept-brief'
@@ -37,25 +38,6 @@ interface DocumentSection {
 }
 
 const ARCS: Arc[] = ['Breakaway', 'Beginning', 'Expansion', 'Integration']
-
-function DashedList({ text }: { text: string }) {
-  const { t } = useTheme()
-  const lines = text.split('\n').map((l) => l.replace(/^[\-\*•]\s*/, '').trim()).filter(Boolean)
-  if (lines.length === 0) return null
-  return (
-    <div>
-      {lines.map((line, i) => (
-        <div key={i}>
-          <div style={{ display: 'flex', gap: 10, ...typeRoles.ui, fontSize: 14, color: t.textPrimary, padding: '10px 0' }}>
-            <span style={{ color: t.ember, flexShrink: 0 }}>—</span>
-            <span>{line}</span>
-          </div>
-          {i < lines.length - 1 && <Divider />}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export default function CoreConceptPage() {
   return (

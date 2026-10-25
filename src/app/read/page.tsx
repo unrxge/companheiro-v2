@@ -12,6 +12,7 @@ import { useTerritories } from '@/hooks/useTerritories'
 import { ReflectionLogView } from '@/components/widgets/reflection-log'
 import { arcHue, journeyStepFromStage, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { WorkingDots } from '@/components/ui/working'
+import { useNarrow } from '@/components/studio/work/bits'
 
 interface Reflection {
   thread: string | null
@@ -42,7 +43,10 @@ interface Piece {
 /**
  * The Reading room. A quiet view of a finished piece with its reflection
  * attached. "Look what you made" is the feeling; copy as Markdown and copy
- * the script are the two exits.
+ * the script are the two exits. Being here already says it is finished, so
+ * nothing on the page says so. On a phone the buttons have a row of their own
+ * under the title: beside it they were wider than the screen allowed and
+ * stood on top of the words.
  */
 function ReadContent() {
   const searchParams = useSearchParams()
@@ -55,6 +59,7 @@ function ReadContent() {
   const [piece, setPiece] = useState<Piece | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [copied, setCopied] = useState<'md' | 'script' | null>(null)
+  const narrow = useNarrow()
 
   useEffect(() => {
     if (!pieceId && !nodeId) {
@@ -80,23 +85,24 @@ function ReadContent() {
   if (!pieceId && !nodeId) return null
 
   const words = (piece?.substack_draft ?? '').trim().split(/\s+/).filter(Boolean).length
+  const exits = piece ? (
+    <>
+      {nodeId && piece.project_id && <GhostButton size="sm" href={`/p/${piece.project_id}/n/${piece.id}?edit=1`}>Keep editing</GhostButton>}
+      {piece.short_form_script && <GhostButton size="sm" onClick={() => copy('script')}>{copied === 'script' ? 'Copied' : 'Copy script'}</GhostButton>}
+      <QuietButton size="sm" onClick={() => copy('md')}>{copied === 'md' ? 'Copied' : 'Copy as Markdown'}</QuietButton>
+    </>
+  ) : undefined
 
   return (
     <PageShell mood={piece ? arcHue[piece.arc] ?? 'violet' : 'violet'} maxWidth={860}>
       <PageHeader
-        eyebrow="Finished"
-        title={piece?.title ?? 'Finished piece'}
-        subtitle={piece ? `${piece.posted_at ? `Finished ${new Date(piece.posted_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Not finished yet'} · ${words.toLocaleString()} words` : undefined}
+        eyebrow={null}
+        title={piece?.title ?? 'Reading room'}
+        subtitle={piece ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : undefined}
+        size="md"
+        clampOnPhone
         back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/project-board') : '/project-board'}
-        actions={
-          piece ? (
-            <>
-              {nodeId && piece.project_id && <GhostButton size="sm" href={`/p/${piece.project_id}/n/${piece.id}?edit=1`}>Keep editing</GhostButton>}
-              {piece.short_form_script && <GhostButton size="sm" onClick={() => copy('script')}>{copied === 'script' ? 'Copied' : 'Copy script'}</GhostButton>}
-              <QuietButton size="sm" onClick={() => copy('md')}>{copied === 'md' ? 'Copied' : 'Copy as Markdown'}</QuietButton>
-            </>
-          ) : undefined
-        }
+        actions={narrow ? undefined : exits}
       />
 
       <Container>
@@ -104,6 +110,7 @@ function ReadContent() {
           <p style={{ ...typeRoles.small, color: t.textMuted }}>{isLoading ? <><WorkingDots /> Loading…</> : 'Piece not found.'}</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20 }}>
+            {narrow && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{exits}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
                 {nodeId ? (

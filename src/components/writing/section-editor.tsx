@@ -2,27 +2,12 @@
 
 import { useEffect } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import { Mark } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import Typography from '@tiptap/extension-typography'
 import { useTheme } from '@/components/theme/theme-provider'
 import { alpha } from '@/lib/design-tokens'
-
-// Marks a proposed AI edit that's been materialised into the document but not
-// yet decided on — styled (see globals.css) as a plain inline highlight, no
-// separate preview box. Approve removes just the mark; Reject replaces the
-// marked range with the original text remembered before the edit landed.
-export const PendingEditMark = Mark.create({
-  name: 'pendingEdit',
-  parseHTML() {
-    return [{ tag: 'mark[data-pending-edit]' }]
-  },
-  renderHTML() {
-    return ['mark', { 'data-pending-edit': 'true' }, 0]
-  },
-})
 
 // Typing two hyphens together becomes an em dash — the standard shorthand
 // every writing tool from Word to Substack supports. Everything else the
@@ -80,7 +65,7 @@ function ToolbarButton({
       aria-label={label}
       className="section-tool"
       style={{
-        padding: '0 6px',
+        padding: '0 5px',
         borderRadius: 6,
         border: 'none',
         // Relative to the page's own text colour, not a fixed light overlay
@@ -93,7 +78,7 @@ function ToolbarButton({
         alignItems: 'center',
         justifyContent: 'center',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 700,
         opacity: disabled ? 0.35 : 1,
         flexShrink: 0,
@@ -106,11 +91,11 @@ function ToolbarButton({
 
 function ToolbarDivider() {
   const { t } = useTheme()
-  return <div style={{ width: 1, alignSelf: 'stretch', margin: '4px 3px', background: t.divider, flexShrink: 0 }} />
+  return <div style={{ width: 1, alignSelf: 'stretch', margin: '5px 2px', background: t.divider, flexShrink: 0 }} />
 }
 
 const icon = (path: React.ReactNode) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     {path}
   </svg>
 )
@@ -130,14 +115,15 @@ export function SectionToolbar({ editor, onHistory }: { editor: Editor | null; o
   }
   return (
     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 1 }}>
-      {/* On a phone the bar is wider than the screen and scrolls sideways.
-         The buttons are a finger's size there, and Document history, which
-         was last and so out of sight, comes first. */}
+      {/* Small beside the page around it. On a phone the bar is wider than the
+         screen and scrolls sideways, its buttons a little larger to press,
+         and Document history, which was last and so out of sight, comes
+         first. */}
       <style>{`
-        .section-tool { min-width: 26px; height: 26px; }
+        .section-tool { min-width: 22px; height: 22px; }
         .section-tool-history { display: flex; align-items: center; gap: 1px; }
         @media (max-width: 719px) {
-          .section-tool { min-width: 34px; height: 34px; }
+          .section-tool { min-width: 30px; height: 30px; }
           .section-tool-history { order: -1; flex-direction: row-reverse; }
         }
       `}</style>
@@ -207,9 +193,8 @@ interface SectionEditorProps {
   editable: boolean
   placeholder?: string
   onSelectionChange?: (selection: SectionSelection | null) => void
-  /** Hands the live Editor instance up so the page can drive it imperatively
-   *  (e.g. splicing an approved AI edit into an exact position range, or
-   *  routing the one shared toolbar to whichever section is focused). */
+  /** Hands the live Editor instance up so the page can route the one shared
+   *  toolbar to whichever section is focused. */
   onReady?: (editor: Editor | null) => void
   /** Fires on every transaction (content OR selection-only, e.g. an arrow-key
    *  caret move with nothing selected) — the page uses this to know when to
@@ -254,7 +239,6 @@ export function SectionEditor({
       Underline,
       Placeholder.configure({ placeholder: placeholder || '' }),
       EmDashOnly,
-      PendingEditMark,
     ],
     content,
     editable,

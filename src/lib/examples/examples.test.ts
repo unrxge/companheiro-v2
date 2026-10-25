@@ -17,7 +17,7 @@ test('every example builds, and every id it hands out says it is an example', ()
     const b = buildExample(src, NOW)
     const ids = [
       b.project.id, ...b.tree.nodes.map((n) => n.id), ...b.tree.threads.map((t) => t.id), ...b.items.map((i) => i.id),
-      ...b.tasks.map((t) => t.id), ...b.lines.map((l) => l.id), b.conversation.id,
+      ...b.tasks.map((t) => t.id), b.conversation.id,
     ]
     for (const id of ids) {
       assert.ok(isExampleId(id), `${id} should start with example-`)
@@ -143,11 +143,6 @@ test('a piece’s tools see only that piece', () => {
   const tasks = answerExample('GET', ['nodes', piece, 'tasks'], q(), NOW).body as { tasks: Array<{ node_id: string }> }
   assert.ok(tasks.tasks.length > 0)
   assert.ok(tasks.tasks.every((t) => t.node_id === piece))
-
-  const inside = new Set(buildExample(EXAMPLES[0], NOW).tree.nodes.filter((n) => n.id === piece || n.parent_id === piece).map((n) => n.id))
-  const lines = answerExample('GET', ['write', 'anchor-lines'], q(`node_id=${piece}`), NOW).body as { anchorLines: Array<{ section_id: string }> }
-  assert.ok(lines.anchorLines.length > 0)
-  assert.ok(lines.anchorLines.every((l) => inside.has(l.section_id)), 'only the drawer and its parts')
 })
 
 test('the vision room opens on the kept conversation, with its page', () => {

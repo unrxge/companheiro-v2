@@ -1,6 +1,6 @@
 // Turns an authored example (types.ts) into the rows the real pages read: the
-// project, its tree, the canvas's task lists and palettes, every task, the
-// fragments, what the vision room keeps and one past conversation in it.
+// project, its tree, the canvas's task lists and palettes, every task, what
+// the vision room keeps and one past conversation in it.
 //
 // Pure and deterministic for a given `now`, so the same example always comes
 // out the same way and can be tested without a server. Every id it makes
@@ -34,8 +34,6 @@ export interface BuiltExample {
   /** The images and recordings the items show, as the canvas reads them (served from public/examples). */
   assets: AssetView[]
   tasks: TaskRow[]
-  /** Fragments, by the node they were kept for. */
-  lines: Array<{ id: string; node_id: string; text: string }>
   conversation: VisionConversation & { list: VisionMessage[] }
 }
 
@@ -78,7 +76,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
   const started = ago(src.startedDaysAgo)
   const rule = (scope: string, text: string, i: number, days = src.startedDaysAgo): Rule => ({ id: id(`rule-${scope}-${i + 1}`), text, created_at: ago(days, i), retired_at: null })
 
-  // Every piece and part, so threads, fragments and tasks can name either.
+  // Every piece and part, so threads and tasks can name either.
   const keyed = new Map<string, string>()
   const nodes: WorkNode[] = []
   src.pieces.forEach((piece, position) => {
@@ -129,11 +127,6 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
   const tasks: TaskRow[] = src.pieces.flatMap((piece: ExamplePiece) => (piece.tasks ?? []).map((t) => ({
     id: id(`task-${++taskN}`), node_id: nodeId(piece.key), title: t.title, type: 'creation' as const,
     status: t.done ? 'complete' as const : 'pending' as const, is_writing_related: t.category === WRITING, category: t.category,
-  })))
-
-  let lineN = 0
-  const lines = src.pieces.flatMap((piece) => (piece.fragments ?? []).map((f) => ({
-    id: id(`line-${++lineN}`), node_id: nodeId(f.part ?? piece.key), text: f.text,
   })))
 
   const assets: AssetView[] = []
@@ -219,7 +212,7 @@ export function buildExample(src: ExampleSource, now: number = Date.now()): Buil
     Object.fromEntries(Object.entries(arranged?.edits ?? {}).map(([key, edit]) => [id(key), edit])),
   )
 
-  return { project, tree: { nodes, threads: arrangedThreads, tags, open_checks: [] }, items: arrangedItems, assets, tasks, lines, conversation }
+  return { project, tree: { nodes, threads: arrangedThreads, tags, open_checks: [] }, items: arrangedItems, assets, tasks, conversation }
 }
 
 function node(n: Partial<WorkNode> & Pick<WorkNode, 'id' | 'parent_id' | 'position' | 'title' | 'created_at' | 'updated_at'>): WorkNode {

@@ -73,10 +73,6 @@ export const director: ExampleSource = {
         { title: 'Present the platform to the CMO and the family board in the workshop, not a meeting room', category: 'Client', done: true },
         { title: 'One-page pre-read: the arrivals insight first, the line last', category: 'Strategy', done: true },
       ],
-      fragments: [
-        { text: 'Everyone sells the leaving. Nobody is in arrivals at six in the morning.', part: 'pl-insight' },
-        { text: 'The case is the only thing on the trip that stays itself.', part: 'pl-truth' },
-      ],
     },
     {
       key: 'film',
@@ -115,7 +111,6 @@ export const director: ExampleSource = {
         { title: 'Ask the workshop to age two cases: ten years of use, and thirty', category: 'Production', done: true },
         { title: 'The last frame: decide the full stop', category: 'Writing' },
       ],
-      fragments: [{ text: 'Everything exactly where she left it, except her.', part: 'fm-treatment' }],
     },
     {
       key: 'arrivals',
@@ -148,10 +143,6 @@ export const director: ExampleSource = {
         { title: 'Clear “every case we have ever made” with legal before it goes on a wall', category: 'Legal' },
         { title: 'Who pays for the repair desk: media or experiential? Settle with the CMO', category: 'Client' },
         { title: 'Twenty arrivals lines, keep four', category: 'Writing', done: true },
-      ],
-      fragments: [
-        { text: 'You’re not the same. Your case is.', part: 'ar-lines' },
-        { text: 'We repair what’s broken, never what’s marked.', part: 'ar-desk' },
       ],
     },
     {

@@ -65,7 +65,7 @@ export default function PrivacyPage() {
       <p>
         Companheiro is made by one person. To learn how it is working for people, the maker can see how each account uses the project side of the app:
         how many projects there are and where each one stands, the dates things happened (a project started, its core concept written, a piece added, a
-        project finished), how many of each thing a project has (pieces, parts, threads, tasks, anchor lines, images, recordings, changes to its core
+        project finished), how many of each thing a project has (pieces, parts, threads, tasks, images, recordings, changes to its core
         concept, checks of its rules, reflections on finished pieces), how many words its pieces hold, how many times you have talked with the companion about
         a project, and how many minutes you wrote on a given day. This is shown beside your name, email address, plan and the practices you chose when
         you joined, together with what the AI processing for your account has cost and roughly what your plan has paid (see Billing and usage below).

@@ -114,7 +114,6 @@ function installMock(o: Opts) {
   // The root layout's gate asked for the real plan before this mock was in
   // place and was refused (nobody is signed in here). Asked again, mocked.
   window.setTimeout(() => void loadPlan(true), 0)
-  const lines = o.sectioned ? [{ id: 'l1', section_id: 'part-2', text: 'Usefulness and being alive only look alike from outside.' }] : []
   const card = (id: string, title: string, shelf_stage: string, extra: Record<string, unknown> = {}) => ({
     ...project('', false), id, title, shelf_stage, arc: 'Beginning', concept_body: 'What the quiet holds when nobody is asking.',
     root_ids: [`${id}-root`], thread_count: 0, stage: 'writing', ...extra,
@@ -342,16 +341,6 @@ function installMock(o: Opts) {
       if (method === 'PATCH') return write(() => { const t = tasks.find((x) => x.id === body.task_id); if (t) t.status = body.status; return json({ success: true }) })
       if (method === 'DELETE') return write(() => { const i = tasks.findIndex((x) => x.id === body.task_id); if (i >= 0) tasks.splice(i, 1); return json({ success: true }) })
     }
-    if (path === '/api/write/anchor-lines') {
-      if (method === 'GET') return json({ anchorLines: lines })
-      if (method === 'POST') return write(() => {
-        const kids = sectionsOf(body.node_id)
-        const l = { id: `l${++seq}`, section_id: body.section_id ?? kids[Math.min(1, kids.length - 1)]?.id ?? null, text: body.text }
-        lines.push(l)
-        return json({ anchorLine: l })
-      })
-      if (method === 'DELETE') return write(() => { const i = lines.findIndex((l) => l.id === body.id); if (i >= 0) lines.splice(i, 1); return json({ success: true }) })
-    }
     if (path === '/api/write/node' && method === 'GET') {
       const root = nodes.find((n) => n.id === url.split('node_id=')[1]?.split('&')[0]) ?? nodes[0]
       return json({ success: true, piece: { id: root.id, project_id: 'demo', title: root.title, tasks: [] }, lone_piece: true })
@@ -534,20 +523,17 @@ function installMock(o: Opts) {
     if (path === '/api/write/chat' && method === 'POST') {
       ;(window as unknown as { __lastChat?: unknown }).__lastChat = body
       const asked = String(body.message || '')
-      // No modes: it guides unless told to. An order for an example answers in the talk; an order to rewrite proposes a change.
-      const proposes = /rewrite/i.test(asked) && body.active_section
-      const example = !proposes && /example|show me/i.test(asked)
-      const saw = `(saw: ${body.active_section?.label ?? 'no part'}; ${body.preceding_sections?.length ?? 0} before; ${body.active_section?.anchor_lines?.length ?? 0} lines${body.selected_text ? '; a selection' : ''})`
-      const reply = proposes
-        ? `Here is a tighter version. ${saw}\n<proposed_edit>\nThe kettle took its time, and I let it.\n</proposed_edit>`
-        : example
+      // No modes: it guides unless told to. An order for an example or a rewrite answers in the talk, never in the draft.
+      const example = /example|show me|rewrite/i.test(asked)
+      const saw = `(saw: ${body.active_section?.label ?? 'no part'}; ${body.preceding_sections?.length ?? 0} before${body.selected_text ? '; a selection' : ''})`
+      const reply = example
           ? `Here is one way, as an example:\n\n“The kettle took its time, and I let it.”\n\nIt lets the waiting do the feeling. ${saw}`
           : `What is that sentence trying to say underneath the words? ${saw}`
       // A boundary said in passing becomes a proposal, quoted.
       const said = asked.match(/[^.!?]*\b(won['’]t|never|has to|no )[^.!?]*[.!?]?/i)?.[0]?.trim()
       const heard = said ? [{ id: `pr-${++seq}`, project_id: 'demo', node_id: body.node_id, kind: 'refusal', statement: said.replace(/[.!?]$/, ''), quote: said, source: 'talk', created_at: NOW }] : []
       proposals.push(...heard)
-      const meta = { proposals: heard, ...(proposes ? { proposedEdit: { section_id: body.active_section.id, content: 'The kettle took its time, and I let it.', anchor_text: body.selected_text ?? null } } : {}) }
+      const meta = { proposals: heard }
       const enc = new TextEncoder()
       const chunks = reply.match(/[\s\S]{1,24}/g) ?? [reply]
       return new Response(new ReadableStream({
@@ -562,18 +548,14 @@ function installMock(o: Opts) {
     if (path === '/api/write/sections/ingest' && method === 'POST') return write(() => {
       const root = nodes.find((n) => n.id === body.node_id)!
       const text = plain(root.body)
+      const full = words(text) >= 100 || text.split(/\n{2,}/).length >= 2
+      if (!full) return json({ error: 'This reads as notes rather than a draft, so there is nothing to place across sections yet.' }, 400)
       const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
       beats.forEach(([title, beat], i) => nodes.push(node(`ing-${++seq}`, root.id, i, title, beat, '')))
       const kids = sectionsOf(root.id)
-      const full = words(text) >= 100 || text.split(/\n{2,}/).length >= 2
-      if (full) {
-        text.split(/\n{2,}/).forEach((para, i) => { const k = nodes.find((n) => n.id === kids[i % kids.length].id)!; k.body = paragraphs(`${plain(k.body)}\n\n${para}`.trim()); k.extent = words(k.body) })
-        resync(root.id)
-        return json({ type: 'draft', sections: sectionsOf(root.id) })
-      }
-      const made = text.split(/[.!?]+/).map((x) => x.trim()).filter((x) => x.split(/\s+/).length >= 2).map((x, i) => ({ id: `l${++seq}`, section_id: kids[i % kids.length].id, text: x }))
-      lines.push(...made)
-      return json({ type: 'loose', sections: kids, anchorLines: made })
+      text.split(/\n{2,}/).forEach((para, i) => { const k = nodes.find((n) => n.id === kids[i % kids.length].id)!; k.body = paragraphs(`${plain(k.body)}\n\n${para}`.trim()); k.extent = words(k.body) })
+      resync(root.id)
+      return json({ type: 'draft', sections: sectionsOf(root.id) })
     })
     if (path === '/api/write/sections/seed' && method === 'POST') return write(() => {
       const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]

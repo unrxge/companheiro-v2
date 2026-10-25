@@ -76,10 +76,6 @@ export const songwriter: ExampleSource = {
         { title: 'Vocal take 4 is the one. The crack on “true things” stays', category: 'Recording', done: true },
         { title: 'Ask Leonor to sit the radio under the vocal, not beside it', category: 'Mixing' },
       ],
-      fragments: [
-        { text: 'You fixed the dial with a strip of tape so it couldn’t wander off your song', part: 'kr-verse-2' },
-        { text: 'The last chorus turns “we were never” into “I’m not”. That’s the whole inheritance.', part: 'kr-last-chorus' },
-      ],
     },
     {
       key: 'hands',
@@ -121,10 +117,6 @@ export const songwriter: ExampleSource = {
         { title: 'Restring his old Yamaha with light gauge before recording', category: 'Recording', done: true },
         { title: 'Fingerpicked, capo 2. No band until the last chorus', category: 'Arrangement' },
       ],
-      fragments: [
-        { text: 'holding at ten and two, holding it low', part: 'hh-chorus' },
-        { text: 'The peel doesn’t break. That’s the song.' },
-      ],
     },
     {
       key: 'thirty-four',
@@ -163,11 +155,6 @@ export const songwriter: ExampleSource = {
         { title: 'Retune to his open D for this one', category: 'Arrangement', done: true },
         { title: 'Cello alone, or the full strings? Try both before deciding', category: 'Arrangement' },
       ],
-      fragments: [
-        { text: 'you were reading road signs, calling out their names', part: 'tf-chorus' },
-        { text: 'jacket still on, like you weren’t staying long', part: 'tf-photograph' },
-        { text: 'The bravest thing he did was not look brave.' },
-      ],
     },
     {
       key: 'things-he-fixed',
@@ -185,10 +172,6 @@ export const songwriter: ExampleSource = {
       tasks: [
         { title: 'Write the list first: twenty mended things, true ones only', category: 'Writing' },
         { title: 'Ask Mum what he fixed the week after the big row in ’98', category: 'Writing' },
-      ],
-      fragments: [
-        { text: 'The door stopped sticking the morning after.' },
-        { text: 'superglue and silence' },
       ],
     },
     {
@@ -219,7 +202,6 @@ export const songwriter: ExampleSource = {
         { title: 'Play the last verse on his guitar, in his tuning', category: 'Arrangement' },
         { title: 'Record the front door closing, from outside, with the radio on in the kitchen', category: 'Recording' },
       ],
-      fragments: [{ text: 'two people guessing in the same direction' }],
     },
   ],
 
