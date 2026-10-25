@@ -491,7 +491,7 @@ const PILL_TEXT: React.CSSProperties = {
   fontSize: 10, lineHeight: 1.2, color: shell.muted, fontVariantNumeric: 'tabular-nums',
 }
 
-function PillButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+export function PillButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"

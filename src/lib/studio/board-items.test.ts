@@ -301,3 +301,13 @@ test('letting go between two cards names the piece it follows, and orders among 
   assert.equal(lanePlaceAt(order, -50).place.after, null)
   assert.equal(lanePlaceAt(order, 9999).place.after, 'b')
 })
+
+import { threadLaneDecode, threadLaneEncode } from './board-items'
+test('a thread standing in the row round-trips through board_x / board_y', () => {
+  const ids = ['a', 'b', 'c']
+  for (const place of [{ after: null, n: 0 }, { after: 'b', n: 1 }, { after: 'c', n: -2.5 }]) {
+    const e = threadLaneEncode(place, ids)
+    assert.deepEqual(threadLaneDecode(e.x, e.y, ids), place)
+  }
+  assert.equal(threadLaneDecode(100, 200, ids), null)
+})

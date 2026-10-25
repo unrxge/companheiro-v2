@@ -30,7 +30,7 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { Portal } from '@/components/ui/portal'
 import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { useNoHover, usePhone } from '@/lib/use-phone'
-import { Surface, ZoomPill, useCanvas, useElementFrame, useFrame } from '@/components/studio/surface/surface'
+import { PillButton, Surface, ZoomPill, useCanvas, useElementFrame, useFrame } from '@/components/studio/surface/surface'
 import { PieceCard } from '@/components/studio/work/piece-card'
 import { ThreadCard } from '@/components/studio/work/thread-card'
 import { CheckCard } from '@/components/studio/work/rules'
@@ -43,7 +43,7 @@ import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
 import { LinkBlock } from '@/components/studio/work/link-block'
 import { AddFan } from '@/components/studio/work/add-fan'
 import {
-  laneLayout, lanePlaceAt, type LanePlace,
+  laneLayout, lanePlaceAt, threadLaneDecode, threadLaneEncode, type LanePlace,
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
@@ -98,6 +98,7 @@ const BOARD_FRAME = { w: 1440, h: 900 } as const
 const FIT_FLOOR = 0.2
 /** How a phone opens: the zoom, and where the first card's top-left corner stands (pixels in from the left, share of the height down). */
 const PHONE_ZOOM = 1
+const SMALL_CARDS_KEY = 'companheiro.small-cards'
 const PHONE_CARD_AT = { x: 40, y: 0.31 } as const
 // From this many pieces the cards come down in size, so more of the lane is
 // in view at once. Width does most of the work — it is what the lane is
@@ -353,7 +354,16 @@ export function Board({
   // is in view at once (the person's decision, 2026-10-17).
   // On a phone every card is the narrowed size, however few pieces there are (the
   // person's decision, 2026-10-25): one size to learn, and a card that fits the screen.
-  const crowded = pieces.length >= CROWDED_AT || phone
+  // Small piece cards by choice (the button beside the zoom): the size a phone always has.
+  const [smallCards, setSmallCards] = useState(false)
+  useEffect(() => {
+    try { if (window.localStorage.getItem(SMALL_CARDS_KEY) === '1') setSmallCards(true) } catch { /* big, as it opens */ }
+  }, [])
+  const chooseCardSize = useCallback((small: boolean) => {
+    setSmallCards(small)
+    try { window.localStorage.setItem(SMALL_CARDS_KEY, small ? '1' : '0') } catch { /* kept for this visit */ }
+  }, [])
+  const crowded = pieces.length >= CROWDED_AT || phone || smallCards
   const sizing = cardFrame ?? BOARD_FRAME
   const fullW = sizing.w ? laneCardWidth(sizing.w, GAP) : 520
   const fullH = sizing.h ? Math.min(560, Math.max(340, sizing.h * 0.5)) : 420
@@ -366,7 +376,7 @@ export function Board({
   const fitFrame = sizing.w ? sizing.w / WIDE_OPEN_ZOOM : 0
   const fitW = fitFrame ? Math.floor((fitFrame - MARGIN * 2 + GAP) / pieces.length - GAP) : Infinity
   const cardW = crowded
-    ? (phone ? CROWDED_MIN_W : Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW))))
+    ? (phone || smallCards ? CROWDED_MIN_W : Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW))))
     : fullW
   const cardH = crowded ? Math.round(Math.max(CROWDED_MIN_H, Math.min(fullH, fullH * CROWDED_H_SCALE))) : fullH
   // Kept in proportion with the piece cards, not a width of its own — a
@@ -438,15 +448,26 @@ export function Board({
    * was put beside, and everything to its right slides along. One being carried
    * is out of the row, so the others close up around where it will go.
    */
+  const pieceIdList = useMemo(() => pieces.map((p) => p.id), [pieces])
+  const hubLane = useCallback(
+    (th: Thread) => (laneLocked ? threadLaneDecode(th.board_x, th.board_y, pieceIdList) : null),
+    [laneLocked, pieceIdList],
+  )
   const laneOrder = useMemo(() => laneLayout(
-    pieces.map((p) => p.id),
+    pieceIdList,
     laneLocked
-      ? items
-          .filter((it) => it.content.lane && !(drag?.kind === 'item' && drag.id === it.id))
-          .map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace }))
+      ? [
+          ...items
+            .filter((it) => it.content.lane && !(drag?.kind === 'item' && drag.id === it.id))
+            .map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace })),
+          ...threads.flatMap((th) => {
+            const lane = hubLane(th)
+            return lane && !(drag?.kind === 'hub' && drag.id === th.id) ? [{ id: th.id, w: HUB_W, lane }] : []
+          }),
+        ]
       : [],
     cardW, GAP, LEFT_ROOM + MARGIN,
-  ), [pieces, items, laneLocked, drag, itemW, cardW])
+  ), [pieceIdList, items, threads, hubLane, laneLocked, drag, itemW, cardW])
   const laneX = useMemo(() => new Map(laneOrder.order.map((e) => [e.id, e.x])), [laneOrder])
   /** Is this element standing in the row of cards? */
   const inLane = useCallback((it: BoardItem) => laneLocked && !!it.content.lane, [laneLocked])
@@ -534,13 +555,16 @@ export function Board({
    */
   const obstacles = useMemo<Box[]>(() => {
     const taken: Box[] = pieces.map((p, i) => ({ ...pieceSpot(p, i), w: cardW, h: cardH }))
-    for (const th of hubs) if (!isFree(th)) taken.push(fixedBox(th, HUB_W, HUB_H))
+    for (const th of hubs) {
+      if (hubLane(th)) taken.push({ x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: cardTop, w: HUB_W, h: HUB_H })
+      else if (!isFree(th)) taken.push(fixedBox(th, HUB_W, HUB_H))
+    }
     for (const it of items) {
       if (inLane(it)) taken.push({ x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: cardTop, w: itemW(it), h: itemH(it) })
       else if (!isFree(it)) taken.push(fixedBox(it, itemW(it), itemH(it)))
     }
     return taken
-  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH, inLane, laneX, cardTop])
+  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH, inLane, hubLane, laneX, cardTop])
 
   /**
    * Everything under the pieces with no hand placement of its own, gathered
@@ -589,10 +613,11 @@ export function Board({
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {
     if (drag?.kind === 'hub' && drag.id === th.id) return drag.at
+    if (hubLane(th)) return { x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: cardTop }
     const auto = autoAt.get(th.id)
     if (th.board_x === null && th.board_y === null && auto) return auto
     return { x: th.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: th.board_y === null ? auto?.y ?? webTop : shown(th.board_y) }
-  }, [drag, autoAt, webTop, shown])
+  }, [drag, autoAt, webTop, shown, hubLane, laneX, cardTop])
 
   const itemAt = useCallback((it: BoardItem): Point => {
     if (drag?.kind === 'item' && drag.id === it.id) return drag.at
@@ -859,12 +884,15 @@ export function Board({
   const slotFor = useRef<(id: string, at: Point) => { place: LanePlace; index: number } | null>(() => null)
   slotFor.current = (id, at) => {
     const it = items.find((x) => x.id === id)
-    if (!it) return null
-    const cy = at.y + itemH(it) / 2
+    const hub = it ? null : threads.find((x) => x.id === id)
+    if (!it && !hub) return null
+    const w = it ? itemW(it) : HUB_W
+    const h = it ? itemH(it) : HUB_H
+    const cy = at.y + h / 2
     if (cy < cardTop - 60 || cy > cardTop + cardH + 60) return null
-    return lanePlaceAt(laneOrder.order, at.x + itemW(it) / 2)
+    return lanePlaceAt(laneOrder.order, at.x + w / 2)
   }
-  const carried = drag?.kind === 'item' && laneLocked ? slotFor.current(drag.id, drag.at) : null
+  const carried = (drag?.kind === 'item' || drag?.kind === 'hub') && laneLocked ? slotFor.current(drag.id, drag.at) : null
 
   const laneEnd = laneLocked
     ? laneOrder.end
@@ -1379,7 +1407,21 @@ export function Board({
               <ZoomPill
                 canvas={canvas}
                 onHome={canvas.resetView}
-                after={canMove ? <UndoButton next={history.next} onUndo={history.undo} /> : undefined}
+                after={
+                  <>
+                    <PillButton
+                      label={smallCards ? 'Bigger piece cards' : 'Smaller piece cards'}
+                      onClick={() => chooseCardSize(!smallCards)}
+                    >
+                      {smallCards ? (
+                        <path d="M5 9V5h4M19 9V5h-4M5 15v4h4M19 15v4h-4" />
+                      ) : (
+                        <path d="M9 5v4H5M15 5v4h4M9 19v-4H5M15 19v-4h4" />
+                      )}
+                    </PillButton>
+                    {canMove && <UndoButton next={history.next} onUndo={history.undo} />}
+                  </>
+                }
               />
             )}
             {phone && <PhoneBanner />}
@@ -1635,7 +1677,11 @@ export function Board({
               data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
-                beginDrag('hub', th.id, at, (landed) => act.moveThread(th.id, kept(landed)))(e)
+                beginDrag('hub', th.id, at, (landed) => {
+                  const place = laneLocked ? slotFor.current(th.id, landed)?.place ?? null : null
+                  if (place) { const e = threadLaneEncode(place, pieceIdList); act.moveThread(th.id, { x: e.x, y: e.y }); return }
+                  act.moveThread(th.id, kept(landed))
+                })(e)
               }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, cursor: canMove ? 'grab' : 'default', touchAction: 'none',

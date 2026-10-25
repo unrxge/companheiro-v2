@@ -579,3 +579,25 @@ export function lanePlaceAt(order: LaneEntry[], centreX: number): { place: LaneP
   const n = prevN !== null && nextN !== null ? (prevN + nextN) / 2 : prevN !== null ? prevN + 1 : nextN !== null ? nextN - 1 : 0
   return { place: { after, n }, index }
 }
+
+// A thread's hub standing in the row is kept in its own board_x / board_y, with
+// no new column: board_y holds a flag no real place can have, and board_x holds
+// the piece it follows (by its number in the row) and its order after that piece.
+
+export const THREAD_LANE_Y = -2_000_000
+const LANE_STRIDE = 100_000
+const LANE_ZERO = 50_000
+
+export function threadLaneEncode(place: LanePlace, pieceIds: string[]): { x: number; y: number } {
+  const after = place.after === null ? -1 : pieceIds.indexOf(place.after)
+  const slot = after < 0 && place.after !== null ? pieceIds.length - 1 : after
+  return { x: (slot + 1) * LANE_STRIDE + LANE_ZERO + Math.round(place.n * 100), y: THREAD_LANE_Y }
+}
+
+export function threadLaneDecode(x: number | null, y: number | null, pieceIds: string[]): LanePlace | null {
+  if (y !== THREAD_LANE_Y || x === null) return null
+  const slot = Math.floor(x / LANE_STRIDE) - 1
+  const n = ((x % LANE_STRIDE) - LANE_ZERO) / 100
+  const after = slot < 0 ? null : pieceIds[Math.min(slot, pieceIds.length - 1)] ?? null
+  return { after, n }
+}
