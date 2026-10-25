@@ -238,7 +238,7 @@ interface PreviewRow {
  * so the board can keep room for it.
  */
 export function ItemShell({
-  item, width, label, born, armed, disabled, phoneTools = false, resizable = !disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
+  item, width, label, born, armed, disabled, resizable = !disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
 }: {
   item: BoardItem
   width: number
@@ -248,8 +248,6 @@ export function ItemShell({
   born: boolean
   /** Being connected: the next piece clicked joins or leaves it. */
   armed: boolean
-  /** A phone may take this block off the board, but not connect or move it (a thought on the go). */
-  phoneTools?: boolean
   disabled: boolean
   /** The corner can be dragged even where nothing else can (an example). */
   resizable?: boolean
@@ -278,7 +276,7 @@ export function ItemShell({
 
   const ring = armed ? t.tide : alpha(t.textPrimary, hover ? 0.16 : 0.08)
   const noHover = useNoHover()
-  const showTools = (!disabled || phoneTools) && (hover || armed || noHover)
+  const showTools = !disabled && (hover || armed || noHover)
 
   return (
     <div
@@ -305,13 +303,11 @@ export function ItemShell({
           transition: 'opacity 140ms ease',
         }}
       >
-        {!phoneTools && (
-          <ShellAct label={armed ? 'Stop connecting' : `Connect ${label} to a piece, or take it off one`} tone={armed ? t.tide : t.textMuted} onClick={onConnect}>
-            <circle cx="6" cy="12" r="2.6" />
-            <circle cx="18" cy="12" r="2.6" />
-            <line x1="8.6" y1="12" x2="15.4" y2="12" />
-          </ShellAct>
-        )}
+        <ShellAct label={armed ? 'Stop connecting' : `Connect ${label} to a piece, or take it off one`} tone={armed ? t.tide : t.textMuted} onClick={onConnect}>
+          <circle cx="6" cy="12" r="2.6" />
+          <circle cx="18" cy="12" r="2.6" />
+          <line x1="8.6" y1="12" x2="15.4" y2="12" />
+        </ShellAct>
         <ShellAct label={`Remove ${label}`} tone={t.textMuted} onClick={onRemove}>
           <path d="M6 6l12 12M18 6L6 18" />
         </ShellAct>
@@ -642,10 +638,12 @@ export function PaletteBlock({
 // can be changed here; nothing else about a note needs arranging.
 
 export function NoteBlock({
-  item, disabled, onContent,
+  item, disabled, readOnlyWords = false, onContent,
 }: {
   item: BoardItem
   disabled: boolean
+  /** On a phone the words are read, not rewritten (a PC-only change); a reminder can still be ticked. */
+  readOnlyWords?: boolean
   onContent: (content: BoardItemContent) => void
 }) {
   const { t } = useTheme()
@@ -701,7 +699,7 @@ export function NoteBlock({
             )}
           </button>
         )}
-        {disabled ? (
+        {disabled || readOnlyWords ? (
           <p style={{ ...words, margin: 0 }}>{c.text}</p>
         ) : (
           <textarea
@@ -896,8 +894,24 @@ export function TaskListBlock({
   }
 
 
+  // A press that is a click (not a drag, not a lift) anywhere on the list that is
+  // not a tick, a text box or a button opens the whole list. Measured from the
+  // press, so a block that was moved about does not open when let go.
+  const pressedAt = useRef<{ x: number; y: number } | null>(null)
+  const openOnClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button,input,textarea,select,a,[role="checkbox"]')) return
+    const p = pressedAt.current
+    pressedAt.current = null
+    if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) return
+    setLarge(true)
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }}
+      onPointerDown={(e) => { pressedAt.current = { x: e.clientX, y: e.clientY } }}
+      onClick={openOnClick}
+    >
       <div style={{ paddingRight: 48 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ ...canvasType.small, fontSize: 13, fontWeight: 600, color: t.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={listName}>{listName}</span>
