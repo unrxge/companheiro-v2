@@ -43,6 +43,7 @@ import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
 import { LinkBlock } from '@/components/studio/work/link-block'
 import { AddFan } from '@/components/studio/work/add-fan'
 import {
+  laneLayout, lanePlaceAt, type LanePlace,
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
@@ -426,13 +427,36 @@ export function Board({
    * around under the hand while a card is being dragged.
    */
   const laneLocked = !cardFrame
+  const itemW = useCallback(
+    (item: BoardItem) => (resizing?.id === item.id ? resizing.w : itemWidth(item.kind, item.w)),
+    [resizing],
+  )
+
+  /**
+   * The row of piece cards, with the elements standing in it between them
+   * (the person's decision, 2026-10-27): each element sits after the piece it
+   * was put beside, and everything to its right slides along. One being carried
+   * is out of the row, so the others close up around where it will go.
+   */
+  const laneOrder = useMemo(() => laneLayout(
+    pieces.map((p) => p.id),
+    laneLocked
+      ? items
+          .filter((it) => it.content.lane && !(drag?.kind === 'item' && drag.id === it.id))
+          .map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace }))
+      : [],
+    cardW, GAP, LEFT_ROOM + MARGIN,
+  ), [pieces, items, laneLocked, drag, itemW, cardW])
+  const laneX = useMemo(() => new Map(laneOrder.order.map((e) => [e.id, e.x])), [laneOrder])
+  /** Is this element standing in the row of cards? */
+  const inLane = useCallback((it: BoardItem) => laneLocked && !!it.content.lane, [laneLocked])
   const pieceSpot = useCallback((piece: TreeNode, i: number): Point => ({
     // Piece cards are not moved by hand (the person's decision, 2026-10-27): they stand
     // in the lane in their order, whatever screen this is, and the lane closes up
     // around the cards' width. (An example keeps the owner's arrangement.)
-    x: laneLocked ? cardX(i) : piece.board_x ?? cardX(i),
+    x: laneLocked ? laneX.get(piece.id) ?? cardX(i) : piece.board_x ?? cardX(i),
     y: laneLocked || piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
-  }), [cardX, cardTop, shown, laneLocked])
+  }), [cardX, cardTop, shown, laneLocked, laneX])
 
   /** Where a piece sits: in its reading-order lane, until a hand moves it. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
@@ -463,10 +487,6 @@ export function Board({
   const hubs = threads
 
   const pieceIds = useMemo(() => new Set(pieces.map((p) => p.id)), [pieces])
-  const itemW = useCallback(
-    (item: BoardItem) => (resizing?.id === item.id ? resizing.w : itemWidth(item.kind, item.w)),
-    [resizing],
-  )
   const itemH = useCallback((item: BoardItem) => {
     // What it actually measures, once it has: a caption that wrapped to a
     // second row makes the block taller than its proportions alone say, and
@@ -515,9 +535,12 @@ export function Board({
   const obstacles = useMemo<Box[]>(() => {
     const taken: Box[] = pieces.map((p, i) => ({ ...pieceSpot(p, i), w: cardW, h: cardH }))
     for (const th of hubs) if (!isFree(th)) taken.push(fixedBox(th, HUB_W, HUB_H))
-    for (const it of items) if (!isFree(it)) taken.push(fixedBox(it, itemW(it), itemH(it)))
+    for (const it of items) {
+      if (inLane(it)) taken.push({ x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: cardTop, w: itemW(it), h: itemH(it) })
+      else if (!isFree(it)) taken.push(fixedBox(it, itemW(it), itemH(it)))
+    }
     return taken
-  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH])
+  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH, inLane, laneX, cardTop])
 
   /**
    * Everything under the pieces with no hand placement of its own, gathered
@@ -542,7 +565,7 @@ export function Board({
         priority: 0,
         seq: Date.parse(th.created_at) || 0,
       })),
-      ...items.filter(isFree).map((it) => ({
+      ...items.filter((it) => isFree(it) && !inLane(it)).map((it) => ({
         id: it.id,
         w: itemW(it),
         h: itemH(it),
@@ -561,7 +584,7 @@ export function Board({
     gap: HUB_GAP,
     minX: MARGIN,
     obstacles,
-  }), [hubs, items, presence, pieces, pieceSpot, pieceIds, cardW, cardH, itemW, itemH, webTop, obstacles])
+  }), [hubs, items, presence, pieces, pieceSpot, pieceIds, cardW, cardH, itemW, itemH, webTop, obstacles, inLane])
 
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {
@@ -573,10 +596,11 @@ export function Board({
 
   const itemAt = useCallback((it: BoardItem): Point => {
     if (drag?.kind === 'item' && drag.id === it.id) return drag.at
+    if (inLane(it)) return { x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: cardTop }
     const auto = autoAt.get(it.id)
     if (it.board_x === null && it.board_y === null && auto) return auto
     return { x: it.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: it.board_y === null ? auto?.y ?? webTop : shown(it.board_y) }
-  }, [drag, autoAt, webTop, shown])
+  }, [drag, autoAt, webTop, shown, inLane, laneX, cardTop])
 
   const visionAt: Point = useMemo(() => ({ x: LEFT_ROOM + MARGIN, y: MARGIN }), [])
 
@@ -831,15 +855,28 @@ export function Board({
     return () => window.removeEventListener('keydown', onKey)
   }, [canMove, history])
 
-  const laneEnd = pieces.length
-    ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
-    : LEFT_ROOM + MARGIN
+  /** Where an element carried to `at` would stand in the row, if that is among the cards. */
+  const slotFor = useRef<(id: string, at: Point) => { place: LanePlace; index: number } | null>(() => null)
+  slotFor.current = (id, at) => {
+    const it = items.find((x) => x.id === id)
+    if (!it) return null
+    const cy = at.y + itemH(it) / 2
+    if (cy < cardTop - 60 || cy > cardTop + cardH + 60) return null
+    return lanePlaceAt(laneOrder.order, at.x + itemW(it) / 2)
+  }
+  const carried = drag?.kind === 'item' && laneLocked ? slotFor.current(drag.id, drag.at) : null
+
+  const laneEnd = laneLocked
+    ? laneOrder.end
+    : pieces.length
+      ? Math.max(...pieces.map((p, i) => pieceAt(p, i).x + cardW)) + GAP
+      : LEFT_ROOM + MARGIN
   // Put something down where the next piece would go and the spot makes
   // room: it steps to the right of it, and the next piece is made there.
   const addX = addSpotX(laneEnd, addColW, GAP, { top: cardTop, bottom: cardTop + cardH }, boxes)
   // null while the end of the lane is free: the new piece takes its lane slot
   // like every other. A number means something stands there and it goes past.
-  const newPieceX = addX === cardX(pieces.length) ? null : addX
+  const newPieceX = addX === (laneLocked ? laneOrder.end : cardX(pieces.length)) ? null : addX
 
   const world = useMemo(() => {
     let w = { w: frame.w || 0, h: frame.h || 0 }
@@ -1641,8 +1678,12 @@ export function Board({
               onPointerDown={(e) => {
                 light.onPointerDown(e)
                 beginDrag('item', it.id, at, (landed) => {
+                  // Let go among the piece cards, it stands in the row there; anywhere
+                  // else it stands where it was put, and leaves the row if it was in it.
+                  const place = laneLocked ? slotFor.current(it.id, landed)?.place ?? null : null
+                  if (place) { act.patchItem(it.id, { board_x: null, board_y: null, content: { lane: place } }); return }
                   const k = kept(landed)
-                  act.patchItem(it.id, { board_x: k.x, board_y: k.y })
+                  act.patchItem(it.id, it.content.lane ? { board_x: k.x, board_y: k.y, content: { lane: null } } : { board_x: k.x, board_y: k.y })
                 })(e)
               }}
               style={{
@@ -1731,6 +1772,18 @@ export function Board({
             </div>
           )
         })}
+
+        {/* Carried over the row of cards: where it will stand when let go. */}
+        {carried && (() => {
+          const order = laneOrder.order
+          const x = carried.index < order.length ? order[carried.index].x - GAP / 2 : laneOrder.end - GAP / 2
+          return (
+            <div
+              aria-hidden
+              style={{ position: 'absolute', left: x - 2, top: cardTop, width: 4, height: cardH, borderRadius: 2, background: t.tide, boxShadow: `0 0 14px ${alpha(t.tide, 0.6)}`, pointerEvents: 'none' }}
+            />
+          )
+        })()}
 
         {/* one more piece, at the end of the lane and the size of a real
            card — or further along, when something has been put down where

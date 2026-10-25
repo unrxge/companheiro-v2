@@ -29,6 +29,11 @@ export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemConten
   const out: BoardItemContent = {}
   if ((kind === 'recording' || kind === 'palette' || kind === 'tasks' || kind === 'link') && isString(raw.title)) out.title = raw.title.replace(/\s+/g, ' ').trim().slice(0, 120)
   if (kind === 'image' && isString(raw.caption)) out.caption = raw.caption.replace(/\s+/g, ' ').trim().slice(0, 300)
+  // Standing in the lane of piece cards (or, null, taken out of it).
+  if (raw.lane === null) out.lane = null
+  else if (isRecord(raw.lane) && (raw.lane.after === null || isString(raw.lane.after)) && isFiniteNumber(raw.lane.n)) {
+    out.lane = { after: raw.lane.after === null ? null : raw.lane.after.slice(0, 64), n: raw.lane.n }
+  }
   if (kind === 'link' && isString(raw.url)) { const u = cleanUrl(raw.url); if (u) out.url = u }
   if (kind === 'tasks') {
     if (typeof raw.writing_closed === 'boolean') out.writing_closed = raw.writing_closed

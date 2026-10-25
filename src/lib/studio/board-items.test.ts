@@ -279,3 +279,25 @@ test('only what cannot be written again is asked about before it goes', () => {
   assert.equal(asksBeforeRemoving({ kind: 'tasks', content: {} }), false)
   assert.equal(asksBeforeRemoving({ kind: 'tasks', content: { tasks: [{ id: 'a', title: 'x', done: false }] } }), true)
 })
+
+import { laneLayout, lanePlaceAt } from './board-items'
+test('the lane puts elements between pieces and pushes the rest along', () => {
+  const { order, end } = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }], 300, 40, 0)
+  assert.deepEqual(order.map((e) => [e.id, e.x]), [['a', 0], ['x', 340], ['b', 480]])
+  assert.equal(end, 820)
+})
+test('an element after a missing piece stands after the last one; before the first is first', () => {
+  const { order } = laneLayout(['a', 'b'], [{ id: 'x', w: 10, lane: { after: 'gone', n: 0 } }, { id: 'y', w: 10, lane: { after: null, n: 0 } }], 100, 10, 0)
+  assert.deepEqual(order.map((e) => e.id), ['y', 'a', 'b', 'x'])
+})
+test('letting go between two cards names the piece it follows, and orders among its neighbours', () => {
+  const { order } = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }], 300, 40, 0)
+  const mid = lanePlaceAt(order, 330)            // before x's midpoint: right after a
+  assert.equal(mid.place.after, 'a')
+  assert.ok(mid.place.n < 0)
+  const afterX = lanePlaceAt(order, 400)         // after x, before b
+  assert.equal(afterX.place.after, 'a')
+  assert.equal(afterX.place.n, 1)
+  assert.equal(lanePlaceAt(order, -50).place.after, null)
+  assert.equal(lanePlaceAt(order, 9999).place.after, 'b')
+})

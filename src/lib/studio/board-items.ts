@@ -37,7 +37,17 @@ export function cleanHex(raw: string): string | null {
   return long ? `#${long[1]}`.toUpperCase() : null
 }
 
+/**
+ * Where an element stands in the lane of piece cards, when it stands in it
+ * rather than anywhere on the board: after this piece (null: before the first),
+ * and in this order among the others after the same piece. Anchored to a piece,
+ * not to a number, so adding or removing pieces leaves it where it was.
+ */
+export interface LanePlace { after: string | null; n: number }
+
 export interface BoardItemContent {
+  /** Standing in the lane between piece cards (null: taken out of it). */
+  lane?: LanePlace | null
   /** A recording's, a palette's or a task list's name. */
   title?: string
   /** An image's caption. */
@@ -79,7 +89,7 @@ export function asksBeforeRemoving(item: Pick<BoardItem, 'kind' | 'content'>): b
 /** What each part of a content block is when it has never been set. */
 const EMPTY_CONTENT: Required<BoardItemContent> = {
   title: '', caption: '', tasks: [], writing_closed: false, swatches: [], rows: 4,
-  text: '', url: '', note: 'thought', done: false, from_check_in: false,
+  text: '', url: '', note: 'thought', done: false, from_check_in: false, lane: null,
 }
 
 /**
@@ -510,4 +520,62 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
   }
 
   return out
+}
+
+
+// ── the lane ────────────────────────────────────────────────────────────────
+// Piece cards stand in a row. An element may stand in that row too, between two
+// cards, and everything to its right slides along to make room.
+
+export interface LaneEntry { kind: 'piece' | 'item'; id: string; x: number; w: number; n: number }
+
+/**
+ * The row, left to right: pieces in their order, each followed by the elements
+ * standing after it (in `n` order), elements before the first piece first. An
+ * element anchored to a piece that is gone stands after the last piece.
+ */
+export function laneLayout(
+  pieceIds: string[],
+  things: Array<{ id: string; w: number; lane: LanePlace }>,
+  pieceW: number,
+  gap: number,
+  originX: number,
+): { order: LaneEntry[]; end: number } {
+  const known = new Set(pieceIds)
+  const last = pieceIds.length ? pieceIds[pieceIds.length - 1] : null
+  const groups = new Map<string | null, typeof things>()
+  for (const t of things) {
+    const after = t.lane.after !== null && !known.has(t.lane.after) ? last : t.lane.after
+    groups.set(after, [...(groups.get(after) ?? []), t])
+  }
+  const group = (after: string | null) => [...(groups.get(after) ?? [])].sort((a, b) => a.lane.n - b.lane.n || a.id.localeCompare(b.id))
+  const seq: Array<{ kind: 'piece' | 'item'; id: string; w: number; n: number }> = []
+  for (const t of group(null)) seq.push({ kind: 'item', id: t.id, w: t.w, n: t.lane.n })
+  for (const id of pieceIds) {
+    seq.push({ kind: 'piece', id, w: pieceW, n: 0 })
+    for (const t of group(id)) seq.push({ kind: 'item', id: t.id, w: t.w, n: t.lane.n })
+  }
+  let x = originX
+  const order = seq.map((e) => {
+    const placed = { ...e, x }
+    x += e.w + gap
+    return placed
+  })
+  return { order, end: x }
+}
+
+/** Where an element let go at `centreX` would stand in the row: the piece it follows and its order among those after it. */
+export function lanePlaceAt(order: LaneEntry[], centreX: number): { place: LanePlace; index: number } {
+  let index = order.length
+  for (let i = 0; i < order.length; i++) {
+    if (order[i].x + order[i].w / 2 > centreX) { index = i; break }
+  }
+  let after: string | null = null
+  for (let i = index - 1; i >= 0; i--) if (order[i].kind === 'piece') { after = order[i].id; break }
+  const prev = order[index - 1]
+  const next = order[index]
+  const prevN = prev && prev.kind === 'item' ? prev.n : null
+  const nextN = next && next.kind === 'item' ? next.n : null
+  const n = prevN !== null && nextN !== null ? (prevN + nextN) / 2 : prevN !== null ? prevN + 1 : nextN !== null ? nextN - 1 : 0
+  return { place: { after, n }, index }
 }
