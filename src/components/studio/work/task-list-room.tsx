@@ -26,6 +26,7 @@ import { alpha, radius } from '@/lib/design-tokens'
 import { AutoInput, Progress, ROOMY_CSS, RoomyRow } from '@/components/studio/work/task-groups'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { SortableList } from '@/components/studio/work/sortable'
+import { usePhone } from '@/lib/use-phone'
 import type { BoardItem, BoardItemContent, OwnTask, ProjectTask } from '@/lib/studio/board-items'
 
 /** What a task made here is filed under: there are no categories to choose from. */
@@ -52,6 +53,9 @@ export function TaskListRoom({
   onScope: (ids: string[]) => void
 }) {
   const { t } = useTheme()
+  // On a phone a task list is ticked, reworded and added to, but not dragged about
+  // or moved between lists (the person's decision, 2026-10-26).
+  const phone = usePhone()
   const own = item.content.tasks ?? []
   const pieceIds = new Set(allPieces.map((p) => p.id))
   const all = tasks.filter((x) => pieceIds.has(x.node_id))
@@ -136,7 +140,7 @@ export function TaskListRoom({
           </div>
         ) : null}
         <SortableList
-          disabled={disabled}
+          disabled={disabled || phone}
           label="this task"
           onReorder={(ids) => onReorderTasks(ids)}
           rows={rows.map((task) => ({
@@ -148,7 +152,7 @@ export function TaskListRoom({
                   done={task.status === 'complete'}
                   disabled={disabled}
                   moving={moving === task.id}
-                  onMove={() => setMoving(moving === task.id ? null : task.id)}
+                  onMove={phone ? undefined : () => setMoving(moving === task.id ? null : task.id)}
                   onToggle={() => onToggleTask(task)}
                   onRename={(title) => onRenameTask(task, title)}
                   onRemove={() => onRemoveTask(task)}
@@ -239,7 +243,7 @@ export function TaskListRoom({
                 </div>
                 <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: '0 0 6px' }}>Tasks that don’t belong to one piece.</p>
                 <SortableList
-                  disabled={disabled}
+                  disabled={disabled || phone}
                   label="this task"
                   onReorder={(ids) => {
                     const order = ids.map((id) => own.find((x) => x.id === id)).filter((x): x is OwnTask => !!x)
@@ -255,7 +259,7 @@ export function TaskListRoom({
                           done={task.done}
                           disabled={disabled}
                           moving={moving === task.id}
-                          onMove={allPieces.length > 0 ? () => setMoving(moving === task.id ? null : task.id) : undefined}
+                          onMove={allPieces.length > 0 && !phone ? () => setMoving(moving === task.id ? null : task.id) : undefined}
                           onToggle={() => setOwn(own.map((x) => (x.id === task.id ? { ...x, done: !x.done } : x)))}
                           onRename={(title) => setOwn(own.map((x) => (x.id === task.id ? { ...x, title } : x)))}
                           onRemove={() => setOwn(own.filter((x) => x.id !== task.id))}
