@@ -256,6 +256,11 @@ export function Drawer({
       /* The row of tools stands over the Dock (46px tall, 64px up), and the panel stops above that. */
       .rail-drawer[data-above-bar] { max-height: calc(100dvh - 64px - max(14px, env(safe-area-inset-bottom)) - 120px); }
       .rail-drawer[data-above-bar][data-dock-away] { max-height: calc(100dvh - 64px - max(14px, env(safe-area-inset-bottom)) - 58px); }
+      /* On a phone it rests on the row of tools, at the bottom, within reach of a thumb. */
+      @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) {
+        .rail-drawer[data-above-bar] { top: auto; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 120px); transition: bottom .2s ease; }
+        .rail-drawer[data-above-bar][data-dock-away] { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 58px); }
+      }
       /* Beside the rail's icons, which are centred on the screen, the panel is centred on it too. */
       @media (min-width: ${DOCK_DESKTOP_MIN}px) {
         .rail-drawer, .rail-drawer[data-dock-away], .rail-drawer[data-above-bar], .rail-drawer[data-above-bar][data-dock-away] { top: 50%; transform: translateY(-50%); max-height: calc(100dvh - 128px); }
@@ -274,7 +279,7 @@ export function Drawer({
         ...(sheet
           ? { left: 0, right: 0, height: '50vh', borderRadius: '20px 20px 0 0' }
           : narrow
-            ? { left: 8, right: 8, top: 64, borderRadius: radius.card }
+            ? { left: 8, right: 8, ...(aboveBar ? {} : { top: 64 }), borderRadius: radius.card }
             : { right: 62, width: 'min(420px, calc(100vw - 96px))', borderRadius: radius.card }),
       }}
     >

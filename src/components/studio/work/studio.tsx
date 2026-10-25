@@ -225,7 +225,8 @@ export function Studio({
               <header
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                  padding: '22px 0 6px 16px',
+                  // The first name sits straight under the toolbar, as the first words do in flow view.
+                  padding: `${i === 0 ? 4 : 22}px 0 6px 16px`,
                 }}
               >
                 {sectioned && (
@@ -240,7 +241,7 @@ export function Studio({
                     onCommit={(title) => void onEdit(part.id, { title })}
                     // The same size as the number beside it: the name is a
                     // label for the part, not a heading over the writing.
-                    style={{ ...canvasType.chip, color: t.textSecondary }}
+                    style={{ ...canvasType.chip, color: t.textSecondary, textTransform: 'uppercase', letterSpacing: '0.08em' }}
                   />
                 </div>
                 <ThreadChips threadIds={part.threads} threads={threads} onOpen={onOpenThread} size="xs" />

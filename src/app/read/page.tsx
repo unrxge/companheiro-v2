@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow, Divider } from '@/components/shell/page-shell'
-import { GhostButton, QuietButton } from '@/components/ui/buttons'
+import { GhostButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { UnderlineLink } from '@/components/ui/underline-link'
 import { JourneyNav, JourneyNavNode, JourneyCurve } from '@/components/widgets'
@@ -85,11 +85,11 @@ function ReadContent() {
   if (!pieceId && !nodeId) return null
 
   const words = (piece?.substack_draft ?? '').trim().split(/\s+/).filter(Boolean).length
+  const wordsLine = `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}`
   const exits = piece ? (
     <>
-      {nodeId && piece.project_id && <GhostButton size="sm" href={`/p/${piece.project_id}/n/${piece.id}?edit=1`}>Keep editing</GhostButton>}
       {piece.short_form_script && <GhostButton size="sm" onClick={() => copy('script')}>{copied === 'script' ? 'Copied' : 'Copy script'}</GhostButton>}
-      <QuietButton size="sm" onClick={() => copy('md')}>{copied === 'md' ? 'Copied' : 'Copy as Markdown'}</QuietButton>
+      <GhostButton size="sm" onClick={() => copy('md')}>{copied === 'md' ? 'Copied' : 'Copy as Markdown'}</GhostButton>
     </>
   ) : undefined
 
@@ -98,7 +98,7 @@ function ReadContent() {
       <PageHeader
         eyebrow={null}
         title={piece?.title ?? 'Reading room'}
-        subtitle={piece ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : undefined}
+        subtitle={piece && !narrow ? wordsLine : undefined}
         size="md"
         clampOnPhone
         back={nodeId ? (piece?.project_id ? `/p/${piece.project_id}` : '/project-board') : '/project-board'}
@@ -110,7 +110,12 @@ function ReadContent() {
           <p style={{ ...typeRoles.small, color: t.textMuted }}>{isLoading ? <><WorkingDots /> Loading…</> : 'Piece not found.'}</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 20 }}>
-            {narrow && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{exits}</div>}
+            {narrow && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <span style={{ ...typeRoles.small, color: t.textMuted }}>{wordsLine}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{exits}</div>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
                 {nodeId ? (
