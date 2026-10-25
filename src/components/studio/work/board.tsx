@@ -453,21 +453,44 @@ export function Board({
     (th: Thread) => (laneLocked ? threadLaneDecode(th.board_x, th.board_y, pieceIdList) : null),
     [laneLocked, pieceIdList],
   )
-  const laneOrder = useMemo(() => laneLayout(
+  const laneThings = useMemo(() => (laneLocked
+    ? [
+        ...items.filter((it) => it.content.lane).map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace })),
+        ...threads.flatMap((th) => {
+          const lane = hubLane(th)
+          return lane ? [{ id: th.id, w: HUB_W, lane }] : []
+        }),
+      ]
+    : []), [laneLocked, items, threads, hubLane, itemW])
+  /** The row with whatever is being carried taken out of it: where the carried thing is measured against. */
+  const laneBase = useMemo(() => laneLayout(
     pieceIdList,
-    laneLocked
-      ? [
-          ...items
-            .filter((it) => it.content.lane && !(drag?.kind === 'item' && drag.id === it.id))
-            .map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace })),
-          ...threads.flatMap((th) => {
-            const lane = hubLane(th)
-            return lane && !(drag?.kind === 'hub' && drag.id === th.id) ? [{ id: th.id, w: HUB_W, lane }] : []
-          }),
-        ]
-      : [],
+    laneThings.filter((t) => !(drag && (drag.kind === 'item' || drag.kind === 'hub') && drag.id === t.id)),
     cardW, GAP, LEFT_ROOM + MARGIN,
-  ), [pieceIdList, items, threads, hubLane, laneLocked, drag, itemW, cardW])
+  ), [pieceIdList, laneThings, drag, cardW])
+  /** Where a carried element, at `at`, would stand in the row — if it is carried over the cards. */
+  const slotAt = useCallback((id: string, at: Point) => {
+    const it = items.find((x) => x.id === id)
+    const hub = it ? null : threads.find((x) => x.id === id)
+    if (!it && !hub) return null
+    const w = it ? itemW(it) : HUB_W
+    const h = it ? heights[it.id] ?? FALLBACK_H[it.kind] : HUB_H
+    const cy = at.y + h / 2
+    if (cy < cardTop - 60 || cy > cardTop + cardH + 60) return null
+    return { ...lanePlaceAt(laneBase.order, at.x + w / 2), w }
+  }, [items, threads, itemW, heights, cardTop, cardH, laneBase])
+  /**
+   * The row as it is shown: while something is carried over it, the carried
+   * element already holds its place, so the cards to its right have slid along
+   * to make room (and slide further for each one added beside it). There is
+   * no marker: the room opening is the answer.
+   */
+  const carriedSlot = laneLocked && drag && (drag.kind === 'item' || drag.kind === 'hub') ? slotAt(drag.id, drag.at) : null
+  const laneOrder = useMemo(() => (carriedSlot && drag
+    ? laneLayout(pieceIdList, [...laneThings.filter((t) => t.id !== drag.id), { id: drag.id, w: carriedSlot.w, lane: carriedSlot.place }], cardW, GAP, LEFT_ROOM + MARGIN)
+    : laneBase),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [laneBase, laneThings, pieceIdList, cardW, carriedSlot?.place.after, carriedSlot?.place.n, carriedSlot?.w, drag?.id])
   const laneX = useMemo(() => new Map(laneOrder.order.map((e) => [e.id, e.x])), [laneOrder])
   /** Is this element standing in the row of cards? */
   const inLane = useCallback((it: BoardItem) => laneLocked && !!it.content.lane, [laneLocked])
@@ -880,19 +903,8 @@ export function Board({
     return () => window.removeEventListener('keydown', onKey)
   }, [canMove, history])
 
-  /** Where an element carried to `at` would stand in the row, if that is among the cards. */
-  const slotFor = useRef<(id: string, at: Point) => { place: LanePlace; index: number } | null>(() => null)
-  slotFor.current = (id, at) => {
-    const it = items.find((x) => x.id === id)
-    const hub = it ? null : threads.find((x) => x.id === id)
-    if (!it && !hub) return null
-    const w = it ? itemW(it) : HUB_W
-    const h = it ? itemH(it) : HUB_H
-    const cy = at.y + h / 2
-    if (cy < cardTop - 60 || cy > cardTop + cardH + 60) return null
-    return lanePlaceAt(laneOrder.order, at.x + w / 2)
-  }
-  const carried = (drag?.kind === 'item' || drag?.kind === 'hub') && laneLocked ? slotFor.current(drag.id, drag.at) : null
+  const slotFor = useRef<(id: string, at: Point) => { place: LanePlace } | null>(() => null)
+  slotFor.current = slotAt
 
   const laneEnd = laneLocked
     ? laneOrder.end
@@ -1818,18 +1830,6 @@ export function Board({
             </div>
           )
         })}
-
-        {/* Carried over the row of cards: where it will stand when let go. */}
-        {carried && (() => {
-          const order = laneOrder.order
-          const x = carried.index < order.length ? order[carried.index].x - GAP / 2 : laneOrder.end - GAP / 2
-          return (
-            <div
-              aria-hidden
-              style={{ position: 'absolute', left: x - 2, top: cardTop, width: 4, height: cardH, borderRadius: 2, background: t.tide, boxShadow: `0 0 14px ${alpha(t.tide, 0.6)}`, pointerEvents: 'none' }}
-            />
-          )
-        })()}
 
         {/* one more piece, at the end of the lane and the size of a real
            card — or further along, when something has been put down where
