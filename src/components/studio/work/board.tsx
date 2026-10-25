@@ -426,9 +426,11 @@ export function Board({
    * around under the hand while a card is being dragged.
    */
   const pieceSpot = useCallback((piece: TreeNode, i: number): Point => ({
-    x: piece.board_x ?? cardX(i),
+    // On a phone the lane closes up around the narrower cards: a place kept from a wider
+    // screen would leave them far apart.
+    x: phone ? cardX(i) : piece.board_x ?? cardX(i),
     y: piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
-  }), [cardX, cardTop, shown])
+  }), [cardX, cardTop, shown, phone])
 
   /** Where a piece sits: in its reading-order lane, until a hand moves it. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
