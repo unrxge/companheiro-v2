@@ -95,11 +95,6 @@ function CoreConceptView() {
 
   const found = loaded ? conceptFor(loaded.project, loaded.node) : null
 
-  // Neither the piece nor the project has one yet: it is built, not read.
-  useEffect(() => {
-    if (loaded && !found && projectId) router.replace(`/idea-lab/core-concept?project=${projectId}`)
-  }, [loaded, found, projectId, router])
-
   const goBack = () => {
     if (window.history.length > 1) router.back()
     else router.push(projectId ? (nodeId ? `/p/${projectId}/n/${nodeId}` : `/p/${projectId}`) : '/project-board')
@@ -125,8 +120,14 @@ function CoreConceptView() {
       <Container>
         {error ? (
           <p style={{ ...typeRoles.small, color: t.danger }}>{error}</p>
-        ) : !found || !loaded ? (
+        ) : !loaded ? (
           <p style={{ ...typeRoles.small, color: t.textMuted }}><WorkingDots /> Opening…</p>
+        ) : !found ? (
+          // Never the step-by-step flow for being here: that is for making one.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+            <p style={{ ...typeRoles.small, color: t.textSecondary, margin: 0 }}>No core concept has been locked for this piece or its project yet.</p>
+            {projectId && <GhostButton size="sm" href={`/idea-lab/core-concept?project=${projectId}`}>Build one</GhostButton>}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {loaded.node && projectId && (
