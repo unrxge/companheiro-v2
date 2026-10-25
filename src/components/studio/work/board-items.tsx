@@ -21,6 +21,7 @@ import {
 import type { AssetView } from '@/lib/studio/types'
 import { OTHER, categoryOf, groupTasks } from '@/lib/studio/task-groups'
 import { TaskListRoom } from '@/components/studio/work/task-list-room'
+import { AutoInput } from '@/components/studio/work/task-groups'
 import { SortableList } from '@/components/studio/work/sortable'
 import { useNoHover } from '@/lib/use-phone'
 import { formatDateShort } from '@/lib/dates'
@@ -820,7 +821,7 @@ export function RecordingBlock({
  * out that is not writing.
  */
 export function TaskListBlock({
-  item, pieces, allPieces, tasks, disabled, rowsShown, autoOpen, onToggleTask, onAddTask, onRemoveTask, onReorderTasks, onContent, onScope,
+  item, pieces, allPieces, tasks, disabled, rowsShown, autoOpen, onToggleTask, onAddTask, onRemoveTask, onRenameTask, onReorderTasks, onContent, onScope,
 }: {
   item: BoardItem
   /** The pieces whose tasks it shows: the ones it is connected to, or every piece when it stands alone. */
@@ -838,6 +839,7 @@ export function TaskListBlock({
   onToggleTask: (task: ProjectTask) => void
   onAddTask: (nodeId: string, title: string, category: string) => Promise<void>
   onRemoveTask: (task: ProjectTask) => void
+  onRenameTask: (task: ProjectTask, title: string) => void
   /** A run of the project's tasks put in a new order, from the larger view. */
   onReorderTasks: (ids: string[]) => void
   onContent: (content: BoardItemContent) => void
@@ -960,14 +962,13 @@ export function TaskListBlock({
           </button>
         )}
         {!disabled && (
-          <input
-            aria-label="A new task"
+          <AutoInput
+            label="A new task"
             value={draft}
+            onChange={setDraft}
+            onSubmit={add}
+            onBlurSubmit
             placeholder="Add a task…"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
-            onBlur={add}
-            onPointerDown={(e) => e.stopPropagation()}
             style={{
               ...canvasType.small, fontSize: 13, width: '100%', boxSizing: 'border-box', marginTop: preview.length ? 6 : 0,
               color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field,
@@ -980,7 +981,6 @@ export function TaskListBlock({
       {large && (
         <TaskListRoom
           item={item}
-          scope={pieces}
           allPieces={allPieces}
           tasks={tasks}
           disabled={disabled}
@@ -988,6 +988,7 @@ export function TaskListBlock({
           onToggleTask={onToggleTask}
           onAddTask={onAddTask}
           onRemoveTask={onRemoveTask}
+          onRenameTask={onRenameTask}
           onReorderTasks={onReorderTasks}
           onContent={onContent}
           onScope={onScope}
@@ -1016,29 +1017,30 @@ function TaskRow({ title, done, disabled, onToggle, onRemove }: {
       onMouseLeave={() => setHover(false)}
       style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}
     >
-      <button
-        type="button"
-        aria-pressed={done}
-        disabled={disabled}
-        onClick={(e) => { e.stopPropagation(); onToggle() }}
-        style={{
-          flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0', background: 'none', border: 'none',
-          cursor: disabled ? 'default' : 'pointer', textAlign: 'left', font: 'inherit',
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            flexShrink: 0, width: 14, height: 14, marginTop: 2, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `1px solid ${done ? alpha(t.verdant, 0.5) : t.textMuted}`, background: done ? alpha(t.verdant, 0.14) : 'transparent',
-          }}
+      {/* Only the tick completes it; the words are not a button. */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
+        <button
+          type="button"
+          aria-pressed={done}
+          aria-label={done ? 'Mark as not done' : 'Mark as done'}
+          disabled={disabled}
+          onClick={(e) => { e.stopPropagation(); onToggle() }}
+          style={{ flexShrink: 0, margin: '-6px -4px -6px -6px', padding: '8px 4px 8px 6px', background: 'none', border: 'none', cursor: disabled ? 'default' : 'pointer', display: 'flex' }}
         >
-          {done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.verdant }} />}
-        </span>
+          <span
+            aria-hidden
+            style={{
+              width: 14, height: 14, marginTop: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${done ? alpha(t.verdant, 0.5) : t.textMuted}`, background: done ? alpha(t.verdant, 0.14) : 'transparent',
+            }}
+          >
+            {done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.verdant }} />}
+          </span>
+        </button>
         <span style={{ ...canvasType.small, fontSize: 13, lineHeight: 1.4, color: done ? t.textMuted : t.textPrimary, textDecoration: done ? 'line-through' : 'none', overflowWrap: 'anywhere' }}>
           {title}
         </span>
-      </button>
+      </div>
       {onRemove && !disabled && (
         <button
           type="button"

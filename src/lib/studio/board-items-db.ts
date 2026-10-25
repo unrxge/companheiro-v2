@@ -1,6 +1,7 @@
 // Server-side helpers for the canvas's images, recordings and task lists.
 
 import { cleanUrl } from '@/lib/studio/embed'
+import { MAX_TASK_TITLE } from '@/lib/studio/task-groups'
 import type { AuthedContext } from '@/lib/supabase/route'
 import { badRequest, fromDbError, isFiniteNumber, isRecord, isString, isUuid, notFound } from '@/lib/studio/db'
 import {
@@ -36,7 +37,7 @@ export function cleanContent(kind: BoardItemKind, raw: unknown): BoardItemConten
       const tasks: OwnTask[] = []
       for (const t of raw.tasks) {
         if (!isRecord(t) || !isString(t.id) || !isString(t.title)) continue
-        const title = t.title.replace(/\s+/g, ' ').trim().slice(0, 200)
+        const title = t.title.replace(/\s+/g, ' ').trim().slice(0, MAX_TASK_TITLE)
         if (!title) continue
         tasks.push({ id: t.id.slice(0, 64), title, done: t.done === true })
         if (tasks.length >= MAX_OWN_TASKS) break

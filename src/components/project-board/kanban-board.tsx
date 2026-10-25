@@ -126,7 +126,7 @@ function ExampleCarousel({ children }: { children: React.ReactNode }) {
         tabIndex={0}
         aria-label="Example projects, sliding sideways"
         style={{
-          display: 'flex', gap: 10, overflowX: 'auto', overflowY: 'hidden', padding: '2px 16px 8px',
+          display: 'flex', gap: 10, overflowX: 'auto', overflowY: 'hidden', padding: '2px 16px 2px',
           scrollSnapType: 'x proximity', scrollPaddingLeft: 16, WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain',
         }}
       >
@@ -664,7 +664,7 @@ function Board() {
       textDecoration: 'underline', textUnderlineOffset: 3,
     }
     return (
-      <section aria-label="Examples" className="pb-[calc(76px+env(safe-area-inset-bottom))] min-[720px]:pb-3.5" style={{ paddingTop: 14, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
+      <section aria-label="Examples" className="pb-[calc(max(14px,env(safe-area-inset-bottom))+52px+8px)] min-[720px]:pb-3.5" style={{ paddingTop: 14, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
         <div style={{ padding: '0 16px', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 16px' }}>
           <h3 style={{ ...columnEyebrow, color: c.textMuted, marginRight: 'auto' }} className="min-[720px]:!mr-0">Examples</h3>
           <p className="hidden min-[720px]:block" style={{ fontSize: 12.5, color: c.textMuted, margin: 0, lineHeight: 1.5, flex: '1 1 260px' }}>
@@ -682,7 +682,7 @@ function Board() {
               style={{
                 textAlign: 'left', background: c.cardBg, boxShadow: c.shadow, border: `1px dashed ${c.divider}`, borderRadius: 12,
                 padding: '12px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
-                flex: '0 0 auto', width: 'min(280px, 78vw)', minHeight: 124, scrollSnapAlign: 'start',
+                flex: '0 0 auto', width: 'min(280px, 78vw)', scrollSnapAlign: 'start',
                 transition: 'border-color 0.2s',
               }}
               onMouseEnter={(ev) => { ev.currentTarget.style.borderColor = c.tide }}

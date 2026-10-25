@@ -250,6 +250,16 @@ export function useBoardItems(projectId: string, enabled: boolean) {
       }
     },
 
+    /** A task's words changed. */
+    renameTask: async (task: ProjectTask, title: string) => {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, title } : t)))
+      try {
+        await call<{ success: boolean }>('PATCH', `/projects/${projectId}/tasks`, { task_id: task.id, title })
+      } catch {
+        await load()
+      }
+    },
+
     /** A new task on one piece, under the category it was typed into. */
     addTask: async (nodeId: string, title: string, category: string) => {
       try {

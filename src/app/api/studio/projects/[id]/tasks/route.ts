@@ -1,11 +1,12 @@
 // PATCH /api/studio/projects/:id/tasks — tick or untick one of the project's
 // tasks from the canvas's task list, whichever piece it belongs to, or put a
-// run of them in a new order. (The writing page's own Tasks tool uses
+// run of them in a new order, or change its words. (The writing page's own Tasks tool uses
 // /api/studio/nodes/:nodeId/tasks.)
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { badRequest, fromDbError, isRecord, isUuid, readJson, requireProject, withAuth } from '@/lib/studio/db'
 import { assertProjectIdWorkable } from '@/lib/studio/plan-access'
+import { MAX_TASK_TITLE } from '@/lib/studio/task-groups'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -36,6 +37,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (!isUuid(body.task_id)) throw badRequest('task_id required')
+
+    // Its words changed.
+    if (typeof body.title === 'string') {
+      const title = body.title.trim().slice(0, MAX_TASK_TITLE)
+      if (!title) throw badRequest('a task needs words')
+      const project = await requireProject(auth, id)
+      await assertProjectIdWorkable(auth, project.id)
+      const { error } = await auth.supabase
+        .from('studio_tasks')
+        .update({ title })
+        .eq('id', body.task_id)
+        .eq('project_id', project.id)
+        .eq('user_id', auth.user.id)
+      if (error) throw fromDbError(error)
+      return NextResponse.json({ success: true })
+    }
     if (body.status !== 'pending' && body.status !== 'complete') throw badRequest('status must be pending or complete')
     const project = await requireProject(auth, id)
     await assertProjectIdWorkable(auth, project.id)

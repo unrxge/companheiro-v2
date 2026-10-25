@@ -24,7 +24,7 @@ import {
 import { assertFeature, assertWorkable, entitlementsOf } from '@/lib/studio/plan-access'
 import type { ThreadHue } from '@/lib/studio/node-types'
 import { firstText, parseJsonObject } from '@/lib/studio/talk/sort'
-import { normalise } from '@/lib/studio/talk/verbatim'
+import { isVerbatim, normalise } from '@/lib/studio/talk/verbatim'
 import type { ThreadSuggestion } from '@/lib/studio/thread-suggestion'
 
 type Params = { params: Promise<{ id: string }> }
@@ -40,16 +40,22 @@ const HUES: ThreadHue[] = ['ember', 'verdant', 'violet', 'ochre', 'tide']
 const MIN_PIECES = 3
 const EXCERPT_WORDS = 220
 
-const SYSTEM = `You look at the pieces of one creative project, side by side, and notice what already runs across some of them: a motif, an image, a question, a person, an argument being built. You return JSON only: no prose, no code fence.
+const SYSTEM = `You look at the pieces of one creative project, side by side, and notice a concrete thing that recurs in some of them. You return JSON only: no prose, no code fence.
 
-Only name something that is really there in what they wrote about the pieces: the same image in two excerpts, the same question in two intents. Never invent a theme, never judge the work, never suggest what to write.
+A thread is a THING that turns up in particular pieces and not others: a person, a place, an object, an image, a phrase, a character, a question being asked again. It is something you could point to on the page.
 
-A thread touches at least two pieces and never every piece: something in every piece is the whole project's rule, not a thread. Skip anything already covered by an existing thread, and anything under DECLINED.
+A thread is NEVER:
+- the project's message, premise, theme, argument, moral or purpose. Pieces of one project are meant to share these; that is the project itself, not a thread. If what the pieces share is what the project is for, return nothing.
+- advice, a slogan, a tagline or an instruction ("start now", "trust yourself", "stop waiting"). If the name could be printed on a poster, it is wrong.
+- a restatement of WHAT THE PROJECT IS FOR in other words, or of one piece's core truth.
+- a mood, a tone or a feeling the pieces share.
 
-For each: "name" is two to five words, plain, preferably their own words. "intent" is one sentence on what it holds across the work. "piece_ids" are the ids it runs through. "why" is one short sentence pointing at their words in two of those pieces, quoted briefly.
+The test: it must be there word for word. Give two short quotes, copied exactly, each from a different piece, that show the same concrete thing. If you cannot copy two, there is no thread.
 
-Most projects have zero or one. At most two. Output exactly:
-{"threads": [{"name": "…", "intent": "…", "piece_ids": ["…"], "why": "…"}]}`
+Skip anything already covered by an existing thread, and anything under DECLINED. A thread touches at least two pieces and never every piece.
+
+The usual answer is none. When unsure, return none. At most one. "name" is two to five plain words naming the thing, not a lesson. "intent" is one sentence on how it shows up. "why" is one short sentence. Output exactly:
+{"threads": [{"name": "…", "intent": "…", "quotes": [{"piece_id": "…", "quote": "…"}, {"piece_id": "…", "quote": "…"}], "why": "…"}]}`
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
@@ -140,7 +146,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (pieces.length < MIN_PIECES) return NextResponse.json({ suggestions: [] })
 
-    const signature = pieces.map((p) => `${p.id}:${p.updated_at}`).join('|') + `#${(threads ?? []).length}`
+    const signature = pieces.map((p) => `${p.id}:${p.updated_at}`).join('|') + `#${(threads ?? []).length}#v2`
     if (settings.thread_signature === signature) {
       return NextResponse.json({ suggestions: stored.filter(valid) })
     }
@@ -148,6 +154,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const gated = await aiGate(auth)
     if (gated) return NextResponse.json({ suggestions: stored.filter(valid) })
 
+    // Everything a piece says, for checking that a quote is really there.
+    const fullText = new Map(pieces.map((p) => [p.id as string, [p.title, p.intent, p.core_truth, htmlToPlainText((p.body as string) || '')].filter(Boolean).join(' ')]))
     const excerpt = (html: string) => {
       const words = htmlToPlainText(html || '').split(/\s+/).filter(Boolean)
       return words.length ? words.slice(0, EXCERPT_WORDS).join(' ') + (words.length > EXCERPT_WORDS ? '…' : '') : ''
@@ -182,12 +190,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     const raw = parseJsonObject(firstText(res.content as Array<{ type: string; text?: string }>)) as { threads?: unknown } | null
     const seen = new Set([...declined, ...(threads ?? []).map((t) => t.name as string)].map(normalise))
     const fresh: ThreadSuggestion[] = []
-    for (const item of Array.isArray(raw?.threads) ? raw.threads.slice(0, 2) : []) {
+    for (const item of Array.isArray(raw?.threads) ? raw.threads.slice(0, 1) : []) {
       if (!isRecord(item)) continue
       const name = isString(item.name) ? item.name.trim().slice(0, 80) : ''
       const intent = isString(item.intent) ? item.intent.trim().slice(0, 400) : ''
       const why = isString(item.why) ? item.why.trim().slice(0, 300) : ''
-      const ids = Array.isArray(item.piece_ids) ? [...new Set(item.piece_ids.filter((x): x is string => isString(x) && pieceIds.has(x)))] : []
+      // Only pieces where the quoted words are really written count.
+      const quoted = new Set<string>()
+      for (const q of Array.isArray(item.quotes) ? item.quotes : []) {
+        if (!isRecord(q) || !isString(q.piece_id) || !isString(q.quote)) continue
+        const source = fullText.get(q.piece_id)
+        if (source && isVerbatim(q.quote, source)) quoted.add(q.piece_id)
+      }
+      const ids = [...quoted]
       const suggestion = { id: crypto.randomUUID(), name, intent, piece_ids: ids, why }
       if (!name || seen.has(normalise(name)) || !valid(suggestion)) continue
       seen.add(normalise(name))

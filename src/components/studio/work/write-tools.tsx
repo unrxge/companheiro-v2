@@ -61,6 +61,16 @@ export function usePieceTools(nodeId: string | null) {
     }
   }, [nodeId])
 
+  const renameTask = useCallback(async (task: PieceTask, title: string) => {
+    if (!nodeId) return
+    setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, title } : x)))
+    try {
+      await fetch(`/api/studio/nodes/${nodeId}/tasks`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ task_id: task.id, title }) })
+    } catch (err) {
+      console.error('Failed to rename task:', err)
+    }
+  }, [nodeId])
+
   const removeTask = useCallback(async (task: PieceTask) => {
     if (!nodeId) return
     setTasks((prev) => prev.filter((x) => x.id !== task.id))
@@ -82,7 +92,7 @@ export function usePieceTools(nodeId: string | null) {
     }
   }, [nodeId])
 
-  return { tasks, toggleTask, addTask, removeTask }
+  return { tasks, toggleTask, addTask, removeTask, renameTask }
 }
 
 // ── the core concept ─────────────────────────────────────────────────────────
@@ -192,8 +202,9 @@ function DashedList({ lines }: { lines: string[] }) {
 
 // ── tasks ────────────────────────────────────────────────────────────────────
 
-export function TasksPanel({ tasks, onToggle, onAdd, onRemove, disabled = false }: {
+export function TasksPanel({ tasks, onToggle, onAdd, onRemove, onRename, disabled = false }: {
   tasks: PieceTask[]
+  onRename?: (task: PieceTask, title: string) => void
   onToggle: (task: PieceTask) => void
   onAdd: (title: string, category: string) => Promise<void>
   onRemove: (task: PieceTask) => void
@@ -206,7 +217,7 @@ export function TasksPanel({ tasks, onToggle, onAdd, onRemove, disabled = false 
       <p style={{ ...canvasType.small, fontSize: 12.5, color: t.textMuted, margin: 0 }}>
         Ways into the work, not a list the piece has to satisfy. Keep what helps and remove the rest.
       </p>
-      <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} disabled={disabled} />
+      <TaskGroups tasks={tasks} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} onRename={onRename} disabled={disabled} />
     </div>
   )
 }

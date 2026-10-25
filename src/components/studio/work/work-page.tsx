@@ -398,6 +398,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     toggleTask: (task) => void board.api.toggleTask(task),
     addTask: (nodeId, title, category) => board.api.addTask(nodeId, title, category),
     removeTask: (task) => void board.api.removeTask(task),
+    renameTask: (task, title) => void board.api.renameTask(task, title),
     reorderTasks: (ids) => void board.api.reorderTasks(ids),
     refreshAsset: (assetId) => void board.api.refreshAsset(assetId),
     onLocked: (choice: PlusChoice) => setPlanNote(choice === 'thread' ? 'thread' : 'media'),
@@ -705,7 +706,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
       )}
 
       {rail === 'tasks' && (
-        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} onRemove={(task) => void tools.removeTask(task)} disabled={readOnly} />
+        <TasksPanel tasks={tools.tasks} onToggle={(task) => void tools.toggleTask(task)} onAdd={tools.addTask} onRemove={(task) => void tools.removeTask(task)} onRename={(task, title) => void tools.renameTask(task, title)} disabled={readOnly} />
       )}
 
       {rail === 'assistant' && scopeNode && isRootPiece && (

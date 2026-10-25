@@ -5,6 +5,8 @@ export const WRITING = 'Writing'
 /** Where tasks from before categories land when they aren't the writing itself. */
 export const OTHER = 'Other'
 export const MAX_CATEGORY = 60
+/** How long a task's words may be: a paragraph is fine. */
+export const MAX_TASK_TITLE = 5000
 
 export interface Categorised {
   type?: 'creation' | 'execution' | string

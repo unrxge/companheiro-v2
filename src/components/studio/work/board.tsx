@@ -96,7 +96,7 @@ const BOARD_FRAME = { w: 1440, h: 900 } as const
 /** The furthest out a board opens to show the whole project; any further and it opens on its first pieces instead. */
 const FIT_FLOOR = 0.2
 /** How a phone opens: the zoom, and where the first card's top-left corner stands (pixels in from the left, share of the height down). */
-const PHONE_ZOOM = 0.53
+const PHONE_ZOOM = 1
 const PHONE_CARD_AT = { x: 40, y: 0.31 } as const
 // From this many pieces the cards come down in size, so more of the lane is
 // in view at once. Width does most of the work — it is what the lane is
@@ -224,6 +224,7 @@ export interface BoardActions {
   toggleTask: (task: ProjectTask) => void
   addTask: (nodeId: string, title: string, category: string) => Promise<void>
   removeTask: (task: ProjectTask) => void
+  renameTask: (task: ProjectTask, title: string) => void
   reorderTasks: (ids: string[]) => void
   /** A picture or sound stopped loading: its address has run out. */
   refreshAsset: (assetId: string) => void
@@ -349,7 +350,9 @@ export function Board({
 
   // Four pieces or more and the cards come down a size, so more of the lane
   // is in view at once (the person's decision, 2026-10-17).
-  const crowded = pieces.length >= CROWDED_AT
+  // On a phone every card is the narrowed size, however few pieces there are (the
+  // person's decision, 2026-10-25): one size to learn, and a card that fits the screen.
+  const crowded = pieces.length >= CROWDED_AT || phone
   const sizing = cardFrame ?? BOARD_FRAME
   const fullW = sizing.w ? laneCardWidth(sizing.w, GAP) : 520
   const fullH = sizing.h ? Math.min(560, Math.max(340, sizing.h * 0.5)) : 420
@@ -362,7 +365,7 @@ export function Board({
   const fitFrame = sizing.w ? sizing.w / WIDE_OPEN_ZOOM : 0
   const fitW = fitFrame ? Math.floor((fitFrame - MARGIN * 2 + GAP) / pieces.length - GAP) : Infinity
   const cardW = crowded
-    ? Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW)))
+    ? (phone ? CROWDED_MIN_W : Math.round(Math.max(CROWDED_MIN_W, Math.min(fullW * CROWDED_W_SCALE, fitW))))
     : fullW
   const cardH = crowded ? Math.round(Math.max(CROWDED_MIN_H, Math.min(fullH, fullH * CROWDED_H_SCALE))) : fullH
   // Kept in proportion with the piece cards, not a width of its own — a
@@ -770,6 +773,11 @@ export function Board({
         actions.toggleTask(task)
       },
 
+      renameTask: (task, title) => {
+        remember('the rewording', () => actions.renameTask({ ...task, title }, task.title), task.id)
+        actions.renameTask(task, title)
+      },
+
       reorderTasks: (ids) => {
         const was = tasks.map((t) => t.id)
         remember('the reordering', () => actions.reorderTasks(was))
@@ -889,7 +897,7 @@ export function Board({
   // (2026-10-22, the person's own framing: the first card at about half size, its
   // left edge a little in from the screen's, running off the right so it reads as
   // a lane, the title above it, the whole sitting a third of the way down.)
-  const phoneZoom = phone && frame.w ? PHONE_ZOOM : null
+  const phoneZoom = phone && frame.w ? Math.min(PHONE_ZOOM, (frame.w - PHONE_CARD_AT.x - 20) / cardW) : null
   /**
    * The whole project in one look: the title, every piece and everything
    * hanging off them, fitted to the window as the board opens (the person's
@@ -1704,11 +1712,12 @@ export function Board({
                     autoOpen={born === it.id}
                     onScope={(ids) => act.patchItem(it.id, { node_ids: ids })}
                     tasks={tasks}
-                    disabled={disabled}
+                    disabled={lockedForPlan}
                     rowsShown={resizing?.id === it.id ? resizing.rows : undefined}
                     onToggleTask={act.toggleTask}
                     onAddTask={act.addTask}
                     onRemoveTask={act.removeTask}
+                    onRenameTask={act.renameTask}
                     onReorderTasks={act.reorderTasks}
                     onContent={(content) => act.patchItem(it.id, { content })}
                   />

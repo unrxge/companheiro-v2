@@ -12,7 +12,7 @@ import { badRequest, fromDbError, isRecord, isString, readJson, withAuth } from 
 import { requireNode } from '@/lib/studio/nodes-db'
 import { assertProjectIdWorkable } from '@/lib/studio/plan-access'
 import { insertTasks, readTasks } from '@/lib/studio/tasks-db'
-import { WRITING, cleanCategory } from '@/lib/studio/task-groups'
+import { MAX_TASK_TITLE, WRITING, cleanCategory } from '@/lib/studio/task-groups'
 
 type Params = { params: Promise<{ nodeId: string }> }
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const nextOrder = ((maxOrderRow as { order: number } | null)?.order ?? -1) + 1
 
     const { tasks, error } = await insertTasks(auth, [
-      { project_id: node.project_id, node_id: node.id, title: (body.title as string).trim().slice(0, 300), category, order: nextOrder },
+      { project_id: node.project_id, node_id: node.id, title: (body.title as string).trim().slice(0, MAX_TASK_TITLE), category, order: nextOrder },
     ])
     if (error || !tasks[0]) throw fromDbError((error ?? { message: 'insert failed' }) as Parameters<typeof fromDbError>[0])
     // Before migration 029 the category has nowhere to be kept; say what it was so the page can still show it.
@@ -67,6 +67,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await readJson(req)
     if (!isRecord(body)) throw badRequest('body required')
     if (!isString(body.task_id)) throw badRequest('task_id required')
+    if (isString(body.title)) {
+      const title = body.title.trim().slice(0, MAX_TASK_TITLE)
+      if (!title) throw badRequest('a task needs words')
+      const { error } = await auth.supabase.from('studio_tasks').update({ title }).eq('id', body.task_id).eq('node_id', nodeId).eq('user_id', auth.user.id)
+      if (error) throw fromDbError(error)
+      return NextResponse.json({ success: true })
+    }
     if (!isString(body.status) || !TASK_STATUSES.has(body.status)) throw badRequest('status must be pending or complete')
 
     const { error } = await auth.supabase

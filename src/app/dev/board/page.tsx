@@ -156,6 +156,7 @@ export default function DevBoardPage() {
       ? { ...x, ...patch, content: patch.content ? { ...x.content, ...patch.content } : x.content }
       : x))),
     removeItem: (item) => setItems((xs) => xs.filter((x) => x.id !== item.id)),
+    renameTask: (task, title) => setTasks((ts) => ts.map((x) => (x.id === task.id ? { ...x, title } : x))),
     toggleTask: (task) => setTasks((ts) => ts.map((x) => (x.id === task.id ? { ...x, status: x.status === 'complete' ? 'pending' : 'complete' } : x))),
     addTask: async (nodeId, title, category) => setTasks((ts) => [...ts, { id: `t-${Date.now()}`, node_id: nodeId, title, type: 'creation', status: 'pending', is_writing_related: category === 'Writing', category }]),
     removeTask: (task) => setTasks((ts) => ts.filter((x) => x.id !== task.id)),
