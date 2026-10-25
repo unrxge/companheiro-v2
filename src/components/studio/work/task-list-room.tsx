@@ -24,6 +24,7 @@ import { ModalDialog } from '@/components/ui/modal-dialog'
 import { canvasType } from '@/lib/studio/canvas-tokens'
 import { alpha, radius } from '@/lib/design-tokens'
 import { AutoInput, Progress, ROOMY_CSS, RoomyRow } from '@/components/studio/work/task-groups'
+import { UnderlineLink } from '@/components/ui/underline-link'
 import { SortableList } from '@/components/studio/work/sortable'
 import type { BoardItem, BoardItemContent, OwnTask, ProjectTask } from '@/lib/studio/board-items'
 
@@ -204,6 +205,14 @@ export function TaskListRoom({
               to do{doneCount > 0 ? ` · ${doneCount} done` : ''}
             </span>
             {allCount > 0 && <Progress done={doneCount} total={allCount} width={120} />}
+            {/* a piece's tab offers to make this list that piece's own */}
+            {current && !disabled && (
+              onThisPiece ? (
+                <UnderlineLink color={t.textSecondary} onClick={() => onScope([])}>On {current.title.trim() || 'this piece'}. Put it back on the whole project</UnderlineLink>
+              ) : (
+                <UnderlineLink color={t.textPrimary} onClick={() => onScope([current.id])}>Add this individual task list to {current.title.trim() || 'this piece'}</UnderlineLink>
+              )
+            )}
             {earlierDone > 0 && (
               <button type="button" aria-pressed={showDone} onClick={() => setShowDone((v) => !v)} style={{ ...chip(showDone), marginLeft: 'auto' }}>
                 {showDone ? 'Hide done' : `Show ${earlierDone} done`}
@@ -211,26 +220,6 @@ export function TaskListRoom({
             )}
           </div>
 
-          {/* a piece's tab offers to make this list that piece's own */}
-          {current && !disabled && (
-            onThisPiece ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ ...canvasType.small, fontSize: 13, color: t.textSecondary, overflowWrap: 'anywhere' }}>This list is on {current.title.trim() || 'this piece'}.</span>
-                <button type="button" onClick={() => onScope([])} style={chip(false)}>Put it back on the whole project</button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onScope([current.id])}
-                style={{
-                  ...canvasType.small, fontSize: 14, fontWeight: 600, padding: '11px 16px', borderRadius: radius.field, cursor: 'pointer', textAlign: 'center', overflowWrap: 'anywhere',
-                  color: t.inverseText, background: t.inverseBg, border: 'none',
-                }}
-              >
-                Add this individual task list to {current.title.trim() || 'this piece'}
-              </button>
-            )
-          )}
           {!current && item.node_ids.length > 0 && !disabled && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ ...canvasType.small, fontSize: 13, color: t.textSecondary, overflowWrap: 'anywhere' }}>
