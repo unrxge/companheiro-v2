@@ -1661,6 +1661,8 @@ export function Board({
                 born={born === it.id}
                 armed={armingItem === it.id}
                 disabled={disabled}
+                // A thought on the go is kept on a phone too: it can be ticked, reworded and taken off.
+                phoneTools={it.kind === 'note' && phone && !lockedForPlan}
                 resizable={canMove}
                 padded={it.kind !== 'image'}
                 onConnect={() => { setArming(null); setArmingItem((cur) => (cur === it.id ? null : it.id)) }}
@@ -1702,7 +1704,7 @@ export function Board({
                 {it.kind === 'note' && (
                   <NoteBlock
                     item={it}
-                    disabled={disabled}
+                    disabled={lockedForPlan}
                     onContent={(content) => act.patchItem(it.id, { content })}
                   />
                 )}

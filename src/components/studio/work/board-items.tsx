@@ -238,7 +238,7 @@ interface PreviewRow {
  * so the board can keep room for it.
  */
 export function ItemShell({
-  item, width, label, born, armed, disabled, resizable = !disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
+  item, width, label, born, armed, disabled, phoneTools = false, resizable = !disabled, padded = true, onConnect, onRemove, onResizeStart, onHeight, children,
 }: {
   item: BoardItem
   width: number
@@ -248,6 +248,8 @@ export function ItemShell({
   born: boolean
   /** Being connected: the next piece clicked joins or leaves it. */
   armed: boolean
+  /** A phone may take this block off the board, but not connect or move it (a thought on the go). */
+  phoneTools?: boolean
   disabled: boolean
   /** The corner can be dragged even where nothing else can (an example). */
   resizable?: boolean
@@ -276,7 +278,7 @@ export function ItemShell({
 
   const ring = armed ? t.tide : alpha(t.textPrimary, hover ? 0.16 : 0.08)
   const noHover = useNoHover()
-  const showTools = !disabled && (hover || armed || noHover)
+  const showTools = (!disabled || phoneTools) && (hover || armed || noHover)
 
   return (
     <div
@@ -303,11 +305,13 @@ export function ItemShell({
           transition: 'opacity 140ms ease',
         }}
       >
-        <ShellAct label={armed ? 'Stop connecting' : `Connect ${label} to a piece, or take it off one`} tone={armed ? t.tide : t.textMuted} onClick={onConnect}>
-          <circle cx="6" cy="12" r="2.6" />
-          <circle cx="18" cy="12" r="2.6" />
-          <line x1="8.6" y1="12" x2="15.4" y2="12" />
-        </ShellAct>
+        {!phoneTools && (
+          <ShellAct label={armed ? 'Stop connecting' : `Connect ${label} to a piece, or take it off one`} tone={armed ? t.tide : t.textMuted} onClick={onConnect}>
+            <circle cx="6" cy="12" r="2.6" />
+            <circle cx="18" cy="12" r="2.6" />
+            <line x1="8.6" y1="12" x2="15.4" y2="12" />
+          </ShellAct>
+        )}
         <ShellAct label={`Remove ${label}`} tone={t.textMuted} onClick={onRemove}>
           <path d="M6 6l12 12M18 6L6 18" />
         </ShellAct>
