@@ -804,7 +804,7 @@ export default function CheckInPage() {
                 the conversation carries on underneath whatever they choose. */}
             {!showingDemo && belongs && belongsState !== 'dismissed' && (
               <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} role="status">
-                <Card>
+                <Card style={notesLocked ? { opacity: 0.55 } : undefined}>
                   {belongsState === 'added' ? (
                     <p style={{ ...typeRoles.small, color: t.textSecondary }}>
                       Sent to <strong style={{ fontWeight: 700 }}>{belongs.title}</strong>. It will be waiting there.
@@ -816,9 +816,10 @@ export default function CheckInPage() {
                       </p>
                       <p style={{ ...typeRoles.quote, fontSize: 15, color: t.textPrimary }}>&ldquo;{belongs.quote}&rdquo;</p>
                       <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <QuietButton size="sm" onClick={() => void carryToProject()} loading={belongsState === 'adding'} loadingLabel="Sending…">
+                        <QuietButton size="sm" onClick={() => void carryToProject()} disabled={!!notesLocked} loading={belongsState === 'adding'} loadingLabel="Sending…">
                           Send it there
                         </QuietButton>
+                        {notesLocked && <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>Sending a thought to a project is part of Direction, not your plan.</span>}
                         <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
                         {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
                       </div>

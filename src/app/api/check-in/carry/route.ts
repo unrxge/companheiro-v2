@@ -9,6 +9,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import type { CarriedThought } from '@/lib/studio/types'
+import { entitlementsOf } from '@/lib/studio/plan-access'
 
 const MAX_WAITING = 12
 
@@ -22,6 +23,8 @@ export async function POST(req: NextRequest) {
     if (!projectId || !text) return NextResponse.json({ ok: false, error: 'Nothing to send' }, { status: 400 })
 
     const { supabase, user } = auth
+    // Leaving a thought on a project is Direction's (and the trial's).
+    if (!(await entitlementsOf(auth)).checkInNotes) return NextResponse.json({ ok: false, error: 'Not part of your plan' }, { status: 403 })
     const { data: project } = await supabase
       .from('studio_projects')
       .select('id, settings')
