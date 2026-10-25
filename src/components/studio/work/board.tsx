@@ -1419,7 +1419,6 @@ export function Board({
             {!phone && (
               <ZoomPill
                 canvas={canvas}
-                onHome={canvas.resetView}
                 after={
                   <>
                     <PillButton
