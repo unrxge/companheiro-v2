@@ -425,12 +425,14 @@ export function Board({
    * The layout below reads this rather than `pieceAt`, so nothing shifts
    * around under the hand while a card is being dragged.
    */
+  const laneLocked = !cardFrame
   const pieceSpot = useCallback((piece: TreeNode, i: number): Point => ({
-    // On a phone the lane closes up around the narrower cards: a place kept from a wider
-    // screen would leave them far apart.
-    x: phone ? cardX(i) : piece.board_x ?? cardX(i),
-    y: piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
-  }), [cardX, cardTop, shown, phone])
+    // Piece cards are not moved by hand (the person's decision, 2026-10-27): they stand
+    // in the lane in their order, whatever screen this is, and the lane closes up
+    // around the cards' width. (An example keeps the owner's arrangement.)
+    x: laneLocked ? cardX(i) : piece.board_x ?? cardX(i),
+    y: laneLocked || piece.board_y === null || piece.board_y === undefined ? cardTop : shown(piece.board_y),
+  }), [cardX, cardTop, shown, laneLocked])
 
   /** Where a piece sits: in its reading-order lane, until a hand moves it. */
   const pieceAt = useCallback((piece: TreeNode, i: number): Point => {
@@ -1535,7 +1537,7 @@ export function Board({
               data-hold
               onPointerDown={(e) => {
                 light.onPointerDown(e)
-                beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)), i === 0)(e)
+                beginDrag('piece', piece.id, at, (landed) => act.movePiece(piece.id, kept(landed)), laneLocked || i === 0)(e)
               }}
               style={{
                 position: 'absolute', left: at.x, top: at.y, width: cardW, height: cardH,
