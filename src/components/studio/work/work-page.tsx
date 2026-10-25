@@ -196,13 +196,10 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     setRail('concept')
   }, [access?.reason, isRootPiece, node, narrow])
   const tools = usePieceTools(isRootPiece && node ? node.id : null)
-  const [shaping, setShaping] = useState<'shape' | 'place' | null>(null)
-  const [shapeNote, setShapeNote] = useState<string | null>(null)
   const studio = useRef<StudioHandle | null>(null)
   const stacked = useStackedLayout()
   const sheeted = rail === 'assistant' && stacked
   const [activePartId, setActivePartId] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<Record<string, string>>({})
   const chat = useWritingAssistant({
     projectId,
     nodeId: isRootPiece && node ? node.id : null,
@@ -216,7 +213,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   useEffect(() => { if (sheeted && activePartId) studio.current?.reveal(activePartId) }, [sheeted, activePartId])
 
   const focusKey = focus.kind === 'project' ? 'project' : `${focus.kind}:${focus.id}`
-  useEffect(() => { setCheckNote(null); setShapeNote(null); setActivePartId(null); setSuggestions({}) }, [focusKey])
+  useEffect(() => { setCheckNote(null); setActivePartId(null) }, [focusKey])
 
   const appearancesFor = useCallback((threadId: string) => appearancesOf(roots, threadId), [roots])
 
@@ -324,36 +321,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     await board.api.remove(item.id)
   }, [board.api])
 
-  /** Shaping and placing are routes that write the parts themselves, so the tree is read again afterwards. */
-  const reshape = useCallback(async (kind: 'shape' | 'place', pieceId: string) => {
-    if (shaping) return
-    setShaping(kind)
-    setShapeNote(null)
-    try {
-      await studio.current?.flush()
-      const res = await fetch(`/api/write/sections/${kind === 'shape' ? 'seed' : 'ingest'}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: pieceId }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setShapeNote(typeof data.error === 'string' ? data.error : 'That did not work. Try again in a moment.')
-        return
-      }
-      // Loose guidance for each empty part, shown until something is written in it.
-      if (kind === 'shape' && Array.isArray(data.sections) && Array.isArray(data.suggestions)) {
-        setSuggestions(Object.fromEntries(
-          (data.sections as Array<{ id: string }>).map((s, i) => [s.id, String(data.suggestions[i] ?? '')]).filter(([, v]) => v),
-        ))
-      }
-      await api.refresh()
-      if (kind === 'place') setShapeNote('Your draft has been placed across the sections drawn from its emotional journey.')
-    } catch {
-      setShapeNote('That did not work. Try again in a moment.')
-    } finally {
-      setShaping(null)
-    }
-  }, [api, confirm, shaping])
-
   /** Everything typed is saved first, so Test reads the draft as it stands. */
   const saveBeforeLeaving = useCallback(async () => {
     await studio.current?.flush()
@@ -436,14 +403,15 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   // Things sent here from a check-in, waiting on an answer. An answered card
   // is hidden at once and the tree re-read, since approving makes a thread.
   const [answeredCarried, setAnsweredCarried] = useState<string[]>([])
-  const carried = (project?.settings?.carried ?? []).filter((c) => !answeredCarried.includes(c.id))
+  // Direction's (and the trial's): on Focus nothing waiting is shown.
+  const canCarry = usePlan().plan?.checkInNotes !== false
+  const carried = canCarry ? (project?.settings?.carried ?? []).filter((c) => !answeredCarried.includes(c.id)) : []
   const carriedCards = carried.map((thought) => (
     <CarriedCard
       key={thought.id}
       projectId={projectId}
       thought={thought}
       pieces={roots.map((r) => ({ id: r.id, title: r.title }))}
-      asNote={!canThread}
       disabled={readOnly}
       onAnswered={() => { setAnsweredCarried((prev) => [...prev, thought.id]); void api.refresh() }}
     />
@@ -961,7 +929,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               onOpenThread={goThread}
               onSelectionChange={setSelection}
               onFocusChange={setActivePartId}
-              placeholders={suggestions}
               handle={studio}
               // Saved first, so the history compares against what's actually on the page.
               onHistory={() => void Promise.resolve(studio.current?.flush()).then(() => setHistoryOpen(true))}
@@ -976,12 +943,6 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
               projectId={projectId}
               nodeId={node.id}
               words={words}
-              canShape={!readOnly && node.children.length === 0 && words === 0 && !!(node.emotional_journey || node.core_truth || node.intent)}
-              canPlace={!readOnly && node.children.length === 0 && words > 0 && !!node.emotional_journey?.trim()}
-              busy={shaping}
-              note={shapeNote}
-              onShape={() => void reshape('shape', node.id)}
-              onPlace={() => void reshape('place', node.id)}
               onLeave={saveBeforeLeaving}
               journey={!example}
             />

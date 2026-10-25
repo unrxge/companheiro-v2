@@ -225,21 +225,14 @@ export function TasksPanel({ tasks, onToggle, onAdd, onRemove, onRename, disable
 // ── after the draft ──────────────────────────────────────────────────────────
 
 /**
- * Under the writing: shaping the piece into sections, where the piece stands
- * on its way (Write · Test · Reflect).
+ * Under the writing: where the piece stands on its way (Write · Test · Reflect).
  */
 export function PieceFooter({
-  projectId, nodeId, words, canShape, canPlace, busy, note, onShape, onPlace, onLeave, journey = true,
+  projectId, nodeId, words, onLeave, journey = true,
 }: {
   projectId: string
   nodeId: string
   words: number
-  canShape: boolean
-  canPlace: boolean
-  busy: 'shape' | 'place' | null
-  note: string | null
-  onShape: () => void
-  onPlace: () => void
   /** Saves what's been typed; awaited before the ribbon carries you to another step. */
   onLeave: () => Promise<void>
   /** The Write · Test · Reflect ribbon. Off for an example, whose later steps have nothing behind them. */
@@ -248,22 +241,6 @@ export function PieceFooter({
   const { t } = useTheme()
   return (
     <div style={{ maxWidth: widths.reading, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {(canShape || canPlace) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 16px' }}>
-          {canShape && (
-            <GhostButton size="sm" onClick={onShape} loading={busy === 'shape'} loadingLabel="Shaping…">
-              Shape into sections
-            </GhostButton>
-          )}
-          {canPlace && (
-            <GhostButton size="sm" onClick={onPlace} loading={busy === 'place'} loadingLabel="Placing…">
-              Place it in the sections
-            </GhostButton>
-          )}
-        </div>
-      )}
-      {note && <p role="status" style={{ ...canvasType.small, color: t.textMuted, margin: 0, padding: '0 16px' }}>{note}</p>}
-
       <div style={{ borderTop: `1px solid ${alpha(t.textPrimary, 0.1)}`, padding: '20px 16px 0', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {journey && <JourneyNavNode projectId={projectId} nodeId={nodeId} step="write" beforeNavigate={onLeave} />}
         <span style={{ ...canvasType.small, color: t.textMuted }}>

@@ -12,7 +12,6 @@ import {
   badRequest, fromDbError, isRecord, isString, readJson, requireProject, withAuth,
 } from '@/lib/studio/db'
 import { assertWorkable, entitlementsOf } from '@/lib/studio/plan-access'
-import { cleanContent } from '@/lib/studio/board-items-db'
 import type { ThreadHue } from '@/lib/studio/node-types'
 import type { CarriedThought } from '@/lib/studio/types'
 
@@ -27,6 +26,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const action = body.action === 'accept' ? 'accept' : body.action === 'decline' ? 'decline' : null
     if (!action) throw badRequest('action must be accept or decline')
 
+    // Thoughts left on a project from a check-in are Direction's (and the trial's).
+    if (!(await entitlementsOf(auth)).checkInNotes) throw badRequest('not part of your plan')
+
     const project = await requireProject(auth, id)
     const settings = (project.settings ?? {}) as unknown as Record<string, unknown> & { carried?: CarriedThought[] }
     const waiting = Array.isArray(settings.carried) ? settings.carried : []
@@ -34,17 +36,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!card) throw badRequest('that card is gone')
 
     let threadId: string | null = null
-    let note = false
-    // Without threads (Practice), their words are kept on the canvas as a note instead.
-    if (action === 'accept' && !(await entitlementsOf(auth)).threads) {
-      await assertWorkable(auth, project)
-      const content = cleanContent('note', { text: card.text.slice(0, 4000), note: 'thought', from_check_in: true })
-      const { error } = await auth.supabase
-        .from('studio_board_items')
-        .insert({ user_id: auth.user.id, project_id: project.id, kind: 'note', asset_id: null, node_ids: [], content })
-      if (error) throw fromDbError(error)
-      note = true
-    } else if (action === 'accept') {
+    if (action === 'accept') {
       await assertWorkable(auth, project)
       const [{ count }, { data: roots }] = await Promise.all([
         auth.supabase.from('studio_threads').select('id', { count: 'exact', head: true }).eq('project_id', project.id).eq('user_id', auth.user.id),
@@ -82,6 +74,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       .eq('id', project.id)
       .eq('user_id', auth.user.id)
     if (saveErr) throw fromDbError(saveErr)
-    return NextResponse.json({ thread_id: threadId, note })
+    return NextResponse.json({ thread_id: threadId })
   })
 }

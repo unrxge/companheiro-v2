@@ -819,7 +819,7 @@ export default function CheckInPage() {
                         <QuietButton size="sm" onClick={() => void carryToProject()} disabled={!!notesLocked} loading={belongsState === 'adding'} loadingLabel="Sending…">
                           Send it there
                         </QuietButton>
-                        {notesLocked && <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>Sending a thought to a project is part of Direction, not your plan.</span>}
+                        {notesLocked && <span style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted }}>You’ve discovered a handy feature that isn’t available on your subscription’s tier. Upgrade if you want to start using it.</span>}
                         <GhostButton size="sm" onClick={() => setBelongsState('dismissed')} disabled={belongsState === 'adding'}>Leave it here</GhostButton>
                         {belongsState === 'failed' && <span style={{ ...typeRoles.small, fontSize: 12, color: t.danger }}>That did not save. Try again.</span>}
                       </div>

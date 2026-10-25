@@ -544,24 +544,6 @@ function installMock(o: Opts) {
         },
       }), { status: 200, headers: { 'Content-Type': 'text/plain' } })
     }
-    if ((path === '/api/write/sections/seed' || path === '/api/write/sections/ingest') && method === 'POST') snap('restructure', true)
-    if (path === '/api/write/sections/ingest' && method === 'POST') return write(() => {
-      const root = nodes.find((n) => n.id === body.node_id)!
-      const text = plain(root.body)
-      const full = words(text) >= 100 || text.split(/\n{2,}/).length >= 2
-      if (!full) return json({ error: 'This reads as notes rather than a draft, so there is nothing to place across sections yet.' }, 400)
-      const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
-      beats.forEach(([title, beat], i) => nodes.push(node(`ing-${++seq}`, root.id, i, title, beat, '')))
-      const kids = sectionsOf(root.id)
-      text.split(/\n{2,}/).forEach((para, i) => { const k = nodes.find((n) => n.id === kids[i % kids.length].id)!; k.body = paragraphs(`${plain(k.body)}\n\n${para}`.trim()); k.extent = words(k.body) })
-      resync(root.id)
-      return json({ type: 'draft', sections: sectionsOf(root.id) })
-    })
-    if (path === '/api/write/sections/seed' && method === 'POST') return write(() => {
-      const beats: Array<[string, string]> = [['Arrival', 'calm'], ['The pull', 'restless'], ['What it holds', 'tender'], ['Settling', 'still']]
-      beats.forEach(([title, beat], i) => nodes.push(node(`seed-${++seq}`, body.node_id, i, title, beat, '')))
-      return json({ sections: sectionsOf(body.node_id), suggestions: beats.map(() => '') })
-    })
     if (path === '/api/studio/projects/demo/nodes' && method === 'POST') return write(() => {
       const kids = nodes.filter((n) => n.parent_id === (body.parent_id ?? null))
       const n = node(`n-${++seq}`, body.parent_id ?? null, kids.length, '', '', '')
