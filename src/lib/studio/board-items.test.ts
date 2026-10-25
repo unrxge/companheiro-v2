@@ -280,34 +280,33 @@ test('only what cannot be written again is asked about before it goes', () => {
   assert.equal(asksBeforeRemoving({ kind: 'tasks', content: { tasks: [{ id: 'a', title: 'x', done: false }] } }), true)
 })
 
-import { laneLayout, lanePlaceAt } from './board-items'
-test('the lane puts elements between pieces and pushes the rest along', () => {
-  const { order, end } = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }], 300, 40, 0)
-  assert.deepEqual(order.map((e) => [e.id, e.x]), [['a', 0], ['x', 340], ['b', 480]])
-  assert.equal(end, 820)
+import { laneLayout, lanePlaceAt, threadLaneDecode, threadLaneEncode } from './board-items'
+test('an element in a gap widens it and the cards to its right slide along', () => {
+  const l = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 30 } }], 300, 40, 0)
+  assert.deepEqual(l.order.map((e) => [e.id, e.x]), [['a', 0], ['x', 370], ['b', 510]])
+  assert.equal(l.end, 850)
 })
-test('an element after a missing piece stands after the last one; before the first is first', () => {
-  const { order } = laneLayout(['a', 'b'], [{ id: 'x', w: 10, lane: { after: 'gone', n: 0 } }, { id: 'y', w: 10, lane: { after: null, n: 0 } }], 100, 10, 0)
-  assert.deepEqual(order.map((e) => e.id), ['y', 'a', 'b', 'x'])
+test('stacked elements share a gap, and the widest reach sets it', () => {
+  const l = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }, { id: 'y', w: 100, lane: { after: 'a', n: 200 } }], 300, 40, 0)
+  assert.equal(l.order.find((e) => e.id === 'b')!.x, 340 + 300 + 40)
 })
-test('letting go between two cards names the piece it follows, and orders among its neighbours', () => {
-  const { order } = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }], 300, 40, 0)
-  const mid = lanePlaceAt(order, 330)            // before x's midpoint: right after a
-  assert.equal(mid.place.after, 'a')
-  assert.ok(mid.place.n < 0)
-  const afterX = lanePlaceAt(order, 400)         // after x, before b
-  assert.equal(afterX.place.after, 'a')
-  assert.equal(afterX.place.n, 1)
-  assert.equal(lanePlaceAt(order, -50).place.after, null)
-  assert.equal(lanePlaceAt(order, 9999).place.after, 'b')
+test('an element after a missing piece stands in the last gap; before the first, the first', () => {
+  const l = laneLayout(['a', 'b'], [{ id: 'x', w: 10, lane: { after: 'gone', n: 0 } }, { id: 'y', w: 10, lane: { after: null, n: 0 } }], 100, 10, 0)
+  assert.equal(l.order.find((e) => e.id === 'y')!.x, 0)
+  assert.ok(l.order.find((e) => e.id === 'x')!.x > l.order.find((e) => e.id === 'b')!.x)
 })
-
-import { threadLaneDecode, threadLaneEncode } from './board-items'
-test('a thread standing in the row round-trips through board_x / board_y', () => {
+test('letting go names the nearest gap and exactly how far in', () => {
+  const l = laneLayout(['a', 'b'], [{ id: 'x', w: 100, lane: { after: 'a', n: 0 } }], 300, 40, 0)
+  const p = lanePlaceAt(l, 400, 80)!
+  assert.equal(p.place.after, 'a')
+  assert.equal(p.place.n, 60)
+  assert.equal(lanePlaceAt(l, -500, 80)!.place.after, null)
+  assert.equal(lanePlaceAt(l, 5000, 80)!.place.after, 'b')
+})
+test('a thread standing in the gaps round-trips through board_x', () => {
   const ids = ['a', 'b', 'c']
-  for (const place of [{ after: null, n: 0 }, { after: 'b', n: 1 }, { after: 'c', n: -2.5 }]) {
-    const e = threadLaneEncode(place, ids)
-    assert.deepEqual(threadLaneDecode(e.x, e.y, ids), place)
+  for (const place of [{ after: null, n: 0 }, { after: 'b', n: 75 }, { after: 'c', n: 300 }]) {
+    assert.deepEqual(threadLaneDecode(threadLaneEncode(place, ids), ids), place)
   }
-  assert.equal(threadLaneDecode(100, 200, ids), null)
+  assert.equal(threadLaneDecode(100, ids), null)
 })

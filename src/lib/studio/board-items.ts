@@ -524,15 +524,21 @@ export function arrange(input: ArrangeInput): Map<string, { x: number; y: number
 
 
 // ── the lane ────────────────────────────────────────────────────────────────
-// Piece cards stand in a row. An element may stand in that row too, between two
-// cards, and everything to its right slides along to make room.
+// Piece cards stand in a row. Between two cards there is a gap, and an element
+// can be put anywhere in it, as freely as anywhere below the cards: it stays
+// where it is put, at any height, stacked on others if that is what was done.
+// The gap is as wide as what stands in it needs, and every card to its right
+// has slid along to make room.
 
-export interface LaneEntry { kind: 'piece' | 'item'; id: string; x: number; w: number; n: number }
+export interface LaneEntry { kind: 'piece' | 'item'; id: string; x: number; w: number }
+export interface LaneGap { after: string | null; start: number; width: number }
 
 /**
- * The row, left to right: pieces in their order, each followed by the elements
- * standing after it (in `n` order), elements before the first piece first. An
- * element anchored to a piece that is gone stands after the last piece.
+ * The row, left to right. After each piece (before the first, for `after`
+ * null) there is a gap that begins one `gap` past the piece; whatever stands in
+ * it sits `lane.n` pixels in from the gap's start, and the gap is as wide as
+ * the furthest right of those reaches. An element anchored to a piece that is
+ * gone stands in the gap after the last piece.
  */
 export function laneLayout(
   pieceIds: string[],
@@ -540,7 +546,7 @@ export function laneLayout(
   pieceW: number,
   gap: number,
   originX: number,
-): { order: LaneEntry[]; end: number } {
+): { order: LaneEntry[]; gaps: LaneGap[]; end: number } {
   const known = new Set(pieceIds)
   const last = pieceIds.length ? pieceIds[pieceIds.length - 1] : null
   const groups = new Map<string | null, typeof things>()
@@ -548,56 +554,77 @@ export function laneLayout(
     const after = t.lane.after !== null && !known.has(t.lane.after) ? last : t.lane.after
     groups.set(after, [...(groups.get(after) ?? []), t])
   }
-  const group = (after: string | null) => [...(groups.get(after) ?? [])].sort((a, b) => a.lane.n - b.lane.n || a.id.localeCompare(b.id))
-  const seq: Array<{ kind: 'piece' | 'item'; id: string; w: number; n: number }> = []
-  for (const t of group(null)) seq.push({ kind: 'item', id: t.id, w: t.w, n: t.lane.n })
-  for (const id of pieceIds) {
-    seq.push({ kind: 'piece', id, w: pieceW, n: 0 })
-    for (const t of group(id)) seq.push({ kind: 'item', id: t.id, w: t.w, n: t.lane.n })
-  }
+  const order: LaneEntry[] = []
+  const gaps: LaneGap[] = []
   let x = originX
-  const order = seq.map((e) => {
-    const placed = { ...e, x }
-    x += e.w + gap
-    return placed
-  })
-  return { order, end: x }
+  const fill = (after: string | null) => {
+    const start = x
+    let width = 0
+    for (const t of groups.get(after) ?? []) {
+      const dx = Math.max(0, t.lane.n)
+      order.push({ kind: 'item', id: t.id, x: start + dx, w: t.w })
+      width = Math.max(width, dx + t.w)
+    }
+    gaps.push({ after, start, width })
+    if (width > 0) x = start + width + gap
+  }
+  fill(null)
+  for (const id of pieceIds) {
+    order.push({ kind: 'piece', id, x, w: pieceW })
+    x += pieceW + gap
+    fill(id)
+  }
+  return { order, gaps, end: x }
 }
 
-/** Where an element let go at `centreX` would stand in the row: the piece it follows and its order among those after it. */
-export function lanePlaceAt(order: LaneEntry[], centreX: number): { place: LanePlace; index: number } {
-  let index = order.length
-  for (let i = 0; i < order.length; i++) {
-    if (order[i].x + order[i].w / 2 > centreX) { index = i; break }
+/** How far past the end of what already stands in a gap an element may be put, and still be in it. */
+const GAP_REACH = 120
+
+/**
+ * Which gap an element let go with its left edge at `left` (and `w` wide) is in,
+ * and how far in from the gap's start: the gap nearest its middle, and exactly
+ * where it was put within what that gap already reaches.
+ */
+export function lanePlaceAt(layout: { gaps: LaneGap[] }, left: number, w: number): { place: LanePlace; gap: LaneGap } | null {
+  const centre = left + w / 2
+  let best: LaneGap | null = null
+  let bestD = Infinity
+  for (const g of layout.gaps) {
+    const d = Math.abs(centre - (g.start + g.width / 2))
+    if (d < bestD) { bestD = d; best = g }
   }
-  let after: string | null = null
-  for (let i = index - 1; i >= 0; i--) if (order[i].kind === 'piece') { after = order[i].id; break }
-  const prev = order[index - 1]
-  const next = order[index]
-  const prevN = prev && prev.kind === 'item' ? prev.n : null
-  const nextN = next && next.kind === 'item' ? next.n : null
-  const n = prevN !== null && nextN !== null ? (prevN + nextN) / 2 : prevN !== null ? prevN + 1 : nextN !== null ? nextN - 1 : 0
-  return { place: { after, n }, index }
+  if (!best) return null
+  const dx = Math.round(Math.max(0, Math.min(left - best.start, best.width + GAP_REACH)))
+  return { place: { after: best.after, n: dx }, gap: best }
 }
 
 // A thread's hub standing in the row is kept in its own board_x / board_y, with
-// no new column: board_y holds a flag no real place can have, and board_x holds
-// the piece it follows (by its number in the row) and its order after that piece.
+// no new column: board_x holds a flag no free place can reach, the piece it
+// follows (by its number in the row) and how far into that gap it stands;
+// board_y is its height, as for anything else on the board.
 
-export const THREAD_LANE_Y = -2_000_000
+export const THREAD_LANE_X = 10_000_000
 const LANE_STRIDE = 100_000
 const LANE_ZERO = 50_000
 
-export function threadLaneEncode(place: LanePlace, pieceIds: string[]): { x: number; y: number } {
+export function threadLaneEncode(place: LanePlace, pieceIds: string[]): number {
   const after = place.after === null ? -1 : pieceIds.indexOf(place.after)
   const slot = after < 0 && place.after !== null ? pieceIds.length - 1 : after
-  return { x: (slot + 1) * LANE_STRIDE + LANE_ZERO + Math.round(place.n * 100), y: THREAD_LANE_Y }
+  return THREAD_LANE_X + (slot + 1) * LANE_STRIDE + LANE_ZERO + Math.round(place.n)
 }
 
-export function threadLaneDecode(x: number | null, y: number | null, pieceIds: string[]): LanePlace | null {
-  if (y !== THREAD_LANE_Y || x === null) return null
-  const slot = Math.floor(x / LANE_STRIDE) - 1
-  const n = ((x % LANE_STRIDE) - LANE_ZERO) / 100
+/** An earlier way of keeping it (board_y was the flag): read as the start of that gap. */
+export const LEGACY_THREAD_LANE_Y = -2_000_000
+
+export function threadLaneDecode(x: number | null, pieceIds: string[], y: number | null = null): LanePlace | null {
+  if (x !== null && y === LEGACY_THREAD_LANE_Y) {
+    const slot = Math.floor(x / LANE_STRIDE) - 1
+    return { after: slot < 0 ? null : pieceIds[Math.min(slot, pieceIds.length - 1)] ?? null, n: 0 }
+  }
+  if (x === null || x < THREAD_LANE_X) return null
+  const rest = x - THREAD_LANE_X
+  const slot = Math.floor(rest / LANE_STRIDE) - 1
+  const n = (rest % LANE_STRIDE) - LANE_ZERO
   const after = slot < 0 ? null : pieceIds[Math.min(slot, pieceIds.length - 1)] ?? null
   return { after, n }
 }

@@ -43,7 +43,7 @@ import { AddFlow, type AddResult } from '@/components/studio/work/add-flow'
 import { LinkBlock } from '@/components/studio/work/link-block'
 import { AddFan } from '@/components/studio/work/add-fan'
 import {
-  laneLayout, lanePlaceAt, threadLaneDecode, threadLaneEncode, type LanePlace,
+  laneLayout, lanePlaceAt, LEGACY_THREAD_LANE_Y, threadLaneDecode, threadLaneEncode, type LanePlace,
   addSpotX, arrange, asksBeforeRemoving, contentBack, FALLBACK_H, imageHeight, itemWidth, keepBelow, RECORDING_H,
   type BoardItem, type Box, type PatchItemRequest, type ProjectTask,
 } from '@/lib/studio/board-items'
@@ -450,12 +450,12 @@ export function Board({
    */
   const pieceIdList = useMemo(() => pieces.map((p) => p.id), [pieces])
   const hubLane = useCallback(
-    (th: Thread) => (laneLocked ? threadLaneDecode(th.board_x, th.board_y, pieceIdList) : null),
+    (th: Thread) => (laneLocked ? threadLaneDecode(th.board_x, pieceIdList, th.board_y) : null),
     [laneLocked, pieceIdList],
   )
   const laneThings = useMemo(() => (laneLocked
     ? [
-        ...items.filter((it) => it.content.lane).map((it) => ({ id: it.id, w: itemW(it), lane: it.content.lane as LanePlace })),
+        ...items.flatMap((it) => (it.content.lane ? [{ id: it.id, w: itemW(it), lane: it.content.lane }] : [])),
         ...threads.flatMap((th) => {
           const lane = hubLane(th)
           return lane ? [{ id: th.id, w: HUB_W, lane }] : []
@@ -477,7 +477,8 @@ export function Board({
     const h = it ? heights[it.id] ?? FALLBACK_H[it.kind] : HUB_H
     const cy = at.y + h / 2
     if (cy < cardTop - 60 || cy > cardTop + cardH + 60) return null
-    return { ...lanePlaceAt(laneBase.order, at.x + w / 2), w }
+    const hit = lanePlaceAt(laneBase, at.x, w)
+    return hit ? { place: hit.place, w } : null
   }, [items, threads, itemW, heights, cardTop, cardH, laneBase])
   /**
    * The row as it is shown: while something is carried over it, the carried
@@ -579,15 +580,15 @@ export function Board({
   const obstacles = useMemo<Box[]>(() => {
     const taken: Box[] = pieces.map((p, i) => ({ ...pieceSpot(p, i), w: cardW, h: cardH }))
     for (const th of hubs) {
-      if (hubLane(th)) taken.push({ x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: cardTop, w: HUB_W, h: HUB_H })
+      if (hubLane(th)) taken.push({ x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: th.board_y === null || th.board_y === LEGACY_THREAD_LANE_Y ? cardTop : shown(th.board_y), w: HUB_W, h: HUB_H })
       else if (!isFree(th)) taken.push(fixedBox(th, HUB_W, HUB_H))
     }
     for (const it of items) {
-      if (inLane(it)) taken.push({ x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: cardTop, w: itemW(it), h: itemH(it) })
+      if (inLane(it)) taken.push({ x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: it.board_y === null ? cardTop : shown(it.board_y), w: itemW(it), h: itemH(it) })
       else if (!isFree(it)) taken.push(fixedBox(it, itemW(it), itemH(it)))
     }
     return taken
-  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH, inLane, hubLane, laneX, cardTop])
+  }, [pieces, pieceSpot, cardW, cardH, hubs, items, fixedBox, itemW, itemH, inLane, hubLane, laneX, shown])
 
   /**
    * Everything under the pieces with no hand placement of its own, gathered
@@ -636,7 +637,7 @@ export function Board({
   /** Where a thread's hub actually is right now. */
   const hubAt = useCallback((th: Thread): Point => {
     if (drag?.kind === 'hub' && drag.id === th.id) return drag.at
-    if (hubLane(th)) return { x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: cardTop }
+    if (hubLane(th)) return { x: laneX.get(th.id) ?? LEFT_ROOM + MARGIN, y: th.board_y === null || th.board_y === LEGACY_THREAD_LANE_Y ? cardTop : shown(th.board_y) }
     const auto = autoAt.get(th.id)
     if (th.board_x === null && th.board_y === null && auto) return auto
     return { x: th.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: th.board_y === null ? auto?.y ?? webTop : shown(th.board_y) }
@@ -644,7 +645,7 @@ export function Board({
 
   const itemAt = useCallback((it: BoardItem): Point => {
     if (drag?.kind === 'item' && drag.id === it.id) return drag.at
-    if (inLane(it)) return { x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: cardTop }
+    if (inLane(it)) return { x: laneX.get(it.id) ?? LEFT_ROOM + MARGIN, y: it.board_y === null ? cardTop : shown(it.board_y) }
     const auto = autoAt.get(it.id)
     if (it.board_x === null && it.board_y === null && auto) return auto
     return { x: it.board_x ?? auto?.x ?? LEFT_ROOM + MARGIN, y: it.board_y === null ? auto?.y ?? webTop : shown(it.board_y) }
@@ -1691,7 +1692,7 @@ export function Board({
                 light.onPointerDown(e)
                 beginDrag('hub', th.id, at, (landed) => {
                   const place = laneLocked ? slotFor.current(th.id, landed)?.place ?? null : null
-                  if (place) { const e = threadLaneEncode(place, pieceIdList); act.moveThread(th.id, { x: e.x, y: e.y }); return }
+                  if (place) { act.moveThread(th.id, { x: threadLaneEncode(place, pieceIdList), y: kept(landed).y }); return }
                   act.moveThread(th.id, kept(landed))
                 })(e)
               }}
@@ -1739,7 +1740,7 @@ export function Board({
                   // Let go among the piece cards, it stands in the row there; anywhere
                   // else it stands where it was put, and leaves the row if it was in it.
                   const place = laneLocked ? slotFor.current(it.id, landed)?.place ?? null : null
-                  if (place) { act.patchItem(it.id, { board_x: null, board_y: null, content: { lane: place } }); return }
+                  if (place) { act.patchItem(it.id, { board_x: null, board_y: kept(landed).y, content: { lane: place } }); return }
                   const k = kept(landed)
                   act.patchItem(it.id, it.content.lane ? { board_x: k.x, board_y: k.y, content: { lane: null } } : { board_x: k.x, board_y: k.y })
                 })(e)
