@@ -72,15 +72,7 @@ export function ideaLabTourSteps(): TourStep[] {
     step({
       key: 'lens', show: { anchor: 'lab-lens' },
       headline: 'Set a lens, and a question comes through it.',
-      lines: ['Movement, territory, energy and mode, then one question to make from.'],
-    }),
-    step({
-      key: 'movement', show: { anchor: 'lab-movement' },
-      headline: 'Movement: where you are in your life.',
-      lines: [
-        'Breakaway, stepping away from what no longer fits. Beginning, something new. Expansion, growing into it. Integration, bringing it together.',
-        'The question meets you there. Random or Skip if you’d rather not say.',
-      ],
+      lines: ['Territory, energy and mode, then one question to make from.'],
     }),
     step({
       key: 'territory', show: { anchor: 'lab-territory' },

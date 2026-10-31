@@ -32,13 +32,6 @@ interface Capture {
   created_at: string
 }
 
-const ARC_DEFINITIONS: Record<Arc, string> = {
-  Breakaway: 'Disruption, stepping away from what no longer serves',
-  Beginning: 'Fresh starts, emergence, new possibilities',
-  Expansion: 'Growth, deepening, broadening horizons',
-  Integration: 'Synthesis, wholeness, bringing it together',
-}
-
 const ENERGY_LEVELS = ['heavy', 'low', 'steady', 'light', 'bright'] as const
 type EnergyLevel = (typeof ENERGY_LEVELS)[number]
 const ENERGY_LEVEL_LABELS: Record<EnergyLevel, string> = { heavy: 'Heavy', low: 'Low', steady: 'Steady', light: 'Light', bright: 'Bright' }
@@ -49,9 +42,6 @@ export default function IdeaLabPage() {
   const territories = useTerritories()
   const { slots: territorySlots, loaded: territoriesLoaded, save: saveTerritoryConfig } = territories
 
-  const [selectedArcs, setSelectedArcs] = useState<Arc[]>([])
-  const [skipArcs, setSkipArcs] = useState(false)
-  const [useRandomArcs, setUseRandomArcs] = useState(false)
 
   const [selectedTerritoryKeys, setSelectedTerritoryKeys] = useState<string[]>([])
   const [skipTerritories, setSkipTerritories] = useState(false)
@@ -208,17 +198,7 @@ export default function IdeaLabPage() {
   }, [territoriesLoaded, territorySlots, saveTerritoryConfig])
 
   // ── Arc handlers ──────────────────────────────────────────────────────────
-  const toggleArc = (arc: Arc) => setSelectedArcs((prev) => (prev.includes(arc) ? prev.filter((a) => a !== arc) : [...prev, arc]))
-  const handleRandomArcs = () => {
-    const next = !useRandomArcs
-    setUseRandomArcs(next)
-    if (next) { setSkipArcs(false); setSelectedArcs([]) }
-  }
-  const handleSkipArcs = () => {
-    const next = !skipArcs
-    setSkipArcs(next)
-    if (next) { setUseRandomArcs(false); setSelectedArcs([]) }
-  }
+
 
   // ── Territory handlers ────────────────────────────────────────────────────
   const handleTerritoryPillClick = (slot: FilledSlot) => {
@@ -292,14 +272,6 @@ export default function IdeaLabPage() {
   }
 
   const handleGeneratePrompt = async () => {
-    if (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) {
-      setError('Select at least one movement, use random, or skip')
-      return
-    }
-    if (skipArcs && selectedTerritoryKeys.length === 0 && !skipTerritories) {
-      setError('Skipping movements needs a territory — select one or use random')
-      return
-    }
     setIsGenerating(true)
     setError(null)
     try {
@@ -310,9 +282,8 @@ export default function IdeaLabPage() {
         payload.rejected = rejected.slice(-5)
         payload.regeneration = rejected.length
       }
-      if (skipArcs) payload.arcs = null
-      else if (useRandomArcs) payload.randomArcs = true
-      else payload.arcs = selectedArcs
+      // No movement is chosen: each question is drawn through one at random (the person's decision, 2026-10-31).
+      payload.randomArcs = true
 
       if (skipTerritories) {
         payload.territories = null
@@ -340,7 +311,7 @@ export default function IdeaLabPage() {
     }
   }
 
-  const isGenerateDisabled = (!skipArcs && selectedArcs.length === 0 && !useRandomArcs) || isGenerating
+  const isGenerateDisabled = isGenerating
 
   // ── Bring an idea: one text box, two exits ────────────────────────────────
   const { isRecording: isBringRecording, interimText: bringInterim, handleRecordToggle: toggleBringRecording, stopRecording: stopBringRecording, clearInterim: clearBringInterim } = useDictation({
@@ -507,27 +478,6 @@ export default function IdeaLabPage() {
         <div className="idea-lab-grid" inert={entry !== 'summon'} aria-hidden={entry !== 'summon'} style={maskFit ? { maxHeight: maskFit, overflow: 'hidden' } : undefined}>
           {/* ── The Lens ── */}
           <Card data-tour="lab-lens" padding={24} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div data-tour="lab-movement">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Eyebrow>Movement</Eyebrow>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  {textLink(handleRandomArcs, 'Random', useRandomArcs)}
-                  {textLink(handleSkipArcs, 'Skip', skipArcs)}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, opacity: useRandomArcs || skipArcs ? 0.4 : 1, transition: 'opacity 0.15s' }}>
-                {(Object.keys(ARC_DEFINITIONS) as Arc[]).map((arc) => (
-                  <span key={arc} title={ARC_DEFINITIONS[arc]}>
-                    <Pill hue={arcHue[arc]} selected={selectedArcs.includes(arc)} onClick={() => !useRandomArcs && !skipArcs && toggleArc(arc)} size="md">
-                      {arc}
-                    </Pill>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <Divider />
-
             <div data-tour="lab-territory">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Eyebrow>Territory</Eyebrow>
