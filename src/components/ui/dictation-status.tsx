@@ -19,12 +19,15 @@ const WEIGHT = [0.55, 0.8, 1, 0.8, 0.55]
 export function DictationStatus({
   recording,
   transcribing,
+  partial = '',
   getLevel,
   color = '#aaa59c',
   accent = '#ece9e2',
 }: {
   recording: boolean
   transcribing: boolean
+  /** The words so far, while they are being written out. */
+  partial?: string
   getLevel: () => number
   color?: string
   accent?: string
@@ -95,6 +98,12 @@ export function DictationStatus({
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%' }}
         >
           <span style={label}>Writing out what you said</span>
+          {partial ? (
+            <p style={{ margin: 0, width: '100%', fontFamily: 'var(--font-geist-sans)', fontSize: 16, fontWeight: 500, lineHeight: 1.65, color: accent, opacity: 0.75 }}>
+              {partial}
+              <m.span aria-hidden animate={{ opacity: [0.2, 1, 0.2] }} transition={{ duration: 1, repeat: Infinity }}> ▍</m.span>
+            </p>
+          ) : (
           <div aria-hidden style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[1, 0.8, 0.55].map((w, i) => (
               <m.span
@@ -105,6 +114,7 @@ export function DictationStatus({
               />
             ))}
           </div>
+          )}
         </m.div>
       ) : null}
     </AnimatePresence>

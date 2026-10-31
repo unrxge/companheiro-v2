@@ -57,7 +57,7 @@ function installMock() {
     }
     if (url.includes('/api/transcribe')) {
       const text = toTranscribe.shift() ?? ''
-      return json({ text })
+      return new Response(text, { headers: { 'Content-Type': 'text/plain' } })
     }
 
     if (url.includes('/api/reflect/turn')) {

@@ -99,6 +99,7 @@ export function Composer({
   placeholder = 'Say what is here…',
   recording = false,
   transcribing = false,
+  partial = '',
   onToggleRecording,
   sendLabel = 'Send',
   onShell = false,
@@ -113,6 +114,8 @@ export function Composer({
   recording?: boolean
   /** Dictation has stopped and its words are still being written out. */
   transcribing?: boolean
+  /** Words being written out, shown under the box until they land in it. */
+  partial?: string
   onToggleRecording?: () => void
   sendLabel?: string
   onShell?: boolean
@@ -151,6 +154,11 @@ export function Composer({
         {(recording || transcribing) && (
           <m.p key={recording ? 'rec' : 'writing'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ fontFamily: fonts.ui, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: onShell ? '#8a857c' : t.textMuted, margin: 0, textAlign: 'center' }}>
             {recording ? 'Recording' : 'Writing it out…'}
+          </m.p>
+        )}
+        {!recording && transcribing && partial && (
+          <m.p key="partial" initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} exit={{ opacity: 0 }} style={{ fontSize: 14, lineHeight: 1.6, color: onShell ? '#ece9e2' : t.textPrimary, margin: 0 }}>
+            {partial}
           </m.p>
         )}
       </AnimatePresence>

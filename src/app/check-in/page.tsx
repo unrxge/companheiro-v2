@@ -126,7 +126,7 @@ export default function CheckInPage() {
   const [walkDone, setWalkDone] = useState(false)
   const phone = usePhone()
 
-  const { isRecording, isTranscribing, getLevel, error: dictationError, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, isTranscribing, partialText, getLevel, error: dictationError, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -595,6 +595,7 @@ export default function CheckInPage() {
           <DictationStatus
             recording={isRecording}
             transcribing={isTranscribing}
+            partial={partialText}
             getLevel={getLevel}
             color={messages.length === 0 ? shell.muted : t.textMuted}
             accent={messages.length === 0 ? '#ece9e2' : t.textPrimary}
@@ -660,6 +661,7 @@ export default function CheckInPage() {
             placeholder={inputMode === 'keyboard' ? 'Begin typing…' : 'Say what is here…'}
             recording={isRecording}
             transcribing={isTranscribing}
+            partial={partialText}
             onToggleRecording={handleRecordToggle}
             onShell={messages.length === 0}
             autoFocus={inputMode === 'keyboard'}

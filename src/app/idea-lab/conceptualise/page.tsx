@@ -110,7 +110,7 @@ function ConceptualiseContent() {
   const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode || !!searchParams.get('project'))
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
-  const { isRecording, isTranscribing, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, isTranscribing, partialText, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -456,6 +456,7 @@ function ConceptualiseContent() {
               placeholder={briefProject ? 'A line or two is plenty…' : brought && messages.length === 0 ? 'Describe your idea…' : 'Share your thought…'}
               recording={isRecording}
               transcribing={isTranscribing}
+              partial={partialText}
               onToggleRecording={handleRecordToggle}
             />
           </div>

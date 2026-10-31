@@ -14,6 +14,11 @@ interface UseDictationReturn {
   isRecording: boolean
   /** True while recorded speech is still being turned into words. */
   isTranscribing: boolean
+  /**
+   * Words being written out right now, before they are appended. Shown apart
+   * from the box (never in its value), so typing meanwhile cannot double them.
+   */
+  partialText: string
   /** Kept for the pages that show it; always empty, words are never shown half-heard. */
   interimText: string
   /** Why the last recording produced nothing, if it failed. */
@@ -60,6 +65,8 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
   const [isRecording, setIsRecording] = useState(false)
   const [pending, setPending] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  // The words of the segment being written out, as they arrive.
+  const [partial, setPartial] = useState('')
 
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -88,18 +95,29 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
       form.append('lang', lang)
       form.append('seconds', String(Math.round(ms / 1000)))
       const res = await fetch('/api/transcribe', { method: 'POST', body: form })
-      if (!res.ok) throw new Error(res.status === 503 ? 'Dictation is not available right now.' : 'That could not be heard. Please try again.')
-      const data = await res.json()
-      return (data.text as string) ?? ''
+      if (!res.ok || !res.body) throw new Error(res.status === 503 ? 'Dictation is not available right now.' : 'That could not be heard. Please try again.')
+      return res.body
     })()
     queueRef.current = queueRef.current.then(async () => {
       try {
-        const text = (await request).trim()
+        // Read in turn, so only the segment being written out shows its words.
+        const reader = (await request).getReader()
+        const decoder = new TextDecoder()
+        let said = ''
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          said += decoder.decode(value, { stream: true })
+          setPartial(said)
+        }
+        setPartial('')
+        const text = said.trim()
         if (text) {
           tailRef.current?.push(text)
           onAppendRef.current(text)
         }
       } catch (e) {
+        setPartial('')
         setError(e instanceof Error ? e.message : 'That could not be heard. Please try again.')
       } finally {
         setPending((n) => n - 1)
@@ -168,11 +186,16 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
       })
       if (!recordingRef.current) { stream.getTracks().forEach((t) => t.stop()); ctx?.close().catch(() => {}); return }
       streamRef.current = stream
+      // The meter is a nicety: if it cannot attach, recording goes on without it.
       if (ctx) {
-        const analyser = ctx.createAnalyser()
-        analyser.fftSize = 512
-        ctx.createMediaStreamSource(stream).connect(analyser)
-        audioRef.current = { ctx, analyser, buf: new Uint8Array(analyser.fftSize) }
+        try {
+          const analyser = ctx.createAnalyser()
+          analyser.fftSize = 512
+          ctx.createMediaStreamSource(stream).connect(analyser)
+          audioRef.current = { ctx, analyser, buf: new Uint8Array(analyser.fftSize) }
+        } catch {
+          ctx.close().catch(() => {})
+        }
       }
       startSegment(stream)
     } catch {
@@ -226,6 +249,7 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     isRecording,
     isTranscribing: pending > 0,
     interimText: '',
+    partialText: partial,
     error,
     getLevel,
     handleRecordToggle,
