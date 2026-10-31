@@ -13,13 +13,15 @@ import { NoteOfferCard, type NoteOffer } from '@/components/check-in/note-offer'
 import { SpokenDemo } from '@/components/check-in/spoken-demo'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
-import { checkInTourSteps, demoShows, DEMO, SCENES, type DemoStage } from '@/lib/check-in-tour'
+import { checkInTourSteps, demoShows, DEMO, REPLY, SCENES, type DemoStage } from '@/lib/check-in-tour'
+import { TypedDemo } from '@/components/check-in/typed-demo'
 import { usePhone } from '@/lib/use-phone'
 import { motion as m, AnimatePresence } from 'motion/react'
 import { readTextStream } from '@/lib/stream-client'
 import { formatDateAsRelative } from '@/lib/dates'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
+import { MicButton } from '@/components/ui/mic-button'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { Thread, Composer } from '@/components/conversation/thread'
@@ -142,7 +144,17 @@ export default function CheckInPage() {
   }, [inputMode, transcript, dictationInterim, messages.length, isProcessing])
   useStayAwake(inputMode !== null && (recentlyActive || isRecording || isProcessing || speakingIndex !== null))
 
+  const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Resize the first message's box as the words arrive
+  useEffect(() => {
+    const el = transcriptTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+    el.scrollTop = el.scrollHeight
+  }, [transcript, dictationInterim])
   const historyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -515,10 +527,25 @@ export default function CheckInPage() {
   const walk = useExampleTour(!isLoadingHistory && messages.length === 0 && noteOffers.length === 0 && inputMode === null, 'checkin')
   const walkSteps = useMemo(() => checkInTourSteps(), [])
   const demo = demoShows(demoStage)
+  // The first example plays out as a real one would: typed and sent, then the
+  // reply arriving word by word after a moment's thought.
+  const replyWords = DEMO.reply.split(' ')
+  const [feelingSent, setFeelingSent] = useState(false)
+  const [replyShown, setReplyShown] = useState(0)
+  useEffect(() => {
+    if (demoStage === 'feeling') { setFeelingSent(false); setReplyShown(0); return }
+    if (demoStage !== 'reply') return
+    setFeelingSent(true)
+    setReplyShown(0)
+    const timers = replyWords.map((_, i) => window.setTimeout(() => setReplyShown(i + 1), REPLY.thinkMs + i * REPLY.wordMs))
+    return () => timers.forEach(clearTimeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoStage])
   const demoMessages: Message[] = [
-    ...(demo.feeling ? [{ role: 'user' as const, content: DEMO.feeling }] : []),
-    ...(demo.reply ? [{ role: 'assistant' as const, content: DEMO.reply }] : []),
+    ...(demo.feeling && (demoStage !== 'feeling' || feelingSent) ? [{ role: 'user' as const, content: DEMO.feeling }] : []),
+    ...(demo.reply && replyShown > 0 ? [{ role: 'assistant' as const, content: replyWords.slice(0, replyShown).join(' ') }] : []),
   ]
+  const demoReplying = demoStage === 'reply' && replyShown < replyWords.length
   const demoOffer: NoteOffer | null = demo.offer === 'none' ? null : {
     id: 'demo', said: DEMO.aside, text: DEMO.note.text, kind: DEMO.note.kind, project_id: DEMO.project.id,
     state: demo.offer === 'added' ? 'added' : 'offered',
@@ -526,7 +553,7 @@ export default function CheckInPage() {
   const showingDemo = demoStage !== null
   const shownMessages = showingDemo ? demoMessages : messages
   const shownOffers = showingDemo ? (demoOffer ? [demoOffer] : []) : noteOffers
-  const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && !!demo.typing)
+  const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && (!!demo.typing || !!demo.typed))
 
   const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }] : pastCheckIns)
   const hour = new Date().getHours()
@@ -538,6 +565,8 @@ export default function CheckInPage() {
     <div data-tour="checkin-start" style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '0 auto' }}>
       {showingDemo && demo.typing ? (
         <SpokenDemo words={demo.typing} />
+      ) : showingDemo && demo.typed ? (
+        feelingSent ? null : <TypedDemo key="typed" text={demo.typed} onSent={() => setFeelingSent(true)} />
       ) : inputMode === null ? (
         <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="check-in-mode-picker">
           <m.button onClick={() => { setInputMode('mic'); startMicMode() }} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by voice">
@@ -557,8 +586,62 @@ export default function CheckInPage() {
             <span style={{ ...typeRoles.small, fontSize: 12, color: shell.muted, letterSpacing: '0.04em' }}>Type</span>
           </m.button>
         </m.div>
+      ) : messages.length === 0 ? (
+        // The first thing said: the big microphone, as it always was.
+        <>
+          {inputMode === 'mic' && <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={isProcessing} size={80} onShell={messages.length === 0} />}
+
+          <AnimatePresence>
+            {isRecording && (
+              <m.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ ...typeRoles.eyebrow, color: messages.length === 0 ? shell.muted : t.textMuted }}>
+                Recording
+              </m.p>
+            )}
+          </AnimatePresence>
+
+          {(transcript || isRecording || inputMode === 'keyboard') && (
+            <textarea
+              ref={transcriptTextareaRef}
+              value={textareaValue}
+              onChange={(e) => {
+                clearInterim()
+                setTranscript(e.target.value)
+              }}
+              placeholder={inputMode === 'keyboard' ? 'Begin typing…' : 'Your words will appear here…'}
+              rows={inputMode === 'keyboard' ? 2 : 1}
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus={inputMode === 'keyboard'}
+              aria-label="Your check-in"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                backgroundColor: messages.length === 0 ? '#1c1916' : t.inputBg,
+                border: `1px solid ${messages.length === 0 ? '#352f29' : t.inputBorder}`,
+                borderRadius: 12,
+                padding: '12px 14px',
+                fontFamily: 'var(--font-geist-sans)',
+                fontSize: 16,
+                fontWeight: 500,
+                color: messages.length === 0 ? '#ece9e2' : t.textPrimary,
+                outline: 'none',
+                resize: 'none',
+                lineHeight: 1.65,
+                overflowY: 'auto',
+                maxHeight: 200,
+              }}
+            />
+          )}
+
+          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error}</p>}
+
+          {(transcript.trim() || isTranscribing) && (
+            <PrimaryButton onClick={() => void handleSend()} disabled={isProcessing || isTranscribing} loading={isProcessing} loadingLabel="Processing…" full size="lg">
+              Send
+            </PrimaryButton>
+          )}
+        </>
       ) : (
-        // Once begun, voice or typing, it is the same box as the Idea Lab's
+        // Once the companion has answered, the same box as the Idea Lab's
         // conversation: the words, the microphone beside them, Send.
         <m.div
           key="composer"
@@ -675,7 +758,7 @@ export default function CheckInPage() {
 
       {!conversing ? (
         /* Idle: the two circles, directly on the shell, exactly as minimal as before */
-        <m.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }} style={{ minHeight: '46vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
+        <m.div data-tour="checkin-window" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }} style={{ minHeight: '46vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
           {inputArea}
         </m.div>
       ) : (
@@ -683,10 +766,13 @@ export default function CheckInPage() {
           {/* The walk's two examples are two scenes: each fades in on its own,
               under a label saying which it is, and the first is gone before
               the second begins. */}
+          {/* Between the two, the first lifts away before the second rises into its place. */}
+          <AnimatePresence mode="wait" initial={false}>
           <m.div
             key={showingDemo ? `scene-${demo.scene ?? 0}` : 'live'}
             initial={showingDemo ? { opacity: 0, y: 14 } : false}
             animate={{ opacity: 1, y: 0 }}
+            exit={showingDemo ? { opacity: 0, y: -12, transition: { duration: 0.35, ease: 'easeIn' } } : undefined}
             transition={{ duration: 0.45, ease: 'easeOut' }}
             style={{ maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}
           >
@@ -697,7 +783,7 @@ export default function CheckInPage() {
               </div>
             )}
             <div data-tour="checkin-thread">
-            <Thread messages={shownMessages} streaming={!showingDemo && isProcessing} align="left">
+            <Thread messages={shownMessages} streaming={showingDemo ? demoReplying : isProcessing} align="left">
               {/* Read aloud for the last companion reply */}
               {!showingDemo && hasAiResponded && !isProcessing && (
                 <div style={{ marginTop: -12 }}>
@@ -812,6 +898,7 @@ export default function CheckInPage() {
             </div>
             <div ref={messagesEndRef} style={{ height: 1 }} />
           </m.div>
+          </AnimatePresence>
         </Container>
       )}
 
