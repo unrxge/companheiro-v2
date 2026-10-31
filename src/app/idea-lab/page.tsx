@@ -20,7 +20,7 @@ import { WorkingDots } from '@/components/ui/working'
 import { usePhone } from '@/lib/use-phone'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
-import { ideaLabTourSteps } from '@/lib/page-tours'
+import { LAB_QUESTION_DEMO, ideaLabTourSteps } from '@/lib/page-tours'
 
 interface Capture {
   id: string
@@ -77,6 +77,7 @@ export default function IdeaLabPage() {
   const labSteps = useMemo(() => ideaLabTourSteps(), [])
   const demoTimers = useRef<number[]>([])
   const before = useRef<{ energy: number; impersonal: boolean } | null>(null)
+  const demoAsked = useRef(false)
   const stopDemo = () => { demoTimers.current.forEach((x) => window.clearTimeout(x)); demoTimers.current = [] }
   const playDemo = (stage: string | undefined) => {
     stopDemo()
@@ -89,6 +90,13 @@ export default function IdeaLabPage() {
       // Down to Heavy, up to Bright, back where it was: one notch at a time, unhurried.
       const path = [1, 0, 1, 2, 3, 4, 3, was.energy]
       path.forEach((v, i) => at(700 + i * 420, () => setEnergyIndex(v)))
+    }
+    // Summoned: the question arrives a word at a time, and is taken away again after.
+    if (demoAsked.current) { demoAsked.current = false; setGeneratedPrompt(null) }
+    if (stage === 'ask') {
+      demoAsked.current = true
+      const words = LAB_QUESTION_DEMO.split(' ')
+      words.forEach((_, i) => at(900 + i * 90, () => setGeneratedPrompt(words.slice(0, i + 1).join(' '))))
     }
     if (stage === 'mode') {
       at(500, () => setImpersonal(true))

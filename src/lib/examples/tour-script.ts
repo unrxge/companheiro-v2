@@ -287,6 +287,8 @@ export function pieceTourSteps(input: { practices: readonly string[]; exampleFor
       lines: ['It guides. It writes only when you ask it to.'],
       show: { anchor: ['rail-assistant', 'rail-panel'] },
       panel: 'assistant',
+      // An exchange plays in the panel: a question typed and sent, a reply arriving word by word.
+      wait: 6200,
     }),
     step({
       key: 'flow',

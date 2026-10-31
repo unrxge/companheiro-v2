@@ -46,6 +46,7 @@ import { CarriedCard } from '@/components/studio/work/carried-card'
 import { PlanBanner } from '@/components/studio/work/plan-banner'
 import { ExampleBanner } from '@/components/studio/work/example-banner'
 import { forgetLayout } from '@/lib/examples/layout'
+import { typeOut, typeOutMs } from '@/lib/type-out'
 import { useNoHover, usePhone } from '@/lib/use-phone'
 import { ExampleTour, type RoomMove } from '@/components/studio/work/example-tour'
 import { EXAMPLE_PRACTICES, pieceTourSteps, tourSteps, type TourStep } from '@/lib/examples/tour-script'
@@ -207,6 +208,30 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
     activePartId,
     selection,
   })
+
+  // The piece walk plays an exchange in the assistant: a question typed into
+  // the box and sent, then a reply that guides arriving a word at a time.
+  // Nothing is sent anywhere; the real conversation is untouched.
+  const [assistantDemo, setAssistantDemo] = useState(false)
+  const [demoInput, setDemoInput] = useState('')
+  const [demoMessages, setDemoMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+  const [demoBusy, setDemoBusy] = useState(false)
+  useEffect(() => {
+    setDemoInput(''); setDemoMessages([]); setDemoBusy(false)
+    if (!assistantDemo) return
+    const ask = 'This middle part drags and I can’t see why.'
+    const answer = 'What does the part before it promise? Read its last line, then this one’s first. Does the middle keep that promise, or start a new one?'
+    const stops: Array<() => void> = []
+    stops.push(typeOut(ask, setDemoInput, { leadMs: 600 }))
+    const sentAt = typeOutMs(ask, { leadMs: 600 }) + 500
+    const timers = [
+      window.setTimeout(() => { setDemoInput(''); setDemoMessages([{ role: 'user', content: ask }]); setDemoBusy(true) }, sentAt),
+    ]
+    stops.push(typeOut(answer, (sofar) => setDemoMessages([{ role: 'user', content: ask }, { role: 'assistant', content: sofar }]), { by: 'word', leadMs: sentAt + 900, wordMs: 80 }))
+    timers.push(window.setTimeout(() => setDemoBusy(false), sentAt + 900 + answer.split(' ').length * 80 + 200))
+    return () => { stops.forEach((f) => f()); timers.forEach((x) => window.clearTimeout(x)) }
+  }, [assistantDemo])
+  const demoChat = { ...chat, messages: demoMessages, input: demoInput, busy: demoBusy, setInput: () => {}, send: async () => {} } as typeof chat
   // Time spent writing feeds the Inner Weather strip on days with no check-in.
   useWritingTimeTracker(focus.kind === 'node' && !!node)
   // With the assistant up as a sheet, the part being written is brought into the visible half.
@@ -679,7 +704,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
 
       {rail === 'assistant' && scopeNode && isRootPiece && (
         <AssistantPanel
-          chat={chat}
+          chat={assistantDemo ? demoChat : chat}
           selection={selection}
           onClearSelection={() => setSelection(null)}
           onRulesChanged={() => void api.refresh()}
@@ -977,9 +1002,9 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
         <ExampleTour
           steps={pieceTouring}
           phone={phone}
-          onPanel={(panel) => setRail(panel)}
+          onPanel={(panel) => { setRail(panel); setAssistantDemo(panel === 'assistant') }}
           onView={setView}
-          onDone={() => setPieceTouring(null)}
+          onDone={() => { setAssistantDemo(false); setPieceTouring(null) }}
           startAt={process.env.NODE_ENV === 'production' ? 0 : Math.max(0, Number(new URLSearchParams(window.location.search).get('piecetour') ?? 1) - 1)}
         />
       )}

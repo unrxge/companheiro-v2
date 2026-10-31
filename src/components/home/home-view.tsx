@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion as m } from 'motion/react'
@@ -20,7 +20,8 @@ import { cleanName } from '@/lib/tour'
 import { usePhone } from '@/lib/use-phone'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
-import { homeTourSteps } from '@/lib/page-tours'
+import { HOME_CAPTURE_DEMO, homeTourSteps } from '@/lib/page-tours'
+import { typeOut, typeOutMs } from '@/lib/type-out'
 import { lastSeenProjects } from '@/lib/studio/last-seen'
 
 interface ActivePiece {
@@ -233,6 +234,18 @@ export function HomeView() {
   const greetingWords = greeting.split(' ')
   const walk = useExampleTour(staying && !isLoading && !isLoadingCaptures, 'home')
   const homeSteps = useMemo(() => homeTourSteps(), [])
+  // The capture step types an example into the box (a note, then a link), and takes it out again after.
+  const captureDemo = useRef<(() => void) | null>(null)
+  const playCapture = (on: boolean) => {
+    captureDemo.current?.()
+    captureDemo.current = null
+    setCaptureNote('')
+    setCaptureUrl('')
+    if (!on) return
+    const stopNote = typeOut(HOME_CAPTURE_DEMO.note, setCaptureNote)
+    const stopUrl = typeOut(HOME_CAPTURE_DEMO.url, setCaptureUrl, { leadMs: typeOutMs(HOME_CAPTURE_DEMO.note) + 300 })
+    captureDemo.current = () => { stopNote(); stopUrl() }
+  }
 
   return (
     <PageShell mood={mood as Mood} intensity={intensity}>
@@ -419,8 +432,8 @@ export function HomeView() {
           steps={homeSteps}
           phone={phone}
           label="A short walk round Home"
-          onStep={(st) => { if (st.key === homeSteps[0].key) walk.markSeen() }}
-          onDone={() => { setWalked(true); walk.markSeen() }}
+          onStep={(st) => { if (st.key === homeSteps[0].key) walk.markSeen(); playCapture(st.stage === 'capture') }}
+          onDone={() => { playCapture(false); setWalked(true); walk.markSeen() }}
         />
       )}
     </PageShell>

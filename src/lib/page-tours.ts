@@ -13,6 +13,13 @@
 // Pure: the steps, and what the Portrait's example shows at each stage.
 
 import { readingTime, type TourStep } from '@/lib/examples/tour-script'
+import { typeOutMs } from '@/lib/type-out'
+
+/** What Home's walk types into the capture box, and the Idea Lab's walk summons. */
+export const HOME_CAPTURE_DEMO = { note: 'The way the street lights stay orange after the rain stops.', url: 'vimeo.com/night-ferry-short' }
+export const LAB_QUESTION_DEMO = 'What did you stop making when you got good at your job?'
+/** The Portrait walk's check-in is typed, and the pattern it leads to arrives a word at a time. */
+export const PORTRAIT_TYPE = { charMs: 22, leadMs: 400 }
 
 const step = (s: Omit<TourStep, 'ms'>): TourStep => ({ ...s, ms: readingTime(s.headline, s.lines) })
 
@@ -39,7 +46,8 @@ export function homeTourSteps(): TourStep[] {
       lines: ['One bar a day: its height is your energy, its colour the movement you were in.', 'It fills as you check in and write.'],
     }),
     step({
-      key: 'capture', show: { anchor: 'home-capture' },
+      key: 'capture', stage: 'capture', show: { anchor: 'home-capture' },
+      wait: typeOutMs(HOME_CAPTURE_DEMO.note) + typeOutMs(HOME_CAPTURE_DEMO.url, { leadMs: 300 }) + 500,
       headline: 'Keep what moves you, the moment it does.',
       lines: ['Someone else’s post, video or article stopped you? Paste the link and say what caught your eye.'],
     }),
@@ -90,7 +98,7 @@ export function ideaLabTourSteps(): TourStep[] {
       lines: ['Open asks about the world, wide, with no single right answer.', 'Charged asks about your own life: only you can answer it.'],
     }),
     step({
-      key: 'ask', show: { anchor: 'lab-stage' },
+      key: 'ask', stage: 'ask', show: { anchor: 'lab-stage' }, wait: 900 + LAB_QUESTION_DEMO.split(' ').length * 90 + 600,
       headline: 'Then summon it.',
       lines: ['Not the one? Ask again until one lands. Write your answer, and it becomes the start of a project.'],
     }),
@@ -138,11 +146,12 @@ export function portraitTourSteps(): TourStep[] {
     }),
     step({
       key: 'checkin', stage: 'checkin', show: { anchor: 'portrait-checkin' },
+      wait: PORTRAIT_TYPE.leadMs + (PORTRAIT_DEMO.checkIn.before + PORTRAIT_DEMO.checkIn.caught + PORTRAIT_DEMO.checkIn.after).length * PORTRAIT_TYPE.charMs + 500,
       headline: 'It starts in your check-ins.',
       lines: ['When you talk, the companion listens for what you keep doing, not only what you say.'],
     }),
     step({
-      key: 'noticed', stage: 'noticed', show: { anchor: ['portrait-checkin', 'portrait-entry'] }, wait: 1600,
+      key: 'noticed', stage: 'noticed', show: { anchor: ['portrait-checkin', 'portrait-entry'] }, wait: 1400 + PORTRAIT_DEMO.entries[0].statement.split(' ').length * 90,
       headline: 'Something it notices becomes a line here.',
       lines: ['Said plainly, the way a friend who knows you would say it.'],
     }),

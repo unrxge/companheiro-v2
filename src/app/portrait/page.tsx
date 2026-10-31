@@ -14,7 +14,8 @@ import { alpha } from '@/lib/design-tokens'
 import { usePhone } from '@/lib/use-phone'
 import { ExampleTour } from '@/components/studio/work/example-tour'
 import { useExampleTour } from '@/lib/examples/use-example-tour'
-import { PORTRAIT_DEMO, portraitShows, portraitTourSteps, type PortraitDemo } from '@/lib/page-tours'
+import { PORTRAIT_DEMO, PORTRAIT_TYPE, portraitShows, portraitTourSteps, type PortraitDemo } from '@/lib/page-tours'
+import { typeOut } from '@/lib/type-out'
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 
@@ -135,6 +136,18 @@ export default function PortraitPage() {
 
   const walk = useExampleTour(!isLoading, 'portrait')
   const demo = portraitShows(demoStage)
+  // The walk's check-in is typed in, and the pattern it leads to arrives a word at a time.
+  const demoText = PORTRAIT_DEMO.checkIn.before + PORTRAIT_DEMO.checkIn.caught + PORTRAIT_DEMO.checkIn.after
+  const [typedCount, setTypedCount] = useState(0)
+  const [noticedSoFar, setNoticedSoFar] = useState<string | null>(null)
+  useEffect(() => {
+    if (demoStage === 'checkin') { setTypedCount(0); setNoticedSoFar(null); return typeOut(demoText, (t) => setTypedCount(t.length), PORTRAIT_TYPE) }
+    setTypedCount(demoText.length)
+    if (demoStage === 'noticed') { setNoticedSoFar(''); return typeOut(PORTRAIT_DEMO.entries[0].statement, setNoticedSoFar, { by: 'word', leadMs: 700, wordMs: 90 }) }
+    setNoticedSoFar(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoStage])
+  const typedPart = (from: number, text: string) => text.slice(0, Math.max(0, Math.min(text.length, typedCount - from)))
   const showing = demoStage !== null
   const shownEntries = showing ? demoEntries(demo.entries) : entries
   const grouped = (Object.keys(KIND_LABELS) as PortraitEntry['kind'][])
@@ -156,14 +169,14 @@ export default function PortraitPage() {
             <Card>
               <p style={{ ...typeRoles.small, fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: '0.04em' }}>CHECK-IN · {PORTRAIT_DEMO.checkIn.day.toUpperCase()}</p>
               <p style={{ ...typeRoles.quote, fontSize: 16, color: t.textPrimary, marginTop: 8 }}>
-                {PORTRAIT_DEMO.checkIn.before}
+                {typedPart(0, PORTRAIT_DEMO.checkIn.before)}
                 <span style={{
                   borderRadius: 4, padding: '0 2px',
                   background: demo.caught ? alpha(t.ember, 0.18) : 'transparent',
                   boxShadow: demo.caught ? `inset 0 -2px 0 ${t.ember}` : 'none',
                   transition: 'background-color 900ms ease, box-shadow 900ms ease',
-                }}>{PORTRAIT_DEMO.checkIn.caught}</span>
-                {PORTRAIT_DEMO.checkIn.after}
+                }}>{typedPart(PORTRAIT_DEMO.checkIn.before.length, PORTRAIT_DEMO.checkIn.caught)}</span>
+                {typedPart(PORTRAIT_DEMO.checkIn.before.length + PORTRAIT_DEMO.checkIn.caught.length, PORTRAIT_DEMO.checkIn.after)}
               </p>
             </Card>
           </div>
@@ -201,7 +214,7 @@ export default function PortraitPage() {
                       const left = daysUntilRetired(entry.last_reinforced_at)
                       return (
                         <div key={entry.id} data-tour={entry.id === PORTRAIT_DEMO.entries[0].id ? 'portrait-entry' : undefined} style={{ padding: '16px 0', borderBottom: index < visible.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
-                          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary }}>{entry.statement}</p>
+                          <p style={{ ...typeRoles.ui, fontSize: 14, color: t.textPrimary, minHeight: '1.5em' }}>{showing && noticedSoFar !== null && entry.id === PORTRAIT_DEMO.entries[0].id ? noticedSoFar : entry.statement}</p>
                           {/* The forget action sits in the detail line, so the statement keeps the full width on a phone. */}
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
                             <p style={{ ...typeRoles.small, fontSize: 11, color: t.textMuted, flex: 1, minWidth: 0 }}>
