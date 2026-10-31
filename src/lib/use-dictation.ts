@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useLayoutEffect, useEffect } from 'react'
+import { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react'
 import { getDictationLang } from '@/lib/settings'
 
 interface UseDictationOptions {
@@ -18,6 +18,9 @@ interface UseDictationReturn {
   interimText: string
   /** Why the last recording produced nothing, if it failed. */
   error: string | null
+  /** How loud the microphone is right now, 0 to 1. Read it in an animation
+   *  frame, never into state: it changes sixty times a second. */
+  getLevel: () => number
   handleRecordToggle: () => void
   /**
    * Stops, and resolves once everything recorded has been appended, with the
@@ -104,10 +107,24 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     })
   }
 
+  const audioRef = useRef<{ ctx: AudioContext; analyser: AnalyserNode; buf: Uint8Array<ArrayBuffer> } | null>(null)
+
   const releaseMic = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
+    audioRef.current?.ctx.close().catch(() => {})
+    audioRef.current = null
   }
+
+  // Stable, so a meter's animation loop is not restarted by every render.
+  const getLevel = useCallback(() => {
+    const a = audioRef.current
+    if (!a) return 0
+    a.analyser.getByteTimeDomainData(a.buf)
+    let sum = 0
+    for (let i = 0; i < a.buf.length; i++) { const v = (a.buf[i] - 128) / 128; sum += v * v }
+    return Math.min(1, Math.sqrt(sum / a.buf.length) * 4)
+  }, [])
 
   // One MediaRecorder per segment, so every upload is a complete file.
   const startSegment = (stream: MediaStream) => {
@@ -139,14 +156,27 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     }
     recordingRef.current = true
     setIsRecording(true)
+    // Made inside the press, before any await: iOS only allows sound then.
+    let ctx: AudioContext | null = null
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      ctx = AC ? new AC() : null
+    } catch { ctx = null }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
-      if (!recordingRef.current) { stream.getTracks().forEach((t) => t.stop()); return }
+      if (!recordingRef.current) { stream.getTracks().forEach((t) => t.stop()); ctx?.close().catch(() => {}); return }
       streamRef.current = stream
+      if (ctx) {
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 512
+        ctx.createMediaStreamSource(stream).connect(analyser)
+        audioRef.current = { ctx, analyser, buf: new Uint8Array(analyser.fftSize) }
+      }
       startSegment(stream)
     } catch {
+      ctx?.close().catch(() => {})
       recordingRef.current = false
       setIsRecording(false)
       setError('The microphone could not be opened.')
@@ -197,6 +227,7 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     isTranscribing: pending > 0,
     interimText: '',
     error,
+    getLevel,
     handleRecordToggle,
     stopRecording,
     clearInterim,

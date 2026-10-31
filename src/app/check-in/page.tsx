@@ -22,6 +22,7 @@ import { formatDateAsRelative } from '@/lib/dates'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { MicButton } from '@/components/ui/mic-button'
+import { DictationStatus } from '@/components/ui/dictation-status'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
 import { Pill } from '@/components/ui/pill'
 import { Thread, Composer } from '@/components/conversation/thread'
@@ -125,7 +126,7 @@ export default function CheckInPage() {
   const [walkDone, setWalkDone] = useState(false)
   const phone = usePhone()
 
-  const { isRecording, isTranscribing, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
+  const { isRecording, isTranscribing, getLevel, error: dictationError, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -591,15 +592,16 @@ export default function CheckInPage() {
         <>
           {inputMode === 'mic' && <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={isProcessing} size={80} onShell={messages.length === 0} />}
 
-          <AnimatePresence>
-            {isRecording && (
-              <m.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ ...typeRoles.eyebrow, color: messages.length === 0 ? shell.muted : t.textMuted }}>
-                Recording
-              </m.p>
-            )}
-          </AnimatePresence>
+          <DictationStatus
+            recording={isRecording}
+            transcribing={isTranscribing}
+            getLevel={getLevel}
+            color={messages.length === 0 ? shell.muted : t.textMuted}
+            accent={messages.length === 0 ? '#ece9e2' : t.textPrimary}
+          />
 
-          {(transcript || isRecording || inputMode === 'keyboard') && (
+          {/* While listening or writing out, the status speaks instead of an empty box. */}
+          {((transcript && !isRecording && !isTranscribing) || inputMode === 'keyboard') && (
             <textarea
               ref={transcriptTextareaRef}
               value={textareaValue}
@@ -632,7 +634,7 @@ export default function CheckInPage() {
             />
           )}
 
-          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error}</p>}
+          {(error || dictationError) && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error || dictationError}</p>}
 
           {(transcript.trim() || isTranscribing) && (
             <PrimaryButton onClick={() => void handleSend()} disabled={isProcessing || isTranscribing} loading={isProcessing} loadingLabel="Processing…" full size="lg">
@@ -661,6 +663,7 @@ export default function CheckInPage() {
             onToggleRecording={handleRecordToggle}
             onShell={messages.length === 0}
             autoFocus={inputMode === 'keyboard'}
+            inline
           />
           {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start', margin: 0 }}>{error}</p>}
         </m.div>

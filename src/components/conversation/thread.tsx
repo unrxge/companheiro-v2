@@ -103,6 +103,7 @@ export function Composer({
   sendLabel = 'Send',
   onShell = false,
   autoFocus = false,
+  inline = false,
 }: {
   value: string
   onChange: (v: string) => void
@@ -116,13 +117,15 @@ export function Composer({
   sendLabel?: string
   onShell?: boolean
   autoFocus?: boolean
+  /** Keep the mic and Send beside the box on a phone too, instead of under it. */
+  inline?: boolean
 }) {
   const { t } = useTheme()
   // Send works mid-recording: the page stops it and waits for the last words.
   const canSend = (value.trim().length > 0 || recording) && !disabled
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div className="composer-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+      <div className={inline ? undefined : 'composer-row'} style={{ display: 'flex', gap: inline ? 8 : 10, alignItems: 'flex-end' }}>
         <TextArea
           value={value}
           onChange={onChange}
@@ -137,7 +140,7 @@ export function Composer({
               onSend()
             }
           }}
-          style={{ flex: 1, fontSize: 15, borderRadius: radius.field, ...(onShell ? { backgroundColor: '#1c1916', borderColor: '#352f29', color: '#ece9e2' } : {}) }}
+          style={{ flex: 1, minWidth: 0, fontSize: 15, borderRadius: radius.field, ...(onShell ? { backgroundColor: '#1c1916', borderColor: '#352f29', color: '#ece9e2' } : {}) }}
         />
         {onToggleRecording && <MicButton recording={recording} onToggle={onToggleRecording} disabled={disabled} size={44} onShell={onShell} />}
         <PrimaryButton onClick={onSend} disabled={!canSend} ariaLabel={sendLabel}>
