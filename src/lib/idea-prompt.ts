@@ -231,9 +231,14 @@ const ENERGY_TONE_STEER: Record<string, string> = {
     "Render with charged, forward-surging wonder — the specific electricity of a door thrown open into a much larger room. The question must begin and end entirely in the positive: no deficit framing, no implied wound, no 'despite', no 'instead of', no shadow even at the edges. The person reading it should feel catapulted into creation not because they've been invited to heal something, but because the territory itself is ALIVE and already calling. Urgent without anxiety. Specific without being heavy. The question should feel like the one that makes a person stop everything and reach for a blank page right now — not because something is wrong, but because something is genuinely possible. The universe as active co-conspirator, the work as something already alive, the territory as abundance not absence. Not inspirational-poster bright: genuinely charged, alive, carrying real forward momentum.",
 };
 
-/** One movement, drawn at random: the person no longer chooses one, and whatever comes, comes. */
+/**
+ * The movements a question is drawn through, at random: the person no longer
+ * chooses one, and whatever comes, comes. Half the time one; otherwise one to
+ * four blended, which is where the stranger questions come from.
+ */
 export function getRandomArcs(): string[] {
-  return [ALL_ARCS[Math.floor(Math.random() * ALL_ARCS.length)]];
+  const count = Math.random() > 0.5 ? 1 : Math.floor(Math.random() * 4) + 1;
+  return [...ALL_ARCS].sort(() => Math.random() - 0.5).slice(0, count);
 }
 
 export function getRandomTerritories(): string[] {
