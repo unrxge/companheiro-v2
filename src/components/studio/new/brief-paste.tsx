@@ -29,7 +29,7 @@ export function BriefPaste({
   const valueRef = useRef(value)
   valueRef.current = value
 
-  const { isRecording, interimText, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, interimText, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: (text) => {
       const cur = valueRef.current
       const next = cur.trim() ? `${cur.replace(/\s+$/, '')} ${text}` : text
@@ -39,7 +39,17 @@ export function BriefPaste({
     getContext: () => valueRef.current.slice(-200),
   })
 
-  const canRead = value.trim().length > 0 && !busy
+  const canRead = (value.trim().length > 0 || isRecording) && !busy
+  const onReadRef = useRef(onRead)
+  onReadRef.current = onRead
+  // Pressed mid-sentence: stop, wait for the last words and for the page to hold them.
+  const read = async () => {
+    if (isRecording) {
+      await stopRecording()
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    if (valueRef.current.trim()) onReadRef.current()
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -59,7 +69,7 @@ export function BriefPaste({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canRead) {
             e.preventDefault()
-            onRead()
+            void read()
           }
         }}
       />
@@ -72,7 +82,7 @@ export function BriefPaste({
           <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={busy} size={44} />
           <span style={{ ...canvasType.meta, color: t.textMuted }}>{isRecording ? 'Listening' : 'Type or speak'}</span>
         </div>
-        <PrimaryButton onClick={onRead} disabled={!canRead} loading={busy} loadingLabel="Reading it">
+        <PrimaryButton onClick={() => void read()} disabled={!canRead} loading={busy} loadingLabel="Reading it">
           Read it
         </PrimaryButton>
       </div>

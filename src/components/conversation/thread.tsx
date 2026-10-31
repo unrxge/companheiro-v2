@@ -98,6 +98,7 @@ export function Composer({
   disabled = false,
   placeholder = 'Say what is here…',
   recording = false,
+  transcribing = false,
   onToggleRecording,
   sendLabel = 'Send',
   onShell = false,
@@ -109,13 +110,16 @@ export function Composer({
   disabled?: boolean
   placeholder?: string
   recording?: boolean
+  /** Dictation has stopped and its words are still being written out. */
+  transcribing?: boolean
   onToggleRecording?: () => void
   sendLabel?: string
   onShell?: boolean
   autoFocus?: boolean
 }) {
   const { t } = useTheme()
-  const canSend = value.trim().length > 0 && !disabled
+  // Send works mid-recording: the page stops it and waits for the last words.
+  const canSend = (value.trim().length > 0 || recording) && !disabled
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div className="composer-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
@@ -141,9 +145,9 @@ export function Composer({
         </PrimaryButton>
       </div>
       <AnimatePresence>
-        {recording && (
-          <m.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ fontFamily: fonts.ui, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: onShell ? '#8a857c' : t.textMuted, margin: 0, textAlign: 'center' }}>
-            Recording
+        {(recording || transcribing) && (
+          <m.p key={recording ? 'rec' : 'writing'} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ fontFamily: fonts.ui, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: onShell ? '#8a857c' : t.textMuted, margin: 0, textAlign: 'center' }}>
+            {recording ? 'Recording' : 'Writing it out…'}
           </m.p>
         )}
       </AnimatePresence>

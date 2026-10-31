@@ -63,21 +63,27 @@ export function FourQuestions({
     handleRecordToggle()
   }
 
+  const onReadRef = useRef(onRead)
+  onReadRef.current = onRead
   const last = index === FOUR_QUESTIONS.length - 1
   const current = answers[index]
   const canAdvance = current.trim().length > 0 && !busy
 
   const go = (next: number) => {
-    if (isRecording) stopRecording()
+    if (isRecording) void stopRecording()
     clearInterim()
     setIndex(next)
   }
 
-  const advance = () => {
+  const advance = async () => {
     if (!canAdvance) return
     if (last) {
-      if (isRecording) stopRecording()
-      onRead()
+      if (isRecording) {
+        // Wait for the last words, and for the page to hold them, before reading.
+        await stopRecording()
+        await new Promise((r) => setTimeout(r, 0))
+      }
+      onReadRef.current()
     } else go(index + 1)
   }
 

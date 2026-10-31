@@ -110,7 +110,7 @@ function ConceptualiseContent() {
   const [resumeDecided, setResumeDecided] = useState(!!seed || !!resumeId || bringMode || checkInMode || !!searchParams.get('project'))
   const draftIdRef = useRef<string>(crypto.randomUUID())
 
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, isTranscribing, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setInputText((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -324,8 +324,12 @@ function ConceptualiseContent() {
   }
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return
-    const userMessage: ThreadMessage = { role: 'user', content: inputText.trim() }
+    if (isLoading) return
+    const typed = inputTextRef.current
+    const spoken = isRecording ? await stopRecording() : ''
+    const content = [typed.trim(), spoken].filter(Boolean).join(' ')
+    if (!content) return
+    const userMessage: ThreadMessage = { role: 'user', content }
     if (brought && !messages.some((x) => x.role === 'user')) broughtSeedRef.current = userMessage.content
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
@@ -451,6 +455,7 @@ function ConceptualiseContent() {
               disabled={isLoading}
               placeholder={briefProject ? 'A line or two is plenty…' : brought && messages.length === 0 ? 'Describe your idea…' : 'Share your thought…'}
               recording={isRecording}
+              transcribing={isTranscribing}
               onToggleRecording={handleRecordToggle}
             />
           </div>

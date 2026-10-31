@@ -153,9 +153,12 @@ export function Companion({
   }, [draft, dictation.interimText])
 
   const send = useCallback(async () => {
-    const text = draft.trim()
-    if (!text || busy) return
-    if (dictation.isRecording) dictation.stopRecording()
+    if (busy) return
+    const typed = draftRef.current.trim()
+    // Pressed mid-sentence: stop, and wait for the last words.
+    const spoken = dictation.isRecording ? await dictation.stopRecording() : ''
+    const text = [typed, spoken].filter(Boolean).join(' ')
+    if (!text) return
     setDraft('')
     setError(null)
     setBusy(true)
@@ -302,7 +305,7 @@ export function Companion({
             type="button"
             onClick={() => void send()}
             aria-busy={busy || undefined}
-            disabled={busy || !draft.trim()}
+            disabled={busy || (!draft.trim() && !dictation.isRecording)}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field,
               border: 'none', cursor: busy || !draft.trim() ? 'default' : 'pointer',

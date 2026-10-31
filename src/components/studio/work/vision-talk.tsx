@@ -170,7 +170,7 @@ export function VisionTalk({
 
   const say = useCallback(async (text: string, lens: Lens | null) => {
     if (!text || busy) return
-    if (dictation.isRecording) dictation.stopRecording()
+    if (dictation.isRecording) void dictation.stopRecording()
     setError(null)
     setBusy(true)
     setSlow(false)
@@ -215,12 +215,15 @@ export function VisionTalk({
     }
   }, [busy, conversationId, dictation, distill, onConversation, onHeard, projectId])
 
-  const send = useCallback(() => {
-    const text = draftRef.current.trim()
+  const send = useCallback(async () => {
+    const typed = draftRef.current.trim()
+    // Pressed mid-sentence: stop, and wait for the last words.
+    const spoken = dictation.isRecording ? await dictation.stopRecording() : ''
+    const text = [typed, spoken].filter(Boolean).join(' ')
     if (!text) return
     setDraft('')
     void say(text, null)
-  }, [say])
+  }, [say, dictation])
 
   const quiet = loaded && lines.length === 0
   const theirLines = lines.filter((l) => l.role === 'person').length
@@ -376,7 +379,7 @@ export function VisionTalk({
               placeholder="What are you turning over?"
               onChange={(e) => { dictation.clearInterim(); setDraft(e.target.value) }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
               }}
               style={{
                 flex: 1, resize: 'none', ...canvasType.body, color: t.textPrimary,
@@ -389,7 +392,7 @@ export function VisionTalk({
               type="button"
               onClick={send}
               aria-busy={busy || undefined}
-              disabled={busy || !draft.trim()}
+              disabled={busy || (!draft.trim() && !dictation.isRecording)}
               style={{
                 ...canvasType.small, fontSize: 12, padding: '11px 14px', borderRadius: radius.field,
                 border: 'none', cursor: busy || !draft.trim() ? 'default' : 'pointer',

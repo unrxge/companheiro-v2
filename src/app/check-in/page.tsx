@@ -21,9 +21,8 @@ import { formatDateAsRelative } from '@/lib/dates'
 import { useTheme } from '@/components/theme/theme-provider'
 import { PageShell, PageHeader, Container, Card, Eyebrow } from '@/components/shell/page-shell'
 import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons'
-import { MicButton } from '@/components/ui/mic-button'
 import { Pill } from '@/components/ui/pill'
-import { Thread } from '@/components/conversation/thread'
+import { Thread, Composer } from '@/components/conversation/thread'
 import { WeatherStrip } from '@/components/widgets'
 import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
@@ -124,7 +123,7 @@ export default function CheckInPage() {
   const [walkDone, setWalkDone] = useState(false)
   const phone = usePhone()
 
-  const { isRecording, interimText: dictationInterim, handleRecordToggle, clearInterim } = useDictation({
+  const { isRecording, isTranscribing, interimText: dictationInterim, handleRecordToggle, stopRecording, clearInterim } = useDictation({
     onAppend: useCallback((text: string) => {
       setTranscript((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)
     }, []),
@@ -143,18 +142,8 @@ export default function CheckInPage() {
   }, [inputMode, transcript, dictationInterim, messages.length, isProcessing])
   useStayAwake(inputMode !== null && (recentlyActive || isRecording || isProcessing || speakingIndex !== null))
 
-  const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<HTMLDivElement>(null)
-
-  // Resize transcript textarea when dictation injects text
-  useEffect(() => {
-    const el = transcriptTextareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
-    el.scrollTop = el.scrollHeight
-  }, [transcript, dictationInterim])
 
   useEffect(() => {
     if (messages.length === 0) return
@@ -226,8 +215,12 @@ export default function CheckInPage() {
   // keep on a project, or both (lib/check-in-intent.ts). A note never gets a
   // reflection it did not ask for, and anything unclear is a check-in.
   const handleSend = async () => {
-    const userText = transcript.trim()
-    if (!userText || isProcessing) return
+    if (isProcessing) return
+    const typed = transcriptRef.current.trim()
+    // Pressed mid-sentence: stop, and wait for the last words.
+    const spoken = isRecording ? await stopRecording() : ''
+    const userText = [typed, spoken].filter(Boolean).join(' ')
+    if (!userText) return
     setIsProcessing(true)
     setError(null)
     const lastReply = [...messages].reverse().find((x) => x.role === 'assistant')?.content ?? null
@@ -565,58 +558,29 @@ export default function CheckInPage() {
           </m.button>
         </m.div>
       ) : (
-        <>
-          {inputMode === 'mic' && <MicButton recording={isRecording} onToggle={handleRecordToggle} disabled={isProcessing} size={80} onShell={messages.length === 0} />}
-
-          <AnimatePresence>
-            {isRecording && (
-              <m.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ ...typeRoles.eyebrow, color: messages.length === 0 ? shell.muted : t.textMuted }}>
-                Recording
-              </m.p>
-            )}
-          </AnimatePresence>
-
-          {(transcript || isRecording || inputMode === 'keyboard') && (
-            <textarea
-              ref={transcriptTextareaRef}
-              value={textareaValue}
-              onChange={(e) => {
-                clearInterim()
-                setTranscript(e.target.value)
-              }}
-              placeholder={inputMode === 'keyboard' ? 'Begin typing…' : 'Your words will appear here…'}
-              rows={inputMode === 'keyboard' ? 2 : 1}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus={inputMode === 'keyboard'}
-              aria-label="Your check-in"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                backgroundColor: messages.length === 0 ? '#1c1916' : t.inputBg,
-                border: `1px solid ${messages.length === 0 ? '#352f29' : t.inputBorder}`,
-                borderRadius: 12,
-                padding: '12px 14px',
-                fontFamily: 'var(--font-geist-sans)',
-                fontSize: 16,
-                fontWeight: 500,
-                color: messages.length === 0 ? '#ece9e2' : t.textPrimary,
-                outline: 'none',
-                resize: 'none',
-                lineHeight: 1.65,
-                overflowY: 'auto',
-                maxHeight: 200,
-              }}
-            />
-          )}
-
-          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start' }}>{error}</p>}
-
-          {transcript.trim() && (
-            <PrimaryButton onClick={handleSend} disabled={isProcessing} loading={isProcessing} loadingLabel="Processing…" full size="lg">
-              Send
-            </PrimaryButton>
-          )}
-        </>
+        // Once begun, voice or typing, it is the same box as the Idea Lab's
+        // conversation: the words, the microphone beside them, Send.
+        <m.div
+          key="composer"
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
+          <Composer
+            value={textareaValue}
+            onChange={(v) => { clearInterim(); setTranscript(v) }}
+            onSend={() => void handleSend()}
+            disabled={isProcessing}
+            placeholder={inputMode === 'keyboard' ? 'Begin typing…' : 'Say what is here…'}
+            recording={isRecording}
+            transcribing={isTranscribing}
+            onToggleRecording={handleRecordToggle}
+            onShell={messages.length === 0}
+            autoFocus={inputMode === 'keyboard'}
+          />
+          {error && <p style={{ ...typeRoles.small, fontSize: 12, color: t.danger, alignSelf: 'flex-start', margin: 0 }}>{error}</p>}
+        </m.div>
       )}
     </div>
   )

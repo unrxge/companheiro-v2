@@ -77,7 +77,14 @@ export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, vo
     if (!el) return
     const fit = () => {
       el.style.height = 'auto'
-      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+      // scrollHeight leaves out the border and rounds down a fractional line
+      // height, so a one-line box came out a little short and showed a
+      // scrollbar. It scrolls only once it reaches maxHeight.
+      const cs = getComputedStyle(el)
+      const border = cs.boxSizing === 'border-box' ? parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) : 0
+      const want = el.scrollHeight + border + 1
+      el.style.height = `${Math.min(want, maxHeight)}px`
+      el.style.overflowY = want > maxHeight ? 'auto' : 'hidden'
     }
     fit()
     // The parent, never the box itself: the same words need more lines when
@@ -108,7 +115,7 @@ export function TextArea({ value, onChange, placeholder, disabled, ariaLabel, vo
       autoFocus={autoFocus}
       onFocus={() => { setFocused(true); onFocus?.() }}
       onBlur={() => { setFocused(false); onBlur?.() }}
-      style={{ ...s, resize: 'none', overflowY: 'auto', maxHeight, ...style }}
+      style={{ ...s, resize: 'none', maxHeight, ...style }}
     />
   )
 }

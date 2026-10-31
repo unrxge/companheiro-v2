@@ -347,16 +347,18 @@ export default function IdeaLabPage() {
   const bringShown = bringText + (bringInterim ? (bringText && !bringText.endsWith(' ') && !bringText.endsWith('\n') ? ' ' : '') + bringInterim : '')
 
   const leaveBring = () => {
-    if (isBringRecording) stopBringRecording()
+    if (isBringRecording) void stopBringRecording()
     clearBringInterim()
     setEntry('choosing')
   }
 
   // Not settled yet: talk it through, opening with what they wrote.
-  const talkItThrough = () => {
-    const text = bringShown.trim()
+  const talkItThrough = async () => {
+    const typed = bringTextRef.current.trim()
+    // Pressed mid-sentence: stop, and wait for the last words.
+    const spoken = isBringRecording ? await stopBringRecording() : ''
+    const text = [typed, spoken].filter(Boolean).join(' ')
     if (!text) return
-    if (isBringRecording) stopBringRecording()
     sessionStorage.setItem('brought_opening', text)
     router.push('/idea-lab/conceptualise?mode=bring')
   }
@@ -365,9 +367,10 @@ export default function IdeaLabPage() {
   // Straight into writing; the core concept can be built later from the board.
   const [isStarting, setIsStarting] = useState(false)
   const skipToWriting = async () => {
-    const text = bringShown.trim()
     if (isStarting) return
-    if (isBringRecording) stopBringRecording()
+    const typed = bringTextRef.current.trim()
+    const spoken = isBringRecording ? await stopBringRecording() : ''
+    const text = [typed, spoken].filter(Boolean).join(' ')
     setIsStarting(true)
     setError(null)
     try {
@@ -479,7 +482,7 @@ export default function IdeaLabPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <MicButton recording={isBringRecording} onToggle={toggleBringRecording} size={44} />
                     <div style={{ flex: 1, minWidth: 200 }}>
-                      <PrimaryButton onClick={talkItThrough} disabled={!bringShown.trim() || isStarting} full size="lg">Talk it through →</PrimaryButton>
+                      <PrimaryButton onClick={() => void talkItThrough()} disabled={(!bringShown.trim() && !isBringRecording) || isStarting} full size="lg">Talk it through →</PrimaryButton>
                     </div>
                   </div>
                   <p style={{ ...typeRoles.small, fontSize: 12, color: t.textMuted, textAlign: 'center' }}>

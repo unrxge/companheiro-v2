@@ -14,13 +14,17 @@ interface UseDictationReturn {
   isRecording: boolean
   /** True while recorded speech is still being turned into words. */
   isTranscribing: boolean
-  /** Shown after the typed text: "…" while transcribing, otherwise empty. */
+  /** Kept for the pages that show it; always empty, words are never shown half-heard. */
   interimText: string
   /** Why the last recording produced nothing, if it failed. */
   error: string | null
   handleRecordToggle: () => void
-  /** Stops, and resolves once everything recorded has been appended. */
-  stopRecording: () => Promise<void>
+  /**
+   * Stops, and resolves once everything recorded has been appended, with the
+   * words that arrived after the stop: a Send pressed mid-sentence adds them
+   * to what it read from the box, since the box's state may not have caught up.
+   */
+  stopRecording: () => Promise<string>
   /** Call from onChange when the user types manually, to clear stale interim. */
   clearInterim: () => void
 }
@@ -60,6 +64,8 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
   const recordingRef = useRef(false)
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const stoppedRef = useRef<(() => void) | null>(null)
+  // Words appended since stopRecording was called, or null when not stopping.
+  const tailRef = useRef<string[] | null>(null)
 
   const onAppendRef = useRef(onAppend)
   const getContextRef = useRef(getContext)
@@ -86,7 +92,10 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     queueRef.current = queueRef.current.then(async () => {
       try {
         const text = (await request).trim()
-        if (text) onAppendRef.current(text)
+        if (text) {
+          tailRef.current?.push(text)
+          onAppendRef.current(text)
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'That could not be heard. Please try again.')
       } finally {
@@ -144,7 +153,9 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     }
   }
 
-  const stopRecording = async () => {
+  const stopRecording = async (): Promise<string> => {
+    const tail: string[] = []
+    tailRef.current = tail
     recordingRef.current = false
     setIsRecording(false)
     if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current)
@@ -157,6 +168,8 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
       })
     } else releaseMic()
     await queueRef.current
+    if (tailRef.current === tail) tailRef.current = null
+    return tail.join(' ')
   }
 
   // Leaving the page never leaves the microphone open.
@@ -182,7 +195,7 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
   return {
     isRecording,
     isTranscribing: pending > 0,
-    interimText: pending > 0 ? '…' : '',
+    interimText: '',
     error,
     handleRecordToggle,
     stopRecording,

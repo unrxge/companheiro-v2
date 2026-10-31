@@ -93,8 +93,8 @@ export function useWritingAssistant({
     return () => document.removeEventListener('visibilitychange', onHidden)
   }, [flushDistillation])
 
-  const send = useCallback(async () => {
-    const text = input.trim()
+  const send = useCallback(async (spoken = '') => {
+    const text = [input.trim(), spoken].filter(Boolean).join(' ')
     if (!text || busy || !nodeId) return
     setInput('')
     const prior = messagesRef.current
@@ -215,9 +215,10 @@ export function AssistantPanel({
     el.style.overflowY = el.scrollHeight + border > 160 ? 'auto' : 'hidden'
   }, [input, dictation.interimText])
 
-  const sendNow = () => {
-    if (dictation.isRecording) dictation.stopRecording()
-    void send()
+  // Pressed mid-sentence: stop, and wait for the last words.
+  const sendNow = async () => {
+    const spoken = dictation.isRecording ? await dictation.stopRecording() : ''
+    void send(spoken)
   }
 
   return (
@@ -302,15 +303,15 @@ export function AssistantPanel({
             rows={1}
             placeholder="What are you trying to say here?"
             onChange={(e) => { dictation.clearInterim(); setInput(e.target.value) }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNow() } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendNow() } }}
             style={{ flex: 1, resize: 'none', ...canvasType.body, color: t.textPrimary, background: t.inputBg, border: `1px solid ${t.inputBorder}`, borderRadius: radius.field, padding: '8px 10px', outline: 'none', boxSizing: 'border-box', overflowY: 'hidden' }}
           />
           <MicButton recording={dictation.isRecording} onToggle={dictation.handleRecordToggle} size={34} />
           <button
             type="button"
-            onClick={sendNow}
+            onClick={() => void sendNow()}
             aria-busy={busy || undefined}
-            disabled={busy || !input.trim()}
+            disabled={busy || (!input.trim() && !dictation.isRecording)}
             style={{
               ...canvasType.chip, padding: '8px 12px', borderRadius: radius.field, border: 'none',
               cursor: busy || !input.trim() ? 'default' : 'pointer',
