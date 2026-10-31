@@ -1,6 +1,6 @@
 // Shared helpers for turning stored check-ins into atmosphere + weather strip.
 import type { Arc, Mood } from '@/lib/design-tokens'
-import { arcHue } from '@/lib/design-tokens'
+import { arcHue, asTemperament, temperamentHue, type Temperament } from '@/lib/design-tokens'
 import type { WeatherDay } from '@/components/widgets/weather-strip'
 
 export interface StoredCheckIn {
@@ -10,13 +10,16 @@ export interface StoredCheckIn {
   energy: 'low' | 'medium' | 'high'
   inner_weather: string
   arc_texture: Arc | null
+  /** Heavy to bright; null on check-ins from before it was read (migration 040). */
+  temperament?: Temperament | string | null
   /** Conversation turns — stored as a JSON array or a formatted text string; used to proxy session depth/duration. */
   full_conversation?: unknown[] | string | null
 }
 
 export interface CheckInRecord {
   energy: 'low' | 'medium' | 'high'
-  arc: Arc
+  /** Null when the check-in was never read for it. */
+  temperament: Temperament | null
   weather: string | null
   entry: string | null
   /** Localised HH:MM, shown in the hover tooltip. */
@@ -49,8 +52,11 @@ function messageCount(c: StoredCheckIn): number {
 /** Mood + intensity for the shell from the most recent check-in. */
 export function atmosphereFromCheckIns(checkIns: StoredCheckIn[]): { mood: Mood; intensity: number } {
   const latest = checkIns[0]
-  if (!latest || !latest.arc_texture) return { mood: 'neutral', intensity: 0.8 }
-  return { mood: arcHue[latest.arc_texture] ?? 'neutral', intensity: ENERGY_INTENSITY[latest.energy] ?? 0.8 }
+  if (!latest) return { mood: 'neutral', intensity: 0.8 }
+  const temperament = asTemperament(latest.temperament)
+  // Older check-ins carry only a movement; it still tints the room, unnamed.
+  const mood = temperament ? temperamentHue[temperament] : latest.arc_texture ? arcHue[latest.arc_texture] : 'neutral'
+  return { mood, intensity: ENERGY_INTENSITY[latest.energy] ?? 0.8 }
 }
 
 /** Per-day seconds from `/api/write/activity`, keyed by the same local date string it was posted with. */
@@ -95,13 +101,12 @@ export function weatherDays(checkIns: StoredCheckIn[], days = 30, writingActivit
     // Cap and convert to CheckInRecord array
     const records: CheckInRecord[] = dayCheckIns
       .slice(-MAX_CHECKINS_PER_DAY) // keep the last N (most recent, if over cap)
-      .filter((c): c is StoredCheckIn & { arc_texture: Arc } => c.arc_texture !== null)
       .map((c) => {
         const messages = messageCount(c)
         const weight = Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, messages > 0 ? messages : ENERGY_MESSAGES[c.energy] ?? 6))
         return {
           energy: c.energy,
-          arc: c.arc_texture,
+          temperament: asTemperament(c.temperament),
           weather: c.inner_weather ?? null,
           entry: c.raw_entry ?? null,
           time: new Date(c.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
@@ -114,6 +119,7 @@ export function weatherDays(checkIns: StoredCheckIn[], days = 30, writingActivit
       date: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
       energy: latest?.energy ?? null,
       arc: latest?.arc_texture ?? null,
+      temperament: asTemperament(latest?.temperament),
       weather: latest?.inner_weather ?? null,
       entry: latest?.raw_entry ?? null,
       writingMinutes: Math.round((writingByDay.get(key) ?? 0) / 60),

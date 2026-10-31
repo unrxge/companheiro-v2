@@ -38,6 +38,7 @@ const SAMPLE_DAYS: WeatherDay[] = Array.from({ length: 30 }, (_, i) => {
     date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
     energy: skip ? null : energy,
     arc: skip ? null : ARCS[Math.floor(i / 4) % 4],
+    temperament: skip ? null : (['heavy', 'muted', 'steady', 'light', 'bright'] as const)[(i * 3 + 1) % 5],
     weather: skip ? null : WEATHER_WORDS[i % WEATHER_WORDS.length],
     writingMinutes: wroteInstead ? 25 + ((i * 13) % 60) : undefined,
   }
@@ -55,7 +56,7 @@ export default function DesignGalleryPage() {
   const [recording, setRecording] = useState(false)
   const [text, setText] = useState('')
   const [voice, setVoice] = useState('The kettle starts before I do.')
-  const [signals, setSignals] = useState<Signals>({ energy: 'low', inner_weather: 'foggy but clearing', arc_texture: 'Integration' })
+  const [signals, setSignals] = useState<Signals>({ energy: 'low', inner_weather: 'foggy but clearing', arc_texture: 'Integration', temperament: 'muted' })
   const [phase, setPhase] = useState(3)
 
   const label: React.CSSProperties = { ...typeRoles.eyebrow, color: t.textMuted, marginBottom: 12 }
@@ -86,7 +87,7 @@ export default function DesignGalleryPage() {
               ))}
             </div>
             <p style={{ ...typeRoles.small, color: t.textSecondary, marginTop: 12, maxWidth: '60ch' }}>
-              The shell takes the module&apos;s hue (Ideas lean ember, Board leans verdant, Portrait leans violet). On Home and Check-in it takes your last movement instead, and energy sets how present it is.
+              The shell takes the module&apos;s hue (Ideas lean ember, Board leans verdant, Portrait leans violet). On Home and Check-in it takes your last check-in&apos;s temperament instead, and energy sets how present it is.
             </p>
           </div>
           <div style={{ flex: '0 1 260px' }}>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/supabase/route'
 import { patternsForCheckIns } from '@/lib/portrait'
+import { withTemperament } from '@/lib/check-in-columns'
 
 const HISTORY_LIMIT = 20
 // The weather strip is a rolling 30 days, so everything in that window has to
@@ -20,24 +21,25 @@ export async function GET() {
     const { supabase, user } = auth
 
     const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    const { data: windowRows } = await supabase
+    const { data: windowRows } = await withTemperament(COLUMNS, (cols) => supabase
       .from('check_ins')
-      .select(COLUMNS)
+      .select(cols)
       .eq('user_id', user.id)
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .limit(WINDOW_CEILING)
+      .limit(WINDOW_CEILING))
 
     // Someone who checks in rarely still sees their last few, as before.
-    let rows = windowRows || []
+    type Row = { id: string } & Record<string, unknown>
+    let rows = (windowRows || []) as unknown as Row[]
     if (rows.length < HISTORY_LIMIT) {
-      const { data: latest } = await supabase
+      const { data: latest } = await withTemperament(COLUMNS, (cols) => supabase
         .from('check_ins')
-        .select(COLUMNS)
+        .select(cols)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(HISTORY_LIMIT)
-      rows = latest || rows
+        .limit(HISTORY_LIMIT))
+      rows = (latest as unknown as Row[] | null) || rows
     }
     const patterns = await patternsForCheckIns(auth, rows.map((r) => r.id))
 

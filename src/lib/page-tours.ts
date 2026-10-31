@@ -43,7 +43,7 @@ export function homeTourSteps(): TourStep[] {
     step({
       key: 'weather', show: { anchor: 'home-weather' },
       headline: 'Your last thirty days.',
-      lines: ['One bar a day: its height is your energy, its colour the movement you were in.', 'It fills as you check in and write.'],
+      lines: ['One block per check-in: its height is how long you talked, its colour how heavy or bright it felt.', 'It fills as you check in and write.'],
     }),
     step({
       key: 'capture', stage: 'capture', show: { anchor: 'home-capture' },

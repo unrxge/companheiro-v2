@@ -61,3 +61,12 @@ test('plenty said is never enough without the model reading it as ready', () => 
   assert.equal(canOfferLab(false, [words(LAB_OFFER_MIN_WORDS * 3)]), false)
   assert.equal(canOfferLab(undefined, [words(LAB_OFFER_MIN_WORDS * 3)]), false)
 })
+
+test('temperament is read from the signals block, and anything outside heavy..bright is left unread', () => {
+  const read = (v: unknown) => parseSignals(`x<signals>${JSON.stringify({ energy: 'low', inner_weather: 'grey', creative_readiness: false, arc_texture: 'Integration', temperament: v })}</signals>`).temperament
+  assert.equal(read('heavy'), 'heavy')
+  assert.equal(read('bright'), 'bright')
+  assert.equal(read('Breakaway'), null)
+  assert.equal(read(undefined), null)
+  assert.equal(parseSignals('no block here').temperament, null)
+})

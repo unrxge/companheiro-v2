@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useTheme } from '@/components/theme/theme-provider'
-import { arcHue, fonts, type Arc } from '@/lib/design-tokens'
+import { fonts, temperamentHue, TEMPERAMENT_LABEL, type Arc, type Temperament } from '@/lib/design-tokens'
 import type { CheckInRecord } from '@/lib/check-in-signals'
 
 export type Energy = 'low' | 'medium' | 'high'
@@ -12,6 +12,8 @@ export interface WeatherDay {
   date: string
   energy: Energy | null
   arc: Arc | null
+  /** Heavy to bright; what the strip colours by. */
+  temperament?: Temperament | null
   weather?: string | null
   /** Optional first line of the entry, shown in the tooltip. */
   entry?: string | null
@@ -42,12 +44,15 @@ function formatMinutes(min: number): string {
  * Each check-in is one block. Height is how long the conversation ran, on one
  * scale shared by every day (the tallest day fills the strip), so the same
  * session is the same height whether it stood alone or shared a day; a day with
- * several check-ins stacks them. Colour is the movement. Hover reveals them.
+ * several check-ins stacks them. Colour is the temperament, heavy to bright. Hover reveals them.
  */
 export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay[]; height?: number; onSelect?: (d: WeatherDay) => void }) {
   const { t } = useTheme()
   const [hover, setHover] = useState<number | null>(null)
   const active = hover !== null ? days[hover] : null
+  // A check-in from before temperament was read is drawn in a quiet neutral.
+  const hueOf = (x: Temperament | null) => (x ? t[temperamentHue[x]] : t.textMuted)
+  const nameOf = (x: Temperament | null) => (x ? TEMPERAMENT_LABEL[x] : 'Not read')
 
   // A finger cannot rest on a bar the way a mouse does, and a bar is a few
   // pixels wide. So a touch anywhere on the strip shows the day under it and
@@ -70,8 +75,8 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
   // other day is drawn on exactly the same ruler.
   const recordsFor = (d: WeatherDay): CheckInRecord[] | undefined =>
     d.checkIns ??
-    (d.energy && d.arc
-      ? [{ energy: d.energy, arc: d.arc, weather: d.weather ?? null, entry: d.entry ?? null, time: '', messages: 0, weight: ENERGY_WEIGHT[d.energy] }]
+    (d.energy && (d.temperament || d.arc)
+      ? [{ energy: d.energy, temperament: d.temperament ?? null, weather: d.weather ?? null, entry: d.entry ?? null, time: '', messages: 0, weight: ENERGY_WEIGHT[d.energy] }]
       : undefined)
   let pxPerWeight = Infinity
   for (const d of days) {
@@ -174,7 +179,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
                       height: blockH,
                       flexShrink: 0,
                       borderRadius: isTop ? '3px 3px 0 0' : '1px',
-                      backgroundColor: t[arcHue[ci.arc]],
+                      backgroundColor: hueOf(ci.temperament),
                       opacity: 0.9 + j * 0.03, // topmost blocks slightly more vivid
                       transition: 'height 0.3s ease',
                     }}
@@ -192,8 +197,8 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
           active.checkIns.length === 1 ? (
             <>
               <span style={{ color: t.textMuted }}>{active.date}</span>
-              <span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 14, color: t.textPrimary }}>{active.checkIns[0].weather || active.checkIns[0].arc}</span>
-              <span style={{ color: t[arcHue[active.checkIns[0].arc]] }}>{active.checkIns[0].arc}</span>
+              <span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 14, color: t.textPrimary }}>{active.checkIns[0].weather || nameOf(active.checkIns[0].temperament)}</span>
+              <span style={{ color: hueOf(active.checkIns[0].temperament) }}>{nameOf(active.checkIns[0].temperament)}</span>
               <span style={{ color: t.textMuted }}>· {active.checkIns[0].energy} energy{active.checkIns[0].messages > 0 ? ` · ${active.checkIns[0].messages} messages` : ''}</span>
             </>
           ) : (
@@ -201,7 +206,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
               <span style={{ color: t.textMuted }}>{active.date}</span>
               <span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontSize: 14, color: t.textPrimary }}>{active.checkIns.length} check-ins</span>
               {active.checkIns.map((ci, j) => (
-                <span key={j} style={{ color: t[arcHue[ci.arc]] }}>{ci.time} · {ci.energy}{ci.messages > 0 ? ` · ${ci.messages} messages` : ''}</span>
+                <span key={j} style={{ color: hueOf(ci.temperament) }}>{ci.time} · {nameOf(ci.temperament).toLowerCase()} · {ci.energy}{ci.messages > 0 ? ` · ${ci.messages} messages` : ''}</span>
               ))}
             </>
           )
@@ -214,7 +219,7 @@ export function WeatherStrip({ days, height = 56, onSelect }: { days: WeatherDay
         ) : active ? (
           <span style={{ color: t.textMuted }}>{active.date} · no check-in</span>
         ) : (
-          <span style={{ color: t.textMuted }}>Height is how long the check-in ran, colour is movement. Stacked blocks are separate check-ins that day.</span>
+          <span style={{ color: t.textMuted }}>Height is how long the check-in ran; colour runs from heavy to bright. Stacked blocks are separate check-ins that day.</span>
         )}
       </div>
     </div>

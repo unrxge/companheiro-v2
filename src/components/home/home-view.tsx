@@ -329,7 +329,7 @@ export function HomeView() {
               {hasWeather ? (
                 <WeatherStrip days={days} onSelect={() => router.push('/check-in#history')} />
               ) : (
-                <p style={{ ...typeRoles.small, color: t.textSecondary }}>No check-ins or writing sessions yet. Once you have either, the last thirty days show here: height is energy, colour is movement.</p>
+                <p style={{ ...typeRoles.small, color: t.textSecondary }}>No check-ins or writing sessions yet. Once you have either, the last thirty days show here: height is how long each check-in ran, colour runs from heavy to bright.</p>
               )}
             </Card>
           </div>

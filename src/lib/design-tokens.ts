@@ -130,6 +130,31 @@ export const arcHue: Record<Arc, Hue> = {
   Integration: 'ochre',
 }
 
+/**
+ * How a check-in feels, from heavy to bright: the plain read that replaced
+ * Movement on the check-in side (people did not know what Breakaway or
+ * Integration meant). Energy is how much there is; temperament is its weight.
+ */
+export type Temperament = 'heavy' | 'muted' | 'steady' | 'light' | 'bright'
+export const TEMPERAMENTS: readonly Temperament[] = ['heavy', 'muted', 'steady', 'light', 'bright']
+export const temperamentHue: Record<Temperament, Hue> = {
+  heavy: 'violet',
+  muted: 'tide',
+  steady: 'verdant',
+  light: 'ochre',
+  bright: 'ember',
+}
+export const TEMPERAMENT_LABEL: Record<Temperament, string> = {
+  heavy: 'Heavy',
+  muted: 'Muted',
+  steady: 'Steady',
+  light: 'Light',
+  bright: 'Bright',
+}
+export function asTemperament(v: unknown): Temperament | null {
+  return typeof v === 'string' && (TEMPERAMENTS as readonly string[]).includes(v) ? (v as Temperament) : null
+}
+
 export type BoardColumn = 'queue' | 'active' | 'completed'
 export const columnHue: Record<BoardColumn, Hue> = {
   queue: 'ochre',

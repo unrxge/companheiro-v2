@@ -1,3 +1,4 @@
+import { withTemperament } from '@/lib/check-in-columns'
 import { formatDateAsRelative } from './dates'
 import { getActivePortrait, formatPortraitForPrompt } from './portrait'
 import type { AuthedContext } from './supabase/route'
@@ -32,20 +33,19 @@ export async function buildCompanionContext(
   since.setDate(since.getDate() - checkInDays)
 
   try {
-    let checkInQuery = supabase
-      .from('check_ins')
-      .select('raw_entry, full_conversation, energy, inner_weather, arc_texture, created_at')
-      .eq('user_id', user.id)
-      .gte('created_at', since.toISOString())
-    if (excludeCheckInId) checkInQuery = checkInQuery.neq('id', excludeCheckInId)
+    const checkInQuery = (cols: string) => {
+      let q = supabase.from('check_ins').select(cols).eq('user_id', user.id).gte('created_at', since.toISOString())
+      if (excludeCheckInId) q = q.neq('id', excludeCheckInId)
+      return q.order('created_at', { ascending: false }).limit(checkInLimit)
+    }
 
     const [
-      { data: checkIns },
+      { data: checkInRows },
       { data: activeStudioProjects },
       { data: postPubLogs },
       portrait,
     ] = await Promise.all([
-      checkInQuery.order('created_at', { ascending: false }).limit(checkInLimit),
+      withTemperament('raw_entry, full_conversation, energy, inner_weather, arc_texture, created_at', checkInQuery),
       // `studio_projects` is the complete dataset for active work — migration
       // 009 copied every old `pieces` row here too, so this is no longer a
       // supplement to a `pieces` query, it's the whole picture.
@@ -81,12 +81,13 @@ export async function buildCompanionContext(
 
     const parts: string[] = []
 
+    const checkIns = checkInRows as unknown as Array<{ raw_entry: string; full_conversation: string | null; energy: string; inner_weather: string; arc_texture: string | null; temperament?: string | null; created_at: string }> | null
     const portraitBlock = formatPortraitForPrompt(portrait)
     if (portraitBlock) parts.push(portraitBlock)
 
     if (checkIns && checkIns.length > 0) {
       const lines = checkIns.map((c, i) => {
-        const head = `- ${formatDateAsRelative(c.created_at)}: energy ${c.energy}, weather "${c.inner_weather}", arc ${c.arc_texture}. They said: "${truncate(c.raw_entry, 220)}"`
+        const head = `- ${formatDateAsRelative(c.created_at)}: energy ${c.energy}, weather "${c.inner_weather}", ${c.temperament ? `temperament ${c.temperament}` : `arc ${c.arc_texture}`}. They said: "${truncate(c.raw_entry, 220)}"`
         // The opening line is rarely where a check-in actually got to. For the
         // two most recent, carry the END of the conversation as well — trimmed
         // from the front, because the front is the bit already quoted above.

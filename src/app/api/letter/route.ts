@@ -1,3 +1,4 @@
+import { withTemperament } from '@/lib/check-in-columns'
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/anthropic'
 import { requireUser } from '@/lib/supabase/route'
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     const startIso = weekStart.toISOString()
     const endIso = weekEnd.toISOString()
     const [{ data: checkIns }, { data: captures }, { data: sections }, { data: pieces }, { data: reflections }, portrait] = await Promise.all([
-      supabase.from('check_ins').select('created_at, energy, inner_weather, arc_texture, raw_entry').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso).order('created_at'),
+      withTemperament('created_at, energy, inner_weather, arc_texture, raw_entry', (cols) => supabase.from('check_ins').select(cols).eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso).order('created_at')) as unknown as Promise<{ data: Array<{ created_at: string; energy: string; inner_weather: string; arc_texture: string | null; temperament?: string | null; raw_entry: string }> | null }>,
       supabase.from('captures').select('created_at, raw_input, arc, thematic_territory').eq('user_id', user.id).gte('created_at', startIso).lte('created_at', endIso).order('created_at'),
       // The writing lives on the node tree since the Studio merge; the old
       // piece_sections / pieces / post_publication_logs stopped being written.
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     const material = [
       workLines.length || posted.length ? `WORK THIS WEEK:\n${[...workLines, ...posted].join('\n')}` : 'WORK THIS WEEK: nothing written.',
       captures?.length ? `CAPTURES (${captures.length}):\n${captures.map((c) => `- ${c.raw_input.slice(0, 140)} [${c.arc ?? ''}]`).join('\n')}` : 'CAPTURES: none.',
-      checkIns?.length ? `CHECK-INS (${checkIns.length}):\n${checkIns.map((c) => `- ${c.energy} energy, "${c.inner_weather}", ${c.arc_texture}: ${c.raw_entry.slice(0, 160)}`).join('\n')}` : 'CHECK-INS: none this week.',
+      checkIns?.length ? `CHECK-INS (${checkIns.length}):\n${checkIns.map((c) => `- ${c.energy} energy, "${c.inner_weather}", ${c.temperament ?? c.arc_texture}: ${c.raw_entry.slice(0, 160)}`).join('\n')}` : 'CHECK-INS: none this week.',
       reflections?.length ? `REFLECTIONS ON FINISHED PIECES:\n${reflections.map((r) => `- ${[r.thread ? `thread "${r.thread}"` : '', r.unresolved ? `left open: ${r.unresolved}` : ''].filter(Boolean).join('; ') || 'looked back on a finished piece'}`).join('\n')}` : '',
       formatPortraitForPrompt(portrait),
     ]

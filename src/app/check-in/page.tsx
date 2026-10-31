@@ -27,7 +27,7 @@ import { PrimaryButton, GhostButton, QuietButton } from '@/components/ui/buttons
 import { Pill } from '@/components/ui/pill'
 import { Thread, Composer } from '@/components/conversation/thread'
 import { WeatherStrip } from '@/components/widgets'
-import { arcHue, shell, type as typeRoles, type Arc } from '@/lib/design-tokens'
+import { asTemperament, shell, temperamentHue, TEMPERAMENT_LABEL, type as typeRoles, type Arc, type Temperament } from '@/lib/design-tokens'
 import { atmosphereFromCheckIns, weatherDays, type StoredCheckIn, type WritingActivityRow } from '@/lib/check-in-signals'
 import { usePlan } from '@/lib/billing/use-plan'
 
@@ -39,6 +39,7 @@ interface Signals {
   inner_weather: string
   creative_readiness: boolean
   arc_texture: Arc
+  temperament?: Temperament | null
 }
 
 interface Message {
@@ -368,6 +369,7 @@ export default function CheckInPage() {
       inner_weather: s.inner_weather,
       creative_readiness: s.creative_readiness,
       arc_texture: s.arc_texture,
+      temperament: s.temperament ?? null,
       check_in_type: type,
     }
 
@@ -404,6 +406,7 @@ export default function CheckInPage() {
             energy: payload.energy,
             inner_weather: payload.inner_weather,
             arc_texture: payload.arc_texture,
+            temperament: payload.temperament,
             check_in_type: payload.check_in_type,
           }
           return isNew ? [row, ...prev] : prev.map((c) => (c.id === savedId ? row : c))
@@ -556,7 +559,7 @@ export default function CheckInPage() {
   const shownOffers = showingDemo ? (demoOffer ? [demoOffer] : []) : noteOffers
   const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && (!!demo.typing || !!demo.typed))
 
-  const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture }] : pastCheckIns)
+  const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture, temperament: signals.temperament ?? null }] : pastCheckIns)
   const hour = new Date().getHours()
   const daypart = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
 
@@ -701,7 +704,7 @@ export default function CheckInPage() {
                           {formatDateAsRelative(checkIn.created_at)}
                           {checkIn.check_in_type ? ` · ${CHECK_IN_TYPE_LABELS[checkIn.check_in_type]}` : ''}
                         </span>
-                        {checkIn.arc_texture && <Pill hue={arcHue[checkIn.arc_texture]} dot>{checkIn.arc_texture}</Pill>}
+                        {(() => { const tp = asTemperament(checkIn.temperament); return tp ? <Pill hue={temperamentHue[tp]} dot>{TEMPERAMENT_LABEL[tp]}</Pill> : null })()}
                         {checkIn.inner_weather && <span style={{ ...typeRoles.small, fontSize: 12, color: t.textSecondary, fontWeight: 500 }}>{checkIn.inner_weather}</span>}
                       </div>
                       <p style={{ ...typeRoles.ui, fontSize: 15, color: t.textPrimary }}>{previewText(checkIn.raw_entry)}</p>

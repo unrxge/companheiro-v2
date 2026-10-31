@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { distillPortrait } from '@/lib/portrait'
+import { missingTemperament } from '@/lib/check-in-columns'
+import { asTemperament } from '@/lib/design-tokens'
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +17,7 @@ export async function POST(request: Request) {
       inner_weather,
       creative_readiness,
       arc_texture,
+      temperament,
       check_in_type,
       dream_content,
       engaged_with_deeper_work,
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const row = {
+    const row: Record<string, unknown> = {
       raw_entry,
       full_conversation: full_conversation ?? null,
       energy,
@@ -47,6 +50,7 @@ export async function POST(request: Request) {
       check_in_type: check_in_type ?? null,
       dream_content: dream_content ?? null,
       engaged_with_deeper_work: engaged_with_deeper_work ?? false,
+      temperament: asTemperament(temperament),
     }
 
     // The check-in saves itself as the conversation goes: the first call
@@ -54,11 +58,16 @@ export async function POST(request: Request) {
     // remember to press anything at the end of saying something hard.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const table = (supabase as any).from('check_ins')
-    const query = id
-      ? table.update(row).eq('id', id).eq('user_id', user.id)
-      : table.insert({ ...row, user_id: user.id })
+    const write = (r: Record<string, unknown>) =>
+      (id ? table.update(r).eq('id', id).eq('user_id', user.id) : table.insert({ ...r, user_id: user.id })).select().single()
 
-    const { data, error } = await query.select().single()
+    let { data, error } = await write(row)
+    if (missingTemperament(error)) {
+      // Migration 040 not applied yet: save everything else.
+      const rest = { ...row }
+      delete rest.temperament
+      ;({ data, error } = await write(rest))
+    }
 
     if (error) {
       console.error('supabase write error:', error)

@@ -1,3 +1,5 @@
+import { asTemperament, type Temperament } from '@/lib/design-tokens'
+
 // Shared between /api/check-in/process (first turn) and /api/check-in/respond
 // (every turn after). Both emit the same signals block so the reading can be
 // revised as a conversation deepens — someone who opens "bit tired" and gets
@@ -9,15 +11,17 @@ export interface Signals {
   inner_weather: string
   creative_readiness: boolean
   arc_texture: 'Breakaway' | 'Beginning' | 'Expansion' | 'Integration'
+  temperament: Temperament | null
 }
 
-export const SIGNALS_SPEC = `Then extract four signals as a JSON block at the very end of your response, in this exact format:
+export const SIGNALS_SPEC = `Then extract five signals as a JSON block at the very end of your response, in this exact format:
 <signals>
 {
   "energy": "low" | "medium" | "high",
   "inner_weather": "<short evocative descriptor, e.g. 'foggy but clearing', 'steady', 'stormy'>",
   "creative_readiness": true | false,
-  "arc_texture": "Breakaway" | "Beginning" | "Expansion" | "Integration"
+  "arc_texture": "Breakaway" | "Beginning" | "Expansion" | "Integration",
+  "temperament": "heavy" | "muted" | "steady" | "light" | "bright"
 }
 </signals>
 
@@ -26,6 +30,14 @@ Arc texture guide:
 - Beginning: fresh energy, openness, new curiosity
 - Expansion: building momentum, going deeper, multiplying ideas
 - Integration: consolidating, reflecting, letting things settle
+
+Temperament is the person's own word for how this felt to carry, and they will see it, so read it from them, not from the topic:
+- heavy: weighed down, hard to lift, something pressing
+- muted: flat, dimmed, quiet, a bit far away
+- steady: even, neither weighed nor lifted
+- light: easing, some air in it, lifting
+- bright: alive, warm, open, glad
+It is not energy: someone tired can be light, someone wired can be heavy.
 
 \`creative_readiness\` decides whether they are offered a door into developing an idea, so it is false by default and true only rarely. Set it true only when ALL of these hold:
 - There is a specific subject on the table that could become a piece of work: an image, a question, a story, an argument, a thing they noticed about the world. A mood, a state, a problem in their life or a plan for the day is not a subject.
@@ -58,6 +70,7 @@ const FALLBACK: Signals = {
   inner_weather: 'unclear',
   creative_readiness: false,
   arc_texture: 'Expansion',
+  temperament: null,
 }
 
 export function parseSignals(fullText: string): Signals {
@@ -71,6 +84,7 @@ export function parseSignals(fullText: string): Signals {
       inner_weather: parsed.inner_weather ?? FALLBACK.inner_weather,
       creative_readiness: parsed.creative_readiness ?? FALLBACK.creative_readiness,
       arc_texture: parsed.arc_texture ?? FALLBACK.arc_texture,
+      temperament: asTemperament(parsed.temperament),
     }
   } catch {
     return FALLBACK
