@@ -18,13 +18,20 @@ import type { NoteKind } from '@/lib/studio/board-items'
 export const DEMO = {
   feeling: 'Couldn’t sleep again. The presentation went fine, but I keep replaying the one question I fumbled.',
   reply: 'It went fine, and the one moment that didn’t is the one you’re carrying to bed. What did you wish you’d said?',
-  aside: 'A thought for my project, The Orange Hours: open episode two on the ferry ramp at first light, not the market.',
-  note: { text: 'Open episode two on the ferry ramp at first light, not the market.', kind: 'thought' as NoteKind },
+  aside: 'Add a reminder to my project “Orange Hours”: the deadline has been ramped to two weeks from now and Rita still needs to be looped in on the venue change.',
+  note: { text: 'Loop Rita in on the venue change: the deadline has been ramped to two weeks from now.', kind: 'reminder' as NoteKind },
   project: { id: 'demo-orange-hours', title: 'The Orange Hours' },
 }
 
 /** The spoken example's timing: the tap, each word, and a moment to settle. */
 export const SPOKEN = { tapMs: 1100, wordMs: 230, settleMs: 900 }
+/** The first example is typed, a letter at a time, then sent; the reply then arrives a word at a time. */
+export const TYPED = { leadMs: 600, charMs: 26, sendMs: 650 }
+export const TYPED_MS = TYPED.leadMs + DEMO_FEELING_LEN() * TYPED.charMs + TYPED.sendMs
+export const REPLY = { thinkMs: 1100, wordMs: 75 }
+export const REPLY_MS = REPLY.thinkMs + DEMO_REPLY_WORDS() * REPLY.wordMs
+function DEMO_FEELING_LEN() { return DEMO.feeling.length }
+function DEMO_REPLY_WORDS() { return DEMO.reply.split(' ').length }
 /** How long the spoken example takes to say. */
 export const SPOKEN_MS = SPOKEN.tapMs + 300 + DEMO.aside.split(' ').length * SPOKEN.wordMs + SPOKEN.settleMs
 
@@ -37,7 +44,7 @@ export type DemoStage = 'start' | 'feeling' | 'reply' | 'aside' | 'understood' |
  */
 export const SCENES = {
   1: { label: 'Example 1 of 2', title: 'Checking in' },
-  2: { label: 'Example 2 of 2', title: 'A thought on the go, for a project' },
+  2: { label: 'Example 2 of 2', title: 'A reminder on the go, for a project' },
 } as const
 
 /** What a stage puts on screen. */
@@ -46,6 +53,8 @@ export function demoShows(stage: DemoStage | null): {
   feeling: boolean
   reply: boolean
   typing: string | null
+  /** Being typed into the box, before it has been sent (the first example). */
+  typed: string | null
   offer: 'none' | 'offered' | 'added'
 } {
   const scene = stage === 'feeling' || stage === 'reply' ? 1
@@ -57,6 +66,7 @@ export function demoShows(stage: DemoStage | null): {
     reply: stage === 'reply',
     // Being said, before it has been sent.
     typing: stage === 'aside' ? DEMO.aside : null,
+    typed: stage === 'feeling' ? DEMO.feeling : null,
     offer: stage === 'understood' ? 'offered' : stage === 'added' ? 'added' : 'none',
   }
 }
@@ -88,21 +98,21 @@ export function checkInTourSteps(): TourStep[] {
     }),
     step({
       key: 'aside', stage: 'aside', show: { anchor: ['checkin-scene', 'checkin-start'] },
-      headline: 'Second, a thought for one of your projects.',
-      lines: ['Tap the mic and say it: an idea for a project, or something not to forget.', 'Name the project it is for. Here, a documentary series called The Orange Hours.'],
+      headline: 'The same box takes what you need to remember, too.',
+      lines: ['Something comes to you between two other things. Tap the mic and say it, and the project it is for.'],
     }),
     step({
       key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] },
       headline: 'You see what it understood first.',
-      lines: ['The words, the project, a thought or a reminder. Change any of it, or say it was a check-in.'],
+      lines: ['A reminder, for The Orange Hours, in fewer words than you said it. Change any of it, or say it was a check-in.'],
     }),
     step({
       key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] },
       headline: 'It waits on that project’s canvas.',
-      lines: ['Like a note on the wall, there the next time you open it.'],
+      lines: ['The new deadline and Rita, like a note on the wall, there the next time you open it.'],
     }),
     step({
-      key: 'end', stage: 'end', show: { anchor: 'checkin-start' },
+      key: 'end', stage: 'end', show: { anchor: 'checkin-window' },
       headline: 'Whenever you are ready.',
       lines: ['It works out which one you mean. You never have to choose.'],
     }),
@@ -110,5 +120,7 @@ export function checkInTourSteps(): TourStep[] {
   // The second example is said out loud on screen, word by word: Next waits
   // until it has been heard out. The other steps play short page animations
   // (a card arriving), which the words outlast anyway.
-  return steps.map((s) => (s.key === 'aside' ? { ...s, ms: s.ms + SPOKEN_MS, wait: SPOKEN_MS + 600 } : s))
+  // The first example is typed and sent, and its reply arrives word by word: those wait too.
+  const plays: Record<string, number> = { aside: SPOKEN_MS + 600, feeling: TYPED_MS + 500, reply: REPLY_MS + 500 }
+  return steps.map((s) => (plays[s.key] ? { ...s, ms: s.ms + plays[s.key], wait: plays[s.key] } : s))
 }

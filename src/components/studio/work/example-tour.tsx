@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { DOCK_DESKTOP_MIN } from '@/components/shell/dock'
 import { Portal } from '@/components/ui/portal'
 import { useTheme } from '@/components/theme/theme-provider'
 import { canvasType } from '@/lib/studio/canvas-tokens'
@@ -37,6 +38,8 @@ const CARD_W = 360
 const CARD_GAP = 28
 /** A phone's caption is a sheet about this tall: kept small, the canvas is what is being shown. */
 const SHEET_H = 168
+/** On a phone the Dock runs along the bottom; the caption stands this much higher to clear it. */
+const DOCK_ROW = 66
 /** The "+" menu hangs this far under its card, in board units, and is framed with it. */
 const MENU_BELOW = 330
 /** Around whatever is lit. */
@@ -77,6 +80,22 @@ function rectFor(step: TourStep, narrow: boolean): Rect | null {
   // The "+" menu, once open, is part of what that step is showing.
   if (step.plus) els.push(...Array.from(document.querySelectorAll('[data-tour="plus-menu"]')))
   return unionOf(els)
+}
+
+/** The page elements an anchored step points at (none for a canvas step, whose camera frames it instead). */
+function anchorEls(step: TourStep): HTMLElement[] {
+  if (!('anchor' in step.show)) return []
+  const anchors: string[] = Array.isArray(step.show.anchor) ? [...step.show.anchor] : [step.show.anchor]
+  return anchors.flatMap((a) => Array.from(document.querySelectorAll<HTMLElement>(`[data-tour="${a}"]`)))
+}
+
+/** The nearest thing that scrolls around an element: a scrolling panel, or the page. */
+function scrollerOf(el: HTMLElement): HTMLElement {
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY
+    if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight + 4) return n
+  }
+  return (document.scrollingElement as HTMLElement) ?? document.documentElement
 }
 
 /** Where a step's gesture is shown being done: the "+" it opens, or the first thing it points at. */
@@ -169,6 +188,9 @@ export function ExampleTour({
   /** Counts each resume, so the bar under Next starts again from empty with the wait. */
   const [lap, setLap] = useState(0)
   const [hidden, setHidden] = useState(false)
+  // What a step points at is not in view (scrolled off, or under the caption
+  // on a phone): the walk scrolls it in, and does not move on until it is.
+  const [outOfFrame, setOutOfFrame] = useState(false)
   useEffect(() => {
     const on = () => setHidden(document.hidden)
     on()
@@ -281,7 +303,7 @@ export function ExampleTour({
     const ids = idsFor(step, narrow)
     if (ids) {
       const inset = narrow
-        ? { top: 64, bottom: SHEET_H + 28, left: 10, right: 10 }
+        ? { top: 64, bottom: SHEET_H + 28 + DOCK_ROW, left: 10, right: 10 }
         : { top: 72, right: CARD_W + CARD_GAP * 2, bottom: 96, left: 24 }
       board?.current?.frame(ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS, below: step.plus ? MENU_BELOW : 0 })
     }
@@ -308,7 +330,7 @@ export function ExampleTour({
   // which waits for a press so a walk never ends unseen. (The preview can hold
   // a step still with ?tourhold=1, to look at it.)
   const hold = process.env.NODE_ENV !== 'production' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tourhold')
-  const auto = phase === 'reading' && ready && !last && !paused && !resting && !hidden && !hold && !leaving
+  const auto = phase === 'reading' && ready && !last && !paused && !resting && !hidden && !hold && !leaving && !outOfFrame
   useEffect(() => {
     if (!auto || !step) return
     const id = window.setTimeout(advance, dwellMs(step))
@@ -352,6 +374,8 @@ export function ExampleTour({
 
   useEffect(() => {
     let frame = 0
+    let scrolledAt = 0
+    let wasOut = false
     const tick = () => {
       frame = requestAnimationFrame(tick)
       const s = stepRef.current
@@ -359,6 +383,26 @@ export function ExampleTour({
       const vw = window.innerWidth
       const vh = window.innerHeight
       const target = rectFor(s, narrowRef.current)
+      // Keep what is pointed at inside the part of the window the caption
+      // leaves free: scroll it there, and hold the walk while it is not.
+      const els = anchorEls(s)
+      if (target && els.length) {
+        const sheet = card.current?.getBoundingClientRect()
+        const atTop = narrowRef.current && card.current?.dataset.edge === 'top'
+        const top = (atTop && sheet ? sheet.bottom + 8 : 0) + 12
+        const bottom = (narrowRef.current && !atTop && sheet ? sheet.top - 8 : vh) - 12
+        const room = bottom - top
+        const seen = Math.max(0, Math.min(target.y + target.h, bottom) - Math.max(target.y, top))
+        const out = seen < Math.min(target.h, room) * 0.8
+        if (out !== wasOut) { wasOut = out; setOutOfFrame(out) }
+        const t = performance.now()
+        if (out && t - scrolledAt > 700) {
+          scrolledAt = t
+          // Its top just under the free space's top when it is taller than the space; otherwise centred in it.
+          const want = target.h >= room ? top + 8 : top + (room - target.h) / 2
+          scrollerOf(els[0]).scrollBy({ top: target.y - want, behavior: reduce ? 'auto' : 'smooth' })
+        }
+      } else if (wasOut) { wasOut = false; setOutOfFrame(false) }
       if (target) {
         const want = {
           x: Math.max(6, target.x - PAD), y: Math.max(6, target.y - PAD),
@@ -396,7 +440,7 @@ export function ExampleTour({
           // and the bottom would. When something fills the screen (the vision
           // room) the bottom is still right: it keeps the header at the top in
           // view, and the start of what is being shown, which is read first.
-          const overBottom = Math.max(0, r.y + r.h - (vh - ch - 14))
+          const overBottom = Math.max(0, r.y + r.h - (vh - ch - 14 - DOCK_ROW))
           const overTop = Math.max(0, ch + 14 - r.y)
           c.dataset.edge = overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
         } else if (r.w > vw * 0.62 && r.h > vh * 0.55) {
@@ -471,6 +515,8 @@ export function ExampleTour({
         .tour-card { transition: transform ${reduce ? 0 : 520}ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 260ms ease; }
         .tour-sheet { transition: top ${reduce ? 0 : 480}ms cubic-bezier(0.2, 0.7, 0.2, 1), bottom ${reduce ? 0 : 480}ms cubic-bezier(0.2, 0.7, 0.2, 1); }
         .tour-sheet[data-edge="bottom"] { bottom: max(14px, env(safe-area-inset-bottom)); top: auto; }
+        /* Below the Dock's breakpoint the Dock runs along the bottom: the caption stands above it, never under it. */
+        @media (max-width: ${DOCK_DESKTOP_MIN - 1}px) { .tour-sheet[data-edge="bottom"] { bottom: calc(max(14px, env(safe-area-inset-bottom)) + ${DOCK_ROW}px); } }
         .tour-sheet[data-edge="top"] { top: max(14px, env(safe-area-inset-top)); bottom: auto; }
         .tour-next { animation: tourNudge 1.6s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {

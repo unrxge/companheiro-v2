@@ -91,7 +91,7 @@ export type TourAnchor =
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-assistant'
   // the check-in
-  | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added' | 'checkin-scene'
+  | 'checkin-start' | 'checkin-thread' | 'checkin-note' | 'checkin-added' | 'checkin-scene' | 'checkin-window'
   // Home
   | 'home-greeting' | 'home-progress' | 'home-ideas' | 'home-weather' | 'home-capture' | 'home-captures'
   // the Idea Lab's summoning
