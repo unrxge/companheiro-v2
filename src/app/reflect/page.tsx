@@ -33,8 +33,6 @@ interface Saved {
 interface TurnMeta { phase: number; done: boolean; heard: Heard; followedUp: number[] }
 
 const saveKey = (nodeId: string) => `reflect:${nodeId}`
-/** After the microphone stops, the last words are still being punctuated for a moment. */
-const SETTLE_MS = 1800
 
 /**
  * Looking back on a finished piece: the last stage. A short spoken
@@ -76,8 +74,7 @@ function ReflectContent() {
   })
 
   useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }
-    setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
+    setSupported(typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia)
   }, [])
 
   // ── loading, and picking up where it was left ──
@@ -156,8 +153,7 @@ function ReflectContent() {
     if (busy || settling) return
     if (isRecording) {
       setSettling(true)
-      stopRecording()
-      await new Promise((r) => setTimeout(r, SETTLE_MS))
+      await stopRecording()
       setSettling(false)
     }
     const words = transcriptRef.current.trim()
@@ -196,7 +192,7 @@ function ReflectContent() {
   // ── skipping: no model, no wait ──
   const skip = async () => {
     if (busy || settling) return
-    if (isRecording) stopRecording()
+    if (isRecording) void stopRecording()
     setTranscript('')
     clearInterim()
     setError(null)

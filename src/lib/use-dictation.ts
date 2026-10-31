@@ -1,56 +1,66 @@
 'use client'
 
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { getDictationLang } from '@/lib/settings'
 
 interface UseDictationOptions {
-  /** Called with each punctuated, word-validated segment as it's confirmed. */
+  /** Called with each transcribed, punctuated stretch of speech. */
   onAppend: (text: string) => void
-  /** Returns the last N chars of existing text — used as punctuation context. */
+  /** Returns the last N chars of existing text, given to the model as context. */
   getContext?: () => string
 }
 
 interface UseDictationReturn {
   isRecording: boolean
-  /** Raw in-flight words — append to your display value to show them live. */
+  /** True while recorded speech is still being turned into words. */
+  isTranscribing: boolean
+  /** Shown after the typed text: "…" while transcribing, otherwise empty. */
   interimText: string
+  /** Why the last recording produced nothing, if it failed. */
+  error: string | null
   handleRecordToggle: () => void
-  stopRecording: () => void
+  /** Stops, and resolves once everything recorded has been appended. */
+  stopRecording: () => Promise<void>
   /** Call from onChange when the user types manually, to clear stale interim. */
   clearInterim: () => void
 }
 
-// Verify the model only inserted punctuation — no word changes accepted.
-function wordsUnchanged(raw: string, candidate: string): boolean {
-  const strip = (s: string) =>
-    s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
-  return strip(raw) === strip(candidate)
-}
+// Dictation the way Handy (github.com/cjpais/Handy) and Superwhisper work:
+// record the audio, and only when the person stops hand the whole clip to a
+// proper transcription model (/api/transcribe), which returns it punctuated.
+//
+// The browser's own SpeechRecognition did the opposite: a result for every
+// word, each one a re-render of the whole page, and on phones (iOS above all)
+// continuous recognition resends its ever-growing transcript until the page
+// freezes. Here nothing changes on screen while the person speaks.
+//
+// A long recording is cut into segments so each upload stays small; they are
+// transcribed in order while the person carries on talking.
+const SEGMENT_MS = 60_000
+// Shorter than this is a tap, not speech: transcription models invent words
+// out of silence ("Thank you for watching").
+const MIN_SEGMENT_MS = 500
 
-// How long to wait, after a "final" speech result, for more final results
-// before sending what's accumulated for punctuation. The Web Speech API
-// marks a segment final at every natural pause — for continuous, fluid
-// dictation that fires many finals in quick succession, and without this
-// each one was its own Claude call. Coalescing anything that arrives within
-// this window into one call cuts that dramatically while adding at most
-// ~2.5s of latency after the last word in a burst — and none at all when
-// recording actually stops, which always flushes immediately.
-const COALESCE_MS = 2500
+function pickMime(): string {
+  if (typeof MediaRecorder === 'undefined') return ''
+  for (const t of ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']) {
+    if (MediaRecorder.isTypeSupported?.(t)) return t
+  }
+  return ''
+}
 
 export function useDictation({ onAppend, getContext }: UseDictationOptions): UseDictationReturn {
   const [isRecording, setIsRecording] = useState(false)
-  const [interimText, setInterimText] = useState('')
-  const interimTextRef = useRef('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
-  const punctuationQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const [pending, setPending] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
-  // Finalized segments waiting to be sent as one punctuation call, and the
-  // timer that flushes them.
-  const pendingSegmentsRef = useRef<string[]>([])
-  const coalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recordingRef = useRef(false)
+  const queueRef = useRef<Promise<void>>(Promise.resolve())
+  const stoppedRef = useRef<(() => void) | null>(null)
 
-  // Keep refs to callbacks so async closures always see the latest values.
   const onAppendRef = useRef(onAppend)
   const getContextRef = useRef(getContext)
   useLayoutEffect(() => {
@@ -58,105 +68,124 @@ export function useDictation({ onAppend, getContext }: UseDictationOptions): Use
     getContextRef.current = getContext
   })
 
-  const punctuateAndAppend = (raw: string) => {
-    punctuationQueueRef.current = punctuationQueueRef.current.then(async () => {
-      const context = getContextRef.current?.() ?? ''
-      let punctuated = raw
+  const transcribe = (blob: Blob, ms: number) => {
+    if (ms < MIN_SEGMENT_MS || blob.size < 1000) return
+    setPending((n) => n + 1)
+    // Uploaded at once, appended in order.
+    const lang = getDictationLang()
+    const request = (async () => {
+      const form = new FormData()
+      form.append('audio', blob)
+      form.append('lang', lang)
+      form.append('seconds', String(Math.round(ms / 1000)))
+      const res = await fetch('/api/transcribe', { method: 'POST', body: form })
+      if (!res.ok) throw new Error(res.status === 503 ? 'Dictation is not available right now.' : 'That could not be heard. Please try again.')
+      const data = await res.json()
+      return (data.text as string) ?? ''
+    })()
+    queueRef.current = queueRef.current.then(async () => {
       try {
-        const res = await fetch('/api/punctuate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: raw, context }),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const candidate = data.text ?? data.punctuated ?? ''
-          if (candidate && wordsUnchanged(raw, candidate)) {
-            punctuated = candidate
-          }
-        }
-      } catch {
-        // fall back to raw
+        const text = (await request).trim()
+        if (text) onAppendRef.current(text)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'That could not be heard. Please try again.')
+      } finally {
+        setPending((n) => n - 1)
       }
-      onAppendRef.current(punctuated)
     })
   }
 
-  const flushPending = () => {
-    if (coalesceTimerRef.current) {
-      clearTimeout(coalesceTimerRef.current)
-      coalesceTimerRef.current = null
+  const releaseMic = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+  }
+
+  // One MediaRecorder per segment, so every upload is a complete file.
+  const startSegment = (stream: MediaStream) => {
+    const mime = pickMime()
+    const recorder = mime ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32_000 }) : new MediaRecorder(stream)
+    const chunks: Blob[] = []
+    const startedAt = Date.now()
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
+    recorder.onstop = () => {
+      stoppedRef.current?.()
+      stoppedRef.current = null
+      transcribe(new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' }), Date.now() - startedAt)
+      if (recordingRef.current && streamRef.current) startSegment(streamRef.current)
+      else releaseMic()
     }
-    const segments = pendingSegmentsRef.current
-    if (segments.length === 0) return
-    pendingSegmentsRef.current = []
-    punctuateAndAppend(segments.join(' '))
+    recorderRef.current = recorder
+    recorder.start()
+    segmentTimerRef.current = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop()
+    }, SEGMENT_MS)
   }
 
-  const queueSegment = (raw: string) => {
-    pendingSegmentsRef.current.push(raw)
-    if (coalesceTimerRef.current) clearTimeout(coalesceTimerRef.current)
-    coalesceTimerRef.current = setTimeout(flushPending, COALESCE_MS)
-  }
-
-  const clearInterim = () => {
-    interimTextRef.current = ''
-    setInterimText('')
-  }
-
-  const commitInterim = () => {
-    const pending = interimTextRef.current.trim()
-    if (pending) queueSegment(pending)
-    clearInterim()
-    // Stopping is always an immediate, unambiguous flush point — never make
-    // someone wait out the coalescing window just because they hit stop.
-    flushPending()
-  }
-
-  const startRecording = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const API = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!API) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition: any = new API()
-    recognition.continuous = true
-    recognition.interimResults = true
-    // The person's language (Settings), else the browser's — never a hard-coded en-US.
-    recognition.lang = getDictationLang()
-    recognition.onstart = () => setIsRecording(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          queueSegment(transcript.trim())
-          interimTextRef.current = ''
-          setInterimText('')
-        } else {
-          interim += transcript
-        }
-      }
-      if (interim) {
-        interimTextRef.current = interim
-        setInterimText(interim)
-      }
+  const startRecording = async () => {
+    if (recordingRef.current) return
+    setError(null)
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('This browser cannot record.')
+      return
     }
-    recognition.onerror = () => { commitInterim(); setIsRecording(false) }
-    recognition.onend = () => { commitInterim(); setIsRecording(false) }
-    recognitionRef.current = recognition
-    recognition.start()
+    recordingRef.current = true
+    setIsRecording(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
+      if (!recordingRef.current) { stream.getTracks().forEach((t) => t.stop()); return }
+      streamRef.current = stream
+      startSegment(stream)
+    } catch {
+      recordingRef.current = false
+      setIsRecording(false)
+      setError('The microphone could not be opened.')
+    }
   }
 
-  const stopRecording = () => {
-    recognitionRef.current?.stop()
-    // onend fires → commitInterim → flushPending
+  const stopRecording = async () => {
+    recordingRef.current = false
+    setIsRecording(false)
+    if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current)
+    const recorder = recorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      // onstop transcribes the last segment and releases the mic.
+      await new Promise<void>((resolve) => {
+        stoppedRef.current = resolve
+        recorder.stop()
+      })
+    } else releaseMic()
+    await queueRef.current
   }
+
+  // Leaving the page never leaves the microphone open.
+  useEffect(() => () => {
+    recordingRef.current = false
+    if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current)
+    const recorder = recorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = null
+      recorder.stop()
+    }
+    releaseMic()
+  }, [])
 
   const handleRecordToggle = () => {
-    if (isRecording) stopRecording()
-    else startRecording()
+    if (recordingRef.current) void stopRecording()
+    else void startRecording()
   }
 
-  return { isRecording, interimText, handleRecordToggle, stopRecording, clearInterim }
+  // Nothing to clear any more: interim words are never shown.
+  const clearInterim = () => {}
+
+  return {
+    isRecording,
+    isTranscribing: pending > 0,
+    interimText: pending > 0 ? '…' : '',
+    error,
+    handleRecordToggle,
+    stopRecording,
+    clearInterim,
+  }
 }

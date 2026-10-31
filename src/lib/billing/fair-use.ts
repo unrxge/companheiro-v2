@@ -59,6 +59,9 @@ const PRICES: Array<{ match: string; input: number; output: number }> = [
   // Speech (api/read-aloud): the meter is fed characters as `input`, and
   // gpt-4o-mini-tts costs about $0.015 a spoken minute, roughly 900 characters.
   { match: 'tts', input: 17, output: 0 },
+  // Dictation (api/transcribe): the meter is fed seconds of audio as `input`;
+  // gpt-4o-transcribe costs $0.006 a minute, 100 micro-dollars a second.
+  { match: 'transcribe', input: 100, output: 0 },
 ]
 
 const WEB_SEARCH_MICROS = 10_000

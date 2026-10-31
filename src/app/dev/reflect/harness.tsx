@@ -13,7 +13,6 @@ type Win = {
   __logged?: unknown[]
   __say?: (text: string) => void
   __turns?: unknown[]
-  webkitSpeechRecognition?: unknown
 }
 
 function installMock() {
@@ -23,33 +22,43 @@ function installMock() {
   w.__logged = []
   w.__turns = []
 
-  type Recognition = { onstart?: () => void; onresult?: (e: unknown) => void; onend?: () => void }
-  let active: Recognition | null = null
-  class FakeRecognition implements Recognition {
-    continuous = false; interimResults = false; lang = ''
-    onstart?: () => void; onresult?: (e: unknown) => void; onerror?: () => void; onend?: () => void
-    start() { active = this as Recognition; setTimeout(() => this.onstart?.(), 0) }
-    stop() { setTimeout(() => { this.onend?.(); active = null }, 0) }
+  // The microphone: a fake recorder; what __say hands it is what
+  // /api/transcribe answers when the recording stops.
+  let heardSoFar: string[] = []
+  const toTranscribe: string[] = []
+  class FakeRecorder {
+    state = 'inactive'; mimeType = 'audio/webm'
+    ondataavailable?: (e: { data: Blob }) => void; onstop?: (() => void) | null
+    static isTypeSupported() { return true }
+    start() { this.state = 'recording'; heardSoFar = [] }
+    stop() {
+      this.state = 'inactive'
+      toTranscribe.push(heardSoFar.join(' '))
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(2000)]) })
+      setTimeout(() => this.onstop?.(), 0)
+    }
   }
-  w.webkitSpeechRecognition = FakeRecognition
-  ;(w as unknown as { SpeechRecognition?: unknown }).SpeechRecognition = FakeRecognition
-  w.__say = (text: string) => {
-    const r: unknown[] & { isFinal?: boolean } = [{ transcript: text }]
-    r.isFinal = true
-    active?.onresult?.({ resultIndex: 0, results: [r] })
-  }
+  ;(window as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeRecorder
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+  })
+  w.__say = (text: string) => { heardSoFar.push(text) }
 
   const real = window.fetch.bind(window)
   const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const done = new URLSearchParams(location.search).get('done') === '1'
-    const body = init?.body ? JSON.parse(String(init.body)) : {}
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {}
 
     if (url.includes('/api/read/node')) {
       return json({ success: true, piece: { id: 'node-1', project_id: 'demo', title: 'The kettle', reflection: done ? { id: 'r1', created_at: '2026-10-20T10:00:00Z' } : null } })
     }
-    if (url.includes('/api/punctuate')) return json({ text: body.text })
+    if (url.includes('/api/transcribe')) {
+      const text = toTranscribe.shift() ?? ''
+      return json({ text })
+    }
 
     if (url.includes('/api/reflect/turn')) {
       w.__turns!.push(body)
