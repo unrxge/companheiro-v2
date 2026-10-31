@@ -1,15 +1,17 @@
-// One-off: reads a temperament (heavy..bright) into one person's check-ins
-// from before migration 040, from what they said. Only fills empty ones.
+// One-off: reads a temperament (heavy..bright) into check-ins from before
+// migration 040, from what was said. Only fills empty ones. Prints counts,
+// never anyone's words.
 //
-//   node scripts/backfill-temperament.mjs you@example.com            (dry run)
-//   node scripts/backfill-temperament.mjs you@example.com --write
+//   node scripts/backfill-temperament.mjs you@example.com            (one account, dry run)
+//   node scripts/backfill-temperament.mjs --all --write              (every account)
 import Anthropic from '@anthropic-ai/sdk'
 import { readFileSync } from 'node:fs'
 import { recordScriptCall } from './record-usage.mjs'
 
-const email = process.argv[2]
+const all = process.argv.includes('--all')
+const email = all ? null : process.argv[2]
 const write = process.argv.includes('--write')
-if (!email || email.startsWith('--')) { console.error('Give the account email first'); process.exit(1) }
+if (!all && (!email || email.startsWith('--'))) { console.error('Give the account email, or --all'); process.exit(1) }
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8').split('\n').filter((l) => l.includes('=') && !l.trim().startsWith('#'))
@@ -28,12 +30,12 @@ const call = async (path, init) => {
 }
 
 let user = null
-for (let page = 1; !user && page < 50; page++) {
+for (let page = 1; !all && !user && page < 50; page++) {
   const { users } = await call(`/auth/v1/admin/users?page=${page}&per_page=200`)
   if (!users?.length) break
   user = users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null
 }
-if (!user) { console.error('No account with that email'); process.exit(1) }
+if (!all && !user) { console.error('No account with that email'); process.exit(1) }
 
 try {
   await call('/rest/v1/check_ins?select=temperament&limit=1')
@@ -42,7 +44,7 @@ try {
   process.exit(1)
 }
 
-const rows = await call(`/rest/v1/check_ins?select=id,created_at,raw_entry,full_conversation,energy,inner_weather&user_id=eq.${user.id}&temperament=is.null&order=created_at.asc`)
+const rows = await call(`/rest/v1/check_ins?select=id,created_at,raw_entry,full_conversation,energy,inner_weather${all ? '' : `&user_id=eq.${user.id}`}&temperament=is.null&order=created_at.asc`)
 console.log(`${rows.length} check-ins without a temperament`)
 
 const TEMPERAMENTS = ['heavy', 'muted', 'steady', 'light', 'bright']
@@ -67,9 +69,8 @@ for (const c of rows) {
   })
   await recordScriptCall(url, key, 'backfill-temperament', r)
   const word = r.content.find((b) => b.type === 'text')?.text.trim().toLowerCase().replace(/[^a-z]/g, '')
-  if (!TEMPERAMENTS.includes(word)) { console.log(`${c.created_at.slice(0, 10)}  (unclear: ${word}) left empty`); continue }
+  if (!TEMPERAMENTS.includes(word)) { counts.unclear = (counts.unclear ?? 0) + 1; continue }
   counts[word] = (counts[word] ?? 0) + 1
-  console.log(`${c.created_at.slice(0, 10)}  ${word.padEnd(7)} "${c.inner_weather}"`)
   if (write) await call(`/rest/v1/check_ins?id=eq.${c.id}&temperament=is.null`, { method: 'PATCH', body: JSON.stringify({ temperament: word }), headers: { Prefer: 'return=minimal' } })
 }
 console.log(write ? 'Written:' : 'Dry run, nothing written:', counts)
