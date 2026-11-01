@@ -9,7 +9,7 @@ export const series: ExampleSource = {
   label: 'Social media creator',
   who: 'a social media creator three episodes into a documentary series',
   teaser: 'Five people who work through the night, filmed under the last sodium streetlights before the city switches to LED.',
-  title: 'The Orange Hours',
+  title: 'Orange Hours: Documentary',
   intent:
     'A five-part documentary series, eight to twelve minutes an episode, about people who work while the city sleeps, filmed only under the last sodium streetlights before the council replaces them with white LEDs this winter. The night has a colour, and it is being switched off. For anyone who has walked home at 4am and felt the city belonged to them, and for the people who were awake making that possible. Episodes on YouTube, vertical cuts for Instagram, one festival cut.',
   arc: 'Breakaway',

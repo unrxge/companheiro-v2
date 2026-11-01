@@ -373,7 +373,20 @@ export default function IdeaLabPage() {
     </button>
   )
 
-  const labWalk = useExampleTour(entry === 'summon' && territoriesLoaded, 'idealab')
+  const labWalk = useExampleTour(territoriesLoaded, 'idealab')
+  // The walk begins by pressing "Summon an idea" itself: the press is seen landing on the card, then the lens opens.
+  const [tapAt, setTapAt] = useState<{ x: number; y: number } | null>(null)
+  useEffect(() => { if (labWalk.due) setLabWalked(false) }, [labWalk.due])
+  useEffect(() => {
+    if (!labWalk.due || labWalked || entry !== 'choosing') return
+    const timers: number[] = []
+    const aim = window.setTimeout(() => {
+      const card = document.querySelector('[data-summon-card]')?.getBoundingClientRect()
+      if (card) setTapAt({ x: card.left + card.width / 2, y: card.top + card.height / 2 })
+      timers.push(window.setTimeout(() => { setTapAt(null); setEntry('summon') }, 1300))
+    }, 700)
+    return () => { window.clearTimeout(aim); timers.forEach(clearTimeout); setTapAt(null) }
+  }, [labWalk.due, labWalked, entry])
 
   return (
     <PageShell mood="ember">
@@ -425,6 +438,9 @@ export default function IdeaLabPage() {
                       <m.button
                         key={o.key}
                         type="button"
+                        data-summon-card={o.key === 'summon' ? '' : undefined}
+                        animate={o.key === 'summon' && tapAt ? { scale: [1, 1, 0.96, 1], y: [0, 0, 2, 0] } : { scale: 1, y: 0 }}
+                        transition={o.key === 'summon' && tapAt ? { duration: 1.3, times: [0, 0.5, 0.7, 1] } : undefined}
                         onClick={o.onClick}
                         whileHover={{ y: -2 }}
                         whileTap={{ scale: 0.99 }}
@@ -724,6 +740,15 @@ export default function IdeaLabPage() {
             )}
           </div>
         </ModalDialog>
+      )}
+      {tapAt && (
+        <m.span
+          aria-hidden
+          initial={{ opacity: 0, scale: 1.8 }}
+          animate={{ opacity: [0, 1, 1, 0], scale: [1.8, 0.9, 0.9, 0.9] }}
+          transition={{ duration: 1.3, times: [0, 0.45, 0.75, 1] }}
+          style={{ position: 'fixed', left: tapAt.x - 20, top: tapAt.y - 20, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.4)', border: '1.5px solid rgba(255,255,255,0.7)', zIndex: 320, pointerEvents: 'none' }}
+        />
       )}
       {labWalk.due && !labWalked && entry === 'summon' && (
         <ExampleTour

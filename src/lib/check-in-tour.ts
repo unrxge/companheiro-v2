@@ -20,7 +20,7 @@ export const DEMO = {
   reply: 'Surrounded, and still on the outside of it. What did you want someone at that table to notice?',
   aside: 'Add a reminder to my project “Orange Hours”: the deadline has been ramped to two weeks from now and Rita still needs to be looped in on the venue change.',
   note: { text: 'Loop Rita in on the venue change: the deadline has been ramped to two weeks from now.', kind: 'reminder' as NoteKind },
-  project: { id: 'demo-orange-hours', title: 'The Orange Hours' },
+  project: { id: 'demo-orange-hours', title: 'Orange Hours: Documentary' },
 }
 
 /** The spoken example's timing: the tap, each word, and a moment to settle. */
@@ -105,7 +105,7 @@ export function checkInTourSteps(): TourStep[] {
     step({
       key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] }, edge: 'bottom',
       headline: 'You see what it understood first.',
-      lines: ['A reminder, for The Orange Hours, in fewer words than you said it. Change any of it before it is added.'],
+      lines: ['A reminder, for Orange Hours, in fewer words than you said it. Change any of it before it is added.'],
     }),
     step({
       key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] }, edge: 'bottom', bare: true,
@@ -113,7 +113,7 @@ export function checkInTourSteps(): TourStep[] {
       lines: ['The new deadline and Rita, like a note on the wall, there the next time you open it.'],
     }),
     step({
-      key: 'end', stage: 'end', show: { anchor: 'checkin-window' },
+      key: 'end', stage: 'end', show: { anchor: 'checkin-window' }, edge: 'bottom', bare: true,
       headline: 'Whenever you are ready.',
       lines: ['It works out which one you mean. You never have to choose.'],
     }),

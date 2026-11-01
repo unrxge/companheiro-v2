@@ -10,7 +10,7 @@ export const director: ExampleSource = {
   who: 'a creative director three weeks from presenting a global campaign',
   note: 'The voice in its recording is computer-generated.',
   teaser: 'The first campaign in eleven years for a 120-year-old luggage maker: a film, six arrivals halls, an editorial issue and a repair ledger.',
-  title: 'Aldermoor: Come Back Different',
+  title: 'Aldermoor: Marketing Campaign',
   intent:
     'The first campaign in eleven years for Aldermoor, the trunk and luggage maker founded in 1903, launching in six markets in March. The client wants relevance with travellers under 45 without losing the owners who have carried the same case for thirty years. The campaign stands on the one thing no competitor can say: Aldermoor repairs every case it has ever made, for as long as it exists. Travel changes the people who do it; the case is what carries them through the change. For people who travel to come back as someone slightly different, and who are tired of travel sold as a backdrop.',
   arc: 'Breakaway',

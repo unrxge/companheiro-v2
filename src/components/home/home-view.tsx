@@ -233,6 +233,8 @@ export function HomeView() {
   const total = (pieceCounts?.active ?? 0) + (pieceCounts?.queue ?? 0) + (pieceCounts?.completed ?? 0)
   const greetingWords = greeting.split(' ')
   const walk = useExampleTour(staying && !isLoading && !isLoadingCaptures, 'home')
+  // Asked for again from Settings while already here: it plays now.
+  useEffect(() => { if (walk.due) setWalked(false) }, [walk.due])
   const homeSteps = useMemo(() => homeTourSteps(), [])
   // The capture step types an example into the box (a note, then a link), and takes it out again after.
   const captureDemo = useRef<(() => void) | null>(null)

@@ -9,12 +9,12 @@ import type { Practice } from '@/lib/tour'
 
 /** The example project on their board for each practice (lib/examples), by title. */
 const EXAMPLE: Record<Practice, { title: string; kind: string }> = {
-  director: { title: 'Aldermoor: Come Back Different', kind: 'campaign' },
-  client: { title: 'Aurélia Bakery: The Second Shop', kind: 'client project' },
-  songwriter: { title: 'The Age He Was', kind: 'album' },
+  director: { title: 'Aldermoor: Marketing Campaign', kind: 'campaign' },
+  client: { title: 'Aurélia Bakery: Brand Identity', kind: 'client project' },
+  songwriter: { title: 'The Age He Was: Album', kind: 'album' },
   writer: { title: 'Before Anyone Wakes Up', kind: 'collection' },
-  creator: { title: 'The Orange Hours', kind: 'series' },
-  cinematographer: { title: 'The Orange Hours', kind: 'documentary series' },
+  creator: { title: 'Orange Hours: Documentary', kind: 'series' },
+  cinematographer: { title: 'Orange Hours: Documentary', kind: 'documentary series' },
 }
 
 /** What a practice makes, in its own words. */
@@ -63,7 +63,7 @@ export function handover(practices: Practice[], name: string, newAccount: boolea
     const what = list(practices.filter((p) => PRO.includes(p)).map((p) => MAKES[p]))
     return {
       eyebrow: 'Your studio',
-      title: name ? `Ready when you are, ${name}.` : 'Ready when you are.',
+      title: name ? `It’s time ${name}!` : 'It’s time!',
       body: `Companheiro is set up for professional work: ${what} held to one clear concept from the brief onwards, every deliverable laid out where you can see how it connects, and the whole vision talked through whenever a client pulls it somewhere else.`,
       steps: [
         ...(first ? [first] : []),
@@ -75,8 +75,8 @@ export function handover(practices: Practice[], name: string, newAccount: boolea
 
   const what = practices.length ? list(practices.map((p) => MAKES[p])) : 'what you make'
   return {
-    eyebrow: 'Welcome in',
-    title: name ? `Welcome in, ${name}.` : 'Welcome in.',
+    eyebrow: 'Welcome',
+    title: name ? `It’s time ${name}!` : 'It’s time!',
     body: `This is a place for your ${what}: ideas drawn from the themes you just named, a clear concept before you begin, and someone to talk the work through with when it stalls. Each part shows you round the first time you open it.`,
     steps: [
       ...(first ? [first] : []),

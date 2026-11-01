@@ -8,7 +8,7 @@ export const songwriter: ExampleSource = {
   label: 'Songwriter',
   who: 'a songwriter halfway through an album',
   teaser: 'Nine songs written the year I turned the age my father was when I was born.',
-  title: 'The Age He Was',
+  title: 'The Age He Was: Album',
   intent:
     'Nine songs written in the year I turned thirty-four, the age my father was when I was born. For anyone who has caught a parent’s gesture in their own hands and didn’t know whether to flinch or smile. The record should feel like a house at night: everyone asleep but one, and a radio on low somewhere.',
   arc: 'Integration',

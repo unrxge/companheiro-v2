@@ -793,7 +793,8 @@ export default function CheckInPage() {
                 {SCENES[demo.scene].title && <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary }}>{SCENES[demo.scene].title}</span>}
               </div>
             )}
-            <div data-tour="checkin-thread">
+            {/* Nothing to hold in the example's reminder scene: an empty one would add a gap of its own under the label. */}
+            {(!showingDemo || shownMessages.length > 0) && <div data-tour="checkin-thread">
             <Thread messages={shownMessages} streaming={showingDemo ? demoReplying : isProcessing} align="left">
               {/* Read aloud for the last companion reply */}
               {!showingDemo && hasAiResponded && !isProcessing && (
@@ -821,7 +822,7 @@ export default function CheckInPage() {
                 </div>
               )}
             </Thread>
-            </div>
+            </div>}
 
             {/* What was understood as meant for a project, waiting for a yes. */}
             {shownOffers.map((offer) => (
@@ -904,7 +905,7 @@ export default function CheckInPage() {
 
             {/* Always available: saving is not the end of the conversation,
                 so nothing here should stop them carrying on talking. */}
-            <div style={{ paddingTop: 8 }}>
+            <div style={{ paddingTop: showingDemo ? 0 : 8 }}>
               {inputArea}
             </div>
             <div ref={messagesEndRef} style={{ height: 1 }} />

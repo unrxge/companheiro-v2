@@ -279,7 +279,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
 const WALK_PLACES: { place: WalkPlace; href: string; title: string; body: string }[] = [
   { place: 'home', href: '/home', title: 'Home', body: 'What is on the page, and your capture bank.' },
   { place: 'checkin', href: '/check-in', title: 'Check-in', body: 'Saying how you are, or leaving a thought on a project.' },
-  { place: 'idealab', href: '/idea-lab', title: 'Idea Lab', body: 'Summoning a question: movement, energy, open or charged.' },
+  { place: 'idealab', href: '/idea-lab', title: 'Idea Lab', body: 'Summoning a question: territory, energy, open or charged.' },
   { place: 'board', href: '/project-board', title: 'Project Board', body: 'Opens an example made for what you do, and walks you through it.' },
   { place: 'portrait', href: '/portrait', title: 'Portrait', body: 'How a pattern gets from a check-in to here.' },
 ]

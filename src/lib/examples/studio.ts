@@ -9,7 +9,7 @@ export const studio: ExampleSource = {
   label: 'One-person studio',
   who: 'a one-person design studio, two months into a client’s identity',
   teaser: 'A brand for a sixty-year-old bakery opening its second shop. Round two with the client.',
-  title: 'Aurélia Bakery: The Second Shop',
+  title: 'Aurélia Bakery: Brand Identity',
   intent:
     'A brand identity for Aurélia, a bakery that has fed the same street since 1964 and is now opening its first new shop in a generation, across the river, in a neighbourhood that has never queued for its bread. Teresa, the founder’s granddaughter, is taking over. The brand has to carry the trust of the old counter into a room that has none yet, and be something she can hand to her own children.',
   arc: 'Beginning',

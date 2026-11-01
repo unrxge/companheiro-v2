@@ -35,6 +35,16 @@ export interface ExampleTourDue {
 
 export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): ExampleTourDue {
   const [due, setDue] = useState<{ practices: string[]; chainPiece: boolean } | null>(null)
+  // "Take the tour" in Settings asks again while this page may already be open: it plays at once, not on the next visit.
+  const [again, setAgain] = useState(0)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const place = (e as CustomEvent<WalkPlace>).detail
+      if (PLACE_KEYS[place]?.includes(which)) { setDue(null); setAgain((n) => n + 1) }
+    }
+    window.addEventListener(REARMED, on)
+    return () => window.removeEventListener(REARMED, on)
+  }, [which])
 
   useEffect(() => {
     if (!ready) return
@@ -54,7 +64,7 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
       })
       .catch(() => { /* not knowing is not a reason to play it */ })
     return () => { live = false }
-  }, [ready, which])
+  }, [ready, which, again])
 
   const markSeen = useCallback(() => {
     try { window.localStorage.setItem(SEEN[which], new Date().toISOString()) } catch { /* fine */ }
@@ -69,6 +79,8 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
 
 /** The parts of the app a walk can be asked for again from Settings. */
 export type WalkPlace = 'home' | 'checkin' | 'idealab' | 'board' | 'portrait'
+/** Sent when a walk is switched back on, so a page already open can play it. */
+const REARMED = 'companheiro:walks-rearmed'
 const PLACE_KEYS: Record<WalkPlace, TourWhich[]> = { home: ['home'], checkin: ['checkin'], idealab: ['idealab'], portrait: ['portrait'], board: ['canvas', 'piece'] }
 
 /**
@@ -85,6 +97,7 @@ export async function rearmWalks(place: WalkPlace): Promise<boolean> {
     })
     if (!res.ok) return false
     for (const which of PLACE_KEYS[place]) { try { window.localStorage.removeItem(SEEN[which]) } catch { /* fine */ } }
+    window.dispatchEvent(new CustomEvent(REARMED, { detail: place }))
     return true
   } catch {
     return false
