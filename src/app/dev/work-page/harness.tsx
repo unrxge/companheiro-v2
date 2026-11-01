@@ -230,7 +230,7 @@ function installMock(o: Opts) {
     if (path === '/api/examples/tour') {
       if (method === 'POST') return json({ success: true })
       const again = o.walks
-      return json({ seen: !again, pieceSeen: !again, checkInSeen: true, pageSeen: { home: true, idealab: true, portrait: true }, practices: o.practices ?? [], rearmedAt: again ? 'dev' : null, autoOpen: again, chainPiece: again, signedIn: true })
+      return json({ seen: !again, pieceSeen: !again, checkInSeen: true, pageSeen: { home: true, idealab: true, portrait: true, board: !again }, practices: o.practices ?? [], signedIn: true })
     }
     if (path === '/api/idea-lab/conceptualise/draft') return json({ drafts: method === 'GET' ? [{ id: 'd1', phase: 2, messages: [{ role: 'assistant', content: 'What would it cost you to leave that sentence out?' }] }] : [] })
     if (path === '/api/idea-lab/territories') return json({})

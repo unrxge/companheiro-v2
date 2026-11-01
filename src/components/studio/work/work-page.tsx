@@ -115,7 +115,7 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const [visionRoom, setVisionRoom] = useState<{ origin: RoomOrigin | null } | null>(null)
   // The example tour drives the room as it walks through it: which half a
   // narrow room shows, and when it closes again.
-  const [roomTour, setRoomTour] = useState<{ tab?: 'page' | 'talk'; close?: boolean } | undefined>(undefined)
+  const [roomTour, setRoomTour] = useState<{ tab?: 'page' | 'talk'; close?: boolean; act?: 'scroll' | 'ask' } | undefined>(undefined)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [checking, setChecking] = useState(false)
   const [checkNote, setCheckNote] = useState<string | null>(null)
@@ -491,7 +491,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
   const onTourRoom = useCallback((move: RoomMove, from: { x: number; y: number } | null) => {
     if (move === 'open') { setRail(null); setVisionRoom({ origin: from }); setRoomTour({ tab: 'page' }); return }
     if (move === 'close') { setRoomTour((cur) => ({ ...cur, close: true })); return }
-    setRoomTour((cur) => ({ ...cur, tab: move }))
+    if (move === 'scroll' || move === 'ask') { setRoomTour((cur) => ({ ...cur, act: move })); return }
+    setRoomTour((cur) => ({ ...cur, tab: move, act: undefined }))
   }, [])
   const planBanner = example
     ? (focus.kind === 'project' ? [<ExampleBanner key="example" who={example.who} note={example.note} onPutBack={() => { forgetLayout(projectId); void api.refresh(); void board.api.reload() }} />] : [])
@@ -809,7 +810,15 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             }}
           />}
         </CanvasStage>
-        <Dock />
+        {/* On a phone the canvas has the back button; the Dock steps away and what stood above it comes down. */}
+        {narrow ? (
+          <style>{`
+            .companion-launcher { bottom: max(14px, env(safe-area-inset-bottom)); }
+            .zoom-pill { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 4px); }
+            .add-fan { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 4px); }
+            .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 12px); }
+          `}</style>
+        ) : <Dock />}
         {companionDrawer}
         {visionRoom && (
           <VisionRoom
@@ -833,12 +842,8 @@ function Work({ projectId, focus, straightToWriting }: { projectId: string; focu
             board={tourHandle}
             phone={phone}
             onRoom={onTourRoom}
-            onDone={(exited) => {
-              setTouring(null)
-              // Walks asked for again in Settings go on into the example's first piece, where the writing page's follows (unless they left).
-              const first = roots[0]
-              if (!exited && tourDue.due?.chainPiece && example && first) router.push(`/p/${projectId}/n/${first.id}`)
-            }}
+            // The writing page's walk plays when a piece is first opened, never straight after this one.
+            onDone={() => setTouring(null)}
             // The preview only: ?tour=5 starts at the fifth step, to look at one.
             startAt={process.env.NODE_ENV === 'production' ? 0 : Math.max(0, Number(new URLSearchParams(window.location.search).get('tour') ?? 1) - 1)}
           />

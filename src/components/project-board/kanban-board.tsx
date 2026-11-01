@@ -32,6 +32,11 @@ import { isResting, restEndsAt } from '@/lib/billing/entitlements'
 import { usePlan } from '@/lib/billing/use-plan'
 import { PlanNote } from '@/components/billing/plan-note'
 import type { ExampleCard } from '@/lib/examples'
+import { ExampleTour } from '@/components/studio/work/example-tour'
+import { useExampleTour } from '@/lib/examples/use-example-tour'
+import { boardTourSteps } from '@/lib/page-tours'
+import { EXAMPLE_PRACTICES } from '@/lib/examples/tour-script'
+import { usePhone } from '@/lib/use-phone'
 
 interface ConceptualiseDraft {
   id: string
@@ -188,6 +193,8 @@ function Board() {
   // the practices named at sign-up. Shown under Active until put away.
   const [examples, setExamples] = useState<ExampleCard[]>([])
   const [examplesAway, setExamplesAway] = useState(false)
+  const [examplesLoaded, setExamplesLoaded] = useState(false)
+  const phone = usePhone()
 
   const load = useCallback(async () => {
     try {
@@ -211,6 +218,7 @@ function Board() {
       .then((r) => (r.ok ? r.json() : { examples: [] }))
       .then((d) => setExamples(Array.isArray(d.examples) ? d.examples : []))
       .catch(() => {})
+      .finally(() => setExamplesLoaded(true))
   }, [load])
 
   const putExamplesAway = useCallback(() => {
@@ -274,25 +282,25 @@ function Board() {
 
   const openCanvas = useCallback((id: string, from?: HTMLElement | null) => go(`/p/${id}`, 'in', from), [go])
 
-  // Guided walks switched back on in Settings: the board opens the example nearest
-  // to what the person makes (the first card), and its walk plays there. Once per
-  // switching-on, and only when asked for: a board is never taken over otherwise.
-  const autoOpened = useRef(false)
-  useEffect(() => {
-    if (status !== 'ready' || examples.length === 0 || autoOpened.current) return
-    autoOpened.current = true
-    fetch('/api/examples/tour', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((d: { autoOpen?: boolean; rearmedAt?: string | null }) => {
-        if (!d.autoOpen || !d.rearmedAt) return
-        try {
-          if (sessionStorage.getItem('companheiro.walk-opened') === d.rearmedAt) return
-          sessionStorage.setItem('companheiro.walk-opened', d.rearmedAt)
-        } catch { /* still opens once: the walk marks itself seen */ }
-        openCanvas(examples[0].id)
-      })
-      .catch(() => {})
-  }, [examples, openCanvas, status])
+  // The board's walk: a broad look at the module, then the example nearest to what the
+  // person makes, seen being opened (the canvas's own walk carries on from there).
+  const walk = useExampleTour(status === 'ready' && examplesLoaded, 'board')
+  const [walking, setWalking] = useState(false)
+  const walkedIn = useRef(false)
+  const walkOver = useRef(false)
+  useEffect(() => { if (walk.due) setWalking(true) }, [walk.due])
+  const first = examples[0] ?? null
+  const boardSteps = useMemo(
+    () => boardTourSteps({ practices: walk.due?.practices ?? [], exampleFor: first ? EXAMPLE_PRACTICES[first.example.key] ?? [] : null }),
+    [walk.due, first],
+  )
+  const enterExample = useCallback(() => {
+    if (walkedIn.current || walkOver.current || !first) return
+    walkedIn.current = true
+    const el = document.querySelector<HTMLElement>('[data-tour="board-example"]')
+    setWalking(false)
+    openCanvas(first.id, el)
+  }, [first, openCanvas])
 
   const open = useCallback((p: ShelfProject, from: HTMLElement) => {
     const stage = projectState(p)
@@ -675,9 +683,10 @@ function Board() {
           </span>
         </div>
         <ExampleCarousel>
-          {shown.map((e) => (
+          {shown.map((e, i) => (
             <button
               key={e.id}
+              data-tour={i === 0 ? 'board-example' : undefined}
               onClick={(ev) => openCanvas(e.id, ev.currentTarget)}
               style={{
                 textAlign: 'left', background: c.cardBg, boxShadow: c.shadow, border: `1px dashed ${c.divider}`, borderRadius: 12,
@@ -886,6 +895,19 @@ function Board() {
             You have {drafts.length === 1 ? 'an unfinished exploration' : `${drafts.length} unfinished explorations`} waiting in the Queue.
           </p>
         </ModalDialog>
+      )}
+      {walk.due && walking && (
+        <ExampleTour
+          steps={boardSteps}
+          phone={phone}
+          label="A short walk round the Project Board"
+          onStep={(st) => {
+            if (st.key === boardSteps[0].key) walk.markSeen()
+            // The tap is seen, and then the project opens by itself.
+            if (st.key === 'example') window.setTimeout(enterExample, 3200)
+          }}
+          onDone={(exited) => { if (exited) { walkOver.current = true; setWalking(false); return } enterExample(); setWalking(false) }}
+        />
       )}
     </PageShell>
   )

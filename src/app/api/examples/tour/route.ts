@@ -13,7 +13,7 @@ import { requireUser } from '@/lib/supabase/route'
 export async function GET() {
   try {
     const auth = await requireUser()
-    if (!auth) return NextResponse.json({ seen: false, pieceSeen: false, checkInSeen: false, pageSeen: { home: false, idealab: false, portrait: false }, practices: [], signedIn: false })
+    if (!auth) return NextResponse.json({ seen: false, pieceSeen: false, checkInSeen: false, pageSeen: { home: false, idealab: false, portrait: false, board: false }, practices: [], signedIn: false })
     const { supabase, user } = auth
     const kept = user.user_metadata?.example_tour as Record<string, string | undefined> | undefined
     const seen = !!kept?.seen_at
@@ -23,17 +23,12 @@ export async function GET() {
     const raw: unknown = (row as { practices?: unknown } | null)?.practices ?? user.user_metadata?.profile?.practices
     const practices = Array.isArray(raw) ? raw.map(String) : []
     // The walks round Home, the Idea Lab's summoning and the Portrait.
-    const pageSeen = { home: !!kept?.home_seen_at, idealab: !!kept?.idea_lab_seen_at, portrait: !!kept?.portrait_seen_at }
-    // Walks switched back on from Settings: the Project Board then opens the example nearest to
-    // what they make and the canvas walk plays; at its end the piece's walk follows.
-    const rearmedAt = typeof kept?.rearmed_at === 'string' ? kept.rearmed_at : null
-    const autoOpen = !!rearmedAt && !seen
-    const chainPiece = !!rearmedAt && !pieceSeen
-    return NextResponse.json({ seen, pieceSeen, checkInSeen, pageSeen, practices, rearmedAt, autoOpen, chainPiece, signedIn: true })
+    const pageSeen = { home: !!kept?.home_seen_at, idealab: !!kept?.idea_lab_seen_at, portrait: !!kept?.portrait_seen_at, board: !!kept?.board_seen_at }
+    return NextResponse.json({ seen, pieceSeen, checkInSeen, pageSeen, practices, signedIn: true })
   } catch (error) {
     console.error('example tour GET error:', error)
     // Not knowing is not a reason to play it again over someone's work.
-    return NextResponse.json({ seen: true, pieceSeen: true, checkInSeen: true, pageSeen: { home: true, idealab: true, portrait: true }, practices: [], signedIn: false }, { status: 500 })
+    return NextResponse.json({ seen: true, pieceSeen: true, checkInSeen: true, pageSeen: { home: true, idealab: true, portrait: true, board: true }, practices: [], signedIn: false }, { status: 500 })
   }
 }
 
@@ -44,7 +39,8 @@ const REARM: Record<string, string[]> = {
   checkin: ['check_in_seen_at'],
   idealab: ['idea_lab_seen_at'],
   portrait: ['portrait_seen_at'],
-  board: ['seen_at', 'piece_seen_at'],
+  // The board's walk, then (opened from it) the canvas's, and the writing page's when a piece is opened.
+  board: ['board_seen_at', 'seen_at', 'piece_seen_at'],
 }
 export async function POST(request: Request) {
   try {
@@ -57,9 +53,7 @@ export async function POST(request: Request) {
       const kept = { ...((auth.user.user_metadata?.example_tour ?? {}) as Record<string, unknown>) }
       for (const f of REARM[body.rearm]) delete kept[f]
       const now = new Date().toISOString()
-      // A part chosen later replaces one chosen earlier that was never opened.
-      if (body.rearm === 'board') kept.rearmed_at = now
-      else delete kept.rearmed_at
+      delete kept.rearmed_at
       const { error } = await auth.supabase.auth.updateUser({ data: { example_tour: kept, ...(body.rearm === 'board' ? { examples: { on: true, changed_at: now } } : {}) } })
       if (error) {
         console.error('example tour rearm error:', error)
@@ -67,7 +61,7 @@ export async function POST(request: Request) {
       }
       return NextResponse.json({ success: true })
     }
-    const FIELD: Record<string, string> = { piece: 'piece_seen_at', checkin: 'check_in_seen_at', home: 'home_seen_at', idealab: 'idea_lab_seen_at', portrait: 'portrait_seen_at' }
+    const FIELD: Record<string, string> = { piece: 'piece_seen_at', checkin: 'check_in_seen_at', home: 'home_seen_at', idealab: 'idea_lab_seen_at', portrait: 'portrait_seen_at', board: 'board_seen_at' }
     const field = typeof body.which === 'string' && FIELD[body.which] ? FIELD[body.which] : 'seen_at'
     const kept = (auth.user.user_metadata?.example_tour ?? {}) as Record<string, unknown>
     const { error } = await auth.supabase.auth.updateUser({ data: { example_tour: { ...kept, [field]: new Date().toISOString() } } })

@@ -68,12 +68,13 @@ test('the thread it shows runs through some pieces and not all, and its web is l
   }
 })
 
-test('a phone is told to hold, a computer to rest', () => {
+test('a phone is told to hold, a computer to rest, and the thread pulses without a gesture', () => {
   const phone = fromExample('series', [], true).find((s) => s.key === 'thread')!
   const desk = fromExample('series', [], false).find((s) => s.key === 'thread')!
-  assert.equal(phone.gesture, 'hold')
+  assert.equal(phone.gesture, undefined)
+  assert.equal(phone.pulse, true)
   assert.match(phone.lines.join(' '), /Hold/)
-  assert.equal(desk.gesture, 'rest')
+  assert.equal(desk.gesture, undefined)
   assert.match(desk.lines.join(' '), /Rest/)
 })
 

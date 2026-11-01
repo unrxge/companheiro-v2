@@ -15,6 +15,7 @@
 // and the rules need a surface to sit on, the title never did.
 
 import { useEffect, useRef, useState } from 'react'
+import { usePhone } from '@/lib/use-phone'
 import { useRouter } from 'next/navigation'
 import { ConversationLogModal, type ConversationLogMessage } from '@/components/conversation/conversation-log-modal'
 import { useTheme } from '@/components/theme/theme-provider'
@@ -76,6 +77,7 @@ export function VisionBlock({
   /** Where to build the core concept, when the project skipped it. */
   coreConceptHref?: string | null
 }) {
+  const phone = usePhone()
   const { t } = useTheme()
   const liveRules = rules.filter((r) => !r.retired_at).length
   const [renaming, setRenaming] = useState(false)
@@ -121,7 +123,7 @@ export function VisionBlock({
               // appears underneath it once expanded, never behind the title.
               ...TITLE_STYLE, color: title ? shell.text : shell.muted, margin: 0,
               cursor: disabled ? 'default' : 'text', minWidth: 0, maxWidth: '100%',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              ...(phone ? { overflowWrap: 'anywhere' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }),
             }}
           >
             {title || 'Untitled project'}

@@ -86,7 +86,7 @@ export function VisionRoom({
   disabled?: boolean
   /** Driven by the example tour: which half a narrow room shows, and when to
    *  leave (by the same way out a press of "Canvas" plays). */
-  tour?: { tab?: 'page' | 'talk'; close?: boolean }
+  tour?: { tab?: 'page' | 'talk'; close?: boolean; act?: 'scroll' | 'ask' }
 }) {
   const { t } = useTheme()
   const reduce = useReducedMotion() ?? false
@@ -102,6 +102,26 @@ export function VisionRoom({
   // Narrow, the two halves take turns, and the vision comes first.
   const [tab, setTab] = useState<'page' | 'talk'>('page')
   useEffect(() => { if (tour?.tab) setTab(tour.tab) }, [tour?.tab])
+
+  // The tour reads the page through, slowly, from the top to the foot.
+  useEffect(() => {
+    if (tour?.act !== 'scroll') return
+    const el = document.querySelector<HTMLElement>('[data-tour="vision-page"] .vision-scroll')
+    if (!el) return
+    el.scrollTop = 0
+    const dist = el.scrollHeight - el.clientHeight
+    if (dist <= 4) return
+    const ms = reduce ? 1 : Math.min(7200, Math.max(3600, dist * 7))
+    const t0 = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / ms)
+      el.scrollTop = dist * (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2)
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [tour?.act, reduce])
 
   const [loaded, setLoaded] = useState(false)
   const [messages, setMessages] = useState<VisionMessage[]>([])
@@ -523,6 +543,7 @@ export function VisionRoom({
                   onRulesChanged={onRulesChanged}
                   disabled={disabled}
                   autoFocus={wide}
+                  demo={tour?.act === 'ask'}
                 />
               </div>
             </div>

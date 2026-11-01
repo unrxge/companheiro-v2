@@ -130,8 +130,8 @@ export function PieceCard({
             style={{
               flex: 1, minWidth: 0, margin: 0, color: node.title ? t.textPrimary : t.textMuted,
               fontFamily: fonts.display, fontWeight: 600, fontSize: titleSize, lineHeight: 1.18, letterSpacing: '-0.02em',
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-              maxHeight: '2.36em',
+              display: '-webkit-box', WebkitLineClamp: phone ? 4 : 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              maxHeight: phone ? '4.72em' : '2.36em',
             }}
           >
             {node.title || 'Untitled'}

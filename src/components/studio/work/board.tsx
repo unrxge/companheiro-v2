@@ -98,6 +98,8 @@ const BOARD_FRAME = { w: 1440, h: 900 } as const
 const FIT_FLOOR = 0.2
 /** How a phone opens: the zoom, and where the first card's top-left corner stands (pixels in from the left, share of the height down). */
 const PHONE_ZOOM = 1
+/** A project of several pieces opens a little further out, so the next card shows at the edge. */
+const PHONE_ZOOM_MANY = 0.74
 const SMALL_CARDS_KEY = 'companheiro.small-cards'
 const PHONE_CARD_AT = { x: 40, y: 0.31 } as const
 // From this many pieces the cards come down in size, so more of the lane is
@@ -185,6 +187,8 @@ export interface BoardTourHandle {
   light: (focus: WebFocus | null) => void
   /** Opens the corner's "+" menu as it is in a project of one's own (not greyed), or closes it. */
   plus: (open: boolean) => void
+  /** The lit web's strands pulse (a thread being pointed out), or stop. */
+  pulse: (on: boolean) => void
 }
 
 export interface BoardActions {
@@ -399,7 +403,7 @@ export function Board({
   // rather than shrink to fit, so this is the frame's own width, not any one
   // notice's. Kept separate from noticeW below: capping this the same way
   // would stop two notices ever sitting side by side at all.
-  const noticesRowMaxW = phone ? cardW : Math.round(Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2))
+  const noticesRowMaxW = phone ? Math.round(cardW * 1.3) : Math.round(Math.max(NOTICE_MIN_W, (frame.w || 1200) - MARGIN * 2))
   // Stretched across the frame itself, not the vision panel — a collision is
   // a nudge, and a nudge reads as one whenever it can stay short and wide
   // rather than boxed to the vision panel's own, much narrower scale. Every
@@ -665,6 +669,7 @@ export function Board({
   // Not while a connection is being made: those modes dim and light the cards
   // for their own reasons, and two answers at once is no answer.
   const lighting = useLit(!arming && !armingItem)
+  const [tourPulse, setTourPulse] = useState(false)
   const web = useMemo(() => ({
     threads: hubs.map((th) => ({ id: th.id, on: [...(presence.get(th.id)?.roots ?? [])] })),
     items: items.map((it) => ({ id: it.id, on: it.node_ids.filter((id) => pieceIds.has(id)) })),
@@ -979,7 +984,7 @@ export function Board({
   // (2026-10-22, the person's own framing: the first card at about half size, its
   // left edge a little in from the screen's, running off the right so it reads as
   // a lane, the title above it, the whole sitting a third of the way down.)
-  const phoneZoom = phone && frame.w ? Math.min(PHONE_ZOOM, (frame.w - PHONE_CARD_AT.x - 20) / cardW) : null
+  const phoneZoom = phone && frame.w ? Math.min(pieces.length >= 2 ? PHONE_ZOOM_MANY : PHONE_ZOOM, (frame.w - PHONE_CARD_AT.x - 20) / cardW) : null
   /**
    * The whole project in one look: the title, every piece and everything
    * hanging off them, fitted to the window as the board opens (the person's
@@ -1076,6 +1081,7 @@ export function Board({
       },
       light: (focus) => lighting.show(focus),
       plus: (open) => { setMenuLive(open); setMenuFor(open ? 'corner' : null) },
+      pulse: (on) => setTourPulse(on),
     }
   })
 
@@ -1394,6 +1400,7 @@ export function Board({
           transition: transform 150ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 150ms ease !important;
         }
         .add-piece-box:hover { background: ${alpha(shell.text, 0.07)}; border-color: ${alpha(shell.text, 0.46)}; color: ${shell.text}; }
+        @keyframes boardStrand { 0%, 100% { stroke-opacity: 0.5; stroke-width: 2.2px; } 50% { stroke-opacity: 1; stroke-width: 5px; } }
         .board-banner { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 52px + 14px + 52px + 12px); }
         @media (min-width: ${DOCK_DESKTOP_MIN}px) { .board-banner { bottom: calc(22px + 52px + 12px); } }
         /* A phone only: at the top, under the page's own header, clear of the
@@ -1512,7 +1519,9 @@ export function Board({
                   strokeWidth={on && lit ? 2.4 : 1.5}
                   strokeDasharray={deep ? '1 5' : undefined}
                   strokeLinecap="round"
-                  style={{ transition: `stroke ${LIT_MS}ms ease, stroke-width ${LIT_MS}ms ease` }}
+                  style={tourPulse && on && lit
+                    ? { animation: 'boardStrand 1.5s ease-in-out infinite' }
+                    : { transition: `stroke ${LIT_MS}ms ease, stroke-width ${LIT_MS}ms ease` }}
                 />
               )
             })

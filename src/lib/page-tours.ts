@@ -12,7 +12,7 @@
 //
 // Pure: the steps, and what the Portrait's example shows at each stage.
 
-import { readingTime, type TourStep } from '@/lib/examples/tour-script'
+import { readingTime, voiceFor, type TourStep } from '@/lib/examples/tour-script'
 import { typeOutMs } from '@/lib/type-out'
 
 /** What Home's walk types into the capture box, and the Idea Lab's walk summons. */
@@ -168,4 +168,28 @@ export function portraitTourSteps(): TourStep[] {
       lines: ['It fills as you check in. It changes how the companion meets you, never its voice.'],
     }),
   ]
+}
+
+/**
+ * The Project Board's walk. The module explains itself, so it is two steps: a
+ * broad look with nothing lit, then (when an example is there) the one nearest
+ * to what they make, seen being opened. The canvas's own walk carries on from it.
+ */
+export function boardTourSteps(input: { practices: readonly string[]; exampleFor: readonly string[] | null }): TourStep[] {
+  const steps: TourStep[] = [
+    step({
+      key: 'board', show: { anchor: 'page' }, bare: true,
+      headline: 'This is the Project Board.',
+      lines: ['Every project you have, by where it stands: waiting, in hand, or finished.'],
+    }),
+  ]
+  if (input.exampleFor) {
+    const v = voiceFor(input.practices, input.exampleFor)
+    steps.push(step({
+      key: 'example', show: { anchor: 'board-example' }, gesture: 'tap',
+      headline: 'Each project opens into its own canvas.',
+      lines: [`Here is one made for ${v.whole}. Come in.`],
+    }))
+  }
+  return steps
 }

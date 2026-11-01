@@ -45,7 +45,7 @@ const MENU_BELOW = 330
 /** Around whatever is lit. */
 const PAD = 14
 
-export type RoomMove = 'open' | 'page' | 'talk' | 'close'
+export type RoomMove = 'open' | 'page' | 'talk' | 'close' | 'scroll' | 'ask'
 
 type Rect = { x: number; y: number; w: number; h: number }
 
@@ -73,7 +73,7 @@ function rectFor(step: TourStep, narrow: boolean): Rect | null {
     if (step.plus) anchors.push('plus-menu')
     return unionOf(anchors.flatMap((a) => Array.from(document.querySelectorAll(`[data-tour="${a}"]`))))
   }
-  const ids = idsFor(step, narrow)
+  const ids = step.ring && !narrow ? step.ring : idsFor(step, narrow)
   const els = ids === 'all'
     ? Array.from(document.querySelectorAll('[data-lit]'))
     : (ids ?? []).flatMap((id) => Array.from(document.querySelectorAll(`[data-lit="${CSS.escape(id)}"]`)))
@@ -104,6 +104,7 @@ function gestureAt(step: TourStep): Rect | null {
     const plus = document.querySelector('[data-tour="add-button"]')
     return plus ? unionOf([plus]) : null
   }
+  if ('anchor' in step.show) return step.gesture ? unionOf(anchorEls(step).slice(0, 1)) : null
   if (!('ids' in step.show) || step.show.ids === 'all') return null
   const el = document.querySelector(`[data-lit="${CSS.escape(step.show.ids[0])}"]`)
   return el ? unionOf([el]) : null
@@ -272,6 +273,10 @@ export function ExampleTour({
       return d ? { x: d.left + d.width / 2, y: d.top + d.height / 2 } : null
     }
     const timers: number[] = []
+    if (!backwards && step.act) {
+      const act = step.act
+      timers.push(window.setTimeout(() => onRoom?.(act, null), (reduce ? 120 : Math.max(travel, step.room ? ROOM_MS + 620 : travel)) + 300))
+    }
     if (!backwards) {
       if (step.room === 'open' || step.room === 'close') {
         onRoom?.(step.room, door())
@@ -308,6 +313,7 @@ export function ExampleTour({
       board?.current?.frame(ids, { inset, maxZoom: 1, ms: reduce ? 1 : GLIDE_MS, below: step.plus ? MENU_BELOW : 0 })
     }
     board?.current?.light(step.light ?? null)
+    board?.current?.pulse(!!step.pulse)
     const arrive = reduce ? 120 : travel
     const id = window.setTimeout(() => setPhase('reading'), arrive)
     // Next works once the step has played (what the page itself acts out, `wait`)

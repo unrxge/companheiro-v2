@@ -87,6 +87,7 @@ export interface TourInput {
 export type TourAnchor =
   // the whole page's column: a walk's first, wide look before it narrows
   | 'page'
+  | 'board-example'
   | 'launcher' | 'vision-page' | 'vision-talk' | 'add-button'
   // the writing page
   | 'writing' | 'view-switch' | 'rail-panel' | 'rail-concept' | 'rail-assistant'
@@ -120,6 +121,12 @@ export interface TourStep {
   light?: WebFocus
   /** What happens to the vision room as the step begins. */
   room?: 'open' | 'page' | 'talk' | 'close'
+  /** Lit and ringed: only these of the ids shown (the rest are in view, not lit). */
+  ring?: string[]
+  /** The thread web pulses along the lit thread's strands while the step stands. */
+  pulse?: boolean
+  /** Something the room does on its own once the step has arrived: its page slowly read through, or a question asked and answered. */
+  act?: 'scroll' | 'ask'
   /** Shown being done: on the first thing in view, or on the "+" for `plus`. */
   gesture?: 'hold' | 'rest' | 'tap'
   /** On the check-in: which moment of the example conversation is on screen. */
@@ -132,6 +139,12 @@ export interface TourStep {
   ms: number
   /** How long what the page acts out in this step takes (a voice note being said, say): Next waits for it. */
   wait?: number
+}
+
+/** The question the tour types in the vision room, and what comes back. */
+export const ROOM_ASK = {
+  q: 'What does this project still not say out loud?',
+  a: 'Reading everything on the canvas: your pieces agree on what hurts, but none says what has changed by the end. That gap is where the concept is quietest. Which piece would you want to answer it first?',
 }
 
 /** Long enough to read twice at a calm pace, never so long it drags. */
@@ -184,11 +197,12 @@ export function tourSteps(input: TourInput): TourStep[] {
         `See what carries across ${v.whole} before ${v.audience} does.`,
         input.phone ? 'Hold a card to light its threads.' : 'Rest on a card to light its threads.',
       ],
+      // The thread is the focus; its strands pulse out to the pieces it touches.
       show: { ids: [thread.id, ...thread.on] },
-      // A phone frames the thread alone; its lit strands show where it goes.
       narrow: [thread.id],
+      ring: [thread.id],
       light: { kind: 'hub', id: thread.id },
-      gesture: input.phone ? 'hold' : 'rest',
+      pulse: true,
     }))
   }
 
@@ -203,13 +217,12 @@ export function tourSteps(input: TourInput): TourStep[] {
     gesture: 'tap',
   }))
 
-  // What the words cannot hold: pictures, sound, colour. Up to three, so the
+  // What the words cannot hold: pictures and sound. Up to three, so the
   // step frames a handful and not the whole board again.
   const kept = input.items.filter((i) => i.kind !== 'tasks')
   const pick = [
     kept.find((i) => i.kind === 'image'),
     kept.find((i) => i.kind === 'recording'),
-    kept.find((i) => i.kind === 'palette'),
   ].filter((i): i is TourItem => !!i)
   const shown = (pick.length ? pick : kept).slice(0, 3)
   if (shown.length) {
@@ -233,6 +246,8 @@ export function tourSteps(input: TourInput): TourStep[] {
     lines: ['Never your drafts.', 'Ask it what doesn’t hold together yet.'],
     show: { anchor: 'vision-page' },
     room: 'open',
+    act: 'scroll',
+    wait: 9600,
   }))
   steps.push(step({
     key: 'room-talk',
@@ -240,6 +255,8 @@ export function tourSteps(input: TourInput): TourStep[] {
     lines: ['What you settle on here is kept with the work.'],
     show: { anchor: 'vision-talk' },
     room: 'talk',
+    act: 'ask',
+    wait: 9000,
   }))
 
   steps.push(step({
@@ -248,6 +265,8 @@ export function tourSteps(input: TourInput): TourStep[] {
     lines: ['Move anything. Nothing here is saved.', 'Start your own when you’re ready.'],
     show: { ids: 'all' },
     room: 'close',
+    // Out of the room, the lit box lets go and the board is simply there.
+    bare: true,
   }))
 
   return steps

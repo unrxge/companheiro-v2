@@ -14,6 +14,7 @@
 // ever offers to keep.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ROOM_ASK } from '@/lib/examples/tour-script'
 import { useTheme } from '@/components/theme/theme-provider'
 import { MicButton } from '@/components/ui/mic-button'
 import { TextArea } from '@/components/ui/field'
@@ -66,6 +67,7 @@ export function VisionTalk({
   onRulesChanged,
   disabled = false,
   autoFocus = false,
+  demo = false,
 }: {
   projectId: string
   /** The conversation so far has arrived. */
@@ -88,6 +90,8 @@ export function VisionTalk({
   onRulesChanged: () => void
   disabled?: boolean
   autoFocus?: boolean
+  /** The example tour has the question typed, answered, and the answer shown whole. */
+  demo?: boolean
 }) {
   const { t } = useTheme()
   const [lines, setLines] = useState<Line[]>([])
@@ -98,6 +102,40 @@ export function VisionTalk({
   const [proposals, setProposals] = useState<RuleProposal[]>([])
   // Bringing the conversation into the core concept: reading, or what it found.
   const [rethink, setRethink] = useState<'idle' | 'reading' | 'nothing' | 'failed'>('idle')
+  // The tour's demonstration: what is being typed, and whether a reply is on its way.
+  const [demoDraft, setDemoDraft] = useState<string | null>(null)
+  const [demoBusy, setDemoBusy] = useState(false)
+  useEffect(() => {
+    if (!demo) return
+    const timers: number[] = []
+    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms))
+    const { q, a } = ROOM_ASK
+    const TYPE = 42
+    setDemoDraft('')
+    for (let i = 1; i <= q.length; i++) at(300 + i * TYPE, () => setDemoDraft(q.slice(0, i)))
+    const sent = 300 + q.length * TYPE + 500
+    at(sent, () => {
+      setDemoDraft('')
+      setLines((prev) => [...prev, { id: 'tour-q', role: 'person', text: q, sources: [] }])
+      setDemoBusy(true)
+    })
+    const reply = sent + 1100
+    at(reply, () => {
+      setDemoBusy(false)
+      setLines((prev) => [...prev, { id: 'tour-a', role: 'companion', text: '', sources: [] }])
+    })
+    // The first words arrive at a reading pace; then it skips ahead to the whole.
+    const words = a.split(' ')
+    const show = (text: string) => setLines((prev) => prev.map((l) => (l.id === 'tour-a' ? { ...l, text } : l)))
+    for (let i = 1; i <= 9; i++) at(reply + i * 120, () => show(words.slice(0, i).join(' ')))
+    at(reply + 9 * 120 + 500, () => show(a))
+    return () => {
+      timers.forEach((x) => window.clearTimeout(x))
+      setDemoDraft(null)
+      setDemoBusy(false)
+      setLines((prev) => prev.filter((l) => l.id !== 'tour-q' && l.id !== 'tour-a'))
+    }
+  }, [demo])
   const bottom = useRef<HTMLDivElement | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
   const draftRef = useRef('')
@@ -131,7 +169,7 @@ export function VisionTalk({
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' })
-  }, [lines, busy, pending.length, proposals.length])
+  }, [lines, busy, demoBusy, pending.length, proposals.length])
 
   useEffect(() => {
     if (autoFocus && loaded) box.current?.focus({ preventScroll: true })
@@ -344,10 +382,11 @@ export function VisionTalk({
             {rethink === 'failed' && <span style={{ ...canvasType.small, color: t.ember }}>That reading did not come back. Try again in a moment.</span>}
           </div>
         )}
+        {demoBusy && <div style={{ padding: '4px 2px' }}><WorkingDots /></div>}
         <div ref={bottom} />
       </div>
 
-      {!disabled && (
+      {(!disabled || demoDraft !== null) && (
         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${alpha(t.textPrimary, 0.08)}`, paddingTop: 12 }}>
           {/* Asked on purpose, each one a question in the person's own voice. */}
           <div role="group" aria-label="Ask it to look at the vision a particular way" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -374,7 +413,8 @@ export function VisionTalk({
             <textarea
               ref={box}
               aria-label="Say something about the vision of this project"
-              value={draft + (dictation.interimText ? ` ${dictation.interimText}` : '')}
+              value={demoDraft ?? draft + (dictation.interimText ? ` ${dictation.interimText}` : '')}
+              readOnly={demoDraft !== null}
               rows={1}
               placeholder="What are you turning over?"
               onChange={(e) => { dictation.clearInterim(); setDraft(e.target.value) }}

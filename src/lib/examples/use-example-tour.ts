@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 // for looking at it.
 
 /** The canvas's walk, and the writing page's: each played once. */
-export type TourWhich = 'canvas' | 'piece' | 'checkin' | 'home' | 'idealab' | 'portrait'
+export type TourWhich = 'canvas' | 'piece' | 'checkin' | 'home' | 'idealab' | 'portrait' | 'board'
 const SEEN: Record<TourWhich, string> = {
   canvas: 'companheiro.example-tour.seen',
   piece: 'companheiro.example-piece-tour.seen',
@@ -18,23 +18,24 @@ const SEEN: Record<TourWhich, string> = {
   home: 'companheiro.home-tour.seen',
   idealab: 'companheiro.idea-lab-tour.seen',
   portrait: 'companheiro.portrait-tour.seen',
+  board: 'companheiro.board-tour.seen',
 }
 /** What plays a walk again in the preview: ?tour= for the canvas's, ?piecetour= for the writing page's. */
-const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour', checkin: 'tour', home: 'tour', idealab: 'tour', portrait: 'tour' }
+const FORCE: Record<TourWhich, string> = { canvas: 'tour', piece: 'piecetour', checkin: 'tour', home: 'tour', idealab: 'tour', portrait: 'tour', board: 'tour' }
 
 const seenHere = (which: TourWhich) => {
   try { return !!window.localStorage.getItem(SEEN[which]) } catch { return false }
 }
 
 export interface ExampleTourDue {
-  /** Due now, with what the person said they make; null while not (or not yet known). `chainPiece`: walks were switched back on, and the writing page's follows the canvas's. */
-  due: { practices: string[]; chainPiece: boolean } | null
+  /** Due now, with what the person said they make; null while not (or not yet known). */
+  due: { practices: string[] } | null
   /** It has started: it will not be played again. */
   markSeen: () => void
 }
 
 export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): ExampleTourDue {
-  const [due, setDue] = useState<{ practices: string[]; chainPiece: boolean } | null>(null)
+  const [due, setDue] = useState<{ practices: string[] } | null>(null)
   // "Take the tour" in Settings asks again while this page may already be open: it plays at once, not on the next visit.
   const [again, setAgain] = useState(0)
   useEffect(() => {
@@ -53,14 +54,14 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
     let live = true
     fetch('/api/examples/tour', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; pageSeen?: Record<string, boolean>; practices?: unknown; chainPiece?: boolean }) => {
+      .then((d: { seen?: boolean; pieceSeen?: boolean; checkInSeen?: boolean; pageSeen?: Record<string, boolean>; practices?: unknown }) => {
         if (!live) return
         const seen = which === 'piece' ? d.pieceSeen : which === 'checkin' ? d.checkInSeen : which === 'canvas' ? d.seen : d.pageSeen?.[which] ?? true
         if (seen && !forced) {
           try { window.localStorage.setItem(SEEN[which], '1') } catch { /* fine */ }
           return
         }
-        setDue({ practices: Array.isArray(d.practices) ? d.practices.map(String) : [], chainPiece: d.chainPiece === true })
+        setDue({ practices: Array.isArray(d.practices) ? d.practices.map(String) : [] })
       })
       .catch(() => { /* not knowing is not a reason to play it */ })
     return () => { live = false }
@@ -81,7 +82,7 @@ export function useExampleTour(ready: boolean, which: TourWhich = 'canvas'): Exa
 export type WalkPlace = 'home' | 'checkin' | 'idealab' | 'board' | 'portrait'
 /** Sent when a walk is switched back on, so a page already open can play it. */
 const REARMED = 'companheiro:walks-rearmed'
-const PLACE_KEYS: Record<WalkPlace, TourWhich[]> = { home: ['home'], checkin: ['checkin'], idealab: ['idealab'], portrait: ['portrait'], board: ['canvas', 'piece'] }
+const PLACE_KEYS: Record<WalkPlace, TourWhich[]> = { home: ['home'], checkin: ['checkin'], idealab: ['idealab'], portrait: ['portrait'], board: ['board', 'canvas', 'piece'] }
 
 /**
  * "Take the tour" in Settings, for the one part of the app they chose: its walk
