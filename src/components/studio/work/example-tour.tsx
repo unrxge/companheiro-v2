@@ -442,7 +442,7 @@ export function ExampleTour({
           // view, and the start of what is being shown, which is read first.
           const overBottom = Math.max(0, r.y + r.h - (vh - ch - 14 - DOCK_ROW))
           const overTop = Math.max(0, ch + 14 - r.y)
-          c.dataset.edge = overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
+          c.dataset.edge = s.edge === 'bottom' ? 'bottom' : overBottom > 0 && overTop === 0 ? 'top' : 'bottom'
         } else if (r.w > vw * 0.62 && r.h > vh * 0.55) {
           // Nearly everything is lit (a first, wide look at a page): the words sit low and central, over it.
           const x = (vw - CARD_W) / 2
@@ -535,7 +535,7 @@ export function ExampleTour({
         style={{ position: 'fixed', inset: 0, zIndex: 300, cursor: 'default', touchAction: 'none' }}
       >
         {/* the screen, darkened everywhere but the lit window */}
-        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden>
+        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: step.bare ? 0 : 1, transition: 'opacity 420ms ease' }} aria-hidden>
           <defs>
             <mask id="tour-hole">
               <rect ref={shade} x="0" y="0" width="100%" height="100%" fill="white" />
@@ -548,7 +548,7 @@ export function ExampleTour({
             style={{ transition: 'fill 420ms ease' }}
           />
         </svg>
-        <div ref={ring} className="tour-ring" aria-hidden style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }} />
+        <div ref={ring} className="tour-ring" aria-hidden style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', opacity: step.bare ? 0 : 1, transition: 'opacity 420ms ease' }} />
 
         {/* the door to the room, pressed */}
         {pressing && <DoorPress />}

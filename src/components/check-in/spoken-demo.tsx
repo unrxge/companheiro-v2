@@ -15,6 +15,8 @@ import { type as typeRoles } from '@/lib/design-tokens'
 import { SPOKEN } from '@/lib/check-in-tour'
 
 const { tapMs: TAP_MS, wordMs: WORD_MS, settleMs: SETTLE_MS } = SPOKEN
+/** How long it records before the microphone folds away. */
+const MIC_AWAY_AFTER = 1500
 
 export function SpokenDemo({ words }: { words: string }) {
   const { t } = useTheme()
@@ -22,11 +24,15 @@ export function SpokenDemo({ words }: { words: string }) {
   const all = words.split(' ')
   const [heard, setHeard] = useState(reduce ? all.length : 0)
   const [phase, setPhase] = useState<'waiting' | 'recording' | 'done'>(reduce ? 'done' : 'waiting')
+  // The microphone appears as it is tapped and, once it is recording, folds away
+  // so the words have the room (and the caption never has to move out of their way).
+  const [micGone, setMicGone] = useState(reduce)
 
   useEffect(() => {
     if (reduce) return
     const timers: number[] = []
     timers.push(window.setTimeout(() => setPhase('recording'), TAP_MS))
+    timers.push(window.setTimeout(() => setMicGone(true), TAP_MS + MIC_AWAY_AFTER))
     all.forEach((_, i) => timers.push(window.setTimeout(() => setHeard(i + 1), TAP_MS + 300 + i * WORD_MS)))
     timers.push(window.setTimeout(() => setPhase('done'), TAP_MS + 300 + all.length * WORD_MS + SETTLE_MS))
     return () => timers.forEach(clearTimeout)
@@ -38,7 +44,12 @@ export function SpokenDemo({ words }: { words: string }) {
 
   return (
     <>
-      <div style={{ position: 'relative', width: 80, height: 80 }}>
+      <m.div
+        initial={reduce ? false : { opacity: 0, scale: 0.6, height: 80 }}
+        animate={micGone ? { opacity: 0, scale: 0.3, height: 0, marginBottom: -16 } : { opacity: 1, scale: 1, height: 80, marginBottom: 0 }}
+        transition={micGone ? { duration: 0.55, ease: [0.4, 0, 0.2, 1] } : { duration: 0.4, delay: 0.3, ease: 'easeOut' }}
+        style={{ position: 'relative', width: 80, overflow: micGone ? 'hidden' : 'visible', transformOrigin: 'center' }}
+      >
         {/* the tap, seen landing */}
         {phase === 'waiting' && !reduce && (
           <m.span
@@ -63,7 +74,7 @@ export function SpokenDemo({ words }: { words: string }) {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <MicButton recording={recording} onToggle={() => {}} size={80} />
         </div>
-      </div>
+      </m.div>
 
       <div style={{ height: 22, display: 'flex', alignItems: 'center', gap: 10 }}>
         <AnimatePresence mode="wait">

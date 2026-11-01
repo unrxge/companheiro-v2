@@ -571,6 +571,9 @@ export default function CheckInPage() {
         <SpokenDemo words={demo.typing} />
       ) : showingDemo && demo.typed ? (
         feelingSent ? null : <TypedDemo key="typed" text={demo.typed} onSent={() => setFeelingSent(true)} />
+      ) : showingDemo && (demoStage === 'reply' || demoStage === 'understood' || demoStage === 'added') ? (
+        // Between the examples' moments nothing waits to be pressed: no Voice and Type behind the card.
+        null
       ) : inputMode === null ? (
         <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="check-in-mode-picker">
           <m.button onClick={() => { setInputMode('mic'); startMicMode() }} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Check in by voice">
@@ -787,7 +790,7 @@ export default function CheckInPage() {
             {showingDemo && demo.scene && (
               <div data-tour="checkin-scene" style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                 <Pill hue={demo.scene === 1 ? 'tide' : 'ochre'} size="md">{SCENES[demo.scene].label}</Pill>
-                <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary }}>{SCENES[demo.scene].title}</span>
+                {SCENES[demo.scene].title && <span style={{ ...typeRoles.ui, fontSize: 15, color: t.textSecondary }}>{SCENES[demo.scene].title}</span>}
               </div>
             )}
             <div data-tour="checkin-thread">

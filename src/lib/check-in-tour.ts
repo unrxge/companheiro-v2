@@ -16,8 +16,8 @@ import type { NoteKind } from '@/lib/studio/board-items'
 
 /** One reflective exchange and one note, in invented words. */
 export const DEMO = {
-  feeling: 'Couldn’t sleep again. The presentation went fine, but I keep replaying the one question I fumbled.',
-  reply: 'It went fine, and the one moment that didn’t is the one you’re carrying to bed. What did you wish you’d said?',
+  feeling: 'I was at a dinner with eight people, laughing in all the right places, and I have never felt so alone at a table.',
+  reply: 'Surrounded, and still on the outside of it. What did you want someone at that table to notice?',
   aside: 'Add a reminder to my project “Orange Hours”: the deadline has been ramped to two weeks from now and Rita still needs to be looped in on the venue change.',
   note: { text: 'Loop Rita in on the venue change: the deadline has been ramped to two weeks from now.', kind: 'reminder' as NoteKind },
   project: { id: 'demo-orange-hours', title: 'The Orange Hours' },
@@ -44,7 +44,7 @@ export type DemoStage = 'start' | 'feeling' | 'reply' | 'aside' | 'understood' |
  */
 export const SCENES = {
   1: { label: 'Example 1 of 2', title: 'Checking in' },
-  2: { label: 'Example 2 of 2', title: 'A reminder on the go, for a project' },
+  2: { label: 'Example 2 of 2', title: '' },
 } as const
 
 /** What a stage puts on screen. */
@@ -87,9 +87,10 @@ export function checkInTourSteps(): TourStep[] {
       lines: ['Voice or Type. A sentence is enough.'],
     }),
     step({
-      key: 'feeling', stage: 'feeling', show: { anchor: ['checkin-scene', 'checkin-thread'] },
+      // The window takes in the box as the words are typed into it, and the conversation they become.
+      key: 'feeling', stage: 'feeling', show: { anchor: ['checkin-scene', 'checkin-thread', 'checkin-start'] },
       headline: 'First, checking in: just how you are.',
-      lines: ['A hard night, a good day, something you keep turning over.'],
+      lines: ['A hard night, a good day, a room full of people and still feeling alone.'],
     }),
     step({
       key: 'reply', stage: 'reply', show: { anchor: ['checkin-scene', 'checkin-thread'] },
@@ -97,17 +98,17 @@ export function checkInTourSteps(): TourStep[] {
       lines: ['Not advice. Something to see your own words by, if you want to keep going.'],
     }),
     step({
-      key: 'aside', stage: 'aside', show: { anchor: ['checkin-scene', 'checkin-start'] },
+      key: 'aside', stage: 'aside', show: { anchor: ['checkin-scene', 'checkin-start'] }, edge: 'bottom',
       headline: 'The same box takes what you need to remember, too.',
       lines: ['Something comes to you between two other things. Tap the mic and say it, and the project it is for.'],
     }),
     step({
-      key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] },
+      key: 'understood', stage: 'understood', show: { anchor: ['checkin-scene', 'checkin-note'] }, edge: 'bottom',
       headline: 'You see what it understood first.',
-      lines: ['A reminder, for The Orange Hours, in fewer words than you said it. Change any of it, or say it was a check-in.'],
+      lines: ['A reminder, for The Orange Hours, in fewer words than you said it. Change any of it before it is added.'],
     }),
     step({
-      key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] },
+      key: 'added', stage: 'added', show: { anchor: ['checkin-scene', 'checkin-added'] }, edge: 'bottom', bare: true,
       headline: 'It waits on that project’s canvas.',
       lines: ['The new deadline and Rita, like a note on the wall, there the next time you open it.'],
     }),

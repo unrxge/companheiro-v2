@@ -129,7 +129,7 @@ export function NoteOfferCard({
             Add it
           </QuietButton>
           <GhostButton size="sm" onClick={demo ? undefined : onLeave} disabled={busy}>Leave it</GhostButton>
-          <GhostButton size="sm" onClick={demo ? undefined : onCheckIn} disabled={busy}>It was a check-in</GhostButton>
+          {!demo && <GhostButton size="sm" onClick={onCheckIn} disabled={busy}>It was a check-in</GhostButton>}
         </div>}
         </div>
         {locked && (

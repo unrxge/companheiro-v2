@@ -124,6 +124,10 @@ export interface TourStep {
   gesture?: 'hold' | 'rest' | 'tap'
   /** On the check-in: which moment of the example conversation is on screen. */
   stage?: string
+  /** On a narrow screen the caption stays at the bottom for this step, however much it lights (it never hops to the top mid-step). */
+  edge?: 'bottom'
+  /** Nothing is dimmed or ringed: the caption alone, over the page as it is. */
+  bare?: boolean
   /** How long it takes to read at a calm pace (a sense of the walk's length; nothing waits on it). */
   ms: number
   /** How long what the page acts out in this step takes (a voice note being said, say): Next waits for it. */
