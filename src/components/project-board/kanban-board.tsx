@@ -784,7 +784,8 @@ function Board() {
           {COLUMNS.map(desktopColumn)}
         </div>
 
-        <div className="board-scroll min-[1080px]:hidden flex-1 overflow-y-auto px-4 py-3 pb-3">
+        {/* As tall as what is in it (it only scrolls when there is more than fits), so the examples follow it closely instead of being pushed to the foot of the screen. */}
+        <div className="board-scroll min-[1080px]:hidden overflow-y-auto px-4 py-3 pb-3" style={{ flex: '0 1 auto', minHeight: 0 }}>
           <div className="space-y-3">
             {activeTab === 'Queue' && renderDrafts()}
             {columns[activeTab].map((p) => renderCard(p, activeTab, false))}
