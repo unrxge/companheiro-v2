@@ -38,8 +38,8 @@ const CARD_W = 360
 const CARD_GAP = 28
 /** A phone's caption is a sheet about this tall: kept small, the canvas is what is being shown. */
 const SHEET_H = 168
-/** On a phone the Dock runs along the bottom; the caption stands this much higher to clear it. */
-const DOCK_ROW = 66
+/** The Dock steps away while a walk plays, so the caption needs no room for it. */
+const DOCK_ROW = 0
 /** The "+" menu hangs this far under its card, in board units, and is framed with it. */
 const MENU_BELOW = 330
 /** Around whatever is lit. */
@@ -364,6 +364,12 @@ export function ExampleTour({
     el.addEventListener('wheel', stop, { passive: false })
     el.addEventListener('touchmove', stop, { passive: false })
     return () => { el.removeEventListener('wheel', stop); el.removeEventListener('touchmove', stop) }
+  }, [])
+
+  // The Dock leaves while the walk is on (dock.tsx), and returns when it ends.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-walk-on', '')
+    return () => document.documentElement.removeAttribute('data-walk-on')
   }, [])
 
   // On a phone the caption stands over the bottom of the page, so the last of a
