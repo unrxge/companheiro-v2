@@ -672,7 +672,7 @@ function Board() {
       textDecoration: 'underline', textUnderlineOffset: 3,
     }
     return (
-      <section aria-label="Examples" className="pb-[calc(max(14px,env(safe-area-inset-bottom))+52px+8px)] min-[720px]:pb-3.5" style={{ paddingTop: 14, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
+      <section aria-label="Examples" className="pb-3 min-[720px]:pb-3.5" style={{ paddingTop: 14, borderTop: `1px solid ${c.divider}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 0 }}>
         <div style={{ padding: '0 16px', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 16px' }}>
           <h3 style={{ ...columnEyebrow, color: c.textMuted, marginRight: 'auto' }} className="min-[720px]:!mr-0">Examples</h3>
           <p className="hidden min-[720px]:block" style={{ fontSize: 12.5, color: c.textMuted, margin: 0, lineHeight: 1.5, flex: '1 1 260px' }}>
@@ -793,8 +793,8 @@ function Board() {
           {COLUMNS.map(desktopColumn)}
         </div>
 
-        {/* As tall as what is in it (it only scrolls when there is more than fits), so the examples follow it closely instead of being pushed to the foot of the screen. */}
-        <div className="board-scroll min-[1080px]:hidden overflow-y-auto px-4 py-3 pb-3" style={{ flex: '0 1 auto', minHeight: 0 }}>
+        {/* Takes the room that is left, so the examples stand at the foot of the board, just above the Dock (the page already keeps clear of it). */}
+        <div className="board-scroll min-[1080px]:hidden flex-1 overflow-y-auto px-4 py-3 pb-3" style={{ minHeight: 0 }}>
           <div className="space-y-3">
             {activeTab === 'Queue' && renderDrafts()}
             {columns[activeTab].map((p) => renderCard(p, activeTab, false))}
