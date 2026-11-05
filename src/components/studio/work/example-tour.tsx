@@ -366,6 +366,18 @@ export function ExampleTour({
     return () => { el.removeEventListener('wheel', stop); el.removeEventListener('touchmove', stop) }
   }, [])
 
+  // On a phone the caption stands over the bottom of the page, so the last of a
+  // page's content could never be scrolled clear of it. While a walk plays the
+  // page gets room at its foot to be scrolled up into the free space above.
+  useEffect(() => {
+    if (!narrow) return
+    const room = document.createElement('div')
+    room.setAttribute('aria-hidden', 'true')
+    room.style.cssText = `height:${SHEET_H + DOCK_ROW + 200}px;flex-shrink:0;pointer-events:none`
+    document.body.appendChild(room)
+    return () => room.remove()
+  }, [narrow])
+
   // ── the lit window, following whatever it points at every frame ───────────
   const hole = useRef<SVGRectElement | null>(null)
   const ring = useRef<HTMLDivElement | null>(null)
@@ -398,15 +410,19 @@ export function ExampleTour({
         const top = (atTop && sheet ? sheet.bottom + 8 : 0) + 12
         const bottom = (narrowRef.current && !atTop && sheet ? sheet.top - 8 : vh) - 12
         const room = bottom - top
-        const seen = Math.max(0, Math.min(target.y + target.h, bottom) - Math.max(target.y, top))
-        const out = seen < Math.min(target.h, room) * 0.8
+        // What is lit, with its glow: all of it inside the space the caption leaves
+        // when it fits there, and its start at the top when it is taller than that.
+        const lo = target.y - PAD
+        const hi = target.y + target.h + PAD
+        const fits = hi - lo <= room
+        const out = fits ? lo < top - 2 || hi > bottom + 2 : lo < top - 2 || lo > top + 40
         if (out !== wasOut) { wasOut = out; setOutOfFrame(out) }
         const t = performance.now()
         if (out && t - scrolledAt > 700) {
           scrolledAt = t
-          // Its top just under the free space's top when it is taller than the space; otherwise centred in it.
-          const want = target.h >= room ? top + 8 : top + (room - target.h) / 2
-          scrollerOf(els[0]).scrollBy({ top: target.y - want, behavior: reduce ? 'auto' : 'smooth' })
+          // Centred in the free space when it fits; otherwise its top just under the top of it.
+          const want = fits ? top + (room - (hi - lo)) / 2 : top + 8
+          scrollerOf(els[0]).scrollBy({ top: lo - want, behavior: reduce ? 'auto' : 'smooth' })
         }
       } else if (wasOut) { wasOut = false; setOutOfFrame(false) }
       if (target) {
