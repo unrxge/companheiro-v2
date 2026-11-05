@@ -28,6 +28,35 @@ function useInView(el: HTMLElement | null): boolean {
   return inView
 }
 
+/**
+ * Has the person just been reading down the page? The Dock on a phone used to
+ * stay away for as long as the header was off screen, so after a long check-in
+ * the only way out was scrolling all the way back up. Now it steps aside only
+ * while scrolling down, comes back on any small scroll up, and is always back
+ * at the foot of the page. Watches every scroller (pages that scroll inside a
+ * column too), since a scroll event does not bubble but can be caught.
+ */
+function useReadingDown(): boolean {
+  const [down, setDown] = useState(false)
+  useEffect(() => {
+    const last = new WeakMap<EventTarget, number>()
+    const onScroll = (e: Event) => {
+      const el = e.target === document ? document.scrollingElement : (e.target as Element | null)
+      if (!el || !(el instanceof Element)) return
+      const y = el.scrollTop
+      const prev = last.get(el) ?? y
+      last.set(el, y)
+      const atFoot = y + el.clientHeight >= el.scrollHeight - 48
+      if (atFoot) { setDown(false); return }
+      if (y - prev > 6) setDown(true)
+      else if (prev - y > 6) setDown(false)
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [])
+  return down
+}
+
 // ── PageShell ────────────────────────────────────────────────────────────────
 /**
  * Every screen starts here: atmosphere behind, a centred page column, the dock
@@ -51,6 +80,8 @@ export function PageShell({
 }) {
   const [header, setHeader] = useState<HTMLElement | null>(null)
   const headerInView = useInView(header)
+  const readingDown = useReadingDown()
+  const away = !headerInView && readingDown
   return (
     <div
       style={{
@@ -94,10 +125,10 @@ export function PageShell({
         }}
       >
         <HeaderSlot.Provider value={setHeader}>
-          <DockAway.Provider value={!headerInView}>{children}</DockAway.Provider>
+          <DockAway.Provider value={away}>{children}</DockAway.Provider>
         </HeaderSlot.Provider>
       </div>
-      {dock && <Dock inPage away={!headerInView} />}
+      {dock && <Dock inPage away={away} />}
     </div>
   )
 }
