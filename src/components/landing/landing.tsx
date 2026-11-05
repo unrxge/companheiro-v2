@@ -241,7 +241,7 @@ function Nav() {
         </a>
         <Link
           href={LOGIN}
-          className="rounded-full px-4 py-2 text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--fill)] hover:text-[var(--bone)]"
+          className="rounded-full bg-[var(--bone)] px-5 py-2 text-[14px] font-semibold text-[var(--ink)] transition-[transform,background-color] duration-300 hover:bg-white/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ember)]"
         >
           Log in
         </Link>
