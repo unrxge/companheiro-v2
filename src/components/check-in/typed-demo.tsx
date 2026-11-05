@@ -1,9 +1,10 @@
 'use client'
 
-// The walk's first example, typed: the box appears empty, the words are
-// typed into it a letter at a time with a caret, Send is pressed (seen), and
-// the box empties as the words go up into the conversation (`onSent`).
-// Shown, never typed into.
+// The walk's first example. Typed: the box appears empty and the words are
+// typed into it a letter at a time with a caret, and it stops there, Send
+// waiting. Sending (the next step): the words are already in the box, Send is
+// pressed (seen) and the box empties as they go up into the conversation
+// (`onSent`). Shown, never typed into.
 
 import { useEffect, useState } from 'react'
 import { motion as m, useReducedMotion } from 'motion/react'
@@ -11,19 +12,23 @@ import { useTheme } from '@/components/theme/theme-provider'
 import { PrimaryButton } from '@/components/ui/buttons'
 import { TYPED } from '@/lib/check-in-tour'
 
-export function TypedDemo({ text, onSent }: { text: string; onSent: () => void }) {
+export function TypedDemo({ text, onSent, send = false }: { text: string; onSent: () => void; /** Already typed: press Send and let the words go. */ send?: boolean }) {
   const { t } = useTheme()
   const reduce = useReducedMotion() ?? false
-  const [shown, setShown] = useState(reduce ? text.length : 0)
+  const [shown, setShown] = useState(reduce || send ? text.length : 0)
   const [pressing, setPressing] = useState(false)
 
   useEffect(() => {
-    if (reduce) { const id = window.setTimeout(onSent, 400); return () => clearTimeout(id) }
+    if (send) {
+      const timers = [
+        window.setTimeout(() => setPressing(true), reduce ? 100 : TYPED.pauseMs),
+        window.setTimeout(onSent, reduce ? 300 : TYPED.pauseMs + TYPED.sendMs),
+      ]
+      return () => timers.forEach(clearTimeout)
+    }
+    if (reduce) return
     const timers: number[] = []
     for (let i = 1; i <= text.length; i++) timers.push(window.setTimeout(() => setShown(i), TYPED.leadMs + i * TYPED.charMs))
-    const typedAt = TYPED.leadMs + text.length * TYPED.charMs
-    timers.push(window.setTimeout(() => setPressing(true), typedAt + 250))
-    timers.push(window.setTimeout(onSent, typedAt + TYPED.sendMs))
     return () => timers.forEach(clearTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, reduce])

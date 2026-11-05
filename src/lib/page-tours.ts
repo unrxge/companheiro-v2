@@ -17,7 +17,7 @@ import { typeOutMs } from '@/lib/type-out'
 
 /** What Home's walk types into the capture box, and the Idea Lab's walk summons. */
 export const HOME_CAPTURE_DEMO = { note: 'The way the street lights stay orange after the rain stops.', url: 'vimeo.com/night-ferry-short' }
-export const LAB_QUESTION_DEMO = 'Think of the summer you were happiest without knowing it. Where were you standing when the song came on that still stops your breath?'
+export const LAB_QUESTION_DEMO = 'Think of the summer you were happiest without knowing. What dreams and fears did you have that came to shape that moment of your life?'
 /** The Portrait walk's check-in is typed, and the pattern it leads to arrives a word at a time. */
 export const PORTRAIT_TYPE = { charMs: 22, leadMs: 400 }
 

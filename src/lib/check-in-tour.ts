@@ -26,10 +26,13 @@ export const DEMO = {
 /** The spoken example's timing: the tap, each word, and a moment to settle. */
 export const SPOKEN = { tapMs: 1100, wordMs: 230, settleMs: 900 }
 /** The first example is typed, a letter at a time, then sent; the reply then arrives a word at a time. */
-export const TYPED = { leadMs: 600, charMs: 26, sendMs: 650 }
-export const TYPED_MS = TYPED.leadMs + DEMO_FEELING_LEN() * TYPED.charMs + TYPED.sendMs
+export const TYPED = { leadMs: 600, charMs: 26, pauseMs: 500, sendMs: 650 }
+/** Typing it takes this long, and stops there: sending is the next step's. */
+export const TYPED_MS = TYPED.leadMs + DEMO_FEELING_LEN() * TYPED.charMs
+/** The next step presses Send (after a pause) and the words go up into the conversation. */
+export const SENT_MS = TYPED.pauseMs + TYPED.sendMs
 export const REPLY = { thinkMs: 1100, wordMs: 75 }
-export const REPLY_MS = REPLY.thinkMs + DEMO_REPLY_WORDS() * REPLY.wordMs
+export const REPLY_MS = SENT_MS + REPLY.thinkMs + DEMO_REPLY_WORDS() * REPLY.wordMs
 function DEMO_FEELING_LEN() { return DEMO.feeling.length }
 function DEMO_REPLY_WORDS() { return DEMO.reply.split(' ').length }
 /** How long the spoken example takes to say. */
@@ -53,8 +56,10 @@ export function demoShows(stage: DemoStage | null): {
   feeling: boolean
   reply: boolean
   typing: string | null
-  /** Being typed into the box, before it has been sent (the first example). */
+  /** Being typed into the box, and left there, not sent (the first example). */
   typed: string | null
+  /** Already in the box: Send is pressed and the words go up (the step after). */
+  sending: string | null
   offer: 'none' | 'offered' | 'added'
 } {
   const scene = stage === 'feeling' || stage === 'reply' ? 1
@@ -67,6 +72,7 @@ export function demoShows(stage: DemoStage | null): {
     // Being said, before it has been sent.
     typing: stage === 'aside' ? DEMO.aside : null,
     typed: stage === 'feeling' ? DEMO.feeling : null,
+    sending: stage === 'reply' ? DEMO.feeling : null,
     offer: stage === 'understood' ? 'offered' : stage === 'added' ? 'added' : 'none',
   }
 }

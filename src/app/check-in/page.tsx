@@ -536,20 +536,20 @@ export default function CheckInPage() {
   const replyWords = DEMO.reply.split(' ')
   const [feelingSent, setFeelingSent] = useState(false)
   const [replyShown, setReplyShown] = useState(0)
+  // Step one types the words and stops. The next presses Send, and once they
+  // have gone up the reply is thought about and arrives.
+  useEffect(() => { setFeelingSent(false); setReplyShown(0) }, [demoStage])
   useEffect(() => {
-    if (demoStage === 'feeling') { setFeelingSent(false); setReplyShown(0); return }
-    if (demoStage !== 'reply') return
-    setFeelingSent(true)
-    setReplyShown(0)
+    if (demoStage !== 'reply' || !feelingSent) return
     const timers = replyWords.map((_, i) => window.setTimeout(() => setReplyShown(i + 1), REPLY.thinkMs + i * REPLY.wordMs))
     return () => timers.forEach(clearTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoStage])
+  }, [demoStage, feelingSent])
   const demoMessages: Message[] = [
-    ...(demo.feeling && (demoStage !== 'feeling' || feelingSent) ? [{ role: 'user' as const, content: DEMO.feeling }] : []),
+    ...(demo.feeling && feelingSent ? [{ role: 'user' as const, content: DEMO.feeling }] : []),
     ...(demo.reply && replyShown > 0 ? [{ role: 'assistant' as const, content: replyWords.slice(0, replyShown).join(' ') }] : []),
   ]
-  const demoReplying = demoStage === 'reply' && replyShown < replyWords.length
+  const demoReplying = demoStage === 'reply' && feelingSent && replyShown < replyWords.length
   const demoOffer: NoteOffer | null = demo.offer === 'none' ? null : {
     id: 'demo', said: DEMO.aside, text: DEMO.note.text, kind: DEMO.note.kind, project_id: DEMO.project.id,
     state: demo.offer === 'added' ? 'added' : 'offered',
@@ -557,7 +557,7 @@ export default function CheckInPage() {
   const showingDemo = demoStage !== null
   const shownMessages = showingDemo ? demoMessages : messages
   const shownOffers = showingDemo ? (demoOffer ? [demoOffer] : []) : noteOffers
-  const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && (!!demo.typing || !!demo.typed))
+  const conversing = shownMessages.length > 0 || shownOffers.length > 0 || (showingDemo && (!!demo.typing || !!demo.typed || !!demo.sending))
 
   const { mood, intensity } = atmosphereFromCheckIns(signals ? [{ id: 'live', created_at: new Date().toISOString(), raw_entry: initialEntry, energy: signals.energy, inner_weather: signals.inner_weather, arc_texture: signals.arc_texture, temperament: signals.temperament ?? null }] : pastCheckIns)
   const hour = new Date().getHours()
@@ -570,7 +570,9 @@ export default function CheckInPage() {
       {showingDemo && demo.typing ? (
         <SpokenDemo words={demo.typing} />
       ) : showingDemo && demo.typed ? (
-        feelingSent ? null : <TypedDemo key="typed" text={demo.typed} onSent={() => setFeelingSent(true)} />
+        <TypedDemo key="typed" text={demo.typed} onSent={() => {}} />
+      ) : showingDemo && demo.sending ? (
+        feelingSent ? null : <TypedDemo key="sending" text={demo.sending} send onSent={() => setFeelingSent(true)} />
       ) : showingDemo && (demoStage === 'reply' || demoStage === 'understood' || demoStage === 'added') ? (
         // Between the examples' moments nothing waits to be pressed: no Voice and Type behind the card.
         null

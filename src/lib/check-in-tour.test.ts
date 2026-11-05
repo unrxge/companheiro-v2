@@ -10,20 +10,20 @@ test('every step names a stage, and the stages run in order', () => {
 })
 
 test('the two examples never share the screen', () => {
-  const none = { scene: null, feeling: false, reply: false, typing: null, typed: null, offer: 'none' }
+  const none = { scene: null, feeling: false, reply: false, typing: null, typed: null, sending: null, offer: 'none' }
   assert.deepEqual(demoShows(null), none)
   assert.deepEqual(demoShows('start'), none)
   // The first is typed into the box, not shown already written.
-  assert.deepEqual(demoShows('feeling'), { scene: 1, feeling: true, reply: false, typing: null, typed: DEMO.feeling, offer: 'none' })
-  assert.deepEqual(demoShows('reply'), { scene: 1, feeling: true, reply: true, typing: null, typed: null, offer: 'none' })
+  assert.deepEqual(demoShows('feeling'), { scene: 1, feeling: true, reply: false, typing: null, typed: DEMO.feeling, sending: null, offer: 'none' })
+  assert.deepEqual(demoShows('reply'), { scene: 1, feeling: true, reply: true, typing: null, typed: null, sending: DEMO.feeling, offer: 'none' })
   // The second example starts on a cleared page: nothing of the first is left.
   assert.equal(demoShows('aside').scene, 2)
   assert.equal(demoShows('aside').feeling, false)
   assert.equal(demoShows('aside').reply, false)
   // Said as being for a project, by name, so the name is not a mystery.
   assert.match(demoShows('aside').typing ?? '', /my project “Orange Hours”/)
-  assert.deepEqual(demoShows('understood'), { scene: 2, feeling: false, reply: false, typing: null, typed: null, offer: 'offered' })
-  assert.deepEqual(demoShows('added'), { scene: 2, feeling: false, reply: false, typing: null, typed: null, offer: 'added' })
+  assert.deepEqual(demoShows('understood'), { scene: 2, feeling: false, reply: false, typing: null, typed: null, sending: null, offer: 'offered' })
+  assert.deepEqual(demoShows('added'), { scene: 2, feeling: false, reply: false, typing: null, typed: null, sending: null, offer: 'added' })
   assert.deepEqual(demoShows('end'), none)
 })
 
